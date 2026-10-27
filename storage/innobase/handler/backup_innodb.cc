@@ -1,0 +1,2879 @@
+/* Copyright (c) 2026, MariaDB plc
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
+
+#include "my_global.h"
+#include "sql_class.h"
+#include "trx0trx.h"
+#include "buf0flu.h"
+#include "log0crypt.h"
+#include "dict0load.h"
+#include "backup_innodb.h"
+#ifdef WITH_WSREP
+# include "trx0rseg.h"
+# include "mysql/service_wsrep.h"
+# include "wsrep_api.h"
+#endif
+#include <vector>
+#ifdef __linux__
+# include <fcntl.h>
+# include <linux/falloc.h>
+#endif
+
+#ifdef POSIX_FADV_NOREUSE
+/**
+   Try to make an output file cache-friendly.
+   @param fd   file descriptor for which caching should be avoided
+*/
+static void cache_friendly(int fd) noexcept
+{
+  std::ignore= posix_fadvise(fd, 0, 0, POSIX_FADV_NOREUSE);
+}
+#else
+# define cache_friendly(f) do {} while (0)
+#endif
+
+#ifndef _WIN32
+/**
+   Create an unbuffered output file.
+   @param dirfd    backup target directory handle
+   @param name     file name
+   @param flags    O_WRONLY or O_RDWR
+   @return file handle
+   @retval -1 on error
+*/
+static int backup_file_create(int dirfd, const char *name, int flags= O_WRONLY)
+  noexcept
+{
+  ut_ad(flags == O_WRONLY || flags == O_RDWR);
+# ifdef O_DIRECT
+  flags|= O_CREAT | O_TRUNC;
+  int f= openat(dirfd, name, O_DIRECT | O_EXCL | flags, 0666);
+  if (f >= 0)
+    return f;
+  f= openat(dirfd, name, flags, 0666);
+# else
+  int f= openat(dirfd, name, O_CREAT | O_EXCL | O_TRUNC | flags, 0666);
+# endif
+  if (f >= 0)
+    cache_friendly(f);
+  return f;
+}
+#endif
+
+/**
+   Zero out the garbage tail of the last log block.
+   @param log     log file descriptor
+   @param offset  the difference of the last LSN and the first LSN in the file
+   @param bs_1    log_sys.write_size - 1
+   @return error code (non-positive)
+   @retval 0  on success
+*/
+static int backup_log_tail_clear(backup_fd log, uint64_t offset, uint bs_1)
+  noexcept
+{
+#ifdef _WIN32
+  using tpool::pread;
+#endif
+  ut_ad(bs_1 < log_sys.START_OFFSET);
+  ut_ad(bs_1 == log_sys.write_size - 1);
+  const size_t o{size_t(offset) & bs_1};
+  if (!o)
+    return 0;
+  /*
+    We must zero out the garbage part of the last log block.
+    Because the file may have been opened in O_DIRECT mode,
+    we must explicitly read-before-write.
+  */
+  offset+= log_sys.START_OFFSET - o;
+  size_t bs{bs_1 + 1};
+  int err{-1};
+  if (char *buf= static_cast<char*>(aligned_malloc(bs, bs)))
+  {
+    if (ssize_t(bs) == pread(log, buf, bs, offset))
+    {
+      memset(buf + o, 0, bs - o);
+#ifdef _WIN32
+      LARGE_INTEGER pos;
+      pos.QuadPart= offset;
+#endif
+      if (IF_WIN(SetFilePointerEx(log, pos, nullptr, FILE_BEGIN),
+                 offset == uint64_t(lseek(log, off_t(offset), SEEK_SET))))
+        err= backup_stream_write(log, buf, bs);
+    }
+    aligned_free(buf);
+  }
+  return err;
+}
+
+/** Associate a transaction with the current session
+@param thd   session
+@return InnoDB transaction */
+trx_t *check_trx_exists(THD *thd) noexcept;
+
+/** Try to write-fix a block.
+@param s  expected state()
+@return new s (right before potentially setting the write-fix);
+a write-fix was acquired if !is_freed(s) && !is_io_fixed(s) holds */
+inline uint32_t buf_page_t::write_fix_try(uint32_t s) noexcept
+{
+  /* The calling thread must hold a fix() */
+  ut_ad(s > FREED);
+  /*
+    set_freed(), set_reinit() or flush() may run concurrently.
+    compare_exchange_strong() ensures that the write-fix was set by us.
+  */
+  while (!is_freed(s) && !is_io_fixed(s) &&
+         !zip.fix.compare_exchange_strong(s, s + (WRITE_FIX - UNFIXED),
+                                          std::memory_order_acquire,
+                                          std::memory_order_relaxed));
+  return s;
+}
+
+/** Try to undo a successful write_fix_try(). */
+inline void buf_page_t::write_unfix_try() noexcept
+{
+  uint32_t s{state()};
+  /* set_freed() or set_reinit() may clear the write-fix before or
+  during this loop. We must use a compare-and-exchange loop. */
+  while (is_write_fixed(s) &&
+         !zip.fix.compare_exchange_weak(s, s - (WRITE_FIX - UNFIXED),
+                                        std::memory_order_relaxed,
+                                        std::memory_order_relaxed));
+}
+
+void fil_node_t::set_backup_name_low(char *name) noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  if (backup_name != name && backup_name != this->name)
+    ut_free(backup_name);
+  backup_name= name;
+}
+
+/**
+   Ensure that there are no page writes in progress.
+   @param end        array of batch_size block descriptors
+   @param space_id   tablespace identifier
+   @param end_page   last page number that is being copied
+   @param batch_size the backup batch size, in pages
+   @return pointer to the new end of the array, of write-fixed blocks
+*/
+static buf_page_t **innodb_backup_batch_wait(buf_page_t **end,
+                                             uint32_t space_id,
+                                             uint32_t end_page,
+                                             uint32_t batch_size) noexcept
+{
+  const page_id_t start{space_id, end_page & ~(batch_size - 1)};
+  ut_ad(end_page - 1 > start.page_no());
+  for (page_id_t id{space_id, end_page};; --id)
+  {
+    auto &chain= buf_pool.page_hash.cell_get(id.fold());
+    page_hash_latch &hash_lock{buf_pool.page_hash.lock_get(chain)};
+    hash_lock.lock_shared();
+    buf_page_t *const b= *end= buf_pool.page_hash.get(id, chain);
+    if (b && b->oldest_modification_acquire() > 2)
+    {
+      uint32_t state{b->fix()};
+      /* The above buffer-fix froze b in buf_pool.page_hash */
+      hash_lock.unlock_shared();
+      /*
+        We found out that this page was dirty, and eventually such pages
+        must be either freed or written back to the file system.
+
+        The lock-free buf_page_t::write_fix_try() aims to block
+        concurrent asynchronous buf_page_t::flush(). It will not
+        block any access to the page in the buffer pool; we are
+        not holding any page latch.
+      */
+      state= b->write_fix_try(state + 1);
+      if (UNIV_LIKELY(!b->is_io_fixed(state)))
+      {
+        if (UNIV_LIKELY(!b->is_freed(state)))
+        {
+          /* Schedule a call of b->write_unfix_try() and b->unfix(). */
+          end++;
+          goto next;
+        }
+        /*
+          Freed blocks will not be written back to the file system.
+          As noted in fil_space_t::flush_freed(), we do allow
+          concurrent FALLOC_FL_PUNCH_HOLE of PAGE_COMPRESSED pages
+          and NUL writes by immediate_scrub_data_uncompressed=ON
+          while the data is being backed up. This should be fine,
+          because those operations are only overwriting freed
+          (garbage) data.
+        */
+      }
+      else if (b->is_write_fixed(state))
+      {
+        /* Wait for buf_page_t::write_complete() */
+        b->lock.u_lock();
+        ut_ad(!b->is_io_fixed());
+        b->lock.u_unlock();
+      }
+
+      /*
+        Any subsequent write to this page will be held up by
+        fil_space_t::backup_page_end() until
+        fil_space_t::backup_stop() is invoked by
+        InnoDB_backup::backup_batch_stop().
+      */
+      b->unfix();
+    }
+    else
+      hash_lock.unlock_shared();
+  next:
+    if (id == start)
+      return end;
+  }
+}
+
+namespace
+{
+/** Backup state and context; mostly protected by log_sys.latch */
+class InnoDB_backup
+{
+public:
+  InnoDB_backup() { mutex.init(); }
+  ~InnoDB_backup() { mutex.destroy(); }
+
+private:
+  enum State {
+    /** no BACKUP SERVER is in progress */
+    IDLE,
+    /** BACKUP SERVER is active; checkpoint_complete() will fill the queue */
+    PROCESSING,
+    /** BACKUP SERVER is cleaning up, not protected by any MDL */
+    CLEANUP
+  };
+
+  /** log_tracking work item */
+  struct tracked_log
+  {
+    /** the next tracked log; protected by innodb_backup.mutex */
+    tracked_log *next{nullptr};
+    union
+    {
+      /** source file handle */
+      const os_file_t file;
+#ifdef HAVE_PMEM
+      /** source buffer */
+      const byte *buf;
+#endif
+    };
+    /** the LSN at log_sys.START_OFFSET */
+    const lsn_t first_lsn{};
+    /** the file size; protected by innodb_backup.mutex */
+    lsn_t file_size{};
+
+    /** Constructor */
+    tracked_log(os_file_t file, lsn_t first_lsn, lsn_t file_size) :
+      file(file), first_lsn(first_lsn), file_size(file_size) {}
+#ifdef HAVE_PMEM
+    /** Constructor */
+    tracked_log(const byte *buf, lsn_t first_lsn, lsn_t file_size) :
+      buf(buf), first_lsn(first_lsn), file_size(file_size) {}
+#endif
+  };
+
+  /** Backup context */
+  struct context
+  {
+    /** Start LSN of the first backed up log file */
+    const lsn_t first_lsn{};
+    /** Start LSN of the last log file, or LSN_MAX if not determined yet */
+    lsn_t max_first_lsn{};
+    /** Final LSN of the backup; 0 on error, LSN_MAX if not determined yet */
+    lsn_t last_lsn{};
+    /** Checkpoint at the start of the backup */
+    const lsn_t checkpoint{};
+    /** Log record pointing to the checkpoint */
+    const lsn_t checkpoint_end_lsn{};
+    /** size of the first log file */
+    const uint64_t first_size{};
+    /** the original innodb_log_file_size;
+    0 if innodb_log_archive was enabled */
+    const uint64_t old_size{};
+    /** the start LSN of the last hard-linked file, or 0 */
+    std::atomic<lsn_t> last_hardlink{};
+    /** a log file to remove on the next checkpoint when old_size!=0 */
+    Atomic_relaxed<lsn_t> garbage_lsn{};
+    /** if is_tracking(): the last copied LSN;
+    else: the last lsn that InnoDB_backup::enqueue() was invoked with */
+    lsn_t last_track_lsn{};
+    /** state of the operation */
+    Atomic_relaxed<State> state{IDLE};
+    /** backup batch size in pages */
+    const uint32_t BACKUP_BATCH_SIZE{};
+    /** maximum BACKUP_BATCH_SIZE */
+    static constexpr uint32_t BACKUP_BATCH_SIZE_MAX=
+      fil_space_t::backup_batch_size_max();
+    /** first log_track() target file handle */
+    os_file_t first_log_dst{};
+    /** log_track() target file handle */
+    os_file_t log_dst{};
+    /** log_track() queue */
+    tracked_log *tracked{};
+    /** backup target */
+    const backup_target *const target{};
+
+    static void destroy() noexcept;
+
+    /** @return whether we are copying the log in real time */
+    bool is_log_tracking() const noexcept { return log_dst != OS_FILE_CLOSED; }
+
+    /** @return pointer to last tracked log */
+    tracked_log *log_track_last() const noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(tracked);
+      tracked_log *t= tracked;
+      while (tracked_log *next= t->next)
+        t= next;
+      return t;
+    }
+
+    /** @return reference to the pointer to the end of the tracked log list */
+    tracked_log *&log_track_tail() noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(tracked);
+      tracked_log **next= &tracked;
+      while (*next)
+        next= &(*next)->next;
+      return *next;
+    }
+
+#ifdef UNIV_DEBUG
+    /** @return a tracked log file */
+    const tracked_log *is_log_tracking(os_file_t file) const noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(!log_sys.is_mmap());
+      for (tracked_log *t= tracked; t; t= t->next)
+        if (t->file == file)
+          return t;
+      return nullptr;
+    }
+# ifdef HAVE_PMEM
+    /** @return a tracked log buffer */
+    const tracked_log *is_log_tracking(const byte *buf) const noexcept
+    {
+      ut_ad(is_log_tracking());
+      ut_ad(log_sys.is_mmap_writeable());
+      for (tracked_log *t= tracked; t; t= t->next)
+        if (t->buf == buf)
+          return t;
+      return nullptr;
+    }
+# endif
+#endif
+
+    /**
+       Note that a log file was hard-linked.
+       @param lsn   start LSN of a hard-linked file
+    */
+    void note_hardlink(lsn_t lsn) noexcept
+    {
+      ut_ad(!is_log_tracking());
+      for (lsn_t last= last_hardlink.load(std::memory_order_relaxed);
+           last < lsn && !last_hardlink.
+             compare_exchange_weak(last, lsn,
+                                   std::memory_order_relaxed,
+                                   std::memory_order_relaxed); ) {}
+    }
+
+    /**
+       Delete a log file that is not needed.
+       @param lsn   first LSN of the file
+       @return whether the operation failed
+    */
+    static bool delete_log(lsn_t lsn) noexcept
+    {
+      try {
+        /*
+          The server was running with innodb_log_archive=OFF, and
+          we do not need this file.
+        */
+        std::string path{log_sys.get_archive_path(lsn)};
+        const char *p{path.c_str()};
+        if (IF_WIN(DeleteFile,!unlink)(p))
+          return false;
+        IF_WIN(my_osmaperr(GetLastError()),);
+        my_error(ER_CANT_DELETE_FILE, MYF(ME_ERROR_LOG), p, errno);
+      }
+      catch (std::bad_alloc&) {
+        my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      }
+      return true;
+    }
+
+    /**
+       Create a log file.
+       @param target  backup target
+       @param lsn     first LSN of the file
+       @return file handle
+       @retval OS_FILE_CLOSED on error
+    */
+    static os_file_t log_track_create(const backup_target &target, lsn_t lsn)
+      noexcept
+    {
+      try {
+#ifdef _WIN32
+        std::string path{target.path};
+        path.push_back('/');
+        log_sys.append_archive_name(path, lsn);
+        HANDLE log=
+          CreateFile(path.c_str(), GENERIC_WRITE, 0, my_win_file_secattr(),
+                     CREATE_NEW,
+                     FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, nullptr);
+        if (log != INVALID_HANDLE_VALUE)
+          return log;
+#else
+        std::string path{};
+        log_sys.append_archive_name(path, lsn);
+        return backup_file_create(target.fd, path.c_str(), O_RDWR);
+#endif
+        my_error(ER_CANT_CREATE_FILE, MYF(ME_ERROR_LOG),
+                 path.c_str(), errno);
+      }
+      catch (std::bad_alloc&) {
+        my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      }
+      return OS_FILE_CLOSED;
+    }
+
+    /** Ensure that the last, hard-linked log file is not shared with
+    the server data directory, by copying it until the final LSN
+    @param hl        last_hardlink
+    @return error code
+    @retval 0 on success
+    */
+    ATTRIBUTE_COLD int de_hardlink(lsn_t hl) noexcept try
+    {
+      ut_ad(!is_log_tracking());
+#ifdef _WIN32
+      std::string src{target->path};
+      src.push_back('/');
+      std::string dst{src};
+      src.append("ib_logfile101");
+      log_sys.append_archive_name(dst, hl);
+      const char *const s_{src.c_str()}, *const d_{dst.c_str()};
+      if (!MoveFileEx(d_, s_, 0))
+      {
+        my_osmaperr(GetLastError());
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), d_, s_, errno);
+        return 1;
+      }
+      HANDLE s, d;
+      for (;;)
+      {
+        s= CreateFile(s_, GENERIC_READ,
+                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                      my_win_file_secattr(), OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                      nullptr);
+        if (s != INVALID_HANDLE_VALUE)
+          break;
+        switch (GetLastError()) {
+        case ERROR_SHARING_VIOLATION:
+        case ERROR_LOCK_VIOLATION:
+          Sleep(10);
+          continue;
+        }
+        my_osmaperr(GetLastError());
+        my_error(ER_FILE_NOT_FOUND, MYF(ME_ERROR_LOG), s_, errno);
+        return 1;
+      }
+      d= CreateFile(d_, GENERIC_WRITE, 0, my_win_file_secattr(),
+                    CREATE_NEW,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, nullptr);
+      if (d == INVALID_HANDLE_VALUE)
+      {
+      error_return:
+        my_osmaperr(GetLastError());
+        std::ignore= CloseHandle(s);
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), s_, d_, errno);
+        return 1;
+      }
+#else
+      std::string dst;
+      log_sys.append_archive_name(dst, hl);
+      const char *const d_{dst.c_str()};
+      int d{-1};
+      int err= ER_FILE_NOT_FOUND;
+      int s= openat(target->fd, d_, O_RDONLY);
+      if (s == -1)
+      {
+      error_return:
+        my_error(err, MYF(ME_ERROR_LOG), d_, errno);
+        if (s != -1)
+          std::ignore= close(s);
+        return 1;
+      }
+      err= ER_CANT_DELETE_FILE;
+      if (unlinkat(target->fd, d_, 0))
+        goto error_return;
+      err= ER_CANT_CREATE_FILE;
+      d= backup_file_create(target->fd, d_, O_RDWR);
+      if (d < 0)
+        goto error_return;
+#endif
+      const uint64_t offset{last_lsn - hl};
+      const uint64_t end{log_sys.START_OFFSET + ((offset + 4095) & ~4095ULL)};
+      int f{extend(d, std::max<uint64_t>(log_sys.FILE_SIZE_MIN, end))};
+      if (!f)
+      {
+        const uint bs_1{log_sys.write_size - 1};
+        const uint64_t begin= log_sys.START_OFFSET +
+          (hl == first_lsn) * ((checkpoint - hl) & ~uint64_t{bs_1});
+#ifdef copy_file_shortcut
+        if (1 == (f= copy_file_shortcut(s, d, begin, end)))
+#endif
+        f= backup::copy(s, d, begin, end);
+        if (!f)
+          f= backup_log_tail_clear(d, offset, bs_1);
+        if (!f && hl == first_lsn)
+          f= write_checkpoint(d, checkpoint_end_lsn - hl +
+                              log_sys.START_OFFSET);
+      }
+      if (IF_WIN(!CloseHandle(d), close(d)) | f)
+        goto error_return;
+      std::ignore= IF_WIN(CloseHandle(s), close(s));
+#ifdef _WIN32
+      if (!DeleteFile(s_))
+      {
+        my_osmaperr(GetLastError());
+        my_error(ER_CANT_DELETE_FILE, MYF(ME_ERROR_LOG), s_, errno);
+        return 1;
+      }
+#endif
+      return 0;
+    }
+    catch (std::bad_alloc&)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+      return 1;
+    }
+
+    /**
+       Finish a backup.
+       @param sink    backup worker context
+       @return error code
+       @retval 0 on success
+    */
+    int cleanup(const backup_sink &sink) noexcept
+    {
+      int fail{0};
+      ut_ad(state == CLEANUP);
+      const lsn_t hl{last_hardlink.load(std::memory_order_relaxed)};
+      if (hl != LSN_MAX)
+      {
+        /* abort() had not been invoked for this backup; finish it */
+        if (hl) /* hl==0 if we had is_log_tracking() before closing log_dst */
+        {
+          log_sys.latch.rd_lock();
+          const lsn_t current_first_lsn{log_sys.get_first_lsn()};
+          log_sys.latch.rd_unlock();
+          ut_ad(hl != current_first_lsn || sink.stream == sink.NO_STREAM);
+
+          if (hl == current_first_lsn ||
+              (last_lsn < current_first_lsn && sink.stream == sink.NO_STREAM))
+            fail= de_hardlink(hl);
+        }
+
+        if (!fail)
+          fail= write_config(*target, sink);
+      }
+      destroy(); /* unblock init() */
+      return fail;
+    }
+  };
+
+  /** backup context */
+  context ctx;
+
+  /** mutex protecting queue, non_log, and non-const ctx members */
+  srw_mutex mutex;
+
+  /** collection of files and sizes, followed by log to replicate() */
+  std::vector<uint64_t> queue;
+
+  /** number of non-log files at the start of the queue */
+  Atomic_relaxed<size_t> non_log;
+
+public:
+  /**
+     Start of BACKUP SERVER: collect all files to be backed up
+     @param thd     current session
+     @param target  backup target
+     @param sink    backup coordinator context
+     @return &ctx
+     @retval -1 on failure
+  */
+  void *init(THD *thd, const backup_target &target, const backup_sink &sink)
+    noexcept
+  {
+    log_sys.latch.wr_lock();
+    while (ctx.state != IDLE)
+    {
+      /* A previous BACKUP SERVER has not reached context::cleanup(). */
+      log_sys.latch.wr_unlock();
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      log_sys.latch.wr_lock();
+    }
+
+    ut_d(mutex.wr_lock());
+    ut_ad(!non_log);
+    ut_ad(queue.empty());
+    ut_d(mutex.wr_unlock());
+    uint64_t old_size;
+
+    if (log_sys.backup_start(&old_size, thd))
+    {
+      log_sys.latch.wr_unlock();
+      return reinterpret_cast<void*>(-1);
+    }
+
+    const lsn_t first_lsn{log_sys.get_first_lsn()};
+    lsn_t last_track_lsn{0}, start_end;
+    const lsn_t start=
+#if 1 /* TODO: for incremental backup, allow the start to be specified */
+      log_sys.get_latest_checkpoint(start_end);
+#else
+    log_sys.archived_checkpoint;
+    start_end= log_sys.archived_lsn;
+#endif
+    ut_ad(start_end >= start);
+    ut_ad(start >= log_sys.get_first_lsn());
+
+    backup_fd log_dst{OS_FILE_CLOSED};
+    tracked_log *tracked{nullptr};
+
+    if (!sink.id)
+      /* log_track() cannot work in single-threaded mode */;
+    else if (sink.stream != sink.NO_STREAM)
+      /* log_track() is not applicable to streaming backup */;
+    else
+    {
+      do
+      {
+        try {
+#ifdef HAVE_PMEM
+          if (log_sys.is_mmap())
+            tracked=
+              new tracked_log{log_sys.buf, first_lsn, log_sys.file_size};
+          else
+#endif
+          {
+            os_file_t f{log_sys.log.m_file}, l{log_sys.resize_log.m_file};
+            if (l == f)
+              /* log_t::write_checkpoint() is in progress */
+              l= OS_FILE_CLOSED;
+            else if (l != OS_FILE_CLOSED)
+            {
+              /*
+                log_t::archive_new_write() was invoked and not yet
+                completed by log_t::write_checkpoint()
+              */
+              ut_ad(log_sys.get_lsn() >
+                    log_sys.get_first_lsn() + log_sys.capacity());
+              std::swap(f, l);
+            }
+
+            cache_friendly(f);
+#ifdef POSIX_FADV_SEQUENTIAL
+            std::ignore= posix_fadvise(f, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+            tracked=
+              new tracked_log{f, first_lsn, log_sys.file_size};
+
+            if (l != OS_FILE_CLOSED)
+            {
+              cache_friendly(l);
+#ifdef POSIX_FADV_SEQUENTIAL
+              std::ignore= posix_fadvise(l, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+              tracked->next= new tracked_log{l, first_lsn + log_sys.capacity(),
+                                             uint64_t
+                                             (IF_WIN(os_file_get_size(l),
+                                                     lseek(l, 0, SEEK_END)))};
+            }
+          }
+          log_dst= context::log_track_create(target, first_lsn);
+          if (IF_WIN(log_dst != INVALID_HANDLE_VALUE, log_dst >= 0))
+            continue;
+        }
+        catch (std::bad_alloc&) {
+          my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+        }
+        log_sys.backup_stop(old_size, thd);
+        if (tracked)
+        {
+          delete tracked->next;
+          delete tracked;
+        }
+        return reinterpret_cast<void*>(-1);
+      }
+      while (false);
+      last_track_lsn= start;
+#ifdef HAVE_PMEM
+      if (!log_sys.is_mmap())
+#endif
+        /* Round down to the start of a log block. */
+        last_track_lsn-= (start - first_lsn) & (log_sys.write_size - 1);
+    }
+
+    mutex.wr_lock();
+    ut_ad(!non_log);
+    ut_ad(queue.empty());
+    ut_ad(ctx.state == IDLE);
+
+    try
+    {
+      new (&ctx) context{
+        first_lsn, LSN_MAX, LSN_MAX, start, start_end,
+        log_sys.file_size, old_size, 0, 0, last_track_lsn, PROCESSING,
+        fil_space_t::backup_batch_size(),
+        log_dst, log_dst, tracked, &target
+      };
+
+      ut_ad(ctx.BACKUP_BATCH_SIZE);
+      ut_ad(ut_is_2pow(ctx.BACKUP_BATCH_SIZE));
+      ut_ad(ctx.BACKUP_BATCH_SIZE <= ctx.BACKUP_BATCH_SIZE_MAX);
+
+      /* Collect all tablespaces that have been created before our
+      start checkpoint. Newer tablespaces will be recovered by the
+      innodb_log_archive=ON recovery.
+
+      If a tablespace is deleted before step() is invoked, the file
+      will not be copied, and a FILE_DELETE record in the log will
+      ensure correct recovery.
+
+      If a tablespace is renamed between this and end(), the recovery
+      of a FILE_RENAME record will ensure the correct file name,
+      no matter which name was used by step(). */
+      mysql_mutex_lock(&fil_system.mutex);
+      for (fil_space_t &space : fil_system.space_list)
+      {
+        if (space.id >= SRV_SPACE_ID_UPPER_BOUND)
+          continue;
+        const bool created_by_log{space.create_lsn > start};
+        if ((!created_by_log || srv_is_undo_tablespace(space.id)) &&
+            !space.is_being_imported() && !space.is_stopping()) try
+        {
+          UT_LIST_GET_FIRST(space.chain)->set_backup_name();
+          /* FIXME: how to initialize create_lsn for old files, to
+          have efficient incremental backup?
+          fil_node_t::read_page0() cannot assign it from
+          FIL_PAGE_LSN because that would not reflect the file
+          creation but for example allocating or freeing a page.
+          Perhaps we can read it from page 1 (change buffer bitmap),
+          which is currently unused?
+
+          The easy parts of initializing space.create_lsn are
+          as follows:
+          (1) In log_parse_file() when processing FILE_CREATE
+          (2) In deferred_spaces.create()
+          (3) In fil_ibd_create() outside recovery */
+
+          const uint32_t size= created_by_log
+            ? /*
+                Work around MDEV-39694 by copying the first page of
+                tablespaces subject to innodb_undo_log_truncate=ON,
+                because we currently write no FILE_ records for them.
+              */ 1
+            : std::min(space.size, space.free_limit);
+          queue.emplace_back(uint64_t{space.id} | uint64_t{size} << 32);
+        } catch(...) { mysql_mutex_unlock(&fil_system.mutex); throw; }
+      }
+      mysql_mutex_unlock(&fil_system.mutex);
+      non_log= queue.size();
+    }
+    catch (std::bad_alloc&) { goto fail; }
+
+    mutex.wr_unlock();
+    log_sys.latch.wr_unlock();
+    DEBUG_SYNC(thd, "innodb_backup_start");
+    return &ctx;
+
+  fail:
+    queue.clear();
+    mutex.wr_unlock();
+    log_sys.backup_stop(old_size, thd);
+    ctx.destroy();
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    return reinterpret_cast<void*>(-1);
+  }
+
+  /**
+     Process a file that was collected at init().
+     This may be invoked from multiple concurrent threads.
+     @param target  backup target
+     @param sink    backup worker context
+     @return number of files remaining, or negative on error
+     @retval 0 on completion
+  */
+  int step(const backup_target &target,
+#ifndef NDEBUG
+           backup_stages stage, /*!< backup stage */
+#endif
+           const backup_sink &sink) noexcept
+  {
+    ut_ad(&ctx == sink.ha_data);
+    ut_ad(*ctx.target == target);
+    ut_ad(ctx.state != IDLE);
+    if (ctx.is_log_tracking() && !sink.id)
+      return log_track();
+    uint64_t id_limit{0};
+    mutex.wr_lock();
+    assert(ctx.last_lsn != LSN_MAX || stage == BACKUP_START);
+    size_t size{queue.size()};
+    const size_t non_log_files{non_log};
+    ut_ad(size >= non_log_files);
+
+    if (UNIV_UNLIKELY(ctx.last_lsn == 0))
+    {
+      /* An error was flagged. */
+      size= size_t(-1);
+      /* Interrupt log_track(). */
+      ctx.last_lsn= 0;
+      my_error(ER_UNKNOWN_ERROR, MYF(0));
+    done:
+      mutex.wr_unlock();
+      return int(size);
+    }
+
+    if (UNIV_UNLIKELY(!size))
+      goto done;
+
+    if (size == non_log_files)
+      non_log= non_log_files - 1;
+    id_limit= queue.back();
+    queue.pop_back();
+    mutex.wr_unlock();
+
+    int res= int(std::min(size_t{std::numeric_limits<int>::max()}, size - 1));
+
+    if (size > non_log_files)
+    {
+      log_sys.latch.rd_lock();
+      const lsn_t first{log_sys.get_first_lsn()};
+      const lsn_t last_checkpoint{log_sys.last_checkpoint_lsn};
+      log_sys.latch.rd_unlock();
+      if (UNIV_UNLIKELY(id_limit > first || last_checkpoint < first))
+        /*
+          Wait for checkpoint_complete(). The log must be safe to move
+          from the server data directory in case ctx.old_size != 0.
+        */
+        buf_flush_sync_batch(id_limit, true);
+      if (replicate(id_limit, target, sink, id_limit < first))
+        res= -1;
+    }
+    else
+    {
+      assert(stage == BACKUP_START);
+      mysql_mutex_lock(&fil_system.mutex);
+      if (fil_space_t *space{fil_space_get_by_id(uint32_t(id_limit))})
+      {
+        const char *const backup_name=
+          UT_LIST_GET_FIRST(space->chain)->get_backup_name();
+        const bool acquired{space->acquire_if_not_stopped()};
+        mysql_mutex_unlock(&fil_system.mutex);
+
+        if (acquired)
+          if (int err= backup_space(target, *space, sink, backup_name,
+                                    uint32_t(id_limit >> 32)))
+          {
+            ut_ad(err < 0);
+            res= err;
+          }
+      }
+      else
+        mysql_mutex_unlock(&fil_system.mutex);
+    }
+
+    if (UNIV_UNLIKELY(res < 0))
+    {
+      /* Interrupt log_track(). */
+      mutex.wr_lock();
+      ctx.last_lsn= 0;
+      mutex.wr_unlock();
+    }
+
+    return res;
+  }
+
+#ifdef HAVE_PMEM
+  /**
+     Copy a file using a memory mapping.
+     @param p    map to source file
+     @param dst  destination
+     @param o    start offset
+     @param end  last offset (exclusive)
+     @param bs_1 log_sys.write_size - 1
+     @return error code (non-positive)
+     @retval 0  on success
+  */
+  static int mmap_copy(const void *p, int dst, uint64_t o, uint64_t end,
+                       uint bs_1)
+    noexcept
+  {
+    o&= ~uint64_t{bs_1};
+    end= (end + bs_1) & ~uint64_t{bs_1};
+    size_t c= size_t(end - o);
+    ssize_t ret;
+    for (const char *b= static_cast<const char*>(p) + o;;
+         b+= ret, o+= uint64_t(ret))
+    {
+      const size_t size{std::min(c, size_t(INT_MAX >> 20 << 20))};
+      if ((ret= pwrite(dst, b, size, off_t(o))) < 0)
+        return int(ret);
+      c-= ret;
+      if (!c)
+        break;
+      if (!ret)
+        return -1;
+    }
+    return 0;
+  }
+#endif
+
+  /**
+     Copy the log in real time.
+     @return error code (never positive)
+     @retval 0 on success
+  */
+  int log_track() noexcept
+  {
+    ut_ad(ctx.is_log_tracking());
+    for (;;)
+    {
+      int err{-1};
+      lsn_t write_lsn;
+      lsn_t last;
+      const uint bs_1{log_sys.write_size - 1};
+#ifdef HAVE_PMEM
+      if (log_sys.is_mmap())
+      {
+        write_lsn= log_get_lsn();
+        mutex.wr_lock();
+        last= ctx.last_lsn;
+        switch (last) {
+        case 0:
+          goto err_exit;
+        case LSN_MAX:
+          break;
+        default:
+          write_lsn= last;
+        }
+      }
+      else
+#endif
+      {
+        log_sys.latch.rd_lock();
+        write_lsn= log_sys.write_lsn;
+        mutex.wr_lock();
+        log_sys.latch.rd_unlock();
+        last= ctx.last_lsn;
+        switch (last) {
+        case 0:
+        err_exit:
+          mutex.wr_unlock();
+          my_error(ER_UNKNOWN_ERROR, MYF(0));
+          return err;
+        default:
+          if (write_lsn >= last)
+          {
+            write_lsn= last;
+            if (uint adjust= uint(last - ctx.tracked->first_lsn) & bs_1)
+              write_lsn+= bs_1 + 1 - adjust;
+            break;
+          }
+          /* fall through */
+        case LSN_MAX:
+          /* Round down to the start of a block. */
+          write_lsn-= uint(write_lsn - ctx.tracked->first_lsn) & bs_1;
+          break;
+        }
+      }
+
+      ut_ad(!ctx.last_hardlink.load(std::memory_order_relaxed));
+      const tracked_log &tracked{*ctx.tracked};
+      const lsn_t lsn=
+        std::min(write_lsn,
+                 tracked.first_lsn + tracked.file_size - log_sys.START_OFFSET);
+      const lsn_t prev{ctx.last_track_lsn};
+      ut_ad(prev >= tracked.first_lsn);
+      ut_ad(prev <= lsn);
+      ut_ad(prev <= last);
+      ctx.last_track_lsn= lsn;
+      const lsn_t first{tracked.first_lsn - log_sys.START_OFFSET};
+      mutex.wr_unlock();
+      const uint64_t begin{prev - first}, end{lsn - first};
+#ifdef HAVE_PMEM
+      if (log_sys.is_mmap())
+        err= mmap_copy(tracked.buf, ctx.log_dst, begin, end, bs_1);
+      else
+#endif
+      {
+        ut_ad(!(uint(begin) & bs_1));
+        ut_ad(!(uint(end) & bs_1));
+#ifdef copy_file_shortcut
+        if (1 == (err= copy_file_shortcut(tracked.file,
+                                          ctx.log_dst, begin, end)))
+#endif
+          err= backup::copy(tracked.file, ctx.log_dst, begin, end);
+      }
+      ut_ad(err <= 0);
+
+      log_sys.latch.rd_lock();
+      const lsn_t log_first_lsn{log_sys.first_lsn};
+      mutex.wr_lock();
+      ut_ad(ctx.tracked == &tracked);
+      ut_ad(tracked.first_lsn == first + log_sys.START_OFFSET);
+
+      if (err)
+      {
+        log_sys.latch.rd_unlock();
+      flag_error:
+        ctx.last_lsn= 0;
+        goto err_exit;
+      }
+
+      do
+      {
+        if (end != tracked.file_size);
+        else if (tracked_log *tail= tracked.next)
+        {
+          ut_ad(tail->first_lsn > tracked.first_lsn);
+#ifdef HAVE_PMEM
+          if (log_sys.is_mmap())
+          {
+            log_sys.latch.rd_unlock();
+            /*
+              Tracked memory-mapped buffers can only be added by init()
+              or checkpoint_complete_pmem(). In both cases, the
+              log_sys.first_lsn will be associated with that buffer.  If
+              we are switching to another log file, the just completed
+              one must be for something earlier than log_sys.first_lsn.
+            */
+            ut_ad(tracked.first_lsn < log_first_lsn);
+            ut_ad(tail->buf != tracked.buf);
+            ut_ad(tracked.buf != log_sys.resize_buf);
+            ut_ad(tracked.buf != log_sys.buf);
+            ut_ad(tracked.buf != log_sys.checkpoint_buf);
+            my_munmap(const_cast<byte*>(tracked.buf), tracked.file_size);
+          }
+          else
+#endif
+          {
+            os_file_t file{tracked.file};
+            ut_ad(tail->file != file);
+            const bool owned_by_us= tracked.first_lsn < log_first_lsn &&
+              /*
+                When log.write() in log_t::write_checkpoint() is pending,
+                we have file == log_sys.resize_log.m_file.
+              */
+              (tail->first_lsn < log_first_lsn ||
+               file != log_sys.resize_log.m_file);
+
+            if (!owned_by_us)
+            {
+              ut_ad(file == log_sys.resize_log.m_file ||
+                    file == log_sys.log.m_file);
+              /* At most two innodb_log_archive=ON files can be active. */
+              ut_ad(!tail->next);
+              file= OS_FILE_CLOSED;
+              /*
+                We copied a previous log before the first checkpoint had
+                been completed in the current log_sys.log file, which had
+                been registered by archive_create(). The previous log will
+                be closed by checkpoint_complete().
+              */
+              ut_ad(tracked.first_lsn == log_first_lsn ||
+                    tail->first_lsn == log_first_lsn);
+            }
+            else
+            {
+              ut_ad(file != log_sys.resize_log.m_file);
+              if (file == log_sys.log.m_file)
+              {
+                /* The log file from init() was not disowned by log_sys. */
+                ut_ad(tracked.first_lsn == ctx.first_lsn);
+                file= OS_FILE_CLOSED;
+              }
+            }
+
+            log_sys.latch.rd_unlock();
+            if (file != OS_FILE_CLOSED)
+              /* Close the file, because we owned it. */
+              err= IF_WIN(-!CloseHandle,close)(file);
+          }
+
+          /* Move to the next file */
+          delete ctx.tracked;
+          ctx.tracked= tail;
+          {
+            const os_file_t dst{ctx.log_dst};
+            ctx.log_dst= OS_FILE_CLOSED;
+            if (dst != ctx.first_log_dst)
+              err= IF_WIN(-!CloseHandle,close)(dst);
+          }
+          if (err)
+          {
+            try {
+              my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+                       log_sys.get_archive_path(tracked.first_lsn).c_str(),
+                       errno);
+            } catch (std::bad_alloc&) {}
+            goto flag_error;
+          }
+          err= -1;
+          ctx.log_dst= context::log_track_create(*ctx.target, tail->first_lsn);
+          if (IF_WIN(ctx.log_dst == INVALID_HANDLE_VALUE, ctx.log_dst < 0))
+            goto flag_error;
+          continue;
+        }
+
+        log_sys.latch.rd_unlock();
+      }
+      while (false);
+
+#ifdef LOG_LATCH_DEBUG
+      ut_ad(!log_sys.latch_have_any());
+#endif
+      ut_ad(lsn != last || !non_log);
+      ut_ad(lsn != last || queue.empty());
+
+      mutex.wr_unlock();
+
+      if (lsn >= last)
+      {
+        /* The log copying finishes at or after the commit() LSN. */
+        err= backup_log_tail_clear(ctx.log_dst, last - tracked.first_lsn, bs_1);
+
+        if (!err)
+          err= extend_log(ctx.log_dst, end);
+
+        {
+          const os_file_t first_log_dst{ctx.first_log_dst};
+          if (ctx.log_dst != first_log_dst &&
+              IF_WIN(!CloseHandle,close)(ctx.log_dst))
+            err= -1;
+          ctx.log_dst= OS_FILE_CLOSED;
+          if (!err)
+            err= write_checkpoint(first_log_dst,
+                                  ctx.checkpoint_end_lsn - ctx.first_lsn +
+                                  log_sys.START_OFFSET);
+          if (IF_WIN(!CloseHandle,close)(first_log_dst))
+            err= -1;
+          ctx.first_log_dst= OS_FILE_CLOSED;
+        }
+
+        return err;
+      }
+
+      lsn_t wait_lsn= last;
+
+      if (wait_lsn == LSN_MAX)
+      {
+        /*
+          As long as some data files are being copied, it makes sense
+          to keep copying the log in reasonable-sized increments.
+        */
+        wait_lsn= log_get_lsn();
+
+        if (!non_log)
+          return 0;
+
+        if (wait_lsn - lsn < 1U << 20)
+        {
+          /* Wait for some more log to be written. */
+          std::this_thread::sleep_for(std::chrono::milliseconds(200));
+          wait_lsn= log_get_lsn();
+          if (!non_log)
+            return 0;
+        }
+      }
+
+      /* Ensure that we can copy what we need. */
+      log_write_up_to(wait_lsn, false);
+    }
+  }
+
+#ifdef HAVE_PMEM
+  /** Complete the first checkpoint in a new memory-mapped archive log file. */
+  void checkpoint_complete_pmem() noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    ut_ad(log_sys.is_mmap());
+    ut_ad(log_sys.is_mmap_writeable());
+    byte *const c{log_sys.checkpoint_buf};
+    ut_ad(c);
+    log_sys.checkpoint_buf= nullptr;
+
+    mutex.wr_lock();
+    if (ctx.state != PROCESSING || !ctx.last_lsn || !ctx.is_log_tracking())
+    {
+    unmap:
+      mutex.wr_unlock();
+      my_munmap(c, lseek(log_sys.resize_log.m_file, 0, SEEK_END));
+      return;
+    }
+
+    try {
+      ut_ad(!ctx.is_log_tracking(log_sys.buf));
+      ut_d(const tracked_log *t= ctx.is_log_tracking(c));
+      ut_ad(t);
+      ut_ad(t->file_size ==
+            lsn_t(lseek(log_sys.resize_log.m_file, 0, SEEK_END)));
+
+      ctx.log_track_tail()=
+        new tracked_log{log_sys.buf, log_sys.first_lsn, log_sys.file_size};
+    } catch (std::bad_alloc&) { ctx.last_lsn= 0; goto unmap; }
+
+    mutex.wr_unlock();
+  }
+#endif
+
+  /**
+     Determine the logical time of the backup snapshot.
+     @return whether the operation failed
+  */
+  bool commit() noexcept
+  {
+    log_sys.latch.wr_lock();
+    mutex.wr_lock();
+    ut_ad(!non_log);
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(ctx.max_first_lsn == LSN_MAX || ctx.is_log_tracking());
+    if (ctx.last_lsn == 0)
+    {
+      log_sys.latch.wr_unlock();
+      mutex.wr_unlock();
+      return true;
+    }
+    ut_ad(ctx.last_lsn == LSN_MAX);
+    const lsn_t last_lsn{log_sys.get_lsn()};
+    lsn_t first{log_sys.get_first_lsn()};
+    if (!ctx.is_log_tracking())
+    {
+      ut_ad(ctx.last_track_lsn <= first);
+      /* Schedule the remaining log for copying */
+      enqueue(first);
+      const lsn_t next_lsn{first + log_sys.capacity()};
+      if (next_lsn < last_lsn)
+        enqueue(first= next_lsn);
+      goto added;
+    }
+    else
+    {
+      ut_ad(ctx.is_log_tracking());
+      ut_ad(ctx.last_track_lsn <= last_lsn);
+    added:
+      ctx.last_lsn= last_lsn;
+      ctx.max_first_lsn= first;
+    }
+
+    log_sys.latch.wr_unlock();
+    mutex.wr_unlock();
+    /*
+      Ensure that all data will be available. Some might only reside
+      in log_sys.buf. A durable write is not necessary, because a
+      system crash will make the backup unusable.
+    */
+    log_write_up_to(last_lsn, false);
+    return false;
+  }
+
+  /**
+     Enable SET GLOBAL innodb_log_archive, innodb_log_file_size.
+     @param thd     current session
+  */
+  ATTRIBUTE_NOINLINE void backup_stop(THD *thd) noexcept
+  {
+    ut_ad(!non_log);
+    ut_ad(ctx.state == PROCESSING);
+    ctx.state= CLEANUP; /* Unsubscribe from checkpoint_complete() */
+    const uint64_t old_size{ctx.old_size};
+    mutex.wr_unlock();
+    /* Enable SET GLOBAL innodb_log_archive, innodb_log_file_size */
+    log_sys.backup_stop(old_size, thd);
+  }
+
+  /**
+     Abort the backup.
+     @param thd     current session
+     @param sink    backup worker context
+     @return 0 (always)
+  */
+  ATTRIBUTE_COLD int abort(THD *thd, const backup_sink &sink) noexcept
+  {
+    if (!sink.ha_data)
+      /* init() must have failed; we have nothing to do */
+      return 0;
+    ut_ad(&ctx == static_cast<context*>(sink.ha_data));
+    log_sys.latch.wr_lock();
+    mutex.wr_lock();
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(!log_sys.resize_in_progress());
+    ut_ad(log_sys.archive);
+    ctx.last_lsn= 0;
+
+    /* inform cleanup() that we will clean up */
+    ctx.last_hardlink.store(LSN_MAX, std::memory_order_relaxed);
+
+    if (!ctx.old_size)
+    {
+      /*
+        The server was running with innodb_log_archive=ON.
+        There is nothing to clean up other than the incomplete backup,
+        which the operator might want to check before deleting.
+      */
+      non_log= 0;
+      queue.clear();
+    }
+    else
+    {
+      log_sys.latch.wr_unlock();
+      mutex.wr_unlock();
+      std::ignore= log_sys.backup_stop_archiving(nullptr);
+      log_sys.latch.wr_lock();
+      mutex.wr_lock();
+      delete_logs();
+    }
+
+    backup_stop(thd);
+    return 0;
+  }
+
+  /**
+     Clean up after releasing locks.
+     @param thd     current session
+     @param sink    backup worker context
+     @return error code
+     @retval 0 on success
+  */
+  void *finish_start(THD *thd, const backup_sink &sink) noexcept
+  {
+    if (!sink.ha_data)
+      return nullptr; /* init() must have failed; nothing to do */
+    void *ret{&ctx};
+    ut_ad(ret == static_cast<context*>(sink.ha_data));
+    mutex.wr_lock();
+    ut_ad(!non_log);
+    if (ctx.state == CLEANUP)
+    {
+      /* abort() must have been called already */
+      ut_ad(queue.empty());
+      mutex.wr_unlock();
+      return &ctx;
+    }
+
+    ut_ad(!log_sys.resize_in_progress());
+    ut_ad(log_sys.archive);
+    ut_ad(ctx.state == PROCESSING);
+
+    const uint64_t old_size{ctx.old_size};
+    mutex.wr_unlock();
+
+    /* Restore innodb_log_archive as it was before init() */
+    if (old_size != 0 && log_sys.backup_stop_archiving(thd))
+      ret= reinterpret_cast<void*>(-1);
+
+    log_sys.latch.wr_lock();
+    mutex.wr_lock();
+    ut_ad(log_sys.get_first_lsn() >= ctx.max_first_lsn);
+
+    backup_stop(thd);
+    return ret;
+  }
+
+  /**
+     Clean up after finish_start().
+     @param target  backup target
+     @param sink    backup worker context
+     @return error code
+     @retval 0 on success
+  */
+  int finish_end(const backup_target &target, const backup_sink &sink) noexcept
+  {
+    ut_ad(!sink.ha_data || &ctx == static_cast<context*>(sink.ha_data));
+    ut_ad(!sink.ha_data || &target == ctx.target);
+    return sink.ha_data ? ctx.cleanup(sink) : 0;
+  }
+
+  /**
+     Complete the first checkpoint in a new archive log file.
+     @param lsn  the start LSN of the old archive log file
+  */
+  void checkpoint_complete(lsn_t lsn) noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    const os_file_t log{log_sys.resize_log.m_file};
+    ut_ad(log != OS_FILE_CLOSED);
+    uint64_t delete_file{0};
+    int error_on_close{0};
+
+    mutex.wr_lock();
+    if (ctx.state != PROCESSING)
+    {
+      if ((lsn= ctx.garbage_lsn))
+      {
+        ut_ad(ctx.state == CLEANUP);
+        goto unlink_old;
+      }
+    }
+    else if (lsn > ctx.last_lsn)
+      /*
+        We got commit() or an error (ctx.last_lsn==0). Delete if we
+        had innodb_log_archive=OFF at the start of BACKUP SERVER.
+      */
+      delete_file= ctx.old_size;
+    else if (ctx.is_log_tracking())
+    {
+      ut_ad(ctx.last_track_lsn < LSN_MAX);
+      delete_file= ctx.old_size;
+# ifdef HAVE_PMEM
+      if (!log_sys.is_mmap())
+# endif
+      {
+        /*
+          archive_create() filters out log files created after the
+          logical end time of a backup, or after the backup has been
+          aborted (ctx.last_lsn == 0).
+        */
+        ut_ad((log_sys.first_lsn <= ctx.last_lsn) ==
+              !!ctx.is_log_tracking(log_sys.log.m_file));
+        const bool disown{ctx.tracked && ctx.tracked->first_lsn <= lsn};
+        ut_ad(disown == !!ctx.is_log_tracking(log_sys.resize_log.m_file));
+
+        if (disown)
+          /*
+            Detach the file handle from log_sys and make it
+            exclusively owned by ctx.tracked, to be closed by
+            log_track() or context::destroy().
+          */
+          log_sys.resize_log.m_file= OS_FILE_CLOSED;
+
+        /*
+          If !disown, archive_create() registered and log_track()
+          already copied this log; checkpoint_complete() will
+          exclusively own the log and must close the handle.
+        */
+      }
+    }
+    else if (ctx.last_lsn == LSN_MAX)
+      /* commit() was not invoked yet */
+      enqueue(lsn);
+
+    if (!delete_file)
+    {
+      mutex.wr_unlock();
+      /* Make the previous archived log file read-only */
+#ifdef _WIN32
+      try {
+        SetFileAttributesA(log_sys.get_archive_path(lsn).c_str(),
+                           FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
+      } catch (std::bad_alloc&) {}
+#else
+      struct stat st;
+      if (!fstat(log, &st))
+        st.st_mode&= 0444;
+      else
+        st.st_mode= 0444;
+      error_on_close= fchmod(log, st.st_mode);
+#endif
+    }
+    else if (log_sys.last_checkpoint_lsn < log_sys.first_lsn)
+    {
+      for (size_t i{non_log}; i < queue.size(); i++)
+        if (lsn == queue[i])
+          /* context::delete_logs() will clean this up */
+          goto will_unlink;
+
+      {
+        const lsn_t l{ctx.garbage_lsn};
+        ctx.garbage_lsn= lsn;
+        /*
+          Our ctx.garbage_lsn will be processed by a subsequent
+          unlink_old: or context::destroy().
+        */
+        if (l)
+        {
+          /* Delete the previously buffered garbage log file. */
+          lsn= l;
+          goto unlink_old;
+        }
+      }
+    will_unlink:
+      mutex.wr_unlock();
+    }
+    else
+    {
+    unlink_old:
+      ut_ad(lsn < log_sys.first_lsn);
+      mutex.wr_unlock();
+      context::delete_log(lsn);
+    }
+
+    if (UNIV_LIKELY(log_sys.resize_log.m_file != OS_FILE_CLOSED))
+    {
+      ut_ad(log_sys.resize_log.m_file == log);
+      log_sys.resize_log.m_file= OS_FILE_CLOSED;
+      error_on_close|= IF_WIN(!CloseHandle,close)(log);
+    }
+    if (error_on_close)
+      try {
+        my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
+                 log_sys.get_archive_path(lsn).c_str(), errno);
+      }
+      catch (std::bad_alloc&) {}
+  }
+
+  /**
+     Register log_sys.log
+     @param lsn         first_lsn of log_sys.log
+     @param file_size   size of log_sys.log
+  */
+  ATTRIBUTE_COLD void archive_create(lsn_t lsn, lsn_t file_size) noexcept
+  {
+    ut_ad(log_sys.latch_have_any());
+    if (ctx.state == PROCESSING)
+    {
+      mutex.wr_lock();
+      if (ctx.state != PROCESSING || ctx.last_lsn < lsn);
+#ifdef HAVE_PMEM
+      else if (log_sys.is_mmap())
+      {
+        if (!ctx.is_log_tracking())
+          enqueue(log_sys.first_lsn);
+      }
+#endif
+      else if (ctx.is_log_tracking())
+        try {
+          ut_ad(ctx.is_log_tracking(log_sys.resize_log.m_file));
+          ut_ad(!ctx.is_log_tracking(log_sys.log.m_file));
+          ut_ad(ctx.tracked->first_lsn < lsn);
+          ctx.log_track_tail()=
+            new tracked_log{log_sys.log.m_file, lsn, file_size};
+        }
+        catch (std::bad_alloc&) { ctx.last_lsn= 0; }
+      mutex.wr_unlock();
+    }
+  }
+
+  /**
+     Notify that log_sys.log was extended to log_sys.resize_target
+     @param lsn         first_lsn of log_sys.log
+  */
+  ATTRIBUTE_COLD void archive_extend(lsn_t lsn) noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    const lsn_t size{log_sys.resize_target};
+
+    if (ctx.state == PROCESSING &&
+#ifdef HAVE_PMEM
+        !log_sys.is_mmap() &&
+#endif
+        true)
+    {
+      mutex.wr_lock();
+      if (ctx.state == PROCESSING && ctx.last_lsn > lsn &&
+          ctx.is_log_tracking())
+      {
+        tracked_log *last{ctx.log_track_last()};
+        ut_ad(last);
+        ut_ad(last->first_lsn == lsn);
+        ut_ad(last->file == log_sys.log.m_file);
+        ut_ad(last->file_size < size);
+        last->file_size= size;
+      }
+      mutex.wr_unlock();
+    }
+    sql_print_warning("InnoDB: Adjusting innodb_log_file_size=" LSN_PF "k",
+                      size >> 10);
+  }
+
+  /** @return whether log-tracking backup is in progress */
+  bool is_log_tracking() noexcept
+  {
+    mutex.wr_lock();
+    const bool tracked{ctx.is_log_tracking()};
+    mutex.wr_unlock();
+    return tracked;
+  }
+
+private:
+  /**
+     Append a log file to the queue.
+     @param lsn   the first_lsn of the log file
+  */
+  void enqueue(lsn_t lsn) noexcept
+  {
+    ut_ad(ctx.state == PROCESSING);
+    ut_ad(ctx.last_lsn);
+    ut_ad(!ctx.is_log_tracking());
+    if (ctx.last_track_lsn < lsn)
+    {
+      ctx.last_track_lsn= lsn;
+      try { queue.emplace_back(lsn); }
+      catch (std::bad_alloc&) { ctx.last_lsn= 0; }
+    }
+  }
+
+  /**
+     Process a tablespace that was collected at init().
+     This may be invoked from multiple concurrent threads.
+     @param target  backup target
+     @param space   tablespace
+     @param sink    backup worker context
+     @param name    tablespace file name as it was at init()
+     @return error code (non-positive)
+     @retval 0 on completion
+  */
+  int backup_space(const backup_target &target, fil_space_t &space,
+                   const backup_sink &sink, const char *name,
+                   uint32_t limit) noexcept
+  {
+    ut_ad(ctx.state == PROCESSING);
+    int res;
+    uint32_t start{0};
+    fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
+    if (UNIV_LIKELY(name != nullptr))
+    {
+      if (sink.stream == sink.NO_STREAM && FSP_FLAGS_HAS_DATA_DIR(space.flags))
+      {
+        /*
+          In BACKUP SERVER TO, the DATA DIRECTORY source
+          would be identical to the destination.
+          Streaming backup (BACKUP SERVER WITH) would work.
+        */
+        my_error(ER_CANT_CREATE_FILE, MYF(0), name, EEXIST);
+        res= -1;
+      }
+#ifdef _WIN32
+      else if (sink.stream == sink.NO_STREAM)
+      {
+        for (;;)
+        {
+          if ((res= backup(target.path, node, name, start, limit)))
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          ut_ad(&space == fil_system.sys_space);
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+          name= node->name;
+        }
+      }
+      else
+      {
+        for (;;)
+        {
+          if ((res= stream(sink.stream, node, name, start, limit)))
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          ut_ad(&space == fil_system.sys_space);
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+          name= node->name;
+        }
+      }
+#else
+      else
+      {
+        int fd= sink.stream;
+        int (*method)(int, fil_node_t *, const char *, uint32_t, uint32_t);
+        if (fd == sink.NO_STREAM)
+        {
+          fd= target.fd;
+          method= backup;
+        }
+        else
+          method= stream;
+# ifdef HAVE_POSIX_FALLOCATE
+        if (limit & 3 && !UT_LIST_GET_NEXT(chain, node))
+        {
+          const uint32_t page_size{space.physical_size()};
+          if ((limit * page_size) & 4095)
+            /*
+              os_file_set_size() extends ROW_FORMAT=COMPRESSED files to
+              multiples of 4096 bytes. There may be up to 3 pages
+              (of 1024 bytes) that have not been written out yet.
+              We must cap the limit to the actual file size.
+            */
+            limit=
+              std::min(limit,
+                       uint32_t(os_file_get_size(node->handle) / page_size));
+        }
+# endif
+        for (;;)
+        {
+          cache_friendly(node->handle);
+#ifdef POSIX_FADV_SEQUENTIAL
+          std::ignore=
+            posix_fadvise(node->handle, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+          res= (*method)(fd, node, name, start, limit);
+#ifdef POSIX_FADV_NORMAL
+          std::ignore=
+            posix_fadvise(node->handle, 0, 0, POSIX_FADV_NORMAL);
+#endif
+          if (res)
+            break;
+          fil_node_t *next= UT_LIST_GET_NEXT(chain, node);
+          if (!next)
+            break;
+          ut_ad(&space == fil_system.sys_space);
+          const uint32_t size{node->size};
+          start+= size;
+          if (limit >= size)
+            limit-= size;
+          else
+            limit= 0;
+          node= next;
+          name= node->name;
+        }
+      }
+#endif
+      mysql_mutex_lock(&fil_system.mutex);
+      node->clear_backup_name();
+      mysql_mutex_unlock(&fil_system.mutex);
+    }
+    else
+    {
+      /* This should be ALTER TABLE ... IMPORT TABLESPACE */
+      ut_ad(space.create_lsn >= ctx.checkpoint /* completed */ ||
+            space.is_being_imported() /* started after init() */);
+      res= 0;
+    }
+    space.release();
+    ut_ad(res <= 0);
+    return res;
+  }
+
+  /**
+     Safely start backing up a tablespace file.
+     @param end      array of BACKUP_BATCH_SIZE block descriptors
+     @param space    tablespace that is being backed up
+     @param end_page first page not to copy
+     @return pointer to the new end of the array, of write-fixed blocks
+     @retval nullptr if the tablespace is being dropped
+  */
+  static buf_page_t **backup_batch_start(buf_page_t **end,
+                                         fil_space_t *space, uint32_t end_page)
+    noexcept;
+  /**
+     Stop backing up a tablespace.
+     @param space   tablespace
+     @param begin   first write-fixed block descriptor
+     @param end     end of write-fixed block descriptors
+  */
+  static void backup_batch_stop(fil_space_t *space,
+                                buf_page_t **begin, buf_page_t **end) noexcept
+  {
+    while (begin != end)
+    {
+      buf_page_t *b= *begin++;
+      b->write_unfix_try();
+      b->unfix();
+    }
+    space->backup_stop();
+  }
+
+  /**
+     Extend a file to a minimum size.
+     @param f     file handle
+     @param size  minimum file size
+     @return error code
+     @retval 0 on success
+  */
+  static int extend(backup_fd f, uint64_t min_size) noexcept
+  {
+#ifdef _WIN32
+    LARGE_INTEGER li;
+    li.QuadPart= min_size;
+    return !SetFilePointerEx(f, li, nullptr, FILE_BEGIN) || !SetEndOfFile(f);
+#else
+    return ftruncate(f, off_t(min_size));
+#endif
+  }
+
+  /**
+     Extend a log file to a minimum size.
+     @param f     file handle
+     @param end   file offset after the payload
+     @return error code
+     @retval 0 on success
+  */
+  static int extend_log(backup_fd f, uint64_t end) noexcept
+  {
+    return extend(f, std::max<uint64_t>(log_sys.FILE_SIZE_MIN,
+                                        (end + 4095) & ~4095ULL));
+  }
+
+  /**
+     Delete unnecessary logs that had been created for backup.
+  */
+  void delete_logs() noexcept
+  {
+    ut_ad(log_sys.latch_have_wr());
+    ut_ad(ctx.old_size);
+    ut_ad(non_log <= queue.size());
+
+    const lsn_t first_lsn{log_sys.get_first_lsn()};
+    size_t i{non_log};
+    non_log= 0;
+    try
+    {
+      while (i < queue.size())
+      {
+        const lsn_t lsn{queue[i++]};
+        if (lsn != first_lsn)
+          ctx.delete_log(lsn);
+      }
+    }
+    catch (std::bad_alloc&) {}
+    queue.clear();
+  }
+
+#ifdef copy_file_shortcut
+  /**
+     Try copy_file_shortcut() to back up a persistent InnoDB data file.
+     @param dst          target file handle
+     @param node         InnoDB data file
+     @param start        the page number at the start of the file
+     @param limit        the size of the file before the doublewrite buffer
+     @param page_size    node->space->physical_size()
+     @param final_limit  the size of the file at init(), or 0 if no dblwr
+     @param blocks       descriptor array of BACKUP_BATCH_SIZE
+     @return error code
+     @retval 0 on success
+     @retval 1 if the operation is not supported
+     @retval 2 if the tablespace is being dropped
+  */
+  static int copy_file_shortcut_try(int dst, fil_node_t *node,
+                                    uint32_t start, uint32_t limit,
+                                    uint32_t page_size, uint32_t final_limit,
+                                    buf_page_t **blocks)
+    noexcept;
+#endif
+
+  /**
+     Back up a persistent InnoDB data file.
+     @param target backup target directory
+     @param node   InnoDB data file
+     @param name   node->name at init()
+     @param start  the page number at the start of the file
+     @param limit  the size of the file at init()
+     @return error code (non-positive)
+     @retval 0 on success
+  */
+  static int backup(IF_WIN(const char *,int) target, fil_node_t *node,
+                    const char *name,
+                    uint32_t start, uint32_t limit) noexcept;
+
+  /**
+     Stream a persistent InnoDB data file.
+     @param stream backup target stream
+     @param node   InnoDB data file
+     @param name   node->name at init()
+     @param start  the page number at the start of the file
+     @param limit  the size of the file at init()
+     @return error code (non-positive)
+     @retval 0 on success
+  */
+  static int stream(backup_fd stream, fil_node_t *node, const char *name,
+                    uint32_t start, uint32_t limit) noexcept;
+
+private:
+  /**
+     Initialize a checkpoint header buffer pointing to the start of the backup.
+     @param buf   checkpoint buffer
+     @param c     offset of the FILE_CHECKPOINT mini-transaction
+  */
+  static void write_checkpoint_buf(uint64_t *buf, uint64_t c) noexcept
+  {
+    ut_ad(c >= log_sys.START_OFFSET);
+    if (log_sys.is_encrypted())
+      log_crypt_write_header(reinterpret_cast<byte*>(buf), true);
+    buf[4 * log_sys.is_encrypted()]= my_htobe64(c);
+  }
+
+  /** Write a checkpoint header pointing to the start of the backup.
+  @param dst   target file
+  @param c     offset of the FILE_CHECKPOINT mini-transaction
+  @return error code
+  @retval 0 on success */
+  static int write_checkpoint(backup_fd dst, uint64_t c) noexcept
+  {
+    int ret{-1};
+    size_t size{log_sys.write_size};
+    ut_ad(size <= log_sys.START_OFFSET);
+    if (char *buf= static_cast<char*>(aligned_malloc(size, size)))
+    {
+      memset_aligned<512>(buf, 0, size);
+      write_checkpoint_buf(reinterpret_cast<uint64_t*>(buf), c);
+      ret= backup_stream_write(dst, buf, size);
+      aligned_free(buf);
+    }
+
+    return ret;
+  }
+
+public:
+  /** Maximum length of the configuration string */
+  static constexpr size_t CONFIG_SIZE=
+#ifdef WITH_WSREP
+    sizeof "# wsrep_uuid=" + 40 +
+    sizeof "# wsrep_seqno=" + 20 +
+    sizeof "# wsrep_domain=" + 10 +
+#endif
+    sizeof "[server]\n# checkpoint=" + 20 +
+    sizeof "innodb_log_recovery_start=" + 20 +
+    sizeof "innodb_log_recovery_target=\n" + 20;
+
+  /**
+     Write the configuration parameters for restoring the backup
+     @param config  buffer for configuration string
+     @param ctx     backup context
+     @return size of the configuration string
+  */
+  static size_t write_config_buf(char *config, const context &ctx)
+    noexcept
+  {
+    ut_ad(ctx.last_lsn != LSN_MAX);
+#ifdef WITH_WSREP
+    /* this is based on xb_write_galera_info(), not tested yet */
+    XID xid;
+    if (trx_rseg_read_wsrep_checkpoint(xid))
+    {
+      wsrep_uuid_t uuid;
+      char uuid_str[40];
+      memcpy(uuid.data, wsrep_xid_uuid(&xid), sizeof(uuid.data));
+      if (wsrep_uuid_print(&uuid, uuid_str, sizeof uuid_str) >= 0)
+      {
+        return size_t(snprintf(config, CONFIG_SIZE,
+                               "[server]\n# checkpoint=" LSN_PF "\n"
+                               "innodb_log_recovery_start=" LSN_PF "\n"
+                               "innodb_log_recovery_target=" LSN_PF "\n"
+                               "# wsrep_uuid=%s\n"
+                               "# wsrep_seqno=%lld\n"
+                               "# wsrep_domain=%" PRIu32 "\n",
+                               ctx.checkpoint, ctx.checkpoint_end_lsn,
+                               ctx.last_lsn,
+                               uuid_str,
+                               wsrep_xid_seqno(&xid),
+                               wsrep_get_domain_id()));
+      }
+    }
+#endif
+
+    return size_t(snprintf(config, CONFIG_SIZE,
+                           "[server]\n# checkpoint=" LSN_PF "\n"
+                           "innodb_log_recovery_start=" LSN_PF "\n"
+                           "innodb_log_recovery_target=" LSN_PF "\n",
+                           ctx.checkpoint, ctx.checkpoint_end_lsn,
+                           ctx.last_lsn));
+  }
+
+  /**
+     Write the configuration parameters for restoring the backup
+     @param target  backup target
+     @param sink    backup worker context
+     @param ctx     backup context
+     @return error code (non-positive)
+     @retval 0   on success
+  */
+  static int write_config(const backup_target &target,
+                          const backup_sink &sink) noexcept
+  {
+    char config[CONFIG_SIZE];
+    const size_t size
+      {write_config_buf(config, *static_cast<context*>(sink.ha_data))};
+    ut_ad(size <= CONFIG_SIZE);
+    return sink.stream == sink.NO_STREAM
+      ? backup_config_append(IF_WIN(target.path, target.fd), config, size)
+      : backup_stream_config(sink.stream, config, size);
+  }
+
+  /**
+     Hard-link (copy) or rename (move) or stream an archive log file.
+     @param lsn       The first LSN in the file
+     @param target    backup target
+     @param sink      backup context
+     @param old       lsn < log_sys.get_first_lsn()
+     @return error code
+     @retval 0 on success
+  */
+  static int replicate(lsn_t lsn,
+                       const backup_target &target,
+                       const backup_sink &sink, bool old) noexcept try
+  {
+    ut_ad(log_get_lsn() >= lsn);
+    const std::string p{log_sys.get_archive_path(lsn)};
+    const char *const path= p.c_str(), *basename= strrchr(path, '/');
+    if (!basename)
+      basename= path;
+    else
+      basename++;
+    context &ctx{*static_cast<context*>(sink.ha_data)};
+    const bool move{old && ctx.old_size};
+    uint64_t c{0};
+#ifdef _WIN32
+    ut_ad(!target.path == (sink.stream != sink.NO_STREAM));
+    std::string b;
+    const char *destname= nullptr;
+    if (!target.path)
+      goto send_file;
+    b= target.path;
+    b.push_back('/');
+    b.append(basename);
+    destname= b.c_str();
+    unsigned long err;
+    if (move)
+    {
+      if (!MoveFileEx(path, destname, MOVEFILE_COPY_ALLOWED))
+      {
+      fail:
+        err= GetLastError();
+      got_err:
+        my_osmaperr(err);
+        if (target.path)
+          my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename,
+                   errno);
+        else
+          my_error(ER_IO_WRITE_ERROR, MYF(ME_ERROR_LOG),
+                   errno, strerror(errno), "BACKUP SERVER");
+        return -1;
+      }
+
+      if (lsn <= ctx.checkpoint)
+      {
+        if (!SetFileAttributes(destname, FILE_ATTRIBUTE_NORMAL))
+          goto fail;
+        HANDLE dh= CreateFile(destname, GENERIC_WRITE,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                              OPEN_EXISTING,
+                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
+                              nullptr);
+        if (dh == INVALID_HANDLE_VALUE)
+          goto fail;
+        if (os_file_set_sparse_win32(dh))
+          std::ignore=
+            os_file_punch_hole(dh, 0, log_sys.START_OFFSET +
+                               ((ctx.checkpoint - lsn) & ~4095ULL));
+        if (write_checkpoint(dh, ctx.checkpoint_end_lsn - lsn +
+                             log_sys.START_OFFSET) | !CloseHandle(dh))
+          goto fail;
+      }
+      return 0;
+    }
+    else if (CreateHardLink(destname, path, nullptr))
+    {
+      ctx.note_hardlink(lsn);
+      return 0;
+    }
+
+    if ((err= GetLastError()) != ERROR_NOT_SAME_DEVICE)
+      goto got_err;
+    /* Hard-linking failed. Try copying with the final name. */
+    if (target.path)
+    {
+      b= target.path;
+      b.push_back('/');
+      b.append(basename);
+      destname= b.c_str();
+
+      if (lsn > ctx.checkpoint && lsn < ctx.max_first_lsn)
+      {
+        /* Copy a middle log file entirely. */
+        while (!CopyFileEx(path, basename, nullptr, nullptr, nullptr,
+                           COPY_FILE_NO_BUFFERING))
+          switch (GetLastError()) {
+          default:
+            goto fail;
+          case ERROR_SHARING_VIOLATION:
+          case ERROR_LOCK_VIOLATION:
+            Sleep(10);
+          }
+        return 0;
+      }
+    }
+
+  send_file:
+    HANDLE src;
+    for (;;)
+    {
+      src= CreateFile(path, GENERIC_READ,
+                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                      my_win_file_secattr(), OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN,
+                      nullptr);
+      if (src != INVALID_HANDLE_VALUE)
+        break;
+      switch (GetLastError()) {
+      case ERROR_SHARING_VIOLATION:
+      case ERROR_LOCK_VIOLATION:
+        Sleep(10);
+        continue;
+      }
+      goto fail;
+    }
+    HANDLE dst{sink.stream};
+    if (dst == INVALID_HANDLE_VALUE)
+    {
+      dst=
+        CreateFile(destname, GENERIC_WRITE, 0, my_win_file_secattr(),
+                   CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
+                   nullptr);
+      if (dst == INVALID_HANDLE_VALUE)
+      {
+        std::ignore= CloseHandle(src);
+        goto fail;
+      }
+    }
+#else
+    if (sink.stream != sink.NO_STREAM);
+    else if (move
+             ? !renameat(AT_FDCWD, path, target.fd, basename)
+             : !linkat(AT_FDCWD, path, target.fd, basename, AT_SYMLINK_FOLLOW))
+    {
+      if (!move)
+        ctx.note_hardlink(lsn);
+# ifdef __linux__
+      else if (lsn != ctx.first_lsn);
+      else if (off_t garbage= (ctx.checkpoint - lsn) & ~4095ULL)
+        /* Best effort to punch a hole to free up some garbage in
+        the first file. We do not care about failures. */
+        if (!fchmodat(target.fd, basename, 0644, 0))
+        {
+          int dst= openat(target.fd, basename, O_RDWR);
+          if (dst >= 0)
+            fallocate(dst, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                      log_sys.START_OFFSET, garbage);
+          std::ignore= close(dst);
+          std::ignore= fchmodat(target.fd, basename, 0444, 0);
+        }
+# endif
+      return 0;
+    }
+    else if (errno != EXDEV)
+    {
+    fail:
+      if (sink.stream == sink.NO_STREAM)
+        my_error(ER_ERROR_ON_RENAME, MYF(ME_ERROR_LOG), path, basename, errno);
+      else
+        my_error(ER_IO_WRITE_ERROR, MYF(ME_ERROR_LOG), errno, strerror(errno),
+                 "BACKUP SERVER");
+      return -1;
+    }
+
+    const int src{open(path, O_RDONLY)};
+    if (src < 0)
+      goto fail;
+    if (move && unlink(path))
+    {
+    close_and_fail:
+      std::ignore= close(src);
+      goto fail;
+    }
+    int dst{sink.stream};
+    if (dst < 0)
+    {
+      dst= backup_file_create(target.fd, basename);
+      if (dst < 0)
+        goto close_and_fail;
+    }
+    int err;
+#endif
+    backup_chunk chunks[3], *chunk{chunks};
+    *chunk++= {log_sys.START_OFFSET, ctx.last_lsn - lsn};
+    if (lsn <= ctx.checkpoint)
+    {
+      /* Copy the necessary part of the first log file. */
+      ut_ad(lsn == ctx.first_lsn);
+      c= ctx.checkpoint_end_lsn - lsn + log_sys.START_OFFSET;
+      chunk[-1]= {0, 512};
+      const lsn_t end=
+        std::min(ctx.last_lsn, lsn + ctx.first_size - log_sys.START_OFFSET);
+      *chunk++=
+        {log_sys.START_OFFSET + ctx.checkpoint - lsn, end - ctx.checkpoint};
+      chunk->offset= end - lsn;
+      goto pad_size;
+    }
+    else if (lsn < ctx.max_first_lsn)
+    {
+      /* Copy a middle log file entirely. */
+#ifdef _WIN32
+      ut_ad(dst == sink.stream);
+      chunk->offset= os_file_get_size(src);
+#else
+      chunk->offset= uint64_t(lseek(src, 0, SEEK_END));
+      if (dst != sink.stream)
+      {
+        err= copy_entire_file(src, dst);
+        goto close_dst;
+      }
+#endif
+      /* Omit the checkpoint header from the stream. */
+      chunk[-1].length= chunk->offset - log_sys.START_OFFSET;
+      goto stream_file;
+    }
+    else
+    {
+      ut_ad(ctx.max_first_lsn == lsn);
+      ut_ad(ctx.last_lsn > lsn);
+      ut_ad(ctx.last_lsn != LSN_MAX);
+      ut_ad(chunk[-1].length == ctx.last_lsn - lsn);
+      chunk->offset= chunk[-1].length;
+    pad_size:
+      /* Set the logical size of the file. */
+      chunk->offset=
+        std::max<uint64_t>(log_sys.FILE_SIZE_MIN,
+                           (chunk->offset + (log_sys.START_OFFSET + 4095)) &
+                           ~4095ULL);
+    }
+
+    if (dst == sink.stream)
+    {
+    stream_file:
+      chunk++->length= 0;
+      const backup_chunk &end{chunk[-2]};
+      ut_ad(chunk - chunks == 2 || chunk - chunks == 3);
+      ut_ad(!!c == (size_t(chunk - chunks) & 1));
+      const size_t cp_size= (!!c) << 9;
+      err=
+        backup_stream_start(dst, basename,
+                            mode_t(0444 | int{lsn == ctx.max_first_lsn} << 7),
+                            end.length + cp_size, chunks, chunk - chunks);
+      if (!err && cp_size)
+      {
+        uint64_t cp_buf[8]{};
+        write_checkpoint_buf(cp_buf, c);
+        err= backup_stream_write(dst, cp_buf, sizeof cp_buf) ||
+          backup_stream_write(dst, field_ref_zero, cp_size - sizeof cp_buf);
+      }
+      if (!err)
+      {
+        err= backup_stream_append_async(src, dst, end.offset,
+                                        end.offset + end.length) ||
+          backup_stream_zeropad(dst, size_t(end.length));
+      }
+    }
+    else
+    {
+      cache_friendly(dst);
+      cache_friendly(src);
+# ifdef POSIX_FADV_SEQUENTIAL
+      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
+# endif
+      err= extend(dst, chunk->offset) ||
+        backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
+                     chunk[-1].length) ||
+        (c && write_checkpoint(dst, c));
+# ifdef POSIX_FADV_NORMAL
+      std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
+# endif
+#ifdef _WIN32
+      err|= !CloseHandle(dst);
+#else
+    close_dst:
+      err|= close(dst);
+#endif
+    }
+
+    if (err | IF_WIN(!CloseHandle(src), close(src)))
+      goto fail;
+
+    return 0;
+  }
+  catch (std::bad_alloc&) {
+    my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+    return -1;
+  }
+};
+
+/** The backup context; protected by log_sys.latch */
+static InnoDB_backup innodb_backup;
+
+buf_page_t **InnoDB_backup::backup_batch_start(buf_page_t **end,
+                                               fil_space_t *space,
+                                               uint32_t end_page) noexcept
+{
+  ut_ad(end_page);
+  ut_ad(!(end_page % innodb_backup.ctx.BACKUP_BATCH_SIZE));
+  space->backup_start(end_page);
+  if (space->is_stopping())
+    return nullptr;
+  /* Block any writes that might be posted after checking
+  fil_space_t::backup_page_end(). */
+  return innodb_backup_batch_wait(end, space->id, end_page - 1,
+                                  innodb_backup.ctx.BACKUP_BATCH_SIZE);
+}
+
+#ifdef copy_file_shortcut
+int InnoDB_backup::copy_file_shortcut_try(int dst, fil_node_t *node,
+                                          uint32_t start, uint32_t limit,
+                                          uint32_t page_size,
+                                          uint32_t final_limit,
+                                          buf_page_t **blocks) noexcept
+{
+# if 0
+  return 1; // work around https://github.com/rr-debugger/rr/issues/4059
+# endif
+  const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+  for (uint32_t page{0};;)
+  {
+    while (page < limit)
+    {
+      const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+      const uint32_t last{std::min(limit, page + (end_page - start))};
+      start+= last - page;
+      int err;
+      buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
+      if (end)
+      {
+        /* TODO: avoid copying freed page ranges, or pages that were
+        allocated after the backup started */
+        err= copy_file_shortcut(node->handle, dst,
+                                uint64_t{page} * page_size,
+                                uint64_t{last} * page_size);
+        page= last;
+      }
+      else
+      {
+        err= 2;
+        end= blocks;
+      }
+      backup_batch_stop(node->space, blocks, end);
+      if (err)
+        return err;
+    }
+
+    if (final_limit != 0 && page == buf_dblwr.begin())
+    {
+      /* Copy the rest after the doublewrite buffer. */
+      ut_ad(start == page);
+      limit= final_limit;
+      start= page+= buf_dblwr.size();
+    }
+    else
+      return 0;
+  }
+}
+#endif
+
+int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
+                          const char *name,
+                          uint32_t start, uint32_t limit) noexcept try
+{
+  for (bool tried_mkdir{false};;)
+  {
+#ifdef _WIN32
+    std::string path{target};
+    path.push_back('/');
+    path.append(name);
+    HANDLE f=
+      CreateFile(path.c_str(), GENERIC_WRITE, 0, my_win_file_secattr(),
+                 CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
+                 nullptr);
+    if (f == INVALID_HANDLE_VALUE)
+    {
+      unsigned long err= GetLastError();
+      if (err == ERROR_PATH_NOT_FOUND && !tried_mkdir &&
+          node->space->id && !srv_is_undo_tablespace(node->space->id))
+      {
+        tried_mkdir= true;
+        path.erase(path.rfind('/'));
+        if (CreateDirectory(path.c_str(),
+                            my_dir_security_attributes.lpSecurityDescriptor
+                            ? &my_dir_security_attributes : nullptr) ||
+            (err= GetLastError()) == ERROR_ALREADY_EXISTS)
+          continue;
+      }
+
+      my_osmaperr(err);
+      goto fail;
+    }
+#else
+    int f;
+# ifdef __APPLE__
+    /* aio::synchronous() in another thread may concurrently invoke
+    pwrite(2) on node->handle. We assume that both pwrite(2) and
+    fclonefileat(2) are atomic with respect to each other. Should
+    this assumption be invalid, some data files in the backup may be
+    corrupted. This corruption can be fixed by either removing this
+    special handling, or by implementing file-level locking. */
+    f= fclonefileat(node->handle, target, name, 0);
+    if (!f)
+      break;
+    switch (errno) {
+    case ENOENT:
+      goto try_mkdir;
+    case ENOTSUP:
+      break;
+    default:
+      goto fail;
+    }
+# endif
+    f= backup_file_create(target, name);
+    if (f < 0)
+    {
+      if (errno == ENOENT)
+      {
+# ifdef __APPLE__
+      try_mkdir:
+# endif
+        if (!tried_mkdir && node->space->id &&
+            !srv_is_undo_tablespace(node->space->id))
+        {
+          tried_mkdir= true;
+          const char *sep= strchr(name, '/');
+          ut_ad(sep);
+          sep= strchr(sep + 1, '/');
+          ut_ad(sep);
+          std::string dir{name, size_t(sep - name)};
+          if (!mkdirat(target, dir.c_str(), 0777) || errno == EEXIST)
+            continue;
+        }
+      }
+      goto fail;
+    }
+#endif
+    const uint32_t page_size{node->space->physical_size()};
+    int err{0};
+    if (node->size < limit)
+      limit= node->size;
+    /*
+      Set the logical size to at least the current file size.
+
+      Tablespaces may be extended during backup, and a recovery from
+      a backup could otherwise flag out-of-bounds page writes.
+
+      fil_node_t::read_page0() expects at least 4 * innodb_page_size
+      bytes. Small ROW_FORMAT=COMPRESSED files may contain less
+      payload than that.
+
+      Yes, this will read the 32-bit quantity node->size without any
+      mutex protection. On any ISA that we support, there is no
+      difference between a non-atomic and a relaxed atomic 32-bit
+      load. It is only a compiler barrier.
+    */
+    const uint64_t min_size=
+      std::max(uint64_t{FIL_IBD_FILE_INITIAL_SIZE} << srv_page_size_shift,
+               uint64_t{node->size} * page_size);
+
+    if (uint64_t{limit} * page_size < min_size)
+    {
+      err= extend(f, min_size);
+      if (err)
+        limit= 0;
+    }
+
+    const uint32_t final_limit=
+      node == fil_system.sys_space->chain.start &&
+      buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
+      limit > buf_dblwr.end()
+      ? limit : 0;
+    if (final_limit)
+      limit= buf_dblwr.begin();
+
+    buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX];
+#ifdef copy_file_shortcut
+    err= copy_file_shortcut_try(f, node, start, limit,
+                                page_size, final_limit, blocks);
+    if (err == 1)
+#endif
+    {
+      const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+      for (uint32_t page{0};;)
+      {
+        while (page < limit)
+        {
+          const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+          const uint32_t last{std::min(limit, page + (end_page - start))};
+          start+= last - page;
+          /* TODO: avoid copying freed page ranges, or pages that were
+          allocated after the backup started */
+          buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
+          if (end)
+            err= backup::copy(node->handle, f,
+                              uint64_t{page} * page_size,
+                              uint64_t{last} * page_size);
+          else
+          {
+            end= blocks;
+            err= 2;
+          }
+          backup_batch_stop(node->space, blocks, end);
+          if (err)
+            break;
+          page= last;
+        }
+
+        if (final_limit != 0 && !err && page == buf_dblwr.begin())
+        {
+          /* Copy the rest after the doublewrite buffer. */
+          ut_ad(start == page);
+          limit= final_limit;
+          start= page+= buf_dblwr.size();
+        }
+        else
+          break;
+      }
+    }
+
+    if (IF_WIN(!CloseHandle,close)(f) | err)
+    {
+      if (err != 2)
+        goto fail;
+      /* The tablespace is being dropped. */
+      IF_WIN(DeleteFile(path.c_str()), unlinkat(target, name, 0));
+    }
+
+    break;
+  }
+  return 0;
+fail:
+  my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
+  return -1;
+}
+catch (std::bad_alloc&)
+{
+  my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+  return -1;
+}
+
+int InnoDB_backup::stream(backup_fd stream, fil_node_t *node, const char *name,
+                          uint32_t start, uint32_t limit) noexcept
+{
+  const uint32_t page_size{node->space->physical_size()},
+    file_size= std::max(node->size,
+                        (FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift) /
+                        page_size);
+  uint64_t physical_size{uint64_t{limit} * page_size};
+  backup_chunk chunk[3]{
+    {0, physical_size},
+    {uint64_t{file_size} * page_size, 0}
+  };
+  size_t n_chunk= (file_size > limit) * 2;
+
+  if (file_size < limit)
+  {
+    limit= file_size;
+    physical_size= chunk[0].length= chunk[1].offset;
+  }
+
+  if (node == fil_system.sys_space->chain.start &&
+      buf_dblwr.end() &&
+      buf_dblwr.begin() + buf_dblwr.size() == buf_dblwr.end() &&
+      limit >= buf_dblwr.end())
+  {
+    n_chunk= 2 + !!n_chunk;
+    limit= buf_dblwr.begin();
+    physical_size-= uint64_t{buf_dblwr.size()} * page_size;
+    memmove(chunk + 1, chunk, 2 * sizeof *chunk);
+    chunk[0].length= uint64_t{limit} * page_size;
+    chunk[1].offset= uint64_t{buf_dblwr.end()} * page_size;
+    chunk[1].length-= chunk[1].offset;
+  }
+
+  int err{0};
+  uint32_t page{0};
+loop:
+  /* TODO: avoid copying freed page ranges, or pages that were
+  allocated after the backup started */
+  do
+  {
+    buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX];
+    const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
+    const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
+    const uint32_t last{std::min(limit, page + (end_page - start))};
+    start+= last - page;
+    buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
+    if (end)
+    {
+      if (page ||
+          !(err= backup_stream_start(stream, name, 0644,
+                                     physical_size, chunk, n_chunk)))
+      {
+        err= backup::append(node->handle, stream,
+                            uint64_t{page} * page_size,
+                            uint64_t{last} * page_size);
+        page= last;
+      }
+    }
+    else
+    {
+      if (page == 0)
+        /* The tablespace was dropped before we started streaming. */
+        return 0;
+      /* We must stream the expected amount of dummy data. */
+      constexpr size_t sz{1U << 20};
+      if (void *zerofill= calloc(sz, 1))
+      {
+        uint64_t size= (limit - page) * page_size;
+        do
+        {
+          const size_t s= size < uint64_t{sz} ? size_t(size) : sz;
+          err= backup_stream_write(stream, zerofill, s);
+          size-= s;
+        }
+        while (!err && size);
+        free(zerofill);
+      }
+      else
+        err= -1;
+      end= blocks;
+    }
+    backup_batch_stop(node->space, blocks, end);
+    if (err)
+      goto fail;
+  }
+  while (page < limit);
+
+  if (err)
+  fail:
+    my_error(ER_IO_WRITE_ERROR, MYF(0), errno, strerror(errno),
+             "BACKUP SERVER");
+  else if (n_chunk >= 2 && node == fil_system.sys_space->chain.start &&
+           limit == buf_dblwr.begin())
+  {
+    /* Copy the rest after the doublewrite buffer. */
+    ut_ad(start == page);
+    start= page+= buf_dblwr.size();
+    limit= page + uint32_t(chunk[1].length >> srv_page_size_shift);
+    if (page < limit)
+      goto loop;
+  }
+
+  return err;
+}
+
+void InnoDB_backup::context::destroy() noexcept
+{
+  if (innodb_backup.ctx.garbage_lsn)
+  {
+    log_sys.latch.rd_lock();
+    innodb_backup.mutex.wr_lock();
+    lsn_t garbage= innodb_backup.ctx.garbage_lsn;
+    if (garbage)
+    {
+      innodb_backup.ctx.garbage_lsn= 0;
+      if (garbage == log_sys.get_first_lsn())
+        garbage= 0;
+    }
+    log_sys.latch.rd_unlock();
+    if (garbage)
+      delete_log(garbage);
+  }
+  else
+    innodb_backup.mutex.wr_lock();
+  ut_ad(innodb_backup.queue.empty());
+  const os_file_t first_log_dst{innodb_backup.ctx.first_log_dst};
+  if (first_log_dst != OS_FILE_CLOSED)
+  {
+    IF_WIN(CloseHandle,close)(first_log_dst);
+    if (innodb_backup.ctx.log_dst != first_log_dst)
+      IF_WIN(CloseHandle,close)(innodb_backup.ctx.log_dst);
+    innodb_backup.ctx.first_log_dst= innodb_backup.ctx.log_dst= OS_FILE_CLOSED;
+  }
+  tracked_log *tracked= innodb_backup.ctx.tracked;
+  innodb_backup.ctx.tracked= nullptr;
+  innodb_backup.ctx.state= IDLE;
+  ut_ad(!innodb_backup.ctx.is_log_tracking());
+  innodb_backup.mutex.wr_unlock();
+#ifdef HAVE_PMEM
+  if (log_sys.is_mmap())
+  {
+    for (; tracked_log *head= tracked; delete head)
+      if ((tracked= tracked->next))
+        my_munmap(const_cast<byte*>(head->buf), head->file_size);
+  }
+  else
+#endif
+    for (; tracked_log *head= tracked; delete head)
+      if ((tracked= tracked->next) &&
+          head->file != log_sys.log.m_file &&
+          head->file != log_sys.resize_log.m_file)
+        std::ignore= IF_WIN(CloseHandle,close)(head->file);
+}
+
+}
+
+bool log_t::backup_start(uint64_t *old_size, THD *thd) noexcept
+{
+  ut_ad(latch_have_wr());
+  ut_ad(!recv_sys.rpo);
+  ut_ad(!backup);
+  ut_ad(end_lsn >= last_checkpoint_lsn);
+  backup= true;
+  *old_size= 0;
+  if (archive)
+  {
+    if (first_lsn > last_checkpoint_lsn)
+    {
+      /* Wait for recovery to be independent from the previous log. */
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
+      buf_flush_wait(first_lsn, true);
+      ut_ad(first_lsn <= last_checkpoint_lsn);
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+    }
+    return false;
+  }
+  const uint64_t old_file_size{file_size};
+  latch.wr_unlock();
+  const bool fail{set_archive(true, thd, true)};
+  latch.wr_lock();
+  if (!fail)
+  {
+    *old_size= old_file_size;
+    return false;
+  }
+  ut_ad(backup);
+  backup= false;
+  const uint64_t new_file_size{file_size};
+  latch.wr_unlock();
+  if (old_file_size != new_file_size && old_file_size &&
+      resize_start(old_file_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
+  latch.wr_lock();
+  return true;
+}
+
+void log_t::backup_stop(uint64_t old_size, THD *thd) noexcept
+{
+  ut_ad(latch_have_wr());
+  /* We will be invoked with old_size=0 after a failed backup_start(),
+  or if innodb_log_archive=ON held during a successful backup_start(). */
+  ut_ad(!old_size || !resize_in_progress());
+  ut_ad(!old_size || backup);
+  backup= false;
+  const uint64_t new_size{file_size};
+  latch.wr_unlock();
+  if (old_size && old_size != new_size &&
+      resize_start(old_size, thd) == RESIZE_STARTED)
+    resize_finish(thd);
+}
+
+void *innodb_backup_start(THD *thd, const backup_target *target,
+                          backup_stages stage, const backup_sink *sink)
+  noexcept
+{
+  switch (stage) {
+  case BACKUP_PREPARE:
+    if (UNIV_UNLIKELY(recv_sys.rpo != 0))
+    {
+      my_error(ER_INNODB_READ_ONLY, MYF(0));
+      return reinterpret_cast<void*>(-1);
+    }
+
+    if (!fil_system.have_all_spaces)
+    {
+      /* To speed up startup, InnoDB does not normally open all
+      tablespace files that are pointed to by SYS_TABLES.
+      InnoDB_backup::init() assumes that the information of all
+      tablespaces is available, including files that had been created
+      before the server was started, and never opened in the course of
+      the current server execution. */
+      dict_load_tablespaces(nullptr, true);
+      ut_ad(fil_system.have_all_spaces);
+    }
+    return 0;
+  case BACKUP_START:
+    return innodb_backup.init(thd, *target, *sink);
+  case BACKUP_LOCK_COMMIT:
+    if (innodb_backup.commit())
+      return reinterpret_cast<void*>(-1);
+    /* fall through */
+  default:
+    return sink->ha_data;
+  case BACKUP_FINISHED:
+    return innodb_backup.finish_start(thd, *sink);
+  }
+}
+
+int innodb_backup_step(THD *thd, const backup_target *target,
+                       backup_stages stage, const backup_sink *sink) noexcept
+{
+  switch (stage) {
+  case BACKUP_START:
+  case BACKUP_LOCK_COMMIT:
+  case BACKUP_FINISHED:
+    return innodb_backup.step(*target,
+#ifndef NDEBUG
+                              stage,
+#endif
+                              *sink);
+  default:
+    return 0;
+  }
+}
+
+int innodb_backup_end(THD *thd, const backup_target *target,
+                      backup_stages stage, const backup_sink *sink) noexcept
+{
+  switch (stage) {
+  default:
+    return 0;
+  case BACKUP_FINISHED:
+    return innodb_backup.finish_end(*target, *sink);
+  case BACKUP_ABORTED:
+    return innodb_backup.abort(thd, *sink);
+  }
+}
+
+void innodb_backup_checkpoint(lsn_t first_lsn) noexcept
+{
+  innodb_backup.checkpoint_complete(first_lsn);
+}
+
+bool innodb_backup_log_tracking() noexcept
+{
+  return innodb_backup.is_log_tracking();
+}
+
+ATTRIBUTE_COLD
+void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept
+{
+  innodb_backup.archive_create(lsn, file_size);
+}
+
+ATTRIBUTE_COLD void innodb_backup_archive_extend(lsn_t lsn) noexcept
+{
+  innodb_backup.archive_extend(lsn);
+}
+
+#ifdef HAVE_PMEM
+void innodb_backup_checkpoint_pmem() noexcept
+{
+  innodb_backup.checkpoint_complete_pmem();
+}
+#endif

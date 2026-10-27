@@ -1,0 +1,81 @@
+--source include/have_aria.inc
+--source include/have_debug_sync.inc
+
+#
+# Test that non-transactional Aria system tables (stats tables) get copied
+# correctly by BACKUP SERVER. The risk point is that as opposed to user tables
+# writes to these tables are not blocked in the "no DDL"  phase, so they need
+# to be flushed and copied in the "no commit" phase.
+# BACKUP SERVER succeeds, but a statistics table in the backup was copied while
+# it was being written, even though the phase begins by flushing it.
+#
+# A scenario where mysql.table_stats is written in BACKUP_PHASE_NO_DDL:
+# DELETE asks for MDL_SHARED_WRITE, which is below the MDL_SHARED_UPGRADABLE
+# threshold in lock_table_names(), so it does not take that function's
+# statement-wide MDL_BACKUP_DDL, and the per-table lock its category earns it,
+# MDL_BACKUP_SYS_DML, does not conflict with the backup lock until
+# MDL_BACKUP_WAIT_COMMIT.
+#
+
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3);
+
+# Enough rows that the DELETE keeps writing for the whole of the phase. The
+# rows have to go in one at a time: a system table cannot be write-locked
+# together with another table, so INSERT ... SELECT is rejected.
+DELIMITER |;
+CREATE PROCEDURE fill_stats(IN rows_wanted INT)
+BEGIN
+  DECLARE i INT DEFAULT 0;
+  WHILE i < rows_wanted DO
+    INSERT INTO mysql.table_stats (db_name, table_name, cardinality)
+      VALUES ('test', CONCAT('tbl', i), i);
+    SET i = i + 1;
+  END WHILE;
+END|
+DELIMITER ;|
+CALL fill_stats(600);
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_sys_stats_not_flushed
+--error 0,1
+--rmdir $target_directory
+
+--connect (backup,localhost,root,,)
+SET DEBUG_SYNC='after_purge_tables SIGNAL purged WAIT_FOR go';
+--replace_result $target_directory target_directory
+--send_eval BACKUP SERVER TO '$target_directory'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR purged';
+
+--connect (writer,localhost,root,,)
+--send DELETE FROM mysql.table_stats WHERE SLEEP(0.005) = 0
+
+--connection default
+--let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state = 'User sleep' AND info LIKE 'DELETE FROM mysql.table_stats%'
+--source include/wait_condition.inc
+
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection writer
+--reap
+--connection backup
+--reap
+
+--connection default
+--disconnect backup
+--disconnect writer
+SET DEBUG_SYNC='RESET';
+
+# The statistics table in the backup has to be usable without repair.
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+CHECK TABLE mysql.table_stats;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+DROP PROCEDURE fill_stats;
+DROP TABLE t1;
+--rmdir $target_directory

@@ -1189,6 +1189,7 @@ ATTRIBUTE_COLD static void fil_delete_apply(uint32_t id, const char *name)
     if (fil_ibd_load(id, name, space) == FIL_LOAD_OK)
     {
       ut_ad(space);
+      deferred_spaces.remove(id);
       fil_delete_apply(space);
       return;
     }
@@ -1225,10 +1226,6 @@ fil_name_process(const char *name, ulint len, uint32_t space_id,
 	file_name_t&	f = p.first->second;
 	ut_ad(!f.space || f.space->id == space_id);
 	auto d = deferred_spaces.find(space_id);
-	/* deferred_spaces must be a proper subset of recv_spaces.
-	Both here and in recv_validate_tablespace(), deferred_spaces.add()
-	may only be invoked for entries that exist in recv_spaces. */
-	ut_ad(!d || !p.second);
 
 	if (deleted) {
 		/* Got FILE_DELETE */
@@ -2098,6 +2095,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<4096>(const_cast<byte*>(field_ref_zero), 0, 4096);
     /* Mark the redo log for upgrading. */
     lsn= file_checkpoint= log_sys.last_checkpoint_lsn;
+    log_sys.archived_checkpoint= lsn;
     log_sys.set_recovered_lsn(lsn);
     if (rpo && rpo != lsn)
     {
@@ -2176,7 +2174,8 @@ dberr_t recv_sys_t::find_checkpoint()
         log_sys.set_recovered_checkpoint(checkpoint_lsn, lsn= end_lsn,
                                          field == log_t::CHECKPOINT_1);
     }
-    if (!log_sys.last_checkpoint_lsn)
+    log_sys.archived_checkpoint= log_sys.last_checkpoint_lsn;
+    if (!log_sys.archived_checkpoint)
       goto got_no_checkpoint;
     else if (!log_sys.archived_lsn)
       log_sys.archived_lsn= lsn;
@@ -3322,7 +3321,11 @@ log_parse_file(const page_id_t id, bool if_exists,
       }
     }
     else if ((b & 0xf0) == FILE_CREATE)
+    {
       fname.create_lsn= recv_sys.start_lsn;
+      if (fname.space)
+        fname.space->create_lsn= recv_sys.start_lsn;
+    }
 
     if (recv_sys.is_corrupt_fs())
       return recv_sys_t::GOT_EOF;
@@ -4174,7 +4177,7 @@ set_start_lsn:
 		/* There have been no operations that modify the page.
 		Any buffered changes will be merged in ibuf_upgrade(). */
 		ut_ad(!mtr.has_modifications());
-		block->page.set_freed(block->page.state());
+		block->page.set_freed();
 	}
 
 	/* Make sure that committing mtr does not change the modification

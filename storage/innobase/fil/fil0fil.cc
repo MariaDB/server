@@ -878,6 +878,13 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
   return handle;
 }
 
+fil_node_t::~fil_node_t()
+{
+  ut_free(name);
+  if (backup_name != name)
+    ut_free(backup_name);
+}
+
 /** Free a tablespace object on which fil_system_t::detach() was invoked.
 There must not be any pending i/o's or flushes on the files.
 @param[in,out]	space		tablespace */
@@ -891,9 +898,9 @@ static void fil_space_free_low(fil_space_t *space) noexcept
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
 		ut_d(space->size -= node->size);
-		ut_free(node->name);
 		fil_node_t* old_node = node;
 		node = UT_LIST_GET_NEXT(chain, node);
+		old_node->~fil_node_t();
 		ut_free(old_node);
 	}
 
@@ -1880,6 +1887,14 @@ static inline char *fil_make_dirpath(const char *path) noexcept
   return fil_make_filepath_low(path, fil_space_t::name_type{}, NO_EXT, true);
 }
 
+void fil_node_t::rename(char *path) noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  if (backup_name != name)
+    ut_free(name);
+  name= path;
+}
+
 dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
 {
   ut_ad(UT_LIST_GET_LEN(chain) == 1);
@@ -1902,9 +1917,9 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
     ut_ad(!exists);
     if (!os_file_rename(innodb_data_file_key, old_path, path))
       return DB_ERROR;
+    char *name= mem_strdup(path);
     mysql_mutex_lock(&fil_system.mutex);
-    ut_free(chain.start->name);
-    chain.start->name= mem_strdup(path);
+    chain.start->rename(name);
     mysql_mutex_unlock(&fil_system.mutex);
     return DB_SUCCESS;
   }
@@ -2050,9 +2065,10 @@ fil_ibd_create(
 		header[0]->page.lock.x_lock();
 		header[1]->page.lock.x_lock();
 		mtr.commit();
+		create_lsn = mtr.commit_lsn();
 		/* Durably write the FILE_CREATE record (as well as records for
 		the fsp_header_init() above before creating the file. */
-		log_write_up_to(mtr.commit_lsn(), true);
+		log_write_up_to(create_lsn, true);
 	}
 
 	DEBUG_SYNC_C("fil_ibd_create_logged");
@@ -2133,6 +2149,7 @@ func_exit:
 
 	mysql_mutex_lock(&fil_system.mutex);
 	space->clear_stopped();
+	space->create_lsn = create_lsn;
 	node->handle = file;
 	node->find_metadata(IF_WIN(,true));
 	if (++fil_system.n_open >= srv_max_n_open_files) {
