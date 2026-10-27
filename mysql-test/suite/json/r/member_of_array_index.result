@@ -847,4 +847,123 @@ SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (t
 id
 5
 DROP TABLE t19;
+create table t3 (
+pk int primary key,
+js json,
+index i1(cast(js as unsigned array))
+);
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+explain format=json select * from t3
+where
+'value-100' member of (js) or
+'value-101' member of (js) or
+'value-102' member of (js) or
+'value-103' member of (js) or
+'value-104' member of (js) or
+'value-105' member of (js) or
+'value-106' member of (js) or
+'value-107' member of (js) or
+'value-108' member of (js);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "index_merge",
+          "possible_keys": ["i1"],
+          "key_length": "19,19,19,19,19,19,19,19,19",
+          "index_merge": {
+            "sort_union": [
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              },
+              {
+                "range": {
+                  "key": "i1",
+                  "used_key_parts": ["js"]
+                }
+              }
+            ]
+          },
+          "loops": 1,
+          "rows": 9,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "'value-100' member of (t3.js) or 'value-101' member of (t3.js) or 'value-102' member of (t3.js) or 'value-103' member of (t3.js) or 'value-104' member of (t3.js) or 'value-105' member of (t3.js) or 'value-106' member of (t3.js) or 'value-107' member of (t3.js) or 'value-108' member of (t3.js)"
+        }
+      }
+    ]
+  }
+}
+select * from t3
+where
+'value-100' member of (js) or
+'value-101' member of (js) or
+'value-102' member of (js) or
+'value-103' member of (js) or
+'value-104' member of (js) or
+'value-105' member of (js) or
+'value-106' member of (js) or
+'value-107' member of (js) or
+'value-108' member of (js);
+pk	js
+100	["value-100"]
+101	["value-101"]
+102	["value-102"]
+103	["value-103"]
+104	["value-104"]
+105	["value-105"]
+106	["value-106"]
+107	["value-107"]
+108	["value-108"]
+DROP TABLE t3;
 # End of 13.3 tests
