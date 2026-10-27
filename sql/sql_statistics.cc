@@ -322,7 +322,7 @@ static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                         ER_CHECK_NO_SUCH_TABLE,
                         "Got error %d when trying to open statistics "
                         "table %`s for updating statistics",
-                        error_handler.got_error(), stat_table_name->str);
+                        error_handler.got_error(), stat_tab_name->str);
   }
   return res;
 }

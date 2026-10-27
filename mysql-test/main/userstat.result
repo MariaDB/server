@@ -286,7 +286,7 @@ select * from t1 force index (b) where b=1;
 rename table mysql.index_stats to mysql.index_stats_save;
 alter table t1 drop index a;
 Warnings:
-Warning	1177	Got error 1146 when trying to open statistics table `table_stats` for updating statistics
+Warning	1177	Got error 1146 when trying to open statistics table `index_stats` for updating statistics
 select table_name, index_name from information_schema.index_statistics
 where table_name='t1';
 table_name	index_name
