@@ -718,7 +718,7 @@ const char *thd_where(THD *thd)
     return "UNKNOWN";
 }
 
-THD::THD(my_thread_id id, bool is_wsrep_applier)
+THD::THD(my_thread_id id, bool is_wsrep_applier, bool process_wide)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
@@ -846,7 +846,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
                  &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+                 process_wide ? MYF(0) : MYF(MY_THREAD_SPECIFIC));
 
   /*
     Use MY_ROOT_USE_VMEM to keep user vars away from the heap, so that a heap
@@ -996,6 +996,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   {
     m_token_array= (unsigned char*) my_malloc(PSI_INSTRUMENT_ME,
                                               max_digest_length,
+                                              process_wide ? MYF(MY_WME) :
                                               MYF(MY_WME|MY_THREAD_SPECIFIC));
   }
 

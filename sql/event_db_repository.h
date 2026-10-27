@@ -1,5 +1,9 @@
 #ifndef _EVENT_DB_REPOSITORY_H_
 #define _EVENT_DB_REPOSITORY_H_
+
+#include "event_common.h"
+#include "event_parse_data.h"
+
 /* Copyright (c) 2006, 2011, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
@@ -56,7 +60,12 @@ enum enum_events_table_field
   ET_FIELD_KIND,
   ET_FIELD_WHEN,
   ET_FIELD_DDL_TYPE,
-  ET_FIELD_COUNT /* a cool trick to count the number of fields :) */
+  ET_FIELD_COUNT /* a cool trick to count the number of fields :) */,
+  /*
+    Number of columns necessary and sufficient for support of events.
+    For such table layout, support of system triggers are disabled.
+   */
+  ET_FIELD_COUNT_WO_TRG = ET_FIELD_COUNT - 3
 };
 
 
@@ -71,7 +80,7 @@ events_table_scan_all(THD *thd, TABLE *schema_table, TABLE *event_table);
 class Event_basic;
 class Event_parse_data;
 
-class Event_db_repository
+class Event_db_repository : public Event_db_repository_common
 {
 public:
   Event_db_repository() = default;
@@ -92,15 +101,13 @@ public:
 
   bool
   find_named_event(const LEX_CSTRING *db, const LEX_CSTRING *name,
-                   TABLE *table);
+                   TABLE *table, bool check_kind_match,
+                   bool sys_triggers_enabled);
 
   bool
   load_named_event(THD *thd, const LEX_CSTRING *dbname,
                    const LEX_CSTRING *name,
                    Event_basic *et);
-
-  static bool
-  open_event_table(THD *thd, enum thr_lock_type lock_type, TABLE **table);
 
   bool
   fill_schema_events(THD *thd, TABLE_LIST *tables, const char *db);
@@ -111,22 +118,38 @@ public:
                                  const LEX_CSTRING *event_name,
                                  my_time_t last_executed,
                                  ulonglong status);
-public:
-  static bool
-  check_system_tables(THD *thd);
+
 private:
   bool
   index_read_for_db_for_i_s(THD *thd, TABLE *schema_table, TABLE *event_table,
-                            const char *db);
+                            const char *db, bool sys_triggers_enabled);
 
   bool
-  table_scan_all_for_i_s(THD *thd, TABLE *schema_table, TABLE *event_table);
+  table_scan_all_for_i_s(THD *thd, TABLE *schema_table, TABLE *event_table,
+                         bool sys_triggers_enabled);
 
 private:
   /* Prevent use of these */
   Event_db_repository(const Event_db_repository &);
   void operator=(Event_db_repository &);
 };
+
+/**
+  Check whether the current fetched row of the table mysql.event
+  describes a system trigger, not an event
+
+  @param event_table  Table descriptor for opened mysql.event table
+
+  @return true in case the `kind` field of the current row != SCHEDULE_EVENT,
+          else false
+*/
+
+static inline bool is_sys_trigger_row(TABLE *event_table)
+{
+  Event_parse_data::enum_kind trg_kind=
+    (Event_parse_data::enum_kind)event_table->field[ET_FIELD_KIND]->val_int();
+  return trg_kind != Event_parse_data::SCHEDULE_EVENT;
+}
 
 /**
   @} (End of group Event_Scheduler)

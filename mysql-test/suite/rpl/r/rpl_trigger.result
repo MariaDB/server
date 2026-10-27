@@ -1166,4 +1166,39 @@ Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_clie
 tr	INSERT	t1	SET @a=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 connection master;
 drop table t1;
+#
+# MDEV-40104: Triggers after startup/before shutdown are replicated as ENABLEd, which may lead to divergence
+#
+CREATE TRIGGER trg1 AFTER STARTUP SET @a=1;
+CREATE TRIGGER trg2 BEFORE SHUTDOWN SET @b=1;
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+trg1	STARTUP		SET @a=1	AFTER	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+trg2	SHUTDOWN		SET @b=1	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+SHOW CREATE TRIGGER trg1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER `trg1` AFTER STARTUP SET @a=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+SHOW CREATE TRIGGER trg2;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER `trg2` BEFORE SHUTDOWN SET @b=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+connection slave;
+# Empty rowset expected in SHOW TRIGGERS output since system triggers
+# are replicated with state=SLAVESIDE_DISABLED and so ignored by
+# SHOW TRIGGERS logic
+SHOW TRIGGERS;
+Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
+SHOW CREATE TRIGGER trg1;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg1	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER `trg1` AFTER STARTUP SET @a=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+SHOW CREATE TRIGGER trg2;
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+trg2	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER `trg2` BEFORE SHUTDOWN SET @b=1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	#
+# Check that triggers are replicated with state=SLAVESIDE_DISABLED
+SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name IN ('trg1', 'trg2');
+db	name	status	kind	when	body
+test	trg1	SLAVESIDE_DISABLED	STARTUP	AFTER	SET @a=1
+test	trg2	SLAVESIDE_DISABLED	SHUTDOWN	BEFORE	SET @b=1
+connection master;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
 include/rpl_end.inc

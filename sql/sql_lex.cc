@@ -37,6 +37,7 @@
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
+#include "sql_sys_or_ddl_trigger.h"
 #include "event_parse_data.h"
 #include "opt_hints.h"
 #ifdef WITH_WSREP
@@ -4122,6 +4123,15 @@ void LEX::cleanup_lex_after_parse_error(THD *thd)
       sp_package::destroy(pkg);
       thd->lex= top;
       thd->lex->sphead= NULL;
+    }
+    else if (thd->lex->sphead->create_trigger_is_top_statement())
+    {
+      /*
+        In case an error happens on parsing the CREATE TRIGGER statement,
+        destroy an instance of sp_head to avoid memory leaks
+      */
+      sp_head::destroy(thd->lex->sphead);
+      thd->lex->sphead= nullptr;
     }
     else
       thd->lex->sphead->unwind_aux_lexes_and_restore_original_lex();
@@ -8911,6 +8921,14 @@ Item *LEX::create_and_link_Item_trigger_field(THD *thd,
 {
   Item_trigger_field *trg_fld;
 
+  if (is_sys_trg_events(trg_chistics.events))
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0),
+             new_row ? "NEW" : "OLD",
+             "system");
+    return nullptr;
+  }
+
   if (unlikely(is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT) &&
                !new_row &&
                /*
@@ -9551,16 +9569,31 @@ Item *LEX::create_item_ident(THD *thd,
   return create_item_ident_field(thd, schema, *b, *c);
 }
 
+static inline void report_trg_invalid_pred_error(active_dml_stmt stmt_type)
+{
+  static const char *dml_stmt[] = {"INSERTING", "UPDATING", "DELETING"};
+  my_error(ER_SYSTEM_TRG_INVALID_PREDICATE, MYF(0),
+           dml_stmt[(int)stmt_type - 1]);
+}
 
 Item *LEX::create_item_ident_trigger_specific(THD *thd,
                                               active_dml_stmt stmt_type,
                                               bool *throw_error)
 {
+  if (is_sys_trg_events(trg_chistics.events))
+  {
+    report_trg_invalid_pred_error(stmt_type);
+    *throw_error= true;
+    return nullptr;
+  }
+
+#define DML_EVENT_NAME_IDX (trg_chistics.events & TRG_DML_EVENTS_MASK)
+
   if (stmt_type == active_dml_stmt::INSERTING_STMT &&
       !is_trg_event_on(trg_chistics.events, TRG_EVENT_INSERT))
   {
     my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "INSERTING",
-             trg_event_type_names[trg_chistics.events].str);
+             trg_event_type_names[DML_EVENT_NAME_IDX].str);
     *throw_error= true;
     return nullptr;
   }
@@ -9569,7 +9602,7 @@ Item *LEX::create_item_ident_trigger_specific(THD *thd,
       !is_trg_event_on(trg_chistics.events, TRG_EVENT_UPDATE))
   {
     my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "UPDATING",
-             trg_event_type_names[trg_chistics.events].str);
+             trg_event_type_names[DML_EVENT_NAME_IDX].str);
     *throw_error= true;
     return nullptr;
   }
@@ -9578,7 +9611,7 @@ Item *LEX::create_item_ident_trigger_specific(THD *thd,
       !is_trg_event_on(trg_chistics.events, TRG_EVENT_DELETE))
   {
     my_error(ER_INCOMPATIBLE_EVENT_FLAG, MYF(0), "DELETING",
-             trg_event_type_names[trg_chistics.events].str);
+             trg_event_type_names[DML_EVENT_NAME_IDX].str);
     *throw_error= true;
     return nullptr;
   }
@@ -9943,6 +9976,13 @@ bool LEX::set_trigger_field(const LEX_CSTRING *name1, const LEX_CSTRING *name2,
                             Item *val, const LEX_CSTRING &expr_str)
 {
   DBUG_ASSERT(is_trigger_new_or_old_reference(name1));
+  if (is_sys_trg_events(trg_chistics.events))
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0),
+             (name1->str[0]=='O' || name1->str[0]=='o') ? "OLD" : "NEW",
+             "system");
+    return true;
+  }
   if (unlikely(name1->str[0]=='O' || name1->str[0]=='o'))
   {
     my_error(ER_TRG_CANT_CHANGE_ROW, MYF(0), "OLD", "");

@@ -616,12 +616,19 @@ protected:
   ATTRIBUTE_FORMAT(printf, 3, 4) // 1st arg is the implicit `this`
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
+  virtual bool handle_event_table() const { return false; }
 public:
   Table_check_intact(bool keys= false) : has_keys(keys) {}
   virtual ~Table_check_intact() = default;
 
   /** Checks whether a table is intact. */
-  bool check(TABLE *table, const TABLE_FIELD_DEF *table_def);
+  bool check(TABLE *table, const TABLE_FIELD_DEF *table_def,
+             bool *has_subset_columns= nullptr);
+
+private:
+  /** Check table columns for right types */
+  bool check_columns(TABLE *table, const TABLE_FIELD_DEF *table_def,
+                     uint number_of_fields);
 };
 
 

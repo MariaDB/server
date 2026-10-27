@@ -12429,3 +12429,13 @@ ER_ACL_ENTRY_IGNORED_BAD_HOST_MASK
         eng "'%s' entry '%s' ignored, the host is not a valid ip/netmask"
 ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE
         eng "This operation leaves replication connection '%s' with an invalid configuration: %s"
+ER_SYS_TRG_SEMANTIC_ERROR
+        eng "Incorrect definition of the trigger %s.%s: action '%s' is not compatible with event '%s'"
+ER_TRG_EVENT_CONFLICTS_NAME
+        eng "%s with the same name '%s' already exists"
+ER_SYSTEM_TRG_DISABLED
+        eng "The table mysql.event doesn't contain all mandatory columns required for support of system triggers. Operations with system triggers are disabled."
+ER_SYSTEM_TRG_INVALID_METADATA
+        eng "Wrong metadata for trigger '%s.%s': '%s'"
+ER_SYSTEM_TRG_INVALID_PREDICATE
+        eng "Invalid conditional predicate %s inside a system trigger body"

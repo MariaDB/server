@@ -2108,8 +2108,8 @@ drop table t1, t2, t3;
 # Bug#21288 mysqldump segmentation fault when using --where
 #
 create table t1 (a int);
-mariadb-dump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `t1` WHERE xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1 (1064)
-mariadb-dump: Got error: 1064: "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' at line 1" when retrieving data from server
+mariadb-dump: Couldn't execute 'SELECT /*!40001 SQL_NO_CACHE */ `a` FROM `t1` WHERE (xx xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)': You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)' at line 1 (1064)
+mariadb-dump: Got error: 1064: "You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx)' at line 1" when retrieving data from server
 /*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;

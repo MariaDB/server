@@ -59,6 +59,7 @@
 #include "log_event.h"           // MAX_TABLE_MAP_ID
 #include "sql_class.h"
 #include "opt_hints.h"
+#include "event_db_repository.h" // ET_FIELD_COUNT_WO_TRG
 
 /* For MySQL 5.7 virtual fields */
 #define MYSQL57_GENERATED_FIELD 128
@@ -5677,6 +5678,102 @@ bool check_column_name(const Lex_cstring &ident)
 }
 
 
+bool Table_check_intact::check_columns(TABLE *table,
+                                       const TABLE_FIELD_DEF *table_def,
+                                       uint number_of_fields)
+{
+  const TABLE_FIELD_TYPE *field_def= table_def->field;
+  StringBuffer<1024> sql_type(system_charset_info);
+  bool error= false;
+
+  sql_type.extra_allocation(256); // Allocate min 256 characters at once
+  for (uint i=0 ; i < number_of_fields; i++, field_def++)
+  {
+    sql_type.length(0);
+    Field *field= table->field[i];
+
+    if (strncmp(field->field_name.str, field_def->name.str,
+                field_def->name.length))
+    {
+      /*
+        Name changes are not fatal, we use ordinal numbers to access columns.
+        Still this can be a sign of a tampered table, output an error
+        to the error log.
+      */
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "expected column '%s' at position %d, found '%s'.",
+                   table->s->db.str, table->alias.c_ptr(),
+                   field_def->name.str, i,
+                   field->field_name.str);
+    }
+    field->sql_type(sql_type);
+    /*
+      Generally, if column types don't match, then something is
+      wrong.
+
+      However, we only compare column definitions up to the
+      length of the original definition, since we consider the
+      following definitions compatible:
+
+      1. DATETIME and DATETIM
+      2. INT(11) and INT(11
+      3. SET('one', 'two') and SET('one', 'two', 'more')
+
+      For SETs or ENUMs, if the same prefix is there it's OK to
+      add more elements - they will get higher ordinal numbers and
+      the new table definition is backward compatible with the
+      original one.
+    */
+    size_t type_len= field_def->type.length & ~CAN_BE_NULL;
+    if (strncmp(sql_type.c_ptr_safe(), field_def->type.str, type_len - 1))
+    {
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "expected column '%s' at position %d to have type "
+                   "%s, found type %s.", table->s->db.str,
+                   table->alias.c_ptr(),
+                   field_def->name.str, i, field_def->type.str,
+                   sql_type.c_ptr_safe());
+      error= true;
+    }
+    else if (field_def->cset.str && !field->has_charset())
+    {
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "expected the type of column '%s' at position %d "
+                   "to have character set '%s' but the type has no "
+                   "character set.", table->s->db.str,
+                   table->alias.c_ptr(),
+                   field_def->name.str, i, field_def->cset.str);
+      error= true;
+    }
+    else if (field_def->cset.str &&
+        strncmp(field->charset()->cs_name.str, field_def->cset.str,
+                field_def->cset.length))
+    {
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "expected the type of column '%s' at position %d "
+                   "to have character set '%s' but found "
+                   "character set '%s'.", table->s->db.str,
+                   table->alias.c_ptr(),
+                   field_def->name.str, i, field_def->cset.str,
+                   field->charset()->cs_name.str);
+      error= true;
+    }
+    bool col_can_be_null= field_def->type.length & CAN_BE_NULL;
+    if (col_can_be_null != field->real_maybe_null())
+    {
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "expected column '%s' at position %d to be %s.",
+                   table->s->db.str, table->alias.c_ptr(),
+                   field_def->name.str, i,
+                   col_can_be_null ? "nullable" : "NOT NULL");
+      error= true;
+    }
+  }
+
+  return error;
+}
+
+
 /**
   Checks whether a table is intact. Should be done *just* after the table has
   been opened.
@@ -5684,21 +5781,23 @@ bool check_column_name(const Lex_cstring &ident)
   @param[in] table             The table to check
   @param[in] table_def         Expected structure of the table (column name
                                and type)
+  @param[out] has_subset_columns  true in case the mysql.event table has all
+                                  columns required for support of events
 
   @retval  FALSE  OK
   @retval  TRUE   There was an error. An error message is output
                   to the error log.  We do not push an error
                   message into the error stack because this
-                  function is currently only called at start up,
+                  function can be called at start up,
                   and such errors never reach the user.
 */
 
 bool
-Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
+Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def,
+                          bool *has_subset_columns)
 {
   uint i;
   my_bool error= FALSE;
-  const TABLE_FIELD_TYPE *field_def= table_def->field;
   DBUG_ENTER("table_check_intact");
   DBUG_PRINT("info",("table: %s  expected_count: %d",
                      table->alias.c_ptr(), table_def->count));
@@ -5715,12 +5814,39 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     /* previous MySQL version */
     if (MYSQL_VERSION_ID > table->s->mysql_version)
     {
-      report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
-                   ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
-                   table->alias.c_ptr(), table_def->count, table->s->fields,
-                   static_cast<int>(table->s->mysql_version),
-                   MYSQL_VERSION_ID);
-      DBUG_RETURN(TRUE);
+      /*
+        If the table mysql.event has actually less columns than
+        expected by server, it could be possibly caused by attempt
+        to start server against the old data dictionary (previous version of
+        server without support of system triggers but with full-fledged
+        support of events.) In this case check that every column of
+        the mysql.event table has correct structure, that is all required
+        columns except those needed for support of system trigger
+        are presented.
+      */
+      if (table->s->fields < table_def->count && handle_event_table() &&
+          /*
+            The following condition is to gate against running on too old
+            layout of mysql.event table
+          */
+          table->s->fields >= ET_FIELD_COUNT_WO_TRG)
+      {
+        bool ret= check_columns(table, table_def, table->s->fields);
+        if (ret)
+          DBUG_RETURN(true);
+
+        if (has_subset_columns != nullptr)
+          *has_subset_columns= true;
+      }
+      else
+      {
+        report_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE,
+                     ER_THD(thd, ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE),
+                     table->alias.c_ptr(), table_def->count, table->s->fields,
+                     static_cast<int>(table->s->mysql_version),
+                     MYSQL_VERSION_ID);
+        DBUG_RETURN(TRUE);
+      }
     }
     else if (MYSQL_VERSION_ID == table->s->mysql_version)
     {
@@ -5740,102 +5866,8 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
   }
   else
   {
-  StringBuffer<1024> sql_type(system_charset_info);
-  sql_type.extra_allocation(256); // Allocate min 256 characters at once
-  for (i=0 ; i < table_def->count; i++, field_def++)
-  {
-    sql_type.length(0);
-    if (i < table->s->fields)
-    {
-      Field *field= table->field[i];
-
-      if (strncmp(field->field_name.str, field_def->name.str,
-                  field_def->name.length))
-      {
-        /*
-          Name changes are not fatal, we use ordinal numbers to access columns.
-          Still this can be a sign of a tampered table, output an error
-          to the error log.
-        */
-        report_error(0, "Incorrect definition of table %s.%s: "
-                     "expected column '%s' at position %d, found '%s'.",
-                     table->s->db.str, table->alias.c_ptr(),
-                     field_def->name.str, i,
-                     field->field_name.str);
-      }
-      field->sql_type(sql_type);
-      /*
-        Generally, if column types don't match, then something is
-        wrong.
-
-        However, we only compare column definitions up to the
-        length of the original definition, since we consider the
-        following definitions compatible:
-
-        1. DATETIME and DATETIM
-        2. INT(11) and INT(11
-        3. SET('one', 'two') and SET('one', 'two', 'more')
-
-        For SETs or ENUMs, if the same prefix is there it's OK to
-        add more elements - they will get higher ordinal numbers and
-        the new table definition is backward compatible with the
-        original one.
-       */
-      size_t type_len= field_def->type.length & ~CAN_BE_NULL;
-      if (strncmp(sql_type.c_ptr_safe(), field_def->type.str, type_len - 1))
-      {
-        report_error(0, "Incorrect definition of table %s.%s: "
-                     "expected column '%s' at position %d to have type "
-                     "%s, found type %s.", table->s->db.str,
-                     table->alias.c_ptr(),
-                     field_def->name.str, i, field_def->type.str,
-                     sql_type.c_ptr_safe());
-        error= TRUE;
-      }
-      else if (field_def->cset.str && !field->has_charset())
-      {
-        report_error(0, "Incorrect definition of table %s.%s: "
-                     "expected the type of column '%s' at position %d "
-                     "to have character set '%s' but the type has no "
-                     "character set.", table->s->db.str,
-                     table->alias.c_ptr(),
-                     field_def->name.str, i, field_def->cset.str);
-        error= TRUE;
-      }
-      else if (field_def->cset.str &&
-               strncmp(field->charset()->cs_name.str, field_def->cset.str,
-                       field_def->cset.length))
-      {
-        report_error(0, "Incorrect definition of table %s.%s: "
-                     "expected the type of column '%s' at position %d "
-                     "to have character set '%s' but found "
-                     "character set '%s'.", table->s->db.str,
-                     table->alias.c_ptr(),
-                     field_def->name.str, i, field_def->cset.str,
-                     field->charset()->cs_name.str);
-        error= TRUE;
-      }
-      bool col_can_be_null= field_def->type.length & CAN_BE_NULL;
-      if (col_can_be_null != field->real_maybe_null())
-      {
-        report_error(0, "Incorrect definition of table %s.%s: "
-                     "expected column '%s' at position %d to be %s.",
-                     table->s->db.str, table->alias.c_ptr(),
-                     field_def->name.str, i,
-                     col_can_be_null ? "nullable" : "NOT NULL");
-        error= TRUE;
-      }
-    }
-    else
-    {
-      report_error(0, "Incorrect definition of table %s.%s: "
-                   "expected column '%s' at position %d to have type %s "
-                   " but the column is not found.",
-                   table->s->db.str, table->alias.c_ptr(),
-                   field_def->name.str, i, field_def->type.str);
-      error= TRUE;
-    }
-  }
+    if (check_columns(table, table_def, table->s->fields))
+      DBUG_RETURN(true);
   }
 
   if (table_def->primary_key_parts)

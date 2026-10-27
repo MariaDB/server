@@ -591,6 +591,35 @@ SHOW TRIGGERS;
 connection master;
 drop table t1;
 
+--echo #
+--echo # MDEV-40104: Triggers after startup/before shutdown are replicated as ENABLEd, which may lead to divergence
+--echo #
+CREATE TRIGGER trg1 AFTER STARTUP SET @a=1;
+CREATE TRIGGER trg2 BEFORE SHUTDOWN SET @b=1;
+--replace_column 6 #
+SHOW TRIGGERS;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg2;
+--sync_slave_with_master
+--echo # Empty rowset expected in SHOW TRIGGERS output since system triggers
+--echo # are replicated with state=SLAVESIDE_DISABLED and so ignored by
+--echo # SHOW TRIGGERS logic
+--replace_column 6 #
+SHOW TRIGGERS;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg1;
+--replace_column 7 #
+SHOW CREATE TRIGGER trg2;
+
+--echo # Check that triggers are replicated with state=SLAVESIDE_DISABLED
+SELECT db, name, status, kind, `when`, body FROM mysql.event WHERE name IN ('trg1', 'trg2');
+
+connection master;
+DROP TRIGGER trg1;
+DROP TRIGGER trg2;
+
 #
 # End of tests
 #
