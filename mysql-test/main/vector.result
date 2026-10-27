@@ -914,6 +914,8 @@ drop table t1;
 #
 # MDEV-34805 INFORMATION_SCHEMA.VECTOR_INDEXES
 #
+SET @save_innodb_stats_auto_recalc= @@GLOBAL.innodb_stats_auto_recalc;
+SET GLOBAL innodb_stats_auto_recalc= OFF;
 # No vector tables yet in this schema
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
 WHERE TABLE_SCHEMA = DATABASE();
@@ -1063,4 +1065,5 @@ SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
 WHERE TABLE_SCHEMA = DATABASE();
 COUNT(*)
 0
+SET GLOBAL innodb_stats_auto_recalc= @save_innodb_stats_auto_recalc;
 # End of 13.1 tests
