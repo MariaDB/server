@@ -185,4 +185,26 @@ drop table t1;
 select count(*) from information_schema.index_statistics where table_name='t1';
 set global userstat= 0;
 
+--echo #
+--echo # DROP TABLE and DROP INDEX when statistical tables cannot be opened
+--echo #
+set global userstat= 1;
+create table t1 (a int, b int, key a(a), key b(b));
+insert t1 values (1,1),(2,2);
+--disable_result_log
+select * from t1 force index (a) where a=1;
+select * from t1 force index (b) where b=1;
+--enable_result_log
+rename table mysql.index_stats to mysql.index_stats_save;
+alter table t1 drop index a;
+select table_name, index_name from information_schema.index_statistics
+  where table_name='t1';
+drop table t1;
+select table_name from information_schema.table_statistics
+  where table_name='t1';
+select table_name, index_name from information_schema.index_statistics
+  where table_name='t1';
+rename table mysql.index_stats_save to mysql.index_stats;
+set global userstat= 0;
+
 --echo # End of 10.11 tests
