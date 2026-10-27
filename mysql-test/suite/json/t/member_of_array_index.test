@@ -756,4 +756,30 @@ SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (t
 
 DROP TABLE t19;
 
+create table t3 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as unsigned array))
+);
+
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+
+let $q=
+select * from t3
+where
+  'value-100' member of (js) or
+  'value-101' member of (js) or
+  'value-102' member of (js) or
+  'value-103' member of (js) or
+  'value-104' member of (js) or
+  'value-105' member of (js) or
+  'value-106' member of (js) or
+  'value-107' member of (js) or
+  'value-108' member of (js);
+--source include/explain-no-costs.inc
+eval explain format=json $q;
+eval $q;
+
+DROP TABLE t3;
+
 --echo # End of 13.3 tests

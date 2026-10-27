@@ -3003,6 +3003,7 @@ SQL_SELECT::test_quick_select(THD *thd,
   trace_idx.end();
 
   param.key_parts_end=key_parts;
+  param.key_part_clones_end= key_parts;
   param.alloced_sel_args= 0;
 
   max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
@@ -9549,7 +9550,7 @@ static KEY_PART *get_claimed_key_part(RANGE_OPT_PARAM *param,
   }
   if (param->keys >= MAX_KEY)
     return NULL;
-  KEY_PART *new_part= param->key_parts_end++;
+  KEY_PART *new_part= param->key_part_clones_end++;
   *new_part= *key_part;
   new_part->key= (uint16) param->keys;
   new_part->claimed= true;
