@@ -662,3 +662,12 @@ CREATE TABLE t (a INT);
 CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW SET NEW = (SELECT 5);                                                                                                                                          
 INSERT INTO t VALUES (1);
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-41827: SIGSEGV in Item_trigger_row::cleanup on condition pushdown
+--echo # of row = NEW into derived table in trigger
+--echo #
+CREATE TABLE t (a INT, b INT);
+CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW DO (SELECT 1 FROM (SELECT DISTINCT a, b FROM t) d WHERE (a, b) = NEW);
+INSERT INTO t VALUES (1,2);
+DROP TABLE t;
