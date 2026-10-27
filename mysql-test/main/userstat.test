@@ -142,4 +142,47 @@ drop function f;
 --echo #
 select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
 
+--echo #
+--echo # DROP TABLE with more than MAX_INDEXES index statistics entries
+--echo #
+set global userstat= 1;
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+--disable_query_log
+--disable_result_log
+--let $i= 0
+while ($i < 70)
+{
+  --let $j= $(($i + 1))
+  eval select * from t1 force index (k$i) where a=1;
+  eval alter table t1 rename index k$i to k$j;
+  --let $i= $j
+}
+--enable_result_log
+--enable_query_log
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+lock tables t1 write;
+--disable_query_log
+--disable_result_log
+--let $i= 0
+while ($i < 70)
+{
+  --let $j= $(($i + 1))
+  eval select * from t1 force index (k$i) where a=1;
+  eval alter table t1 drop index k$i, add index k$j(a);
+  --let $i= $j
+}
+--enable_result_log
+--enable_query_log
+unlock tables;
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+set global userstat= 0;
+
 --echo # End of 10.11 tests

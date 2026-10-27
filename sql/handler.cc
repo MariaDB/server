@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8530,28 +8530,38 @@ static
 int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
-  uint to_delete_counter= 0;
+  uint to_delete_counter;
   INDEX_STATS *index_stats_to_delete[MAX_INDEXES];
   DBUG_ENTER("del_global_index_stats_for_table");
 
   mysql_mutex_lock(&LOCK_global_index_stats);
 
-  for (uint i= 0; i < global_index_stats.records; i++)
+  /*
+    Statistics of renamed indexes stay under their old names, so a table
+    can have more than MAX_INDEXES entries. Delete them in batches.
+  */
+  do
   {
-    INDEX_STATS *index_stats =
-      (INDEX_STATS*) my_hash_element(&global_index_stats, i);
-
-    /* We search correct db\0table_name\0 string */
-    if (index_stats &&
-	index_stats->index_name_length >= cache_key_length &&
-	!memcmp(index_stats->index, cache_key, cache_key_length))
+    to_delete_counter= 0;
+    for (uint i= 0; i < global_index_stats.records &&
+                    to_delete_counter < MAX_INDEXES; i++)
     {
-      index_stats_to_delete[to_delete_counter++]= index_stats;
-    }
-  }
+      INDEX_STATS *index_stats =
+        (INDEX_STATS*) my_hash_element(&global_index_stats, i);
 
-  for (uint i= 0; i < to_delete_counter; i++)
-    res= my_hash_delete(&global_index_stats, (uchar*)index_stats_to_delete[i]);
+      /* We search correct db\0table_name\0 string */
+      if (index_stats &&
+          index_stats->index_name_length >= cache_key_length &&
+          !memcmp(index_stats->index, cache_key, cache_key_length))
+      {
+        index_stats_to_delete[to_delete_counter++]= index_stats;
+      }
+    }
+
+    for (uint i= 0; i < to_delete_counter; i++)
+      res= my_hash_delete(&global_index_stats,
+                          (uchar*)index_stats_to_delete[i]);
+  } while (to_delete_counter == MAX_INDEXES);
 
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);

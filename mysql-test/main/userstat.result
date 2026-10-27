@@ -250,4 +250,29 @@ drop function f;
 select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
 busy_time>1e5	cpu_time>1e5
 0	0
+#
+# DROP TABLE with more than MAX_INDEXES index statistics entries
+#
+set global userstat= 1;
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+remove the whole test when it is not 70
+70
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+count(*)
+0
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+lock tables t1 write;
+unlock tables;
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+remove the whole test when it is not 70
+70
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+count(*)
+0
+set global userstat= 0;
 # End of 10.11 tests
