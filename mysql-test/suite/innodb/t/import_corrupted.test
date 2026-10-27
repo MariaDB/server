@@ -65,3 +65,97 @@ ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2;
+
+--echo #
+--echo #  MDEV-41840 IMPORT TABLESPACE must validate record offsets
+--echo #         and BLOB pointer length
+--echo #
+
+call mtr.add_suppression("Index for table 't1' is corrupt");
+
+CREATE TABLE t1 (a INT PRIMARY KEY,
+  c1 VARCHAR(800) NOT NULL, c2 VARCHAR(800) NOT NULL,
+  c3 VARCHAR(800) NOT NULL, c4 VARCHAR(800) NOT NULL,
+  c5 VARCHAR(800) NOT NULL, c6 VARCHAR(800) NOT NULL,
+  c7 VARCHAR(800) NOT NULL, c8 VARCHAR(800) NOT NULL,
+  c9 VARCHAR(800) NOT NULL, c10 VARCHAR(800) NOT NULL,
+  c11 VARCHAR(800) NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+INSERT INTO t1 VALUES (1,
+  REPEAT('a',788), REPEAT('b',788), REPEAT('c',788), REPEAT('d',788),
+  REPEAT('e',788), REPEAT('f',788), REPEAT('g',788), REPEAT('h',788),
+  REPEAT('i',788), REPEAT('j',788), REPEAT('k',788));
+
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQL_TMP_DIR/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQL_TMP_DIR/t1.cfg
+UNLOCK TABLES;
+DROP TABLE t1;
+
+--echo # Corrupt the length field of the first externally stored
+--echo # column's BLOB pointer on the clustered index leaf (root)
+--echo # page, setting it to more than 4 GiB.
+
+perl;
+use strict;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+
+my $file = "$ENV{MYSQL_TMP_DIR}/t1.ibd";
+sysopen(FILE, $file, O_RDWR) or die "Cannot open $file: $!";
+
+my $page_size = 16384;
+my $page_no = 3;                # clustered index root page
+my $full_crc32 = get_full_crc32(\*FILE);
+
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+my $page;
+sysread(FILE, $page, $page_size) == $page_size or die;
+
+# For this exact, fixed table (single row, PK a INT, DB_TRX_ID(6) +
+# DB_ROLL_PTR(7), then 11 NOT NULL VARCHAR(800) columns, 16k pages,
+# ROW_FORMAT=DYNAMIC) the on-page layout is deterministic,
+# - the sole user record sits at absolute page offset 147;
+# - column c1 is the only one stored externally (off-page), and its
+# 20-byte BLOB external reference starts right after the fixed-size
+# PK/DB_TRX_ID/DB_ROLL_PTR fields, at rec + 4 + 6 + 7 = rec + 17;
+# - BTR_EXTERN_LEN is byte offset 12 within that 20-byte reference.
+my $rec = 147;
+my $len_off = $rec + 17 + 12;
+
+my $cur = substr($page, $len_off, 8);
+print "current BLOB length field: ", unpack("H*", $cur), "\n";
+die "page layout does not match the hardcoded offset; got $cur"
+  unless $cur eq pack("N2", 0, 788);
+
+# Set the length to more than 4 GiB (keep the low 32 bits as-is).
+substr($page, $len_off, 4) = pack("N", 1);
+
+$page = fix_page_crc($page, $full_crc32);
+
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+syswrite(FILE, $page, $page_size) == $page_size or die;
+close(FILE) or die;
+EOF
+
+
+CREATE TABLE t1 (a INT PRIMARY KEY,
+  c1 VARCHAR(800) NOT NULL, c2 VARCHAR(800) NOT NULL,
+  c3 VARCHAR(800) NOT NULL, c4 VARCHAR(800) NOT NULL,
+  c5 VARCHAR(800) NOT NULL, c6 VARCHAR(800) NOT NULL,
+  c7 VARCHAR(800) NOT NULL, c8 VARCHAR(800) NOT NULL,
+  c9 VARCHAR(800) NOT NULL, c10 VARCHAR(800) NOT NULL,
+  c11 VARCHAR(800) NOT NULL
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQL_TMP_DIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQL_TMP_DIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
+
+--error ER_INNODB_INDEX_CORRUPT
+ALTER TABLE t1 IMPORT TABLESPACE;
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/t1.ibd
+--remove_file $MYSQL_TMP_DIR/t1.cfg
