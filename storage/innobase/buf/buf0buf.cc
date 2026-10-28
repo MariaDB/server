@@ -633,11 +633,34 @@ buf_page_is_corrupted(bool check_lsn, const byte *read_buf, uint32_t fsp_flags) 
 			return NOT_CORRUPTED;
 		}
 
+		/* page_intermittent_checksum_mismatch skips the DICT_HDR
+		page (page 7 of the system tablespace), because failing to
+		read that page terminates the server. Use
+		dict_hdr_checksum_mismatch to simulate its corruption.
+		MDEV-41671 will remove the need for this exception. */
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
-			static int page_counter;
+			/* page_counter may wrap around, so it must be an unsigned type. */
+			static unsigned page_counter;
+			switch (mach_read_from_4(FIL_PAGE_OFFSET + read_buf)) {
+			case 0: break;
+			case FSP_DICT_HDR_PAGE_NO:
+				if (!mach_read_from_4(FIL_PAGE_SPACE_ID
+						      + read_buf)) break;
+				/* fall through */
+			default:
+				if (page_counter++ == 3) {
+					crc32++;
+				}
+			}
+		});
+
+		DBUG_EXECUTE_IF(
+			"dict_hdr_checksum_mismatch", {
 			if (mach_read_from_4(FIL_PAGE_OFFSET + read_buf)
-			    && page_counter++ == 3) {
+			    == FSP_DICT_HDR_PAGE_NO
+			    && !mach_read_from_4(FIL_PAGE_SPACE_ID
+						 + read_buf)) {
 				crc32++;
 			}
 		});
@@ -784,12 +807,33 @@ buf_page_is_corrupted(bool check_lsn, const byte *read_buf, uint32_t fsp_flags) 
 		    != mach_read_from_4(read_buf + FIL_PAGE_LSN)
 		    && checksum_field2 != BUF_NO_CHECKSUM_MAGIC) {
 
+			/* See the comment about the DICT_HDR page above. */
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
-				static int page_counter;
+				/* page_counter may wrap around, so it must be an unsigned type. */
+				static unsigned page_counter;
+				switch (mach_read_from_4(FIL_PAGE_OFFSET
+							 + read_buf)) {
+				case 0: break;
+				case FSP_DICT_HDR_PAGE_NO:
+					if (!mach_read_from_4(FIL_PAGE_SPACE_ID
+							      + read_buf))
+						break;
+					/* fall through */
+				default:
+					if (page_counter++ == 3) {
+						return CORRUPTED_OTHER;
+					}
+				}
+			});
+
+			DBUG_EXECUTE_IF(
+				"dict_hdr_checksum_mismatch", {
 				if (mach_read_from_4(FIL_PAGE_OFFSET
 						     + read_buf)
-				    && page_counter++ == 3)
+				    == FSP_DICT_HDR_PAGE_NO
+				    && !mach_read_from_4(FIL_PAGE_SPACE_ID
+							 + read_buf))
 					return CORRUPTED_OTHER;
 			});
 
