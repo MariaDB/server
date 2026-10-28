@@ -1,0 +1,84 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+# The old-replica emulation relies on a DBUG_EXECUTE_IF hook, so a debug build
+# is required.
+--source include/have_debug.inc
+
+--source include/master-slave.inc
+
+#
+# MDEV-38243 / FR-COMPAT-1: a cascade-logged transaction produced by a new
+# origin (rpl_use_binlog_events_for_fk_cascade=ON) must apply correctly on a
+# replica running an OLDER MariaDB version that does not understand
+# FK_CASCADE_EVENTS_F, WITHOUT any apply error, in strict slave_exec_mode.
+#
+# Such an old replica is emulated here with the debug keyword
+# rpl_emulate_old_slave_fk_cascade, which forces the applier to ignore
+# FK_CASCADE_EVENTS_F and rely solely on the long-standing
+# NO_FOREIGN_KEY_CHECKS_F flag - exactly a pre-MDEV-38243 server would.
+# The compatibility therefore holds only because the origin also stamps
+# NO_FOREIGN_KEY_CHECKS_F on the cascade-logged events.
+#
+# NOTE: without the DBUG hook this test would still pass on a new build (the
+# new applier disables FK checks via FK_CASCADE_EVENTS_F), but would not be
+# exercising the old-replica path. It is meaningful only with the hook present.
+#
+
+# --- Emulate an old, strict-mode replica ------------------------------------
+connection slave;
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_exec_mode= @@GLOBAL.slave_exec_mode;
+SET GLOBAL slave_exec_mode= STRICT;
+SET GLOBAL debug_dbug= "+d,rpl_emulate_old_slave_fk_cascade";
+--source include/start_slave.inc
+
+# --- Origin: feature ON ------------------------------------------------------
+connection master;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE c (
+  id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_c FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE cn (
+  id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_cn FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE SET NULL ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+INSERT INTO p  VALUES (1,10),(2,20),(3,30);
+INSERT INTO c  VALUES (100,1,1000),(200,2,2000),(300,3,3000);
+INSERT INTO cn VALUES (100,1,1000),(200,2,2000),(300,3,3000);
+
+# ON UPDATE CASCADE (c.pid 1->11) and ON UPDATE SET NULL (cn.pid 1->NULL)
+UPDATE p SET id=11 WHERE id=1;
+# ON DELETE CASCADE (c row 200 gone) and ON DELETE SET NULL (cn.pid 2->NULL)
+DELETE FROM p WHERE id=2;
+
+# --- The emulated old replica must apply without error ----------------------
+# sync_slave_with_master fails the test if the SQL thread has stopped on error.
+sync_slave_with_master;
+
+connection slave;
+--let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--echo # Last_SQL_Errno = $errno (expected 0)
+SELECT * FROM p  ORDER BY id;
+SELECT * FROM c  ORDER BY id;
+SELECT * FROM cn ORDER BY id;
+
+# --- Cleanup ----------------------------------------------------------------
+connection slave;
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL slave_exec_mode= @old_exec_mode;
+--source include/start_slave.inc
+
+connection master;
+DROP TABLE c, cn, p;
+--source include/rpl_end.inc

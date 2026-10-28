@@ -1,0 +1,218 @@
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+--source include/master-slave.inc
+
+#
+# MDEV-38243: eligibility for cascade capture is decided per statement, not
+# per child table (fk_cascade_stmt_capturable()).
+#
+# A child table without a primary key that has a virtual column participating
+# in a key is not eligible (fk_cascade_table_eligible()): its rows cannot be
+# identified unambiguously from a row image, so its cascade rows are never
+# logged. Once any cascade row of a statement is captured, every row event of
+# that statement carries FK_CASCADE_EVENTS_F | NO_FOREIGN_KEY_CHECKS_F and the
+# replica stops cascading for ALL children. If an eligible sibling were
+# captured, the replica would therefore neither receive nor recreate the
+# ineligible sibling's cascade changes and silently keep orphans.
+#
+# The feature must hence be declined for the whole statement as soon as any
+# child reachable through a cascade is ineligible, and the classic replica-side
+# cascade then handles all children.
+#
+
+SET @old_rpl_use_binlog_events_for_fk_cascade := @@session.rpl_use_binlog_events_for_fk_cascade;
+SET SESSION default_storage_engine=InnoDB;
+SET SESSION binlog_format=ROW;
+SET SESSION rpl_use_binlog_events_for_fk_cascade=1;
+
+--let $datadir = `SELECT @@datadir`
+--let $tmpfile = $MYSQLTEST_VARDIR/tmp/fk_cascade_mixed_eligibility.sql
+
+--echo #
+--echo # Case 1: eligible and ineligible siblings of the same parent
+--echo #
+
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+
+# Eligible: has a primary key.
+CREATE TABLE ce (
+  id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+# Ineligible: no primary key (and no NOT NULL unique key that would be
+# promoted to one) and a virtual column participating in a key.
+CREATE TABLE ci (
+  id INT, pid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+  KEY(pid), KEY(vc),
+  CONSTRAINT fk_ci FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+# Ineligible, SET NULL action.
+CREATE TABLE cn (
+  id INT, pid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+  KEY(pid), KEY(vc),
+  CONSTRAINT fk_cn FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE SET NULL ON UPDATE SET NULL
+) ENGINE=InnoDB;
+
+INSERT INTO p  VALUES (1,10),(2,20),(3,30),(4,40);
+INSERT INTO ce (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+INSERT INTO ci (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+INSERT INTO cn (id,pid,v) VALUES (100,1,1),(200,2,2),(300,3,3),(400,4,4);
+sync_slave_with_master;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+UPDATE p SET id=11 WHERE id=1;
+DELETE FROM p WHERE id=2;
+# Multi-statement transaction
+BEGIN;
+UPDATE p SET id=33 WHERE id=3;
+DELETE FROM p WHERE id=4;
+COMMIT;
+
+sync_slave_with_master;
+--let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--echo # Last_SQL_Errno = $errno (expected 0)
+SELECT id, pid, v FROM ce ORDER BY id;
+SELECT id, pid, v, vc FROM ci ORDER BY id;
+SELECT id, pid, v, vc FROM cn ORDER BY id;
+
+--let $diff_tables= master:p, slave:p
+--source include/diff_tables.inc
+--let $diff_tables= master:ce, slave:ce
+--source include/diff_tables.inc
+--let $diff_tables= master:ci, slave:ci
+--source include/diff_tables.inc
+--let $diff_tables= master:cn, slave:cn
+--source include/diff_tables.inc
+
+# The feature was declined for these statements: no cascade row events at
+# all, not even for the eligible sibling.
+connection master;
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $tmpfile
+--let SEARCH_FILE= $tmpfile
+--let SEARCH_ABORT= FOUND [1-9]
+--let SEARCH_PATTERN= ### (UPDATE|DELETE FROM) `test`.`ce`
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### (UPDATE|DELETE FROM) `test`.`ci`
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### (UPDATE|DELETE FROM) `test`.`cn`
+--source include/search_pattern_in_file.inc
+--remove_file $tmpfile
+
+DROP TABLE ce, ci, cn, p;
+sync_slave_with_master;
+
+--echo #
+--echo # Case 2: ineligible table reachable only transitively (grandchild)
+--echo #
+
+connection master;
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE ce (
+  id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+CREATE TABLE gi (
+  id INT, cid INT, v INT, vc INT AS (v + 1) VIRTUAL,
+  KEY(cid), KEY(vc),
+  CONSTRAINT fk_gi FOREIGN KEY (cid) REFERENCES ce(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1,10),(2,20);
+INSERT INTO ce (id,pid,v) VALUES (100,1,1),(101,1,2),(200,2,3);
+INSERT INTO gi (id,cid,v) VALUES (1,100,1),(2,101,2),(3,200,3);
+sync_slave_with_master;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+DELETE FROM p WHERE id=1;
+
+sync_slave_with_master;
+--let $errno= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--echo # Last_SQL_Errno = $errno (expected 0)
+SELECT id, pid, v FROM ce ORDER BY id;
+SELECT id, cid, v, vc FROM gi ORDER BY id;
+
+--let $diff_tables= master:ce, slave:ce
+--source include/diff_tables.inc
+--let $diff_tables= master:gi, slave:gi
+--source include/diff_tables.inc
+
+connection master;
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $tmpfile
+--let SEARCH_FILE= $tmpfile
+--let SEARCH_ABORT= FOUND [1-9]
+--let SEARCH_PATTERN= ### (UPDATE|DELETE FROM) `test`.`ce`
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### (UPDATE|DELETE FROM) `test`.`gi`
+--source include/search_pattern_in_file.inc
+--remove_file $tmpfile
+
+DROP TABLE gi, ce, p;
+sync_slave_with_master;
+
+--echo #
+--echo # Case 3 (control): all children eligible, cascade rows are logged
+--echo #
+
+connection master;
+CREATE TABLE p (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE ce (
+  id INT PRIMARY KEY, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_ce FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+# No primary key, but no virtual column in a key either: eligible.
+CREATE TABLE ce2 (
+  id INT, pid INT, v INT, KEY(pid),
+  CONSTRAINT fk_ce2 FOREIGN KEY (pid) REFERENCES p(id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+INSERT INTO p VALUES (1,10),(2,20);
+INSERT INTO ce  VALUES (100,1,1),(200,2,2);
+INSERT INTO ce2 VALUES (100,1,1),(200,2,2);
+sync_slave_with_master;
+
+connection master;
+FLUSH BINARY LOGS;
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+DELETE FROM p WHERE id=1;
+
+sync_slave_with_master;
+--let $diff_tables= master:ce, slave:ce
+--source include/diff_tables.inc
+--let $diff_tables= master:ce2, slave:ce2
+--source include/diff_tables.inc
+
+connection master;
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog > $tmpfile
+--let SEARCH_FILE= $tmpfile
+--let SEARCH_ABORT= NOT FOUND|FOUND 0|FOUND [2-9]
+--let SEARCH_PATTERN= ### DELETE FROM `test`.`ce`[^2]
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### DELETE FROM `test`.`ce2`
+--source include/search_pattern_in_file.inc
+--remove_file $tmpfile
+
+DROP TABLE ce, ce2, p;
+
+SET SESSION rpl_use_binlog_events_for_fk_cascade=@old_rpl_use_binlog_events_for_fk_cascade;
+--source include/rpl_end.inc
