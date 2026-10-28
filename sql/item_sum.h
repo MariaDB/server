@@ -110,6 +110,7 @@ public:
     was already applied during the collection phase.
   */
   virtual bool is_in_endup_phase() const { return false; }
+  virtual Item *arg_item(uint i) = 0;
 };
 
 
@@ -383,7 +384,8 @@ public:
   enum Sumfunctype
   { COUNT_FUNC, COUNT_DISTINCT_FUNC, SUM_FUNC, SUM_DISTINCT_FUNC, AVG_FUNC,
     AVG_DISTINCT_FUNC, MIN_FUNC, MAX_FUNC, STD_FUNC,
-    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, GROUP_CONCAT_FUNC,
+    VARIANCE_FUNC, SUM_BIT_FUNC, UDF_SUM_FUNC, PLUGIN_SUM_FUNC,
+    GROUP_CONCAT_FUNC,
     ROW_NUMBER_FUNC, RANK_FUNC, DENSE_RANK_FUNC, PERCENT_RANK_FUNC,
     CUME_DIST_FUNC, NTILE_FUNC, FIRST_VALUE_FUNC, LAST_VALUE_FUNC,
     NTH_VALUE_FUNC, LEAD_FUNC, LAG_FUNC, PERCENTILE_CONT_FUNC,
@@ -466,6 +468,7 @@ public:
     case VARIANCE_FUNC:
     case SUM_BIT_FUNC:
     case UDF_SUM_FUNC:
+    case PLUGIN_SUM_FUNC:
     case GROUP_CONCAT_FUNC:
     case JSON_ARRAYAGG_FUNC:
     case GEOMETRY_COLLECT_FUNC:
@@ -647,6 +650,45 @@ public:
 };
 
 
+/**
+  Base class for native aggregate function plugins.
+
+  Derived classes implement clear(), add_row(), result accessors and copy
+  methods. aggregation_arg() must be used instead of args[] while consuming
+  rows, so DISTINCT replay can substitute values from its internal temporary
+  storage. DISTINCT replay order is unspecified; order-sensitive
+  implementations must override supports_distinct(). Implement
+  supports_removal() and remove_row() when the state is invertible.
+  FILTER (WHERE ...) is applied by add() and remove(): add_row() and
+  remove_row() are called only for rows that passed the filter.
+*/
+class Item_sum_plugin : public Item_sum
+{
+public:
+  Item_sum_plugin(THD *thd, Item *item): Item_sum(thd, item)
+  { quick_group= false; }
+  Item_sum_plugin(THD *thd, Item_sum_plugin *item): Item_sum(thd, item)
+  { quick_group= false; }
+  enum Sumfunctype sum_func() const override { return PLUGIN_SUM_FUNC; }
+  Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
+  { return create_table_field_from_handler(root, table); }
+  bool fix_fields(THD *thd, Item **ref) override;
+  Item *aggregation_arg(uint i) { return aggr->arg_item(i); }
+  virtual bool supports_distinct() const { return true; }
+  bool add() override final { return filter_passed() ? add_row() : false; }
+  void remove() override final
+  {
+    if (filter_passed())
+      remove_row();
+  }
+  void reset_field() override { DBUG_ASSERT(0); }
+  void update_field() override { DBUG_ASSERT(0); }
+protected:
+  virtual bool add_row()= 0;
+  virtual void remove_row() { DBUG_ASSERT(0); }
+};
+
+
 class Unique;
 
 
@@ -732,11 +774,12 @@ class Aggregator_distinct : public Aggregator
     instead of calling the relevant val_..() method.
   */
   bool use_distinct_values;
+  Item **distinct_args;
 
 public:
   Aggregator_distinct (Item_sum *sum) :
     Aggregator(sum), table(NULL), tmp_table_param(NULL), tree(NULL),
-    always_null(false), use_distinct_values(false) {}
+    always_null(false), use_distinct_values(false), distinct_args(NULL) {}
   virtual ~Aggregator_distinct ();
   Aggregator_type Aggrtype() override { return DISTINCT_AGGREGATOR; }
 
@@ -748,6 +791,7 @@ public:
   double arg_val_real() override;
   bool arg_is_null(bool use_null_value) override;
   bool is_in_endup_phase() const override { return use_distinct_values; }
+  Item *arg_item(uint i) override;
 
   bool unique_walk_function(void *element);
   bool unique_walk_function_for_count(void *element);
@@ -775,6 +819,7 @@ public:
   my_decimal *arg_val_decimal(my_decimal * value) override;
   double arg_val_real() override;
   bool arg_is_null(bool use_null_value) override;
+  Item *arg_item(uint i) override { return item_sum->get_arg(i); }
 };
 
 
