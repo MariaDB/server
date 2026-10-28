@@ -691,8 +691,9 @@ found:
 	if (node->table->is_temporary()
 	    || row_undo_mod_sec_is_unsafe(
 		       btr_pcur_get_rec(&node->pcur), index, entry, &mtr)) {
-		btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
-					  btr_cur_get_rec(btr_cur), &mtr);
+		btr_rec_set_deleted_sec<true>(
+		  btr_cur_get_block(btr_cur),
+		  btr_cur_get_rec(btr_cur), index, &mtr);
 	} else {
 		/* Remove the index record */
 
@@ -859,6 +860,10 @@ not_found:
 		big_rec_t*	big_rec;
 		rec_t*		insert_rec;
 
+		if (index->has_trx_id()) {
+			btr_cur_write_sec_trx_id(entry, index, trx->id);
+		}
+
 		err = btr_cur_optimistic_insert(
 			flags, btr_cur, &offsets, &offsets_heap,
 			entry, &insert_rec, &big_rec,
@@ -888,8 +893,10 @@ not_found:
 		}
 	} else {
 found:
-		btr_rec_set_deleted<false>(btr_cur_get_block(btr_cur),
-					   btr_cur_get_rec(btr_cur), &mtr);
+		btr_rec_set_deleted_sec<false>(
+		  btr_cur_get_block(btr_cur),
+		  btr_cur_get_rec(btr_cur), index, &mtr);
+
 		mem_heap_t* heap = mem_heap_create(
 			sizeof(upd_t)
 			+ dtuple_get_n_fields(entry) * sizeof(upd_field_t));
@@ -898,7 +905,8 @@ found:
 			index, nullptr, index->n_core_fields, ULINT_UNDEFINED,
 			&offsets_heap);
 		update = row_upd_build_sec_rec_difference_binary(
-			btr_cur_get_rec(btr_cur), index, offsets, entry, heap);
+			btr_cur_get_rec(btr_cur), index, offsets,
+			entry, heap, index->has_trx_id());
 		if (upd_get_n_fields(update) == 0) {
 
 			/* Do nothing */

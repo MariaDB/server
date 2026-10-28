@@ -205,8 +205,11 @@ row_ins_sec_index_entry_by_modify(
 	there are char fields in them. Therefore we have to calculate the
 	difference. */
 
+	bool has_trx_id= cursor->index()->has_trx_id();
+
 	update = row_upd_build_sec_rec_difference_binary(
-		rec, cursor->index(), *offsets, entry, heap);
+		rec, cursor->index(), *offsets, entry, heap,
+		has_trx_id);
 
 	if (!rec_get_deleted_flag(rec, rec_offs_comp(*offsets))) {
 		/* We should never insert in place of a record that
@@ -223,6 +226,11 @@ row_ins_sec_index_entry_by_modify(
 		ut_ad(!dict_index_is_online_ddl(cursor->index()));
 		return cursor->index()->is_committed()
 			? DB_CORRUPTION : DB_SUCCESS;
+	}
+
+	if (has_trx_id) {
+		row_upd_add_sec_trx_id(update, cursor->index(),
+				       thr_get_trx(thr)->id, heap);
 	}
 
 	if (mode == BTR_MODIFY_LEAF) {
@@ -3533,6 +3541,14 @@ row_ins_index_entry_set_vals(const ins_node_t* node, que_thr_t* thr)
 			field = dtuple_get_nth_field(entry, i);
 			ind_field = dict_index_get_nth_field(index, i);
 			col = ind_field->col;
+		
+			if (index->has_trx_id() &&
+			    i == index->sec_db_trx_id()) {
+				/* DB_TRX_ID value will be stored
+				in btr_cur_optimisitic_insert()
+				or by row_upd_add_sec_trx_id() */
+				continue;
+			}
 		}
 
 		if (col->is_virtual()) {

@@ -481,7 +481,8 @@ row_upd_build_sec_rec_difference_binary(
 	dict_index_t*	index,	/*!< in: index */
 	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const dtuple_t*	entry,	/*!< in: entry to insert */
-	mem_heap_t*	heap)	/*!< in: memory heap from which allocated */
+	mem_heap_t*	heap,	/*!< in: memory heap from which allocated */
+	bool		skip_trx_id)
 {
 	upd_field_t*	upd_field;
 	const dfield_t*	dfield;
@@ -498,11 +499,14 @@ row_upd_build_sec_rec_difference_binary(
 	ut_ad(!rec_offs_any_default(offsets));
 	ut_ad(!index->table->skip_alter_undo);
 
+	ut_ad(!skip_trx_id || index->has_trx_id());
 	update = upd_create(dtuple_get_n_fields(entry), heap);
 
 	n_diff = 0;
 
-	for (uint16_t i = 0; i < dtuple_get_n_fields(entry); i++) {
+	const uint16_t n_cmp = uint16_t(dtuple_get_n_fields(entry) -
+			                 uint16_t(skip_trx_id));
+	for (uint16_t i = 0; i < n_cmp; i++) {
 
 		data = rec_get_nth_field(rec, offsets, i, &len);
 
@@ -534,6 +538,19 @@ row_upd_build_sec_rec_difference_binary(
 	update->n_fields = n_diff;
 
 	return(update);
+}
+
+void row_upd_add_sec_trx_id(upd_t *update, const dict_index_t *index,
+                            trx_id_t trx_id, mem_heap_t *heap)
+{
+  ut_ad(index->has_trx_id());
+  ut_ad(update->n_fields < index->n_fields);
+  byte* b= static_cast<byte*>(mem_heap_alloc(heap, DATA_TRX_ID_LEN));
+  trx_write_trx_id(b, trx_id);
+  upd_field_t* uf= &update->fields[update->n_fields]; 
+  upd_field_set_field_no(uf, index->sec_db_trx_id(), index);
+  dfield_set_data(&uf->new_val, b, DATA_TRX_ID_LEN);
+  update->n_fields++;
 }
 
 
@@ -1920,9 +1937,9 @@ found:
 				goto close;
 			}
 
-			btr_rec_set_deleted<true>(btr_pcur_get_block(&pcur),
-						  btr_pcur_get_rec(&pcur),
-						  &mtr);
+			btr_rec_set_deleted_sec<true>(
+			  btr_pcur_get_block(&pcur),
+			  btr_pcur_get_rec(&pcur), index, &mtr);
 #ifdef WITH_WSREP
 			if (!referenced && foreign
 			    && wsrep_must_process_fk(node, mtr.trx)

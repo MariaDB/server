@@ -2445,7 +2445,8 @@ dict_index_build_internal_non_clust(
 	/* Create a new index */
 	new_index = dict_mem_index_create(
 		index->table, index->name, index->type,
-		ulint(index->n_fields + 1 + clust_index->n_uniq));
+		ulint(index->n_fields + 1 + clust_index->n_uniq
+		      + !!(index->has_trx_id())));
 
 	/* Copy other relevant data from the old index
 	struct to the new struct: it inherits the values */
@@ -2498,6 +2499,14 @@ dict_index_build_internal_non_clust(
 		new_index->n_uniq = index->n_fields;
 	} else {
 		new_index->n_uniq = new_index->n_def;
+	}
+
+	if (new_index->type & DICT_SEC_TRX_ID) {
+		ut_ad(dict_table_is_comp(table));
+		dict_index_add_col(
+		  new_index, table,
+                  dict_table_get_sys_col(table, DATA_TRX_ID), 0,
+		  false);
 	}
 
 	/* Set the n_fields value in new_index to the actual defined
