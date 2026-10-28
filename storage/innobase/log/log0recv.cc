@@ -4947,13 +4947,13 @@ read_only_recovery:
 		ut_ad(recv_sys.pages.empty());
 	}
 
-	DBUG_EXECUTE_IF("before_final_redo_apply", goto err_exit;);
 	mysql_mutex_lock(&recv_sys.mutex);
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
 	     || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 	if (srv_operation == SRV_OPERATION_NORMAL) {
 		err = recv_rename_files();
 	}
+	DBUG_EXECUTE_IF("before_final_redo_apply", err = DB_ERROR;);
 	mysql_mutex_unlock(&recv_sys.mutex);
 
 	if (err != DB_SUCCESS) {
