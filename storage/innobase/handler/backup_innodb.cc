@@ -2355,7 +2355,7 @@ int InnoDB_backup::copy_file_shortcut_try(int dst, fil_node_t *node,
                                           uint32_t final_limit,
                                           buf_page_t **blocks) noexcept
 {
-# if 1
+# if 0
   return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
   const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
