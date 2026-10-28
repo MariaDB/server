@@ -2215,7 +2215,9 @@ public:
     int dst{sink.stream};
     if (dst < 0)
     {
-      dst= openat(target.fd, basename, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY);
+      /* no O_DIRECT here */
+      dst= openat(target.fd, basename,
+                  O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
       if (dst < 0)
         goto close_and_fail;
     }
