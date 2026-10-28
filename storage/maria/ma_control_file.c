@@ -579,6 +579,49 @@ int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
 }
 
 
+/**
+  Build an image of the control file with the given changeable values,
+  without writing the file. The create-time part is read from the file.
+
+  @param buffer                  CF_MAX_SIZE bytes for the image
+  @param last_checkpoint_lsn_arg LSN of the checkpoint to recover from
+  @param last_logno_arg          number of the last log file
+  @param max_trid_arg            maximum transaction longid
+
+  @return size of the image in bytes
+  @retval 0 on error
+*/
+
+uint ma_control_file_image(uchar *buffer, LSN last_checkpoint_lsn_arg,
+                           uint32 last_logno_arg, TrID max_trid_arg)
+{
+  uchar *changeable= buffer + cf_create_time_size;
+  uint changeable_size;
+  DBUG_ENTER("ma_control_file_image");
+
+  if (control_file_fd < 0 ||
+      my_pread(control_file_fd, buffer, cf_create_time_size, 0,
+               MYF(MY_FNABP | MY_WME)))
+    DBUG_RETURN(0);
+
+  /* ma_control_file_open() checks the changeable part up to this size */
+  changeable_size= uint2korr(buffer + CF_CHANGEABLE_SIZE_OFFSET);
+  set_if_bigger(changeable_size, CF_CHANGEABLE_TOTAL_SIZE);
+  if (cf_create_time_size + changeable_size > CF_MAX_SIZE)
+    DBUG_RETURN(0);
+
+  bzero(changeable, changeable_size);
+  lsn_store(changeable + CF_LSN_OFFSET, last_checkpoint_lsn_arg);
+  int4store(changeable + CF_FILENO_OFFSET, last_logno_arg);
+  transid_store(changeable + CF_MAX_TRID_OFFSET, max_trid_arg);
+  int4store(changeable,
+            my_checksum(0, changeable + CF_CHECKSUM_SIZE,
+                        uint2korr(buffer + CF_CHANGEABLE_SIZE_OFFSET) -
+                        CF_CHECKSUM_SIZE));
+  DBUG_RETURN(cf_create_time_size + changeable_size);
+}
+
+
 /*
   Free resources taken by control file subsystem
 

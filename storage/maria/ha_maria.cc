@@ -3744,6 +3744,10 @@ struct maria_backup_context
   /** tables that are not safe for online backup; they will be copied
   under BACKUP_LOCK_COMMIT */
   Dynamic_array<const char*> deferred{PSI_INSTRUMENT_MEM};
+  /** last_checkpoint_lsn at BACKUP_START: recovery of the backup starts
+  from this checkpoint, because the table files may be copied before
+  any later checkpoint */
+  LSN checkpoint_lsn{LSN_IMPOSSIBLE};
 
   maria_backup_context()
   {
@@ -3785,21 +3789,17 @@ static bool maria_backup_mkdir(const backup_target &target, const char *name)
    Collect the Aria tables to copy.
    @param target  backup target
    @param sink    worker context
-   @return context for maria_backup_step()
-   @retval nullptr on failure
+   @param ctx     context for maria_backup_step()
+   @return whether the operation failed
 */
-static maria_backup_context *
-maria_backup_collect(const backup_target &target, const backup_sink &sink)
-  noexcept
+static bool maria_backup_collect(const backup_target &target,
+                                 const backup_sink &sink,
+                                 maria_backup_context *ctx) noexcept
 {
   MY_DIR *dir= my_dir(mysql_data_home, MYF(MY_WME | MY_WANT_STAT));
   if (!dir)
-    return nullptr;
-  maria_backup_context *ctx= static_cast<maria_backup_context*>
-    (my_malloc(PSI_INSTRUMENT_ME, sizeof *ctx, MYF(MY_WME)));
-  bool fail= !ctx;
-  if (ctx)
-    new (ctx) maria_backup_context;
+    return true;
+  bool fail= false;
 
   for (size_t i= 0; !fail && i < dir->number_of_files; i++)
   {
@@ -3842,13 +3842,43 @@ maria_backup_collect(const backup_target &target, const backup_sink &sink)
   }
 
   my_dirend(dir);
-  if (fail && ctx)
-  {
-    ctx->~maria_backup_context();
-    my_free(ctx);
-    ctx= nullptr;
-  }
-  return ctx;
+  return fail;
+}
+
+/**
+   Create a file in the backup.
+   @param target  backup target
+   @param sink    worker context
+   @param name    file name in the backup
+   @param size    file size, for a stream target
+   @param dst     the file or the stream to write to
+   @return error code
+   @retval 0 on success
+   @retval 1 if the file could not be created (the error was reported)
+   @retval negative if the stream header could not be written
+*/
+static int maria_backup_create(const backup_target &target,
+                               const backup_sink &sink, const char *name,
+                               my_off_t size, backup_fd *dst) noexcept
+{
+  *dst= sink.stream;
+  if (*dst != backup_sink::NO_STREAM)
+    return backup_stream_start(*dst, name, 0644, size, nullptr, 0);
+#ifdef _WIN32
+  char path[FN_REFLEN];
+  strxnmov(path, sizeof path - 1, target.path, "/", name, NullS);
+  *dst= CreateFile(path, GENERIC_WRITE, 0, my_win_file_secattr(),
+                   CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (*dst != INVALID_HANDLE_VALUE)
+    return 0;
+  my_osmaperr(GetLastError());
+#else
+  *dst= openat(target.fd, name, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC, 0666);
+  if (*dst >= 0)
+    return 0;
+#endif
+  my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
+  return 1;
 }
 
 /**
@@ -3883,33 +3913,11 @@ static bool maria_backup_copy(const backup_target &target,
   }
   /* A page can be in the middle of being appended; skip it. */
   size-= size % block_size;
-  backup_fd dst= sink.stream;
-  int err;
+  backup_fd dst;
+  int err= maria_backup_create(target, sink, name, size, &dst);
+  if (err > 0)
+    return true;
   bool read_failed= false;
-
-  if (dst != backup_sink::NO_STREAM)
-    err= backup_stream_start(dst, name, 0644, size, nullptr, 0);
-  else
-  {
-#ifdef _WIN32
-    char path[FN_REFLEN];
-    strxnmov(path, sizeof path - 1, target.path, "/", name, NullS);
-    dst= CreateFile(path, GENERIC_WRITE, 0, my_win_file_secattr(),
-                    CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (dst == INVALID_HANDLE_VALUE)
-    {
-      my_osmaperr(GetLastError());
-#else
-    dst= openat(target.fd, name, O_CREAT | O_EXCL | O_WRONLY | O_CLOEXEC,
-                0666);
-    if (dst < 0)
-    {
-#endif
-      my_error(ER_CANT_CREATE_FILE, MYF(0), name, errno);
-      return true;
-    }
-    err= 0;
-  }
 
   for (my_off_t pos= 0; !err && pos < size; )
   {
@@ -4018,6 +4026,46 @@ static bool maria_backup_table_locked(const backup_target &target,
   return backup::copy_or_stream(target, sink, path, prefix);
 }
 
+/**
+   Write aria_log_control to the backup.
+   @param target          backup target
+   @param sink            worker context
+   @param checkpoint_lsn  checkpoint to start the recovery from
+   @param last_logno      number of the last log file in the backup
+   @return whether the operation failed
+*/
+static bool maria_backup_control_file(const backup_target &target,
+                                      const backup_sink &sink,
+                                      LSN checkpoint_lsn, uint32 last_logno)
+  noexcept
+{
+  static constexpr const char *name= "aria_log_control";
+  uchar buf[512];
+  const uint size= ma_control_file_image(buf, checkpoint_lsn, last_logno,
+                                         max_trid_in_control_file);
+  if (!size)
+  {
+    my_error(ER_ERROR_ON_READ, MYF(0), name, my_errno);
+    return true;
+  }
+  backup_fd dst;
+  int err= maria_backup_create(target, sink, name, size, &dst);
+  if (err > 0)
+    return true;
+  if (sink.stream != backup_sink::NO_STREAM)
+  {
+    /* Write the image followed by zero padding to a 512-byte block */
+    bzero(buf + size, sizeof buf - size);
+    err= err || backup_stream_write(dst, buf, sizeof buf);
+  }
+  else
+    err= backup_stream_write(dst, buf, size) |
+      IF_WIN(!CloseHandle(dst), close(dst));
+  if (err)
+    my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
+  return err;
+}
+
 /* A C++ function pointer compatible wrapper of a C function */
 static void *
 maria_backup_start(THD *, const backup_target *target,
@@ -4026,34 +4074,54 @@ maria_backup_start(THD *, const backup_target *target,
   switch (stage) {
   case BACKUP_PREPARE:
     return nullptr;
+  case BACKUP_START:
+  {
+    assert(!sink->ha_data);
+    void *mem= my_malloc(PSI_INSTRUMENT_ME, sizeof(maria_backup_context),
+                         MYF(MY_WME));
+    if (!mem)
+      return reinterpret_cast<void*>(-1);
+    maria_backup_context *ctx= new (mem) maria_backup_context;
+    /*
+      Keep the log files that the sampled checkpoint needs until
+      maria_backup_end(BACKUP_FINISHED). translog_disable_purge() waits
+      for a translog_purge() in progress. A checkpoint writes the control
+      file (under translog_lock()) before it purges the log, so no file
+      that ctx->checkpoint_lsn needs was purged.
+    */
+    translog_disable_purge();
+    translog_lock();
+    ctx->checkpoint_lsn= last_checkpoint_lsn;
+    translog_unlock();
+    return ctx;
+  }
   case BACKUP_WAIT_FOR_FLUSH:
     /*
       DDL is blocked from now on. Copy the tables that are safe for
       online backup before the log, so that the log covers every
       page LSN in the copied files.
     */
-    assert(!sink->ha_data);
-    if (maria_backup_context *ctx= maria_backup_collect(*target, *sink))
-      return ctx;
-    return reinterpret_cast<void*>(-1);
+    if (maria_backup_collect(*target, *sink,
+                             static_cast<maria_backup_context*>
+                             (sink->ha_data)))
+      return reinterpret_cast<void*>(-1);
+    return sink->ha_data;
   case BACKUP_LOCK_COMMIT:
-    if (maria_backup_context *ctx=
-        static_cast<maria_backup_context*>(sink->ha_data))
-      ctx->next= 0;
     break;
   default:
     return sink->ha_data;
   }
 
   {
+    maria_backup_context *ctx=
+      static_cast<maria_backup_context*>(sink->ha_data);
+    ctx->next= 0;
     const size_t prefix{strlen(maria_data_root) + 1};
     const size_t size{prefix + sizeof "aria_log.00000001"};
     const TRANSLOG_ADDRESS horizon{translog_get_horizon()};
     translog_flush(horizon);
     const uint32 last{LSN_FILE_NO(horizon)};
     bool fail{false};
-
-    maria_prepare_for_backup();
 
     /* FIXME: copy one log file per thread */
     char *filename= static_cast<char*>(malloc(size));
@@ -4072,12 +4140,9 @@ maria_backup_start(THD *, const backup_target *target,
         goto fail;
     }
 
-    strcpy(filename + prefix, "aria_log_control");
-
-    if (backup::copy_or_stream(*target, *sink, filename, prefix))
+    if (maria_backup_control_file(*target, *sink, ctx->checkpoint_lsn, last))
     fail:
       fail= true;
-    maria_end_backup();
     free(filename);
     if (fail)
       return reinterpret_cast<void*>(-1);
@@ -4124,12 +4189,15 @@ static int maria_backup_step(THD *, const backup_target *target,
    @param sink    worker context
    @return 0
 */
-static int maria_backup_end(THD *, const backup_target *,
+static int maria_backup_end(THD *thd, const backup_target *,
                             backup_stages stage, const backup_sink *sink)
   noexcept
 {
+  if (stage == BACKUP_WAIT_FOR_FLUSH)
+    DEBUG_SYNC(thd, "maria_backup_tables_copied");
   if (stage == BACKUP_FINISHED && sink->ha_data)
   {
+    translog_enable_purge();
     maria_backup_context *ctx=
       static_cast<maria_backup_context*>(sink->ha_data);
     ctx->~maria_backup_context();

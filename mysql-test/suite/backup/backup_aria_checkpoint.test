@@ -1,0 +1,62 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# BACKUP SERVER copies the Aria table files before the UPDATE.
+# The UPDATE writes its pages (the page cache is small), and a later
+# checkpoint does not list them as dirty. Recovery of the backup must
+# start from the checkpoint that was the latest when BACKUP SERVER
+# started, not from the later one, or the UPDATE would be lost.
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 SELECT REPEAT('a', 200) FROM seq_1_to_1000;
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--connect bk,localhost,root
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR copied';
+UPDATE t1 SET c= REPEAT('b', 250);
+
+# Wait for a checkpoint after the UPDATE. Each checkpoint rewrites
+# aria_log_control. Background checkpoints stop when the log stops
+# growing, so wait for one only.
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+perl;
+my $file= "$ENV{MYSQLD_DATADIR}/aria_log_control";
+sub control { open my $f, '<', $file or die "$file: $!"; binmode $f;
+  local $/; my $c= <$f>; close $f; $c }
+my $old= control();
+for (my $tries= 0; control() eq $old; $tries++)
+{
+  die "no checkpoint" if $tries > 600;
+  select(undef, undef, undef, 0.1);
+}
+EOF
+
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection bk
+--reap
+--disconnect bk
+--connection default
+SET DEBUG_SYNC='RESET';
+
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP TABLE t1;
+--rmdir $MYSQLTEST_VARDIR/bk

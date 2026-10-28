@@ -1,0 +1,25 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 SELECT REPEAT('a', 200) FROM seq_1_to_1000;
+connect bk,localhost,root;
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR copied';
+UPDATE t1 SET c= REPEAT('b', 250);
+SET DEBUG_SYNC='now SIGNAL go';
+connection bk;
+disconnect bk;
+connection default;
+SET DEBUG_SYNC='RESET';
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1000	250000
+# restart
+DROP TABLE t1;
