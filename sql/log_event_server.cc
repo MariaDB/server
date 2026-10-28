@@ -660,6 +660,8 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
                       rli->slave_skip_counter));
   if ((server_id == global_system_variables.server_id &&
        !(rli->replicate_same_server_id || (flags &  LOG_EVENT_ACCEPT_OWN_F))) ||
+      (is_group_event(get_type_code()) && rgi->gtid_ignore_duplicate_state ==
+         rpl_group_info::GTID_DUPLICATE_IGNORE) ||
       (rli->slave_skip_counter == 1 && rli->is_in_group()) ||
       (flags & LOG_EVENT_SKIP_REPLICATION_F &&
        opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE))
@@ -2464,7 +2466,8 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
       opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE)
     DBUG_RETURN(Log_event::EVENT_SKIP_IGNORE);
 
-  if (rli->slave_skip_counter > 0)
+  if (rli->slave_skip_counter ||
+      rgi->gtid_ignore_duplicate_state == rpl_group_info::GTID_DUPLICATE_IGNORE)
   {
     if (is_begin())
     {
@@ -2475,6 +2478,9 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
     if (is_commit() || is_rollback())
     {
       thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_GTID_BEGIN);
+      if (rgi->gtid_ignore_duplicate_state ==
+          rpl_group_info::GTID_DUPLICATE_IGNORE)
+        DBUG_RETURN(Log_event::EVENT_SKIP_IGNORE);
       DBUG_RETURN(Log_event::EVENT_SKIP_COUNT);
     }
   }
@@ -4020,7 +4026,8 @@ Gtid_log_event::do_shall_skip(rpl_group_info *rgi)
       opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE)
     return Log_event::EVENT_SKIP_IGNORE;
 
-  if (rli->slave_skip_counter > 0)
+  if (rli->slave_skip_counter ||
+      rgi->gtid_ignore_duplicate_state == rpl_group_info::GTID_DUPLICATE_IGNORE)
   {
     if (!(flags2 & FL_STANDALONE))
     {
