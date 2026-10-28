@@ -288,7 +288,7 @@ SysTablespace::parse_params(
 			}
 		}
 
-		m_files.push_back(Datafile(flags(), uint32_t(size), order));
+		m_files.emplace_back(flags(), uint32_t(size), order);
 		m_files.back().make_filepath(path(),
 					     {filepath, strlen(filepath)},
 					     NO_EXT);
