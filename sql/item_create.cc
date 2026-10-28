@@ -3015,21 +3015,6 @@ Create_sp_func::create_with_db(THD *thd,
   const Sp_handler *sph= &sp_handler_function;
   Database_qualified_name pkgname;
 
-  if (unlikely(has_named_parameters(item_list)))
-  {
-    /*
-      The syntax "db.foo(expr AS p1, expr AS p2, ...) is invalid,
-      and has been rejected during syntactic parsing already,
-      because a stored function call may not have named parameters.
-
-      The syntax "foo(expr AS p1, expr AS p2, ...)" is correct,
-      because it can refer to a User Defined Function call.
-      For a Stored Function however, this has no semantic.
-    */
-    my_error(ER_WRONG_PARAMETERS_TO_STORED_FCT, MYF(0), name.str);
-    return NULL;
-  }
-
   if (item_list != NULL)
     arg_count= item_list->elements;
 
