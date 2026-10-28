@@ -1153,6 +1153,7 @@ static const rec_t* rtr_get_father_node(
 					  btr_pcur_get_block(r_cursor),
 					  btr_cur_get_page_cur(btr_cur));
 			had_rtr = btr_cur->rtr_info = sea_cur->rtr_info;
+			btr_cur->rtr_info_borrowed = true;
 			btr_cur->tree_height = sea_cur->tree_height;
 		}
 		goto func_exit;
@@ -1167,6 +1168,7 @@ static const rec_t* rtr_get_father_node(
 	}
 
 	btr_cur->rtr_info = rtr_create_rtr_info(false, false, btr_cur, index);
+	btr_cur->rtr_info_borrowed = false;
 
 	if (rtr_search_to_nth_level(level, tuple, PAGE_CUR_RTREE_LOCATE,
 				    BTR_CONT_MODIFY_TREE, btr_cur, mtr)
