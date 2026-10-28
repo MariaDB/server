@@ -656,3 +656,35 @@ SELECT * FROM t WHERE i != ANY ( SELECT 3 EXCEPT SELECT 3 );
 i
 drop table t;
 # End of 10.3 tests
+#
+# MDEV-38988: Assertion failure in Protocol::end_statement or
+# lack of warning upon query with INTERSECT and LIMIT ROWS EXAMINED
+#
+CREATE TABLE t (a INT PRIMARY KEY, b INT);
+INSERT INTO t SELECT seq, seq FROM seq_1_to_30;
+(SELECT a FROM t LIMIT ROWS EXAMINED 100) EXCEPT ALL (SELECT a FROM t);
+a
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 100. The query result may be incomplete
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, f VARCHAR(16));
+INSERT INTO t SELECT seq, '' FROM seq_1_to_8650;
+(SELECT f FROM t WHERE id BETWEEN 7000 AND 9000 LIMIT ROWS EXAMINED 8000)
+INTERSECT
+(SELECT f FROM t WHERE id BETWEEN 7000 AND 9000 LIMIT ROWS EXAMINED 8000);
+f
+
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 8000. The query result may be incomplete
+DROP TABLE t;
+# End of 10.11 tests
