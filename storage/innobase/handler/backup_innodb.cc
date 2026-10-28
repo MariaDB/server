@@ -2090,8 +2090,7 @@ public:
         HANDLE dh= CreateFile(destname, GENERIC_WRITE,
                               FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
                               OPEN_EXISTING,
-                              FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
-                              nullptr);
+                              FILE_ATTRIBUTE_NORMAL, nullptr);
         if (dh == INVALID_HANDLE_VALUE)
           goto fail;
         if (os_file_set_sparse_win32(dh))
@@ -2161,8 +2160,7 @@ public:
     {
       dst=
         CreateFile(destname, GENERIC_WRITE, 0, my_win_file_secattr(),
-                   CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
-                   nullptr);
+                   CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
       if (dst == INVALID_HANDLE_VALUE)
       {
         std::ignore= CloseHandle(src);
@@ -2217,7 +2215,7 @@ public:
     int dst{sink.stream};
     if (dst < 0)
     {
-      dst= backup_file_create(target.fd, basename);
+      dst= openat(target.fd, basename, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY);
       if (dst < 0)
         goto close_and_fail;
     }
