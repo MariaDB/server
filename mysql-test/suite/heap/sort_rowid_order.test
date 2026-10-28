@@ -1,0 +1,44 @@
+#
+# Tables holding identical rows must sort them into identical order,
+# including the part of the order that the ORDER BY does not decide.
+#
+# A MEMORY table's rowid is the address its record was allocated at, and
+# filesort appends the rowid to the sort key whenever it is not carrying
+# addon fields, so two tables with the same rows in them coming out in
+# different orders means the sort is comparing addresses.
+#
+--source include/have_sequence.inc
+
+CREATE TABLE m1 (a INT, b VARCHAR(8)) ENGINE=MEMORY;
+CREATE TABLE m2 (a INT, b VARCHAR(8)) ENGINE=MEMORY;
+CREATE TABLE m3 (a INT, b VARCHAR(8)) ENGINE=MEMORY;
+CREATE TABLE m4 (a INT, b VARCHAR(8)) ENGINE=MEMORY;
+INSERT INTO m1 SELECT 1, LPAD(seq,8,'0') FROM seq_1_to_500;
+INSERT INTO m2 SELECT 1, LPAD(seq,8,'0') FROM seq_1_to_500;
+INSERT INTO m3 SELECT 1, LPAD(seq,8,'0') FROM seq_1_to_500;
+INSERT INTO m4 SELECT 1, LPAD(seq,8,'0') FROM seq_1_to_500;
+
+#
+# Column a holds the same value in every row, so the ORDER BY leaves
+# every row tied and the window the LIMIT takes is decided entirely by
+# how the sort breaks that tie.  The small max_length_for_sort_data is
+# what makes filesort decide against addon fields and put the rowid into
+# the sort key instead.
+#
+SET @@max_length_for_sort_data=4;
+SET @@sort_buffer_size=1024;
+
+--echo # one distinct order across four tables holding identical rows
+SELECT COUNT(DISTINCT o) AS orders FROM (
+SELECT GROUP_CONCAT(b) AS o FROM (SELECT b FROM m1 ORDER BY a LIMIT 6 OFFSET 200) d
+UNION ALL
+SELECT GROUP_CONCAT(b) FROM (SELECT b FROM m2 ORDER BY a LIMIT 6 OFFSET 200) d
+UNION ALL
+SELECT GROUP_CONCAT(b) FROM (SELECT b FROM m3 ORDER BY a LIMIT 6 OFFSET 200) d
+UNION ALL
+SELECT GROUP_CONCAT(b) FROM (SELECT b FROM m4 ORDER BY a LIMIT 6 OFFSET 200) d
+) u;
+
+SET @@max_length_for_sort_data=DEFAULT;
+SET @@sort_buffer_size=DEFAULT;
+DROP TABLE m1, m2, m3, m4;
