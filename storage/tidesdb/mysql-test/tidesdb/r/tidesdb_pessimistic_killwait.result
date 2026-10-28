@@ -1,0 +1,33 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+CREATE TABLE k (
+id  INT PRIMARY KEY,
+v   INT NOT NULL
+) ENGINE=TidesDB;
+INSERT INTO k VALUES (1, 100);
+connect  a, localhost, root,,;
+connect  b, localhost, root,,;
+connect  killer, localhost, root,,;
+connection a;
+BEGIN;
+UPDATE k SET v = v + 1 WHERE id = 1;
+connection b;
+BEGIN;
+UPDATE k SET v = v + 1 WHERE id = 1;
+connection killer;
+# KILL QUERY issued against the blocked UPDATE on connection b.
+connection b;
+Got one of the listed errors
+ROLLBACK;
+connection a;
+COMMIT;
+connection default;
+# Row 1 incremented by T1 only.
+SELECT * FROM k WHERE id = 1;
+id	v
+1	101
+disconnect a;
+disconnect b;
+disconnect killer;
+connection default;
+DROP TABLE k;
+# Done.

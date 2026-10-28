@@ -1,0 +1,2 @@
+--plugin-load-add=file_key_management
+--file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt

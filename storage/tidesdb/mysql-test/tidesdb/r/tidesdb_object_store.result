@@ -1,0 +1,85 @@
+#
+# TEST 1: Basic CRUD over object store
+#
+CREATE TABLE t_obj (
+id INT NOT NULL PRIMARY KEY,
+name VARCHAR(100),
+data TEXT
+) ENGINE=TidesDB;
+INSERT INTO t_obj VALUES (1, 'alpha', REPEAT('A', 500));
+INSERT INTO t_obj VALUES (2, 'beta',  REPEAT('B', 500));
+INSERT INTO t_obj VALUES (3, 'gamma', REPEAT('C', 500));
+INSERT INTO t_obj VALUES (4, 'delta', REPEAT('D', 500));
+INSERT INTO t_obj VALUES (5, 'epsilon', REPEAT('E', 500));
+SELECT id, name, LENGTH(data) FROM t_obj ORDER BY id;
+id	name	LENGTH(data)
+1	alpha	500
+2	beta	500
+3	gamma	500
+4	delta	500
+5	epsilon	500
+#
+# TEST 2: UPDATE and DELETE
+#
+UPDATE t_obj SET name = 'ALPHA', data = REPEAT('X', 1000) WHERE id = 1;
+DELETE FROM t_obj WHERE id = 3;
+SELECT id, name, LENGTH(data) FROM t_obj ORDER BY id;
+id	name	LENGTH(data)
+1	ALPHA	1000
+2	beta	500
+4	delta	500
+5	epsilon	500
+#
+# TEST 3: Secondary index over object store
+#
+CREATE TABLE t_idx (
+id INT NOT NULL PRIMARY KEY,
+category INT NOT NULL,
+val VARCHAR(200),
+KEY idx_cat (category)
+) ENGINE=TidesDB;
+INSERT INTO t_idx VALUES (1, 10, 'widget'), (2, 20, 'gadget'), (3, 10, 'sprocket');
+INSERT INTO t_idx VALUES (4, 30, 'gizmo'), (5, 10, 'doohickey');
+SELECT id, val FROM t_idx WHERE category = 10 ORDER BY id;
+id	val
+1	widget
+3	sprocket
+5	doohickey
+#
+# TEST 4: Transaction commit and rollback
+#
+BEGIN;
+INSERT INTO t_obj VALUES (10, 'txn_test', 'committed');
+COMMIT;
+BEGIN;
+INSERT INTO t_obj VALUES (11, 'txn_rollback', 'should_not_exist');
+ROLLBACK;
+SELECT id, name FROM t_obj WHERE id >= 10 ORDER BY id;
+id	name
+10	txn_test
+#
+# TEST 5: Bulk insert (triggers flush to SSTables -> S3 upload)
+#
+CREATE TABLE t_bulk (
+id INT NOT NULL PRIMARY KEY,
+payload VARCHAR(500)
+) ENGINE=TidesDB;
+SELECT COUNT(*) AS bulk_count FROM t_bulk;
+bulk_count
+200
+#
+# TEST 6: OPTIMIZE TABLE (triggers compaction -> S3 re-upload)
+#
+OPTIMIZE TABLE t_bulk;
+Table	Op	Msg_type	Msg_text
+test.t_bulk	optimize	status	OK
+SELECT COUNT(*) AS after_optimize FROM t_bulk;
+after_optimize
+200
+#
+# Cleanup
+#
+DROP TABLE t_obj;
+DROP TABLE t_idx;
+DROP TABLE t_bulk;
+# Done.

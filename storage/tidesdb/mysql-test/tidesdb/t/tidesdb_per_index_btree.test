@@ -1,0 +1,47 @@
+--source include/have_tidesdb.inc
+#
+# Issue #79: Per-index USE_BTREE option
+#
+
+--echo #
+--echo # TEST 1: Per-index USE_BTREE on secondary index
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY,
+  a INT,
+  b INT,
+  KEY idx_a (a) USE_BTREE=1,
+  KEY idx_b (b)
+) ENGINE=TidesDB;
+
+INSERT INTO t1 VALUES (1,10,100),(2,20,200),(3,30,300);
+
+--echo # idx_a should show BTREE, idx_b should show LSM
+SHOW KEYS FROM t1;
+
+SELECT * FROM t1 WHERE a = 20;
+SELECT * FROM t1 WHERE b = 200;
+
+DROP TABLE t1;
+
+--echo #
+--echo # TEST 2: Table-level USE_BTREE=1 with per-index override
+--echo #
+
+CREATE TABLE t2 (
+  id INT NOT NULL PRIMARY KEY,
+  x INT,
+  KEY idx_x (x) USE_BTREE=0
+) ENGINE=TidesDB USE_BTREE=1;
+
+--echo # PK and idx_x should both show BTREE (table default), but idx_x USE_BTREE=0
+--echo # Note: per-index USE_BTREE=0 does NOT override table-level to LSM -- it just
+--echo # means the index itself didn't request BTREE; the table default still applies.
+SHOW KEYS FROM t2;
+
+DROP TABLE t2;
+
+--echo #
+--source include/cleanup_tidesdb.inc
+--echo # Done.

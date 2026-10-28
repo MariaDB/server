@@ -1,0 +1,373 @@
+--source include/have_tidesdb.inc
+#
+# TidesDB concurrent error mapping test
+#
+# Validates that transient TidesDB library errors (TDB_ERR_CONFLICT,
+# TDB_ERR_LOCKED, TDB_ERR_MEMORY_LIMIT) are mapped to retryable
+# MariaDB errors (HA_ERR_LOCK_DEADLOCK / 1213) instead of the
+# fatal HA_ERR_GENERIC / 1030 ("Unknown generic error from engine").
+#
+# Before the fix, concurrent write workloads (sysbench oltp_read_write
+# at 16 threads) would surface error 1030 which sysbench treats as
+# FATAL.  After the fix, these map to 1213 (deadlock) which
+# applications can retry.
+#
+# The test uses 4 concurrent connections doing overlapping writes
+# on the SAME rows inside explicit BEGIN...COMMIT transactions
+# (matching the sysbench oltp_read_write pattern) and verifies:
+#   1) No error 1030 (HA_ERR_GENERIC) is produced
+#   2) Conflicts are retried via CONTINUE HANDLER for 1213/1180
+#   3) Data integrity is maintained (PK scan == index scan)
+#
+
+# Suppress expected warnings from the new tdb_rc_to_ha() error mapper
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_LOCKED");
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_MEMORY_LIMIT");
+call mtr.add_suppression("\\[TIDESDB\\].*unexpected TidesDB error");
+
+--echo #
+--echo # === Setup: sysbench-like schema ===
+--echo #
+
+CREATE TABLE t1 (
+  id  INT NOT NULL AUTO_INCREMENT,
+  k   INT NOT NULL DEFAULT 0,
+  c   CHAR(120) NOT NULL DEFAULT '',
+  pad CHAR(60) NOT NULL DEFAULT '',
+  PRIMARY KEY (id),
+  KEY k_1 (k)
+) ENGINE=TIDESDB SYNC_MODE='NONE';
+
+--echo #
+--echo # === Populate: 2000 rows ===
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+let $i= 1;
+while ($i <= 2000)
+{
+  eval INSERT INTO t1 (k, c, pad) VALUES (
+    FLOOR(RAND() * 100000),
+    REPEAT('a', 120),
+    REPEAT('b', 60)
+  );
+  inc $i;
+}
+
+--enable_result_log
+--enable_query_log
+
+SELECT COUNT(*) AS row_count FROM t1;
+
+--echo #
+--echo # ============================================
+--echo # TEST 1: Concurrent oltp_read_write pattern
+--echo #   4 connections doing BEGIN...COMMIT with
+--echo #   interleaved reads + writes on overlapping rows.
+--echo #   Before fix: error 1030 (HA_ERR_GENERIC)
+--echo #   After fix: error 1213 (deadlock, retryable)
+--echo # ============================================
+--echo #
+
+connect (c1, localhost, root,,);
+connect (c2, localhost, root,,);
+connect (c3, localhost, root,,);
+connect (c4, localhost, root,,);
+
+--disable_query_log
+--disable_result_log
+
+# ---- Connection c1: read_write pattern on rows 1-500 ----
+connection c1;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 300 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      SELECT k INTO @dummy FROM t1 WHERE id = 1 + (@i % 500) LIMIT 1;
+      UPDATE t1 SET k = k + 1 WHERE id = 1 + (@i % 500);
+      UPDATE t1 SET c = REPEAT(CHAR(65 + (@i % 26)), 120) WHERE id = 1 + ((@i + 100) % 500);
+      DELETE FROM t1 WHERE id = 1 + ((@i + 200) % 2000);
+      INSERT INTO t1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('w',120), REPEAT('z',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection c2: overlapping writes on rows 1-500 ----
+connection c2;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 300 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      SELECT k INTO @dummy FROM t1 WHERE id = 1 + ((@i + 50) % 500) LIMIT 1;
+      UPDATE t1 SET k = k + 1 WHERE id = 1 + ((@i + 50) % 500);
+      UPDATE t1 SET c = REPEAT(CHAR(65 + (@i % 26)), 120) WHERE id = 1 + ((@i + 150) % 500);
+      DELETE FROM t1 WHERE id = 1 + ((@i + 250) % 2000);
+      INSERT INTO t1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('x',120), REPEAT('y',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection c3: writes on rows 500-1000 ----
+connection c3;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 300 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      SELECT k INTO @dummy FROM t1 WHERE id = 500 + (@i % 500) LIMIT 1;
+      UPDATE t1 SET k = k + 1 WHERE id = 500 + (@i % 500);
+      UPDATE t1 SET c = REPEAT(CHAR(65 + (@i % 26)), 120) WHERE id = 500 + ((@i + 100) % 500);
+      DELETE FROM t1 WHERE id = 500 + ((@i + 200) % 1500);
+      INSERT INTO t1 (k, c, pad) VALUES (FLOOR(RAND()*100000), REPEAT('v',120), REPEAT('u',60));
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Connection c4: all autocommit UPDATEs (rapid txn churn) ----
+connection c4;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 300 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      UPDATE t1 SET k = k + 1 WHERE id = 1 + (@i % 2000);
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+# ---- Reap all ----
+connection c1;
+reap;
+connection c2;
+reap;
+connection c3;
+reap;
+connection c4;
+reap;
+
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # === Verify: no error 1030 (HA_ERR_GENERIC) was produced ===
+--echo #
+
+connection c1;
+--echo # c1 error_1030 count:
+SELECT @err_1030 AS err_1030_c1;
+
+connection c2;
+--echo # c2 error_1030 count:
+SELECT @err_1030 AS err_1030_c2;
+
+connection c3;
+--echo # c3 error_1030 count:
+SELECT @err_1030 AS err_1030_c3;
+
+connection c4;
+--echo # c4 error_1030 count:
+SELECT @err_1030 AS err_1030_c4;
+
+connection default;
+
+--echo #
+--echo # === Verify data integrity (PK count == index count) ===
+--echo #
+
+let $pk_cnt = `SELECT COUNT(*) FROM t1`;
+let $idx_cnt = `SELECT COUNT(*) FROM t1 WHERE k >= 0 OR k < 0`;
+
+--disable_query_log
+if ($pk_cnt != $idx_cnt)
+{
+  --echo FAIL: PK count ($pk_cnt) != index count ($idx_cnt)
+}
+--enable_query_log
+--echo Data integrity: OK
+
+--echo #
+--echo # ============================================
+--echo # TEST 2: Conflict storm -- all connections hit SAME 3 rows
+--echo #   Maximizes conflict rate. Before fix these would be
+--echo #   error 1030; after fix they are error 1213 (retryable).
+--echo # ============================================
+--echo #
+
+--disable_query_log
+--disable_result_log
+
+connection c1;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 200 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      UPDATE t1 SET k = @i WHERE id = 1;
+      UPDATE t1 SET k = @i WHERE id = 2;
+      UPDATE t1 SET k = @i WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection c2;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 200 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      UPDATE t1 SET k = @i + 10000 WHERE id = 1;
+      UPDATE t1 SET k = @i + 10000 WHERE id = 2;
+      UPDATE t1 SET k = @i + 10000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection c3;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 200 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      UPDATE t1 SET k = @i + 20000 WHERE id = 1;
+      UPDATE t1 SET k = @i + 20000 WHERE id = 2;
+      UPDATE t1 SET k = @i + 20000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection c4;
+delimiter |;
+send
+  SET @i = 1;
+  SET @err_1030 = 0;
+  WHILE @i <= 200 DO
+    BEGIN NOT ATOMIC
+      DECLARE CONTINUE HANDLER FOR 1180, 1213, 1205
+        BEGIN END;
+      DECLARE CONTINUE HANDLER FOR 1030
+        SET @err_1030 = @err_1030 + 1;
+      START TRANSACTION;
+      UPDATE t1 SET k = @i + 30000 WHERE id = 1;
+      UPDATE t1 SET k = @i + 30000 WHERE id = 2;
+      UPDATE t1 SET k = @i + 30000 WHERE id = 3;
+      COMMIT;
+    END;
+    SET @i = @i + 1;
+  END WHILE;
+|
+delimiter ;|
+
+connection c1;
+reap;
+connection c2;
+reap;
+connection c3;
+reap;
+connection c4;
+reap;
+
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # === Verify: no error 1030 in conflict storm ===
+--echo #
+
+connection c1;
+--echo # c1 error_1030 count:
+SELECT @err_1030 AS err_1030_c1;
+
+connection c2;
+--echo # c2 error_1030 count:
+SELECT @err_1030 AS err_1030_c2;
+
+connection c3;
+--echo # c3 error_1030 count:
+SELECT @err_1030 AS err_1030_c3;
+
+connection c4;
+--echo # c4 error_1030 count:
+SELECT @err_1030 AS err_1030_c4;
+
+connection default;
+--echo Conflict storm: OK
+
+--echo #
+--echo # === Cleanup ===
+--echo #
+
+disconnect c1;
+disconnect c2;
+disconnect c3;
+disconnect c4;
+
+DROP TABLE t1;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

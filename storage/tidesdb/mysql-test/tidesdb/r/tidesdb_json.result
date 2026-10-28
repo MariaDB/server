@@ -1,0 +1,50 @@
+#
+# ============================================
+# TEST: JSON querying + generated column indexing
+# ============================================
+#
+CREATE TABLE t_json (
+id   INT NOT NULL PRIMARY KEY,
+data LONGTEXT,
+name VARCHAR(50) AS (JSON_VALUE(data, '$.name')) PERSISTENT,
+age  INT AS (JSON_VALUE(data, '$.age')) PERSISTENT,
+KEY idx_name (name),
+KEY idx_age (age)
+) ENGINE=TIDESDB;
+INSERT INTO t_json (id, data) VALUES
+(1, '{"name":"Alice","age":30,"tags":["admin","dev"]}'),
+(2, '{"name":"Bob","age":25,"tags":["dev"]}'),
+(3, '{"name":"Carol","age":40,"tags":["finance"]}');
+# Basic JSON extraction
+SELECT id, JSON_VALUE(data, '$.name') AS jname, JSON_VALUE(data, '$.age') AS jage
+FROM t_json ORDER BY id;
+id	jname	jage
+1	Alice	30
+2	Bob	25
+3	Carol	40
+# Generated columns reflect JSON paths
+SELECT id, name, age FROM t_json ORDER BY id;
+id	name	age
+1	Alice	30
+2	Bob	25
+3	Carol	40
+# Filter using generated columns (indexable JSON paths)
+SELECT id, name, age FROM t_json WHERE name='Alice' ORDER BY id;
+id	name	age
+1	Alice	30
+SELECT id, name, age FROM t_json WHERE age >= 30 ORDER BY id;
+id	name	age
+1	Alice	30
+3	Carol	40
+# Filter using JSON function (non-indexed expression)
+SELECT id FROM t_json WHERE JSON_CONTAINS(data, '"admin"', '$.tags') ORDER BY id;
+id
+1
+# Update JSON and verify generated columns update
+UPDATE t_json SET data = JSON_SET(data, '$.age', 31) WHERE id = 1;
+SELECT id, name, age FROM t_json WHERE id = 1;
+id	name	age
+1	Alice	31
+DROP TABLE t_json;
+#
+# Done.

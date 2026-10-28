@@ -1,0 +1,227 @@
+--source include/have_tidesdb.inc
+#
+# Test: Pessimistic locking edge cases from GitHub issue
+#
+# Covers:
+#   1. Non-existing rows can be locked by SELECT FOR UPDATE
+#   2. DELETE and UPDATE acquire locks (not just SELECT FOR UPDATE)
+#   3. INSERT respects locks held on the same PK
+#   4. INSERT on a non-existing locked key blocks correctly
+#   5. Concurrent INSERTs on different keys do not block
+#
+
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+
+--echo #
+--echo # Setup
+--echo #
+
+CREATE TABLE t (
+  i INT,
+  PRIMARY KEY (i)
+) ENGINE=TidesDB;
+
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+
+connect (conA, localhost, root,,);
+connect (conB, localhost, root,,);
+
+--echo #
+--echo # TEST 1: SELECT FOR UPDATE on non-existing row blocks DELETE
+--echo #   Connection A locks i=15 (does not exist).
+--echo #   Connection B deletes i=2 (succeeds immediately),
+--echo #   then tries to delete i=15 (must block).
+--echo #
+
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 15 FOR UPDATE;
+
+connection conB;
+DELETE FROM t WHERE i = 2;
+--send DELETE FROM t WHERE i = 15
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # i=2 and i=15 both deleted (i=15 was no-op but lock was respected)
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # TEST 2: DELETE acquires a lock that blocks another DELETE
+--echo #   Connection A deletes i=3 inside a transaction.
+--echo #   Connection B deletes i=4 (succeeds immediately),
+--echo #   then tries to delete i=3 (must block until A commits).
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+
+connection conA;
+BEGIN;
+DELETE FROM t WHERE i = 3;
+
+connection conB;
+DELETE FROM t WHERE i = 4;
+--send DELETE FROM t WHERE i = 3
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # i=3 and i=4 both deleted
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # TEST 3: UPDATE acquires a lock that blocks another UPDATE
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, v INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1, 10), (2, 20), (3, 30);
+
+connection conA;
+BEGIN;
+UPDATE t SET v = 99 WHERE i = 3;
+
+connection conB;
+UPDATE t SET v = 88 WHERE i = 2;
+--send UPDATE t SET v = 77 WHERE i = 3
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # conA set v=99, then conB overwrote with v=77
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # TEST 4: INSERT blocked by SELECT FOR UPDATE on non-existing key
+--echo #   This is the critical fix -- previously INSERT bypassed the lock.
+--echo #   Connection A does SELECT FOR UPDATE on i=15 (non-existing).
+--echo #   Connection B tries INSERT i=15 (must block until A commits).
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 15 FOR UPDATE;
+
+connection conB;
+--send INSERT INTO t VALUES (15)
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # i=15 now exists (inserted by conB after conA released the lock)
+SELECT * FROM t WHERE i >= 10 ORDER BY i;
+
+--echo #
+--echo # TEST 5: INSERT blocked by DELETE on existing row
+--echo #   Connection A deletes i=3 inside a transaction.
+--echo #   Connection B tries to INSERT i=3 (must block).
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+
+connection conA;
+BEGIN;
+DELETE FROM t WHERE i = 3;
+
+connection conB;
+--send INSERT INTO t VALUES (3)
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # i=3 was deleted by conA, then re-inserted by conB
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # TEST 6: Concurrent INSERTs on different keys do not block
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+
+connection conA;
+BEGIN;
+INSERT INTO t VALUES (100);
+
+connection conB;
+INSERT INTO t VALUES (200);
+
+connection conA;
+COMMIT;
+
+connection default;
+--echo # Both inserts succeeded without blocking
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # TEST 7: Autocommit UPDATE blocked by SELECT FOR UPDATE
+--echo #
+
+DROP TABLE t;
+CREATE TABLE t (i INT, PRIMARY KEY (i)) ENGINE=TidesDB;
+INSERT INTO t VALUES (1), (2), (3), (4), (5);
+
+connection conA;
+BEGIN;
+SELECT * FROM t WHERE i = 3 FOR UPDATE;
+
+connection conB;
+--send UPDATE t SET i = 33 WHERE i = 3
+
+connection conA;
+--sleep 0.5
+COMMIT;
+
+connection conB;
+--reap
+
+connection default;
+--echo # conA released lock, then conB's autocommit UPDATE renamed i=3 to i=33
+SELECT * FROM t ORDER BY i;
+
+--echo #
+--echo # Cleanup
+--echo #
+
+disconnect conA;
+disconnect conB;
+connection default;
+
+DROP TABLE t;
+
+--source include/cleanup_tidesdb.inc
+--echo # Done.

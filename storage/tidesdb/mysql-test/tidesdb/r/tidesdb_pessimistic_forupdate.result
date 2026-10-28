@@ -1,0 +1,78 @@
+call mtr.add_suppression("\\[TIDESDB\\].*TDB_ERR_CONFLICT");
+#
+# Setup: TPC-C district-like table
+#
+CREATE TABLE district (
+d_w_id INT NOT NULL,
+d_id   INT NOT NULL,
+d_next_o_id INT NOT NULL,
+d_tax  DECIMAL(4,4),
+PRIMARY KEY (d_w_id, d_id)
+) ENGINE=TidesDB;
+INSERT INTO district VALUES (1, 1, 3001, 0.1000);
+#
+# TEST 1: Two concurrent SELECT FOR UPDATE + UPDATE
+#   on the same row. Both should succeed with pessimistic
+#   locking serializing access. Counter = 3001 + 2 = 3003
+#
+connect  conA, localhost, root,,;
+connect  conB, localhost, root,,;
+connection conA;
+BEGIN;
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1 FOR UPDATE;
+d_next_o_id
+3001
+connection conB;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+connection conA;
+UPDATE district SET d_next_o_id = d_next_o_id + 1 WHERE d_w_id=1 AND d_id=1;
+COMMIT;
+connection conB;
+connection default;
+# Both succeeded: 3001 + 1 (conA) + 1 (conB) = 3003
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+3003
+#
+# TEST 2: Stored procedure with SELECT FOR UPDATE
+#   Mimics TPC-C NEWORD pattern inside a CALL
+#
+CREATE PROCEDURE neword_mini(IN p_w_id INT, IN p_d_id INT)
+BEGIN
+DECLARE v_next_o_id INT;
+SELECT d_next_o_id INTO v_next_o_id
+FROM district WHERE d_w_id = p_w_id AND d_id = p_d_id FOR UPDATE;
+UPDATE district SET d_next_o_id = v_next_o_id + 1
+WHERE d_w_id = p_w_id AND d_id = p_d_id;
+END|
+UPDATE district SET d_next_o_id = 5001 WHERE d_w_id=1 AND d_id=1;
+connection conA;
+BEGIN;
+CALL neword_mini(1, 1);
+connection conB;
+CALL neword_mini(1, 1);
+connection conA;
+COMMIT;
+connection conB;
+connection default;
+# Both CALL succeeded: 5001 + 1 + 1 = 5003
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+5003
+#
+# TEST 3: Serial counter increment (10 iterations)
+#
+UPDATE district SET d_next_o_id = 6001 WHERE d_w_id=1 AND d_id=1;
+# Should be 6001 + 10 = 6011
+SELECT d_next_o_id FROM district WHERE d_w_id=1 AND d_id=1;
+d_next_o_id
+6011
+#
+# Cleanup
+#
+disconnect conA;
+disconnect conB;
+connection default;
+DROP PROCEDURE neword_mini;
+DROP TABLE district;
+# Done.
