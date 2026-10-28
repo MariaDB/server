@@ -1,0 +1,20 @@
+#
+# Test all multi-part options for duplicate .cnf option
+#
+
+-- source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-35767 MTR Overwrites Test-Specific .cnf File Options On Duplicate Option
+--echo # Test all replication and binlog filter variables
+--echo #
+
+SELECT @@replicate_do_table;
+SELECT @@replicate_ignore_table;
+SELECT @@replicate_wild_do_table;
+SELECT @@replicate_wild_ignore_table;
+SELECT @@replicate_do_db;
+SELECT @@replicate_ignore_db;
+
+--echo # Verify optimizer_switch contains both flags
+SELECT @@optimizer_switch LIKE '%index_merge=off%' AND @@optimizer_switch LIKE '%index_merge_union=off%';
