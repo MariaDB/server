@@ -2434,7 +2434,16 @@ end:
   thd->first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   thd->first_successful_insert_id_in_prev_stmt= 0;
   thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
-  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  /*
+    Not for BINLOG statement: thd->mem_root holds memory of the statement
+    itself (e.g. Items of EXECUTE IMMEDIATE).
+  */
+  if (thd->slave_thread
+#ifdef WITH_WSREP
+      || (WSREP(thd) && wsrep_thd_is_applying(thd))
+#endif /* WITH_WSREP */
+     )
+    free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
   DBUG_RETURN(thd->is_slave_error);
 }
 
@@ -2507,7 +2516,8 @@ Query_log_event::peek_is_commit_rollback(const uchar *event_start,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
+  if (unlikely(event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN ||
+               event_len < 9))
     return false;
   return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
          !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
@@ -2697,7 +2707,7 @@ bool Format_description_log_event::write()
   ret= write_header(rec_size) ||
        write_data(buff, buff_size) ||
        (!DBUG_IF("truncate_fde_post_header_len") &&
-         write_data(post_header_len, number_of_event_types)) ||
+         write_data(byte_data_for_post_header_len, number_of_event_types)) ||
        (!DBUG_IF("truncate_fde_used_checksum_alg") &&
          write_data(&checksum_byte, sizeof(checksum_byte))) ||
        write_footer();
@@ -3725,7 +3735,7 @@ bool
 Gtid_log_event::peek(const uchar *event_start, size_t event_len,
                      enum enum_binlog_checksum_alg checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
-                     uchar *flags2, const Format_description_log_event *fdev)
+                     uchar *flags2)
 {
   const uchar *p;
 
@@ -3740,10 +3750,12 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
     DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
                 checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
-  if (event_len < (uint32)fdev->common_header_len + GTID_HEADER_LEN)
+  if (unlikely(event_len <
+               (uint32)Format_description_log_event::common_header_len +
+               GTID_HEADER_LEN))
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
-  p= event_start + fdev->common_header_len;
+  p= event_start + Format_description_log_event::common_header_len;
   *seq_no= uint8korr(p);
   p+= 8;
   *domain_id= uint4korr(p);
@@ -7947,10 +7959,16 @@ Write_rows_log_event::write_row(rpl_group_info *rgi,
   if (table->versioned(VERS_TIMESTAMP))
   {
     ulong sec_part;
-    // Check whether a row came from unversioned table and fix vers fields.
-    if (opt_secure_timestamp > SECTIME_REPL ||
-        (table->vers_start_field()->get_timestamp(&sec_part) == 0 && sec_part == 0))
-      table->vers_update_fields();
+    /*
+      If the row came from an unversioned table or the system fields from the
+      master are not trusted, set the system fields here. Then compute
+      vcols, which may depend on them.
+    */
+    if ((opt_secure_timestamp > SECTIME_REPL ||
+         (table->vers_start_field()->get_timestamp(&sec_part) == 0 &&
+          sec_part == 0)) &&
+        table->vers_update_fields_vcols())
+      DBUG_RETURN(HA_ERR_GENERIC);
   }
 
   /* 
@@ -8869,8 +8887,12 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   if (m_table->versioned())
   {
     if ((m_vers_from_plain || opt_secure_timestamp > SECTIME_REPL) &&
-        m_table->versioned(VERS_TIMESTAMP))
-      m_table->vers_update_fields();
+        m_table->versioned(VERS_TIMESTAMP) &&
+        m_table->vers_update_fields_vcols())
+    {
+      error= HA_ERR_GENERIC;
+      goto err;
+    }
     Field *end= m_table->vers_end_field();
     const uchar *old_ptr= end->ptr_in_record(m_table->record[1]);
 
@@ -8884,7 +8906,7 @@ Update_rows_log_event::do_exec_row(rpl_group_info *rgi)
   tl->trg_event_map= trg_event_map_save;
   if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
-  if (m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
+  if (!error && m_vers_from_plain && m_table->versioned(VERS_TIMESTAMP))
   {
     store_record(m_table, record[2]);
     error= vers_insert_history_row(m_table);
@@ -9023,12 +9045,12 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
 #endif
 
 #if defined(HAVE_REPLICATION)
-Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
-                    const Format_description_log_event* description_event)
-  :Log_event(buf, description_event), ident_len(0), log_ident(NULL)
+Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len)
+  :Log_event(buf, event_len), ident_len(0), log_ident(NULL)
 {
+  uint8 header_size= Format_description_log_event::common_header_len;
   uint sub_header_len= (log_pos == 0) ? HB_SUB_HEADER_LEN : 0;
-  uint all_headers_len= description_event->common_header_len + sub_header_len;
+  uint all_headers_len= header_size + sub_header_len;
 
   /*
     The comparison is <= rather than <, so an event whose length stops exactly
@@ -9049,7 +9071,7 @@ Heartbeat_log_event::Heartbeat_log_event(const uchar *buf, uint event_len,
     return;
 
   if (log_pos == 0)
-    log_pos= uint8korr(buf + description_event->common_header_len);
+    log_pos= uint8korr(buf + header_size);
 
   log_ident= buf + all_headers_len;
   ident_len= event_len - all_headers_len;

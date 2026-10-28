@@ -1267,7 +1267,8 @@ int wsrep_rec_get_foreign_key(
 	const rec_t*	rec,	  /* in: physical record */
 	dict_index_t*	index_for,  /* in: index for foreign table */
 	dict_index_t*	index_ref,  /* in: index for referenced table */
-	ibool		new_protocol); /* in: protocol > 1 */
+	ibool		new_protocol, /* in: protocol > 1 */
+	bool*		truncated= NULL); /* out: key did not fit buf */
 #endif /* WITH_WSREP */
 
 #include "rem0rec.inl"

@@ -198,5 +198,25 @@ connection default;
 drop table t;
 
 --echo #
+--echo # MDEV-41667 InnoDB: Failing assertion: buf <= (byte*)
+--echo #		original_upd_buff + buff_len
+--echo #
+let $n= 32;
+let $cols= ;
+let $i= 1;
+while ($i <= $n)
+{
+  let $cols= $cols, v$i BIGINT AS (b+$i) VIRTUAL, KEY(v$i);
+  inc $i;
+}
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b BIGINT NOT NULL $cols) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20);
+UPDATE t1 SET b=11 WHERE a=1;
+UPDATE t1 SET b=b+100;
+SELECT a, b, v1, v32 FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

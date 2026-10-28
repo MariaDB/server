@@ -4201,6 +4201,11 @@ class Item_param :public Item_basic_value,
   };
 
   bool m_empty_string_is_null;
+  /*
+    The value is changed during the execution (optimized array binding),
+    so the parameter is not a constant
+  */
+  bool m_changing_value;
 
   class PValue_simple
   {
@@ -4469,15 +4474,18 @@ public:
     If value for parameter was not set we treat it as non-const
     so no one will use parameters value in fix_fields still
     parameter is constant during execution.
+    During optimized array binding execution the value changes for every
+    set of parameters, so it is not constant either.
   */
   bool const_item() const override
   {
-    return state != NO_VALUE;
+    return state != NO_VALUE && !m_changing_value;
   }
   table_map used_tables() const override
   {
-    return state != NO_VALUE ? (table_map)0 : PARAM_TABLE_BIT;
+    return const_item() ? (table_map)0 : PARAM_TABLE_BIT;
   }
+  void set_changing_value(bool changing);
   void print(String *str, enum_query_type query_type) override;
   bool is_null() override
   { DBUG_ASSERT(state != NO_VALUE); return state == NULL_VALUE; }
@@ -5904,6 +5912,7 @@ public:
   }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
+  void free_call_ctx();
   bool sp_check_access(THD *thd);
   bool execute(THD *thd, bool *null_value, Item **args, uint arg_count);
   bool execute_impl(THD *thd, Item **args, uint arg_count);

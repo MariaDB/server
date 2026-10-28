@@ -646,6 +646,39 @@ read_cnf()
     cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
+
+    # Directories listed in ignore_db_dirs are not schemas; keep them out
+    # of the joiner's datadir wipe the same way the server itself skips
+    # them when scanning the datadir. Appended unconditionally, after any
+    # sst.cpat override, so a custom cpat cannot silently lose this
+    # protection. Only the joiner wipes its datadir, so only the joiner
+    # needs to parse ignore_db_dirs. mariabackup itself already excludes
+    # these directories from the backup stream on the donor (it reads
+    # @@ignore_db_dirs from the server it backs up).
+    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        local ignore_db_dirs
+        local ignore_db_dir
+        local data_regex
+        local alt='\|'
+        [ "$OS" = 'FreeBSD' ] && alt='|'
+        ignore_db_dirs=$(get_ignore_db_dirs '--mysqld')
+        if [ -n "$ignore_db_dirs" ]; then
+            # '.' and '+' are the only characters get_ignore_db_dirs()
+            # lets through that are also find -regex operators; escape
+            # them (and any in $DATA) as single-character bracket
+            # expressions so a directory actually named e.g. "a+b" is
+            # matched literally instead of silently not matching itself:
+            data_regex=$(printf '%s' "$DATA" | sed 's/[.+]/[&]/g')
+            local oldIFS="$IFS"
+            IFS=','
+            for ignore_db_dir in $ignore_db_dirs; do
+                [ -z "$ignore_db_dir" ] && continue
+                ignore_db_dir=$(printf '%s' "$ignore_db_dir" | sed 's/[.+]/[&]/g')
+                cpat="$cpat$alt$data_regex/$ignore_db_dir\$"
+            done
+            IFS="$oldIFS"
+        fi
+    fi
     scomp=$(parse_cnf sst compressor)
     sdecomp=$(parse_cnf sst decompressor)
 

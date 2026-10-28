@@ -20,6 +20,7 @@
 
 #include "maria_def.h"
 #include "ma_rt_index.h"
+#include "my_bit.h"
 
 static ha_rows _ma_record_pos(MARIA_HA *,const uchar *, key_part_map,
 			      enum ha_rkey_function, ulonglong *);
@@ -145,11 +146,12 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
   key_buff= info->lastkey_buff+info->s->base.max_key_length;
   _ma_pack_key(info, &key, inx, key_buff, key_data, keypart_map,
 		       (HA_KEYSEG**) 0);
+  DBUG_ASSERT(key.keyinfo->keysegs);
   DBUG_EXECUTE("key", _ma_print_key(DBUG_FILE, &key););
   nextflag=maria_read_vec[search_flag];
   
   /* Indicate if we're doing a search on a key prefix */
-  if (((((key_part_map)1) << key.keyinfo->keysegs) - 1) != keypart_map)
+  if ((key_part_map) my_set_bits(key.keyinfo->keysegs) != keypart_map)
     nextflag |= SEARCH_PART_KEY;
 
   /*

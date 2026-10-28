@@ -4089,14 +4089,6 @@ static int init_common_variables()
     exit(1);
   }
 
-#ifdef HAVE_OPENSSL
-  if (check_openssl_compatibility())
-  {
-    sql_print_error("Incompatible OpenSSL version. Cannot continue...");
-    exit(1);
-  }
-#endif
-
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
 
@@ -6034,6 +6026,7 @@ int mysqld_main(int argc, char **argv)
   my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
+  vio_check_ssl_init();
   if (init_server_components())
     unireg_abort(1);
 
@@ -7987,6 +7980,7 @@ static void usage(void)
     puts("\nTo see what variables a running server is using, type"
          "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.");
   }
+  fflush(stdout);
   DBUG_VOID_RETURN;
 }
 #endif /*!EMBEDDED_LIBRARY*/

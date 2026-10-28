@@ -342,7 +342,7 @@ typedef struct st_rep_set {
   uint	found_len;			/* Best match to date */
   int	found_offset;
   uint  table_offset;
-  uint  size_of_bits;			/* For convinience */
+  uint  size_of_bits;			/* For convenience */
 } REP_SET;
 
 typedef struct st_rep_sets {

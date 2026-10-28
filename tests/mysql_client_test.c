@@ -20576,6 +20576,22 @@ typedef struct {
 } v2_proxy_header;
 
 #ifndef EMBEDDED_LIBRARY
+/*
+  Zero the header, and set the part that is common to all PROXY v2 headers:
+  the signature, version 2 with the command (0x1 PROXY, 0x0 LOCAL), the
+  address family and protocol, and the length of the address block.
+*/
+static void init_v2_header(v2_proxy_header *header, int command, int fam,
+                           size_t len)
+{
+  memset(header, 0, sizeof(*header));
+  memcpy(header->sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A",
+         sizeof(header->sig));
+  header->ver_cmd= (0x2 << 4) | command;
+  header->fam= fam;
+  header->len= htons(len);
+}
+
 static void test_proxy_header_tcp(const char *ipaddr, int port)
 {
   int rc;
@@ -20584,26 +20600,22 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   char query[256];
   char text_header[256], bad_text_header[256];
   char addr_bin[16];
-  v2_proxy_header v2_header, bad_v2_header;
-  void *header_data[4];
-  size_t header_lengths[4];
+  v2_proxy_header v2_header, bad_v2_header, short_v2_header;
+  void *header_data[5];
+  size_t header_lengths[5];
   size_t i;
 
   // normalize IPv4-mapped IPv6 addresses, e.g ::ffff:127.0.0.2 to 127.0.0.2
   const char *normalized_addr= strncmp(ipaddr, "::ffff:", 7)?ipaddr : ipaddr + 7;
   myheader("test_proxy_header_tcp");
 
-  memset(&v2_header, 0, sizeof(v2_header));
   snprintf(text_header, sizeof(text_header), "PROXY %s %s %s %d 3306\r\n",family == AF_INET?"TCP4":"TCP6", ipaddr, ipaddr, port);
- 
+
   inet_pton(family,ipaddr,addr_bin);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
   if(family == AF_INET)
   {
-    v2_header.fam= 0x11;
-    v2_header.len= htons(12);
+    init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
     v2_header.addr.ip4.src_port= htons(port);
     v2_header.addr.ip4.dst_port= htons(3306);
     memcpy(&v2_header.addr.ip4.src_addr,addr_bin, sizeof (v2_header.addr.ip4.src_addr));
@@ -20611,8 +20623,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   }
   else
   {
-    v2_header.fam= 0x21;
-    v2_header.len= htons(36);
+    init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
     v2_header.addr.ip6.src_port= htons(port);
     v2_header.addr.ip6.dst_port= htons(3306);
     memcpy(v2_header.addr.ip6.src_addr,addr_bin, sizeof (v2_header.addr.ip6.src_addr));
@@ -20627,17 +20638,23 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   header_data[1]= &v2_header;
   header_data[2]= bad_text_header;
   header_data[3]= &bad_v2_header;
+  header_data[4]= &short_v2_header;
 
   header_lengths[0]= strlen(text_header);
   header_lengths[1]= family == AF_INET ? 28 : 52;
   header_lengths[2]= sizeof(text_header)-4;
   header_lengths[3]= header_lengths[1];
+  /* MDEV-41508: address block ends before the source port's low byte */
+  header_lengths[4]= family == AF_INET ? 25 : 49;
 
   memset(bad_text_header, ' ', sizeof(bad_text_header));
   memcpy(bad_text_header, text_header, header_lengths[1]-6);
 
   bad_v2_header= v2_header;
   bad_v2_header.len= 0;
+
+  short_v2_header= v2_header;
+  short_v2_header.len= htons(header_lengths[4] - 16);
 
   for (i = 0; i < 2; i++)
   {
@@ -20679,8 +20696,7 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
       DIE(0);
     printf("pass %zu error %i - %s\n", i, mysql_errno(m),
            mysql_error(m));
-    DIE_IF(i == 2 && mysql_errno(m) != ER_UNKNOWN_ERROR);
-    DIE_IF(i == 3 && mysql_errno(m) != ER_UNKNOWN_ERROR);
+    DIE_IF(mysql_errno(m) != ER_UNKNOWN_ERROR);
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20701,11 +20717,7 @@ static void test_proxy_header_localhost()
   int rc;
   myheader("test_proxy_header_localhost");
 
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* Version (0x2) , Command = PROXY (0x1) */
-  v2_header.fam= 0x31;
-  v2_header.len= htons(216);
+  init_v2_header(&v2_header, 0x1, 0x31, sizeof(v2_header.addr.unx));
   strcpy(v2_header.addr.unx.src_addr,"/tmp/mysql.sock");
   strcpy(v2_header.addr.unx.dst_addr,"/tmp/mysql.sock");
   rc = mysql_query(mysql, "CREATE USER 'u'@'localhost' IDENTIFIED BY 'password'");
@@ -20738,10 +20750,8 @@ static void test_proxy_header_ignore()
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
   mysql_close(m);
 
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x0; /* Version (0x2) , Command = LOCAL (0x0) */
-  v2_header.fam= 0x0; /* AF_UNSPEC*/
-  v2_header.len= htons(0);
+  /* Command LOCAL (0x0), AF_UNSPEC, no address block */
+  init_v2_header(&v2_header, 0x0, 0x0, 0);
   m = mysql_client_init(NULL);
   mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, &v2_header,16);
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == m);
@@ -20760,30 +20770,229 @@ static void test_proxy_header_ignore()
   myquery(rc);
 }
 
+/* Open a raw TCP connection to opt_host:opt_port */
+static my_socket connect_tcp(void)
+{
+  struct addrinfo hints, *ai= NULL, *p;
+  char portbuf[MY_INT32_NUM_DECIMAL_DIGITS];
+  int connected= 0;
+  my_socket s= INVALID_SOCKET;
+
+  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family= AF_UNSPEC;
+  hints.ai_socktype= SOCK_STREAM;
+  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
+                         &hints, &ai) == 0);
+
+  for (p= ai; p; p= p->ai_next)
+  {
+    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (s == INVALID_SOCKET)
+      continue;
+    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
+    {
+      connected= 1;
+      break;
+    }
+    closesocket(s);
+    s= INVALID_SOCKET;
+  }
+  freeaddrinfo(ai);
+  DIE_UNLESS(connected);
+  return s;
+}
+
+
+/*
+  MDEV-41508 PROXY v2 header, shorter than it declares, must be rejected.
+  Raw socket is used, as the client library would follow the header with
+  its login packet, which would be taken for the missing header bytes.
+*/
+static void test_proxy_header_short()
+{
+  v2_proxy_header v2_header;
+  /* 1024 is enough for the greeting packet plus the error packet */
+  char buf[1024];
+  /* Error packet payload: 0xff, error code, '#' and SQLSTATE, then message */
+  const size_t error_payload_header_len= 1 + 2 + 1 + SQLSTATE_LENGTH;
+  size_t total= 0, error_packet_pos, error_packet_len, err_msg_len;
+  const uchar *error_packet, *error_payload;
+  const char *err_msg;
+  static const LEX_CSTRING expected_msg=
+    { STRING_WITH_LEN("Failed to parse proxy header") };
+  uint err_code;
+  my_socket s;
+
+  myheader("test_proxy_header_short");
+
+  /* Command PROXY, TCP over IPv4, declares the whole IPv4 address block */
+  init_v2_header(&v2_header, 0x1, 0x11, sizeof(v2_header.addr.ip4));
+
+  s= connect_tcp();
+  /*
+    Send an incomplete PROXY v2 header, 25 bytes: the signature, 2 IPv4
+    addresses, and the first byte of the source port (16 + 4 + 4 + 1).
+    The complete header is 28 bytes.
+  */
+  DIE_UNLESS(send(s, (const char *) &v2_header, 25, 0) == 25);
+
+  /*
+    The server sends its greeting first. Then it rejects the header with an
+    error packet and closes the connection, so read until EOF.
+  */
+  for (;;)
+  {
+    int n= recv(s, buf + total, (int) (sizeof(buf) - total), 0);
+    if (n <= 0)
+      break;
+    total+= n;
+  }
+  closesocket(s);
+
+  /*
+    Every packet is: 3 bytes of payload length, 1 byte of sequence number,
+    and the payload. Skip the greeting packet.
+  */
+  DIE_UNLESS(total >= NET_HEADER_SIZE);
+  error_packet_pos= NET_HEADER_SIZE + uint3korr(buf);
+
+  /* The error packet, after its header: 0xff, error code, '#', SQLSTATE */
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE);
+  error_packet= (const uchar *) buf + error_packet_pos;
+  error_packet_len= uint3korr(error_packet);
+  error_payload= error_packet + NET_HEADER_SIZE;
+  DIE_UNLESS(error_packet_len >= error_payload_header_len);
+  DIE_UNLESS(total >= error_packet_pos + NET_HEADER_SIZE + error_packet_len);
+  DIE_UNLESS(error_payload[0] == 0xff);
+  DIE_UNLESS(error_payload[3] == '#');
+  err_code= uint2korr(error_payload + 1);
+  err_msg= (const char *) error_payload + error_payload_header_len;
+  err_msg_len= error_packet_len - error_payload_header_len;
+  printf("error %u: %.*s\n", err_code, (int) err_msg_len, err_msg);
+
+  DIE_UNLESS(err_code == ER_UNKNOWN_ERROR);
+  DIE_UNLESS(err_msg_len == expected_msg.length);
+  DIE_UNLESS(!memcmp(err_msg, expected_msg.str, expected_msg.length));
+}
+
+
+#define MAX_IPV6_ADDR "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+
+/*
+  MDEV-41691 PROXY v1 header must be a single line of up to 107 bytes,
+  with fields separated by one space and ending in CRLF.
+  Loopback addresses are used, to avoid name resolution.
+*/
 static void test_proxy_header_limits()
 {
-  MYSQL *m;
-  char text_header[256];
-  const char *prefix = "PROXY TCP4 1.2.3.4 5.6.7.8 1234 5678";
-  size_t prefix_len;
+  static const char nul_in_line[]=
+    "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\0junk\r\n";
+  size_t i;
+  MYSQL *m, *conn;
+  struct
+  {
+    const char *header;
+    size_t len;                 /* 0 for a null-terminated header */
+    my_bool valid;
+  } cases[]=
+  {
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, TRUE },
+    /* Anything after UNKNOWN is ignored, or can be absent */
+    { "PROXY UNKNOWN\r\n", 0, TRUE },
+    { "PROXY UNKNOWN junk\r\n", 0, TRUE },
+    /* Not the UNKNOWN keyword */
+    { "PROXY UNKNOWNX\r\n", 0, FALSE },
+    /* A field is missing */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234\r\n", 0, FALSE },
+    /* Invalid address */
+    { "PROXY TCP4 1.2.3 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Line ends in LF instead of CRLF */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678\n", 0, FALSE },
+    /* Two spaces between fields */
+    { "PROXY TCP4 127.0.0.1  127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Unknown address family */
+    { "PROXY TCP5 127.0.0.1 127.0.0.1 1234 5678\r\n", 0, FALSE },
+    /* Space after the last field */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 5678 \r\n", 0, FALSE },
+    /* Port out of range, or not just digits */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65535\r\n", 0, TRUE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 1234 65536\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 +1234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 -1 5678\r\n", 0, FALSE },
+    /* Leading zeroes are not allowed, port 0 is fine */
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 01234 5678\r\n", 0, FALSE },
+    { "PROXY TCP4 127.0.0.1 127.0.0.1 0 5678\r\n", 0, TRUE },
+    /* NUL byte inside the line */
+    { nul_in_line, sizeof(nul_in_line) - 1, FALSE },
+    /*
+      The longest line of the specification, 107 bytes with CRLF, is
+      accepted. UNKNOWN ignores the fields, but the line is limited too,
+      with one more byte it is not.
+    */
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 65535\r\n",
+      0, TRUE },
+    { "PROXY UNKNOWN " MAX_IPV6_ADDR " " MAX_IPV6_ADDR " 65535 655350\r\n",
+      0, FALSE },
+  };
 
   myheader("test_proxy_header_limits");
 
-  /* Test maximum length PROXY header (256 bytes) to ensure no overflow */
-  memset(text_header, ' ', sizeof(text_header));
+  for (i= 0; i < array_elements(cases); i++)
+  {
+    size_t len= cases[i].len ? cases[i].len : strlen(cases[i].header);
+    m= mysql_client_init(NULL);
+    DIE_UNLESS(m);
+    mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, cases[i].header, len);
+    conn= mysql_real_connect(m, opt_host, "root", "", NULL, opt_port,
+                             opt_unix_socket, 0);
+    if (cases[i].valid)
+    {
+      DIE_UNLESS(conn);
+    }
+    else
+    {
+      DIE_UNLESS(!conn);
+      /* A rejected header must be the reason of the failure */
+      DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
+      DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+    }
+    mysql_close(m);
+  }
+}
 
-  prefix_len = strlen(prefix);
+/* Test that connection fails with multiple proxy headers (MDEV-40878) */
+static void test_proxy_header_multiple()
+{
+  MYSQL *m;
+#ifndef DBUG_OFF
+  int rc;
+#endif
+  const char header[]= "PROXY TCP4 127.0.0.1 127.0.0.1 12345 3306\r\n"
+                       "PROXY TCP4 127.0.0.1 127.0.0.1 12346 3306\r\n";
+  myheader("test_proxy_header_multiple");
 
-  memcpy(text_header, prefix, prefix_len);
-  text_header[sizeof(text_header) - 1] = '\n';
+#ifndef DBUG_OFF
+  /* The server asserts on out of order packets in debug builds */
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,net_expect_protocol_errors'");
+  myquery(rc);
+#endif
 
   m = mysql_client_init(NULL);
   DIE_UNLESS(m);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header, sizeof(header)-1);
 
-  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, text_header, sizeof(text_header));
-
+  /* Connection should fail, second proxy header is interpreted as packet error */
   DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == NULL);
   mysql_close(m);
+
+#ifndef DBUG_OFF
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif
 }
 
 
@@ -20823,11 +21032,7 @@ static void test_proxy_header_dbug_remote_connection()
   myquery(rc);
 
   /* Build a v2 proxy header announcing proxy_ipv6 as the client address. */
-  memset(&v2_header, 0, sizeof(v2_header));
-  memcpy(v2_header.sig, "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A", 12);
-  v2_header.ver_cmd = (0x2 << 4) | 0x1; /* PROXY command */
-  v2_header.fam     = 0x21;              /* TCPv6 */
-  v2_header.len     = htons(36);
+  init_v2_header(&v2_header, 0x1, 0x21, sizeof(v2_header.addr.ip6));
   inet_pton(AF_INET6, proxy_ipv6, addr_bin);
   memcpy(v2_header.addr.ip6.src_addr, addr_bin, 16);
   memcpy(v2_header.addr.ip6.dst_addr, addr_bin, 16);
@@ -20872,33 +21077,8 @@ static void test_proxy_header_dbug_remote_connection()
 */
 static void proxy_send_handshake_error(const char *client_ip)
 {
-  struct addrinfo hints, *ai= NULL, *p;
-  char portbuf[20], header[128];
-  int connected= 0;
-  my_socket s= INVALID_SOCKET;
-
-  snprintf(portbuf, sizeof(portbuf), "%u", opt_port);
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family= AF_UNSPEC;
-  hints.ai_socktype= SOCK_STREAM;
-  DIE_UNLESS(getaddrinfo(opt_host ? opt_host : "localhost", portbuf,
-                         &hints, &ai) == 0);
-
-  for (p= ai; p; p= p->ai_next)
-  {
-    s= socket(p->ai_family, p->ai_socktype, p->ai_protocol);
-    if (s == INVALID_SOCKET)
-      continue;
-    if (connect(s, p->ai_addr, (int) p->ai_addrlen) == 0)
-    {
-      connected= 1;
-      break;
-    }
-    closesocket(s);
-    s= INVALID_SOCKET;
-  }
-  freeaddrinfo(ai);
-  DIE_UNLESS(connected);
+  char header[128];
+  my_socket s= connect_tcp();
 
   if (client_ip)
   {
@@ -21198,6 +21378,8 @@ static void test_proxy_header()
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
+  test_proxy_header_multiple();
+  test_proxy_header_short();
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
   test_proxy_header_proxy_host_connect_errors_reset();
@@ -23366,6 +23548,527 @@ static void test_mdev_36678()
                   table_stmt3, insert_stmt1, view_stmt31, proc_stmt2, "call proc(null, 0, 25)");
 }
 
+/*
+  MDEV-23864 BULK insert wrong values when command contain inner select
+*/
+static int mdev_23864_id[3]= {1, 2, 3};
+static int mdev_23864_val[3]= {10, 20, 30};
+
+static MYSQL_STMT *test_mdev_23864_prepare(const char *query)
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[2];
+  unsigned int numrows= 3;
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= mdev_23864_id;
+  bind[1].buffer_type= MYSQL_TYPE_LONG;
+  bind[1].buffer= mdev_23864_val;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &numrows);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+  return stmt;
+}
+
+/* affected == 0 means the number of affected rows is not checked */
+static void test_mdev_23864_query(const char *query, const char *prefill,
+                                  const int *expected, my_ulonglong affected,
+                                  my_bool returning)
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND res_bind[2];
+  int res[2];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  int i, exec;
+
+  stmt= test_mdev_23864_prepare(query);
+
+  /* the second execution is after optimizations changed the statement */
+  for (exec= 0; exec < 2; exec++)
+  {
+    rc= mysql_query(mysql, "DELETE FROM t1");
+    myquery(rc);
+    if (prefill)
+    {
+      rc= mysql_query(mysql, prefill);
+      myquery(rc);
+    }
+
+    rc= mysql_stmt_execute(stmt);
+    check_execute(stmt, rc);
+    if (returning)
+    {
+      memset(res_bind, 0, sizeof(res_bind));
+      res_bind[0].buffer_type= MYSQL_TYPE_LONG;
+      res_bind[0].buffer= &res[0];
+      res_bind[1].buffer_type= MYSQL_TYPE_LONG;
+      res_bind[1].buffer= &res[1];
+      rc= mysql_stmt_bind_result(stmt, res_bind);
+      check_execute(stmt, rc);
+      rc= mysql_stmt_store_result(stmt);
+      check_execute(stmt, rc);
+      for (i= 0; i < 3; i++)
+      {
+        DIE_UNLESS(mysql_stmt_fetch(stmt) == 0);
+        DIE_UNLESS(res[0] == mdev_23864_id[i] && res[1] == expected[i]);
+      }
+      DIE_UNLESS(mysql_stmt_fetch(stmt) == MYSQL_NO_DATA);
+      mysql_stmt_free_result(stmt);
+    }
+    else if (affected)
+      DIE_UNLESS(mysql_stmt_affected_rows(stmt) == affected);
+
+    rc= mysql_query(mysql, "SELECT id, val FROM t1 ORDER BY id");
+    myquery(rc);
+    result= mysql_store_result(mysql);
+    mytest(result);
+    for (i= 0; i < 3; i++)
+    {
+      row= mysql_fetch_row(result);
+      DIE_UNLESS(row);
+      if (!opt_silent)
+        fprintf(stdout, "id: %s  val: %s\n",
+                (row[0] ? row[0] : "NULL"), (row[1] ? row[1] : "NULL"));
+      DIE_UNLESS(row[0] && atoi(row[0]) == mdev_23864_id[i]);
+      DIE_UNLESS(row[1] && atoi(row[1]) == expected[i]);
+    }
+    DIE_UNLESS(mysql_fetch_row(result) == NULL);
+    mysql_free_result(result);
+  }
+  mysql_stmt_close(stmt);
+}
+
+static void test_mdev_23864_insert_id(const char *query,
+                                      my_ulonglong expected)
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  int val[3]= {10, 20, 30};
+  unsigned int numrows= 3;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_LONG;
+  bind.buffer= val;
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &numrows);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  DIE_UNLESS(mysql_stmt_affected_rows(stmt) == 3);
+  DIE_UNLESS(mysql_stmt_insert_id(stmt) == expected);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT LAST_INSERT_ID()");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row && row[0]);
+  DIE_UNLESS(strtoull(row[0], NULL, 10) == expected);
+  mysql_free_result(result);
+}
+
+static void test_mdev_23864_count(const char *query, int expected)
+{
+  int rc;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+
+  rc= mysql_query(mysql, query);
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  row= mysql_fetch_row(res);
+  DIE_UNLESS(row && row[0] && atoi(row[0]) == expected);
+  mysql_free_result(res);
+}
+
+/*
+  Execute the statement after the setup statements and check the error,
+  or the number of warnings and returned rows
+*/
+static void test_mdev_23864_exec(const char *query, const char **setup,
+                                 uint error, uint warnings, int returned)
+{
+  int rc;
+  MYSQL_STMT *stmt= test_mdev_23864_prepare(query);
+  MYSQL_RES *res;
+
+  for (; *setup; setup++)
+  {
+    rc= mysql_query(mysql, *setup);
+    myquery(rc);
+  }
+  rc= mysql_stmt_execute(stmt);
+  if (error)
+  {
+    DIE_UNLESS(rc && mysql_stmt_errno(stmt) == error);
+    mysql_stmt_close(stmt);
+    return;
+  }
+  check_execute(stmt, rc);
+  DIE_UNLESS(mysql_warning_count(mysql) == warnings);
+  if (returned)
+  {
+    rc= mysql_stmt_store_result(stmt);
+    check_execute(stmt, rc);
+    DIE_UNLESS(mysql_stmt_num_rows(stmt) == (my_ulonglong) returned);
+  }
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SHOW WARNINGS");
+  myquery(rc);
+  res= mysql_store_result(mysql);
+  mytest(res);
+  DIE_UNLESS(mysql_num_rows(res) == warnings);
+  mysql_free_result(res);
+}
+
+static void test_mdev_23864()
+{
+  int rc;
+  const int same[3]= {10, 20, 30};
+  const int looked_up[3]= {100, 200, 300};
+  const int in_res[3]= {0, 1, 1};
+  const int all_res[3]= {0, 0, 1};
+
+  myheader("test_mdev_23864");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT, b INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "INSERT INTO t2 VALUES (10,100),(20,200),(30,300)");
+  myquery(rc);
+
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, (SELECT ?))",
+                        NULL, same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM (SELECT * FROM t2 WHERE a = ?) dt))",
+                        NULL, looked_up, 3, FALSE);
+  test_mdev_23864_query("REPLACE INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, 0) "
+                        "ON DUPLICATE KEY UPDATE "
+                        "val= (SELECT b FROM t2 WHERE a = ?)",
+                        "INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3)",
+                        looked_up, 6, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?) "
+                        "RETURNING id, val", NULL, same, 3, TRUE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?)) "
+                        "RETURNING id, val", NULL, looked_up, 3, TRUE);
+  /* reprepare before the first iteration */
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?)) "
+                        "RETURNING id, val", "ALTER TABLE t2 FORCE",
+                        looked_up, 3, TRUE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?) "
+                        "RETURNING id, val", "ALTER TABLE t1 FORCE",
+                        same, 3, TRUE);
+#ifndef DBUG_OFF
+  /* reprepare before an iteration other than the first */
+  rc= mysql_query(mysql, "SET debug_dbug="
+                         "'+d,reprepare_bulk_not_first_iteration'");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?)) "
+                        "RETURNING id, val", NULL, looked_up, 3, TRUE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  rc= mysql_query(mysql, "SET debug_dbug="
+                         "'-d,reprepare_bulk_not_first_iteration'");
+  myquery(rc);
+#endif
+
+  /* warnings of every execution are counted once */
+  rc= mysql_query(mysql, "CREATE TABLE t5 (id INT PRIMARY KEY, val TINYINT)");
+  myquery(rc);
+  test_mdev_23864_exec("INSERT IGNORE INTO t1 (id, val) VALUES "
+                       "(?, (SELECT ? FROM t2 LIMIT 1))",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES (2, 0)",
+                                         NULL}, 0, 1, 0);
+  test_mdev_23864_exec("INSERT IGNORE INTO t5 (id, val) VALUES "
+                       "(?, (SELECT 100 * ? FROM t2 LIMIT 1))",
+                       (const char *[]) {"DELETE FROM t5", NULL}, 0, 3, 0);
+  test_mdev_23864_exec("INSERT IGNORE INTO t5 (id, val) VALUES (?, 100 * ?)",
+                       (const char *[]) {"DELETE FROM t5", NULL}, 0, 3, 0);
+  test_mdev_23864_exec("UPDATE IGNORE t5 SET val= 1000 * ? WHERE id= ? / 10",
+                       (const char *[]) {"DELETE FROM t5",
+                                         "INSERT INTO t5 VALUES "
+                                         "(1, 0), (2, 0), (3, 0)",
+                                         NULL}, 0, 3, 0);
+
+  /* DELETE ... RETURNING after reprepare */
+  test_mdev_23864_exec("DELETE FROM t1 WHERE id = ? AND val = ? "
+                       "RETURNING id, val",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES "
+                                         "(1, 10), (2, 20), (3, 30)",
+                                         "ALTER TABLE t1 FORCE",
+                                         NULL}, 0, 0, 3);
+#ifndef DBUG_OFF
+  rc= mysql_query(mysql, "SET debug_dbug="
+                         "'+d,reprepare_bulk_not_first_iteration'");
+  myquery(rc);
+  test_mdev_23864_exec("DELETE FROM t1 WHERE id = ? AND val = ? "
+                       "RETURNING id, val",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES "
+                                         "(1, 10), (2, 20), (3, 30)",
+                                         NULL}, 0, 0, 3);
+  rc= mysql_query(mysql, "SET debug_dbug="
+                         "'-d,reprepare_bulk_not_first_iteration'");
+  myquery(rc);
+#endif
+
+  /* subquery result depends on the parameter outside the subquery */
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, ? IN (SELECT a FROM t2 WHERE a > 15))", NULL,
+                        in_res, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT ?) IN (SELECT a FROM t2 WHERE a > 15))",
+                        NULL, in_res, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, ? > ALL (SELECT a FROM t2 WHERE a < 25))", NULL,
+                        all_res, 3, FALSE);
+  /* parameter in ORDER BY of UNION */
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 UNION SELECT 0 "
+                        "ORDER BY ABS(b - 10 * ?) LIMIT 1))", NULL,
+                        looked_up, 3, FALSE);
+
+  /* error after successful executions */
+  test_mdev_23864_exec("INSERT INTO t1 (id, val) VALUES "
+                       "(?, (SELECT b FROM t2 WHERE a = ?))",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES (3, 0)",
+                                         NULL}, ER_DUP_ENTRY, 0, 0);
+  test_mdev_23864_count("SELECT COUNT(*) FROM t1", 3);
+  rc= mysql_query(mysql, "CREATE TABLE t6 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t6_bi BEFORE INSERT ON t6 "
+                         "FOR EACH ROW INSERT INTO t5 VALUES (NEW.id, 0)");
+  myquery(rc);
+  test_mdev_23864_exec("INSERT INTO t6 VALUES (?, ?)",
+                       (const char *[]) {"DELETE FROM t5", "DELETE FROM t6",
+                                         "INSERT INTO t6 VALUES (3, 0)",
+                                         NULL}, ER_DUP_ENTRY, 0, 0);
+  test_mdev_23864_count("SELECT COUNT(*) FROM t6", 3);
+  test_mdev_23864_exec("INSERT INTO t6 VALUES "
+                       "(?, (SELECT b FROM t2 WHERE a = ?))",
+                       (const char *[]) {"DELETE FROM t5", "DELETE FROM t6",
+                                         "INSERT INTO t6 VALUES (3, 0)",
+                                         NULL}, ER_DUP_ENTRY, 0, 0);
+  test_mdev_23864_count("SELECT COUNT(*) FROM t6", 3);
+
+  /* LAST_INSERT_ID() in a stored function called by bulk operation */
+  rc= mysql_query(mysql, "CREATE TABLE t4 (id INT AUTO_INCREMENT PRIMARY KEY,"
+                         " v INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE FUNCTION f1(x INT) RETURNS INT "
+                         "BEGIN INSERT INTO t4 (v) VALUES (x); "
+                         "RETURN (SELECT v FROM t4 WHERE id= LAST_INSERT_ID()); "
+                         "END");
+  myquery(rc);
+  test_mdev_23864_query("UPDATE t1 SET val= f1(10 * ?) WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, f1((SELECT b FROM t2 WHERE a = ?)))",
+                        "DELETE FROM t4", looked_up, 3, FALSE);
+  rc= mysql_query(mysql, "DROP FUNCTION f1");
+  myquery(rc);
+
+  /* rows changed by a trigger are not counted as affected */
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_bi BEFORE INSERT ON t1 "
+                         "FOR EACH ROW INSERT INTO t4 (v) VALUES (NEW.val)");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_bi");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW UPDATE t4 SET v= v + 1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW UPDATE t4 SET v= v + 1");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+
+  /* an error handled in a trigger does not reset the affected rows */
+  rc= mysql_query(mysql, "CREATE TABLE t7 (id INT PRIMARY KEY)");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW BEGIN "
+                         "DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END; "
+                         "INSERT INTO t7 VALUES (NEW.id); END");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW BEGIN "
+                         "DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END; "
+                         "INSERT INTO t7 VALUES (NEW.id); END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)",
+                        "REPLACE INTO t7 VALUES (2)", same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))",
+                        "REPLACE INTO t7 VALUES (2)", looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+  /* an error handled in a stored function */
+  rc= mysql_query(mysql, "CREATE FUNCTION f2(x INT) RETURNS INT BEGIN "
+                         "DECLARE EXIT HANDLER FOR SQLEXCEPTION RETURN x; "
+                         "INSERT INTO t7 VALUES (x / 10); RETURN x; END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, f2(?))",
+                        "REPLACE INTO t7 VALUES (2)", same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, f2((SELECT b FROM t2 WHERE a = ?)))",
+                        "REPLACE INTO t7 VALUES (20)", looked_up, 3, FALSE);
+  test_mdev_23864_query("UPDATE t1 SET val= f2(10 * ?) WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP FUNCTION f2");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t7");
+  myquery(rc);
+
+  /* statements of a trigger which set the diagnostics area status */
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_ai AFTER INSERT ON t1 "
+                         "FOR EACH ROW BEGIN DECLARE n INT; "
+                         "GET DIAGNOSTICS n= NUMBER; "
+                         "SELECT COUNT(*) INTO @a FROM t2; END");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                         "FOR EACH ROW BEGIN DECLARE n INT; "
+                         "GET DIAGNOSTICS n= NUMBER; "
+                         "SELECT COUNT(*) INTO @a FROM t2; END");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?)", NULL,
+                        same, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, ?) "
+                        "RETURNING id, val", NULL, same, 3, TRUE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?))", NULL,
+                        looked_up, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, (SELECT b FROM t2 WHERE a = ?)) "
+                        "RETURNING id, val", NULL, looked_up, 3, TRUE);
+  test_mdev_23864_query("UPDATE t1 SET val= 10 * ? WHERE id= ? / 10",
+                        "INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0)",
+                        same, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_ai");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TRIGGER t1_au");
+  myquery(rc);
+
+  /* the statement is killed in not the first execution */
+  test_mdev_23864_exec("UPDATE t1 SET val= ? + SLEEP(id = 3) "
+                       "WHERE id= ? / 10",
+                       (const char *[]) {"DELETE FROM t1",
+                                         "INSERT INTO t1 VALUES "
+                                         "(1, 0), (2, 0), (3, 0)",
+                                         "SET max_statement_time= 0.5",
+                                         NULL}, ER_STATEMENT_TIMEOUT, 0, 0);
+  rc= mysql_query(mysql, "SET max_statement_time= DEFAULT");
+  myquery(rc);
+
+  /* The first generated id is reported, as for the optimized execution */
+  rc= mysql_query(mysql, "CREATE TABLE t3 (id INT AUTO_INCREMENT PRIMARY KEY,"
+                         " val INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "DO LAST_INSERT_ID(1)");
+  myquery(rc);
+  test_mdev_23864_insert_id("INSERT INTO t3 (val) VALUES "
+                            "((SELECT b FROM t2 WHERE a = ?))", 1);
+  test_mdev_23864_insert_id("INSERT INTO t3 (val) VALUES "
+                            "((SELECT b FROM t2 WHERE a = ?))", 4);
+  test_mdev_23864_insert_id("INSERT INTO t3 (val) VALUES (?)", 7);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2, t3, t4, t5, t6");
+  myquery(rc);
+}
+
+/*
+  MDEV-41502 Bulk INSERT: IN list and REGEXP with a parameter use the first
+  parameter set for all rows
+*/
+static void test_mdev_41502()
+{
+  int rc;
+  const int expected[3]= {0, 1, 0};
+
+  myheader("test_mdev_41502");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, val INT)");
+  myquery(rc);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, 20 IN (?, 5))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, '20' REGEXP CONCAT('^', ?))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("REPLACE INTO t1 (id, val) VALUES (?, 20 IN (?, 5))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES (?, 0) "
+                        "ON DUPLICATE KEY UPDATE val= 20 IN (?, 5)",
+                        "INSERT INTO t1 VALUES (1, 5), (2, 5), (3, 5)",
+                        expected, 6, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, 'a%' LIKE 'a|%' ESCAPE IF(? = 20, '|', '#'))",
+                        NULL, expected, 3, FALSE);
+  test_mdev_23864_query("INSERT INTO t1 (id, val) VALUES "
+                        "(?, JSON_SEARCH('[\"a%\"]', 'one', 'a|%', "
+                        "IF(? = 20, '|', '#')) IS NOT NULL)",
+                        NULL, expected, 3, FALSE);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -24029,6 +24732,8 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_34958", test_mdev_34958 },
   { "test_mdev_32086", test_mdev_32086 },
   { "test_mdev_36678", test_mdev_36678 },
+  { "test_mdev_23864", test_mdev_23864 },
+  { "test_mdev_41502", test_mdev_41502 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
   { "test_mdev35953", test_mdev35953 },

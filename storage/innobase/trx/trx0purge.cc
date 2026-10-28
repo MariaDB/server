@@ -49,7 +49,7 @@ Created 3/26/1996 Heikki Tuuri
 TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
                         const char *tb, size_t tblen,
                         MDL_ticket *mdl_ticket) noexcept;
-int close_thread_tables(THD* thd) noexcept;
+void reset_thd(MYSQL_THD thd);
 MDL_ticket *get_mdl_ticket(TABLE *table) noexcept;
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
@@ -1120,7 +1120,12 @@ static void trx_purge_close_tables(THD *thd, purge_table *last_entry,
       node->tables.clear();
   }
 
-  close_thread_tables(thd);
+  /* Close the tables and free thd->mem_root, which holds the TABLE_LIST
+  allocated by every open_purge_table() call. Nothing else in the
+  coordinator's mem_root outlives its open tables, and without this
+  every batch (and every close_and_reopen() retry) would leak one
+  TABLE_LIST per opened table. */
+  reset_thd(thd);
 
   for (auto mdl : mdl_tickets)
   {
