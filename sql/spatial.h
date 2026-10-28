@@ -313,6 +313,12 @@ public:
   virtual int interior_ring_n(uint32 num, String *result) const { return -1; }
   virtual int geometry_n(uint32 num, String *result) const { return -1; }
   virtual int store_shapes(Gcalc_shape_transporter *trn) const=0;
+  virtual int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const
+  { *n_shapes= 1; return 0; }
+  virtual int store_shapes_in_mbr(Gcalc_shape_transporter *trn,
+                                  const MBR *filter,
+                                  uint32 n_filtered) const
+  { return store_shapes(trn); }
 
 public:
   static Geometry *create_by_typeid(Geometry_buffer *buffer, int type_id);
@@ -568,6 +574,9 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const override;
+  int store_shapes_in_mbr(Gcalc_shape_transporter *trn, const MBR *filter,
+                          uint32 n_filtered) const override;
   const Class_info *get_class_info() const override;
   int spherical_distance_multipoints(Geometry *g, const double r, double *res,
                                      int *error);
@@ -601,6 +610,9 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const override;
+  int store_shapes_in_mbr(Gcalc_shape_transporter *trn, const MBR *filter,
+                          uint32 n_filtered) const override;
   const Class_info *get_class_info() const override;
 };
 
@@ -631,6 +643,9 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const override;
+  int store_shapes_in_mbr(Gcalc_shape_transporter *trn, const MBR *filter,
+                          uint32 n_filtered) const override;
   const Class_info *get_class_info() const override;
   uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
 };
@@ -658,6 +673,9 @@ public:
   int geometry_n(uint32 num, String *result) const override;
   bool dimension(uint32 *dim, const char **end) const override;
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int count_shapes_in_mbr(const MBR *filter, uint32 *n_shapes) const override;
+  int store_shapes_in_mbr(Gcalc_shape_transporter *trn, const MBR *filter,
+                          uint32 n_filtered) const override;
   const Class_info *get_class_info() const override;
 };
 
