@@ -42,3 +42,18 @@ SELECT j MEMBER OF ('[1]') FROM t_json;
 j MEMBER OF ('[1]')
 0
 DROP TABLE t_json;
+CREATE TABLE t_41418 (j JSON, c VARCHAR(10), i INT);
+INSERT INTO t_41418 VALUES (NULL, NULL, NULL);
+SELECT j MEMBER OF ('[1]'), c MEMBER OF ('[1]'), i MEMBER OF ('[1]') FROM t_41418;
+j MEMBER OF ('[1]')	c MEMBER OF ('[1]')	i MEMBER OF ('[1]')
+0	0	0
+SELECT j MEMBER OF ('[null]'), c MEMBER OF ('[null]'), i MEMBER OF ('[null]') FROM t_41418;
+j MEMBER OF ('[null]')	c MEMBER OF ('[null]')	i MEMBER OF ('[null]')
+1	1	1
+DROP TABLE t_41418;
+CREATE TABLE t_41586 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t_41586 VALUES ('é');
+SELECT a MEMBER OF (CONCAT('["',a,'"]')) FROM t_41586;
+a MEMBER OF (CONCAT('["',a,'"]'))
+1
+DROP TABLE t_41586;

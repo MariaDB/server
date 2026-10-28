@@ -993,7 +993,10 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
     to be truncated to "nu" under --view-protocol.  We enforce a minimum of 4
     characters using MY_MAX(..., 4ULL) to ensure "null" is never truncated.
   */
-  fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length() * 12 + 2, 4ULL));
+  if (json_passthrough)
+    fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length(), 4ULL));
+  else
+    fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length() * 12 + 2, 4ULL));
   set_maybe_null();
   return FALSE;
 }
@@ -1035,6 +1038,12 @@ String *Item_func_json_quote::val_str(String *str)
   {
     null_value= 1;
     return NULL;
+  }
+
+  if (json_passthrough)
+  {
+    null_value= 0;
+    return s;
   }
 
   /*
@@ -6935,43 +6944,23 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
   if (contains_args.push_back(args[1], thd->mem_root))
     return true;
 
-  if (is_json_type(args[0]))
-  {
-    json_quote_item= NULL;
-    if (contains_args.push_back(args[0], thd->mem_root))
-      return true;
-  }
-  else
-  {
-    Item_func_json_quote *jq= new (thd->mem_root) Item_func_json_quote(thd, args[0]);
-    if (!jq)
-      return true;
-    if (jq->fix_length_and_dec(thd))
-      return true;
-    /*
-      Item 1 (root-cause fix): Item_func_json_quote was just constructed and
-      only fix_length_and_dec() was called — fix_fields() was deliberately
-      skipped because the item lives outside the normal item tree.  The
-      Used_tables_and_const_cache constructor sets const_item_cache = true by
-      default, so jq->const_item() incorrectly returns true at this point.
+  /*
+    For JSON-typed candidates (is_json_type == true), we use json_passthrough
+    so non-null JSON values pass through unquoted, while SQL NULL inputs are
+    consistently converted to the JSON string "null" (MDEV-41418).
+  */
+  bool passthrough= is_json_type(args[0]);
+  Item_func_json_quote *jq= new (thd->mem_root) Item_func_json_quote(thd, args[0], passthrough);
+  if (!jq)
+    return true;
+  if (jq->fix_length_and_dec(thd))
+    return true;
 
-      Item_func_json_contains::fix_length_and_dec() reads
-        a2_constant = args[1]->const_item()   (args[1] is jq)
-      If that read happens while jq->const_item() is still true, a2_constant
-      becomes true and the needle value is cached after the first row —
-      producing wrong results for every subsequent row (NULL candidate
-      appearing as 1, non-member values appearing as 1, etc.).
-
-      Initialize jq's cache and join args[0] flags without calling
-      args[0]->update_used_tables() (which is unsafe for window function items
-      at this point in the lifecycle).
-    */
-    jq->used_tables_and_const_cache_init();
-    jq->used_tables_and_const_cache_join(args[0]);
-    json_quote_item= jq;
-    if (contains_args.push_back(json_quote_item, thd->mem_root))
-      return true;
-  }
+  jq->used_tables_and_const_cache_init();
+  jq->used_tables_and_const_cache_join(args[0]);
+  json_quote_item= jq;
+  if (contains_args.push_back(json_quote_item, thd->mem_root))
+    return true;
 
   Item_func_json_contains *jc= new (thd->mem_root) Item_func_json_contains(thd, contains_args, true);
   if (!jc)
@@ -6981,7 +6970,7 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
   /* Propagate used-tables/const state from the freshly fixed arguments. */
   jc->used_tables_and_const_cache_init();
   jc->used_tables_and_const_cache_join(args[1]);
-  jc->used_tables_and_const_cache_join(json_quote_item ? json_quote_item : args[0]);
+  jc->used_tables_and_const_cache_join(json_quote_item);
   json_contains_item= jc;
 
   return false;
@@ -7018,7 +7007,7 @@ Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uch
     if (json_contains_item && json_contains_item->type() == Item::FUNC_ITEM)
     {
       static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
-      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item ? json_quote_item : args[0];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
     }
   }
   return res;
@@ -7040,7 +7029,7 @@ void Item_func_member_of::update_used_tables()
     if (json_contains_item->type() == Item::FUNC_ITEM)
     {
       static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
-      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item ? json_quote_item : args[0];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
     }
     json_contains_item->update_used_tables();
   }
