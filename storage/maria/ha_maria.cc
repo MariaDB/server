@@ -3741,8 +3741,8 @@ struct maria_backup_context
   Dynamic_array<const char*> tables{PSI_INSTRUMENT_MEM};
   /** index of the next element of tables or deferred to copy */
   size_t next{0};
-  /** tables that are not safe for online backup; they will be copied
-  under BACKUP_LOCK_COMMIT */
+  /** tables in the mysql schema that are not safe for online backup;
+  they will be copied under BACKUP_LOCK_COMMIT */
   Dynamic_array<const char*> deferred{PSI_INSTRUMENT_MEM};
   /** last_checkpoint_lsn at BACKUP_START: recovery of the backup starts
   from this checkpoint, because the table files may be copied before
@@ -3948,8 +3948,41 @@ static bool maria_backup_copy(const backup_target &target,
 }
 
 /**
-   Copy an Aria table that is safe for online backup,
-   or defer it to BACKUP_LOCK_COMMIT.
+   Copy the files of an Aria table that is not safe for online backup,
+   while its writes are blocked.
+   @param target   backup target
+   @param sink     worker context
+   @param table    table file name without extension
+   @return whether the operation failed
+*/
+static bool maria_backup_table_locked(const backup_target &target,
+                                      const backup_sink &sink,
+                                      const char *table) noexcept
+{
+  const size_t prefix{strlen(mysql_data_home) + 1};
+  char path[FN_REFLEN];
+  char *ext= strxnmov(path, sizeof path - sizeof MARIA_NAME_IEXT,
+                      mysql_data_home, "/", table, NullS);
+  strmov(ext, MARIA_NAME_IEXT);
+  if (backup::copy_or_stream(target, sink, path, prefix))
+    return true;
+  strmov(ext, MARIA_NAME_DEXT);
+  return backup::copy_or_stream(target, sink, path, prefix);
+}
+
+/**
+   Copy an Aria table, or defer it to BACKUP_LOCK_COMMIT.
+
+   A table that is safe for online backup is copied with page checksum
+   validation. Other tables outside the mysql schema are copied as
+   whole files: from BACKUP_FLUSH on, their writes are blocked
+   (MDL_BACKUP_DML), and backup_block_ddl() flushed them. The other
+   tables in the mysql schema are deferred, because
+   flush_tables(FLUSH_NON_TRANS_TABLES) flushes only
+   TABLE_CATEGORY_USER tables. Writes to the TABLE_CATEGORY_MYSQL
+   tables (MDL_BACKUP_DML) are blocked, but their files can be
+   stale. Writes to the system, statistics and log tables
+   (MDL_BACKUP_SYS_DML) are blocked only from BACKUP_LOCK_COMMIT on.
    @param target   backup target
    @param sink     worker context
    @param ctx      Aria backup context
@@ -3972,13 +4005,18 @@ static bool maria_backup_table(const backup_target &target,
   bool fail;
   if (!context.capabilities.online_backup_safe)
   {
+    aria_close_files_for_backup(&context);
+    if (strncmp(table, MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length) ||
+        table[MYSQL_SCHEMA_NAME.length] != '/')
+      return maria_backup_table_locked(target, sink, table);
     mysql_mutex_lock(&ctx->mutex);
     fail= ctx->deferred.append_val(table);
     mysql_mutex_unlock(&ctx->mutex);
     if (fail)
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return fail;
   }
-  else
+
   {
     /* Read up to 128 pages at a time, like mariadb-backup */
     const size_t buf_size= size_t{context.capabilities.block_size} * 128;
@@ -4001,29 +4039,6 @@ static bool maria_backup_table(const backup_target &target,
   }
   aria_close_files_for_backup(&context);
   return fail;
-}
-
-/**
-   Copy an Aria table that is not safe for online backup.
-   Writes to it are blocked under BACKUP_LOCK_COMMIT.
-   @param target   backup target
-   @param sink     worker context
-   @param table    table file name without extension
-   @return whether the operation failed
-*/
-static bool maria_backup_table_locked(const backup_target &target,
-                                      const backup_sink &sink,
-                                      const char *table) noexcept
-{
-  const size_t prefix{strlen(mysql_data_home) + 1};
-  char path[FN_REFLEN];
-  char *ext= strxnmov(path, sizeof path - sizeof MARIA_NAME_IEXT,
-                      mysql_data_home, "/", table, NullS);
-  strmov(ext, MARIA_NAME_IEXT);
-  if (backup::copy_or_stream(target, sink, path, prefix))
-    return true;
-  strmov(ext, MARIA_NAME_DEXT);
-  return backup::copy_or_stream(target, sink, path, prefix);
 }
 
 /**
@@ -4097,9 +4112,10 @@ maria_backup_start(THD *, const backup_target *target,
   }
   case BACKUP_WAIT_FOR_FLUSH:
     /*
-      DDL is blocked from now on. Copy the tables that are safe for
-      online backup before the log, so that the log covers every
-      page LSN in the copied files.
+      DDL is blocked from now on. Copy the tables before the log, so
+      that the log covers every page LSN in the copied files.
+      See maria_backup_table() for the tables that are deferred to
+      BACKUP_LOCK_COMMIT.
     */
     if (maria_backup_collect(*target, *sink,
                              static_cast<maria_backup_context*>
@@ -4153,8 +4169,9 @@ maria_backup_start(THD *, const backup_target *target,
 /**
    Copy one Aria table.
    @param target  backup target
-   @param stage   BACKUP_WAIT_FOR_FLUSH: copy the tables that are safe
-                  for online backup; BACKUP_LOCK_COMMIT: copy the others
+   @param stage   BACKUP_WAIT_FOR_FLUSH: copy the tables, except
+                  maria_backup_context::deferred;
+                  BACKUP_LOCK_COMMIT: copy maria_backup_context::deferred
    @param sink    worker context
    @retval 1 on success if some work remains
    @retval 0 on completion

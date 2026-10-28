@@ -1,0 +1,62 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# Aria tables that are not safe for online backup are copied before
+# BACKUP_LOCK_COMMIT, while their writes are blocked, so that a large
+# table does not block commits during its copy.
+CREATE TABLE t0 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=0;
+INSERT INTO t0 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+INSERT INTO t1 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--connect bk,localhost,root
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR copied';
+--let $datadir= `SELECT @@datadir`
+--exec cmp $datadir/test/t0.MAD $MYSQLTEST_VARDIR/bk/test/t0.MAD
+--exec cmp $datadir/test/t0.MAI $MYSQLTEST_VARDIR/bk/test/t0.MAI
+--exec cmp $datadir/test/t1.MAD $MYSQLTEST_VARDIR/bk/test/t1.MAD
+--exec cmp $datadir/test/t1.MAI $MYSQLTEST_VARDIR/bk/test/t1.MAI
+
+--connect dml,localhost,root
+--send INSERT INTO t0 VALUES (1001, 'b'), (1002, 'b')
+--connection default
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = 'Waiting for backup lock' AND info LIKE 'INSERT INTO t0%'
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection bk
+--reap
+--disconnect bk
+--connection dml
+--reap
+--disconnect dml
+--connection default
+SET DEBUG_SYNC='RESET';
+
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE t0, t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t0;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t0;
+DROP TABLE t0, t1;
+--rmdir $MYSQLTEST_VARDIR/bk
