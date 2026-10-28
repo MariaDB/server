@@ -295,6 +295,9 @@ unsigned long long srv_stats_modified_counter;
 based on number of configured pages */
 my_bool	srv_stats_sample_traditional;
 
+/** innodb_blink_enabled; stamp newly created supported indexes. */
+my_bool srv_blink_enabled;
+
 /** innodb_sync_spin_loops */
 ulong	srv_n_spin_wait_rounds;
 /** innodb_spin_wait_delay */
