@@ -5456,5 +5456,11 @@ bool TABLE_LIST::is_pure_alias() const
   return !db.length || (table_options & TL_OPTION_ALIAS);
 }
 
+inline bool has_invalid_change_master_string(const LEX_CSTRING *str)
+{
+  return (memchr(str->str, '\0', str->length) || 
+          memchr(str->str, '\n', str->length) || 
+          memchr(str->str, '\r', str->length));
+}
 #endif /* MYSQL_SERVER */
 #endif /* SQL_LEX_INCLUDED */

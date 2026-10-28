@@ -1318,6 +1318,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %right INTO
 
 %type <lex_str>
+        TEXT_STRING_SYS_NO_LINEBREAK_NULL
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
@@ -2235,16 +2236,28 @@ master_defs:
         | master_defs ',' master_def
         ;
 
+/* NEW STRICT STRING RULE FOR CHANGE MASTER */
+TEXT_STRING_SYS_NO_LINEBREAK_NULL:
+          TEXT_STRING_sys
+          {
+            if (has_invalid_change_master_string(&$1))
+            {
+               my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), "CHANGE MASTER option value"));
+            }
+            $$ = $1;
+          }
+        ;
+
 master_def:
-          MASTER_HOST_SYM '=' TEXT_STRING_sys
+          MASTER_HOST_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.host = $3.str;
           }
-        | MASTER_USER_SYM '=' TEXT_STRING_sys
+        | MASTER_USER_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.user = $3.str;
           }
-        | MASTER_PASSWORD_SYM '=' TEXT_STRING_sys
+        | MASTER_PASSWORD_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.password = $3.str;
           }
@@ -2271,23 +2284,23 @@ master_def:
             Lex->mi.ssl= $3 ? 
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CA_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CA_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_ca= $3.str;
           }
-        | MASTER_SSL_CAPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CAPATH_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_capath= $3.str;
           }
-        | MASTER_SSL_CERT_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CERT_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_cert= $3.str;
           }
-        | MASTER_SSL_CIPHER_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CIPHER_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_cipher= $3.str;
           }
-        | MASTER_SSL_KEY_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_KEY_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_key= $3.str;
           }
@@ -2296,11 +2309,11 @@ master_def:
             Lex->mi.ssl_verify_server_cert= $3 ?
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CRL_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRL_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_crl= $3.str;
           }
-        | MASTER_SSL_CRLPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRLPATH_SYM '=' TEXT_STRING_SYS_NO_LINEBREAK_NULL
           {
             Lex->mi.ssl_crlpath= $3.str;
           }
