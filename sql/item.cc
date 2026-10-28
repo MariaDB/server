@@ -11149,7 +11149,9 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
         result= true;
         goto return_result;
       }
+      trigger_field->field->register_field_in_read_map();
     }
+
   }
 
   m_fields_iterator.init(m_fields);
