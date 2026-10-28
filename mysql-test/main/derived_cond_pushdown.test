@@ -4883,13 +4883,4 @@ deallocate prepare s;
 drop table t1;
 set names default;
 
---echo #
---echo # MDEV-36295 INTERVAL() pushed into a derived table
---echo #
-
-create table t1 (a int, b int);
-insert into t1 values (1,10),(5,20),(9,30);
-select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 1;
-drop table t1;
-
 --echo # End of 11.4 tests

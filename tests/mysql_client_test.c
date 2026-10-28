@@ -20961,6 +20961,40 @@ static void test_proxy_header_limits()
   }
 }
 
+/* Test that connection fails with multiple proxy headers (MDEV-40878) */
+static void test_proxy_header_multiple()
+{
+  MYSQL *m;
+#ifndef DBUG_OFF
+  int rc;
+#endif
+  const char header[]= "PROXY TCP4 127.0.0.1 127.0.0.1 12345 3306\r\n"
+                       "PROXY TCP4 127.0.0.1 127.0.0.1 12346 3306\r\n";
+  myheader("test_proxy_header_multiple");
+
+#ifndef DBUG_OFF
+  /* The server asserts on out of order packets in debug builds */
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,net_expect_protocol_errors'");
+  myquery(rc);
+#endif
+
+  m = mysql_client_init(NULL);
+  DIE_UNLESS(m);
+  mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header, sizeof(header)-1);
+
+  /* Connection should fail, second proxy header is interpreted as packet error */
+  DIE_UNLESS(mysql_real_connect(m, opt_host, "root", "", NULL, opt_port, opt_unix_socket, 0) == NULL);
+  mysql_close(m);
+
+#ifndef DBUG_OFF
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif
+}
+
 
 /*
   MDEV-37556 memory leak in proxy protocol for non-loopback
@@ -21344,6 +21378,7 @@ static void test_proxy_header()
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
+  test_proxy_header_multiple();
   test_proxy_header_short();
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
