@@ -11119,6 +11119,7 @@ Item_trigger_row::check_new_old_qualifiers_comform_with_trg_event(THD *thd)
 
 bool Item_trigger_row::fix_fields(THD *thd, Item **it)
 {
+  bool result= false;
   if (fixed())
     return false;
 
@@ -11127,12 +11128,15 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
 
   if (null_value)
   {
-    return false;
+    goto return_result;
   }
   else
   {
     if(populate_with_trigger_fields(thd))
-     return true;
+    {
+      result= true;
+      goto return_result;
+    }
 
     List_iterator<Item_trigger_field> it_trigger_field(m_fields);
     Item_trigger_field *trigger_field;
@@ -11141,12 +11145,18 @@ bool Item_trigger_row::fix_fields(THD *thd, Item **it)
     {
       trigger_field->setup_field(thd, table, table_grants);
       if (trigger_field->fix_fields_if_needed(thd, nullptr))
-        return true;
+      {
+        result= true;
+        goto return_result;
+      }
     }
-    m_fields_iterator.init(m_fields);
-    base_flags|= item_base_t::FIXED;
-    return false;
   }
+
+  m_fields_iterator.init(m_fields);
+
+return_result:
+  base_flags|= item_base_t::FIXED;
+  return result;
 }
 
 void Item_trigger_row::setup_field(THD *thd, TABLE *table,
