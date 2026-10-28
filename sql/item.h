@@ -8011,6 +8011,7 @@ private:
   List_iterator <Item_trigger_field> m_fields_iterator;
   uint index;
   Item* m_last_item_ptr;
+  Item **m_item_array;
 
 public:
   Item_trigger_row(THD *thd, Name_resolution_context *context_arg,
@@ -8034,6 +8035,7 @@ public:
   { }
   Type type() const override
   { return TRIGGER_ROW_ITEM; }
+  void fill_field_references(THD *thd);
   void setup_field(THD *thd, TABLE *table, GRANT_INFO *table_grant_info);
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
   uint cols() const override { return m_fields.elements;}

@@ -11171,6 +11171,19 @@ void Item_trigger_row::setup_field(THD *thd, TABLE *table,
   this->table= table;
 }
 
+void Item_trigger_row::fill_field_references(THD *thd)
+{
+  uint n = m_fields.elements;
+  List_iterator<Item_trigger_field> it(m_fields);
+  Item_trigger_field *field;
+
+  m_item_array = (Item**) thd->alloc(sizeof(Item*) * n);
+    for (uint i = 0; (field = it++); i++)
+    {
+      m_item_array[i] = field;
+    }
+}
+
 bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
 {
   Field_iterator_table field_iterator;
@@ -11197,6 +11210,8 @@ bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
     if (m_fields.push_back(val))
       return true;
   }
+
+  fill_field_references(thd);
 
   return false;
 }
@@ -11249,8 +11264,7 @@ void Item_trigger_row::print(String *str, enum_query_type query_type)
 
 Item** Item_trigger_row::addr(uint i)
 {
-  m_last_item_ptr= (Item*)m_fields.elem(i);
-  return &m_last_item_ptr;
+  return &m_item_array[i];
 }
 
 bool Item_trigger_row::check_cols(uint n)
