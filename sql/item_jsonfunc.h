@@ -244,9 +244,11 @@ class Item_func_json_quote: public Item_str_func
 protected:
   String tmp_s;
   json_engine_t je;
+  bool json_passthrough;
 
 public:
-  Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s)
+  Item_func_json_quote(THD *thd, Item *s, bool passthrough=false):
+    Item_str_func(thd, s), json_passthrough(passthrough)
   {}
   LEX_CSTRING func_name_cstring() const override
   {

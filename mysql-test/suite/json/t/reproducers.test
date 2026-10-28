@@ -25,3 +25,17 @@ INSERT INTO t_json VALUES ('[1,2');
 SELECT j MEMBER OF ('[1]') FROM t_json;
 DROP TABLE t_json;
 
+# MDEV-41418: JSON-typed NULL column must match [null] same as VARCHAR/INT NULL
+CREATE TABLE t_41418 (j JSON, c VARCHAR(10), i INT);
+INSERT INTO t_41418 VALUES (NULL, NULL, NULL);
+SELECT j MEMBER OF ('[1]'), c MEMBER OF ('[1]'), i MEMBER OF ('[1]') FROM t_41418;
+SELECT j MEMBER OF ('[null]'), c MEMBER OF ('[null]'), i MEMBER OF ('[null]') FROM t_41418;
+DROP TABLE t_41418;
+
+# MDEV-41586: latin1 candidate must match against utf8mb4 container
+CREATE TABLE t_41586 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t_41586 VALUES ('é');
+SELECT a MEMBER OF (CONCAT('["',a,'"]')) FROM t_41586;
+DROP TABLE t_41586;
+
+
