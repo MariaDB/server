@@ -51,7 +51,6 @@ enum mysql_db_table_field
   MYSQL_DB_FIELD_COUNT
 };
 
-extern const TABLE_FIELD_DEF mysql_db_table_def;
 extern bool mysql_user_table_is_in_short_password_format;
 
 extern LEX_CSTRING host_not_specified;
@@ -284,6 +283,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
 
 extern SHOW_VAR acl_statistics[];
+extern my_bool grant_tables_intact;
 
 /* Check if a role is granted to a user/role.
 
