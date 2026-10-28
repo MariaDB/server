@@ -1,0 +1,15 @@
+!include include/default_mysqld.cnf
+
+[mysqld.1]
+log-warnings=9
+
+[mysqld.2]
+log-warnings=9
+
+[mysqld.3]
+log-warnings=9
+
+[ENV]
+SERVER_MYPORT_1= @mysqld.1.port
+SERVER_MYPORT_2= @mysqld.2.port
+SERVER_MYPORT_3= @mysqld.3.port

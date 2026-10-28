@@ -9063,6 +9063,20 @@ err:
       {
         my_off_t offset= my_b_tell(file);
         bool check_purge= false;
+#ifdef HAVE_REPLICATION
+        /*
+          Decide once whether this event group can be ACKed at all (see
+          Repl_semi_sync_master::trx_reaches_no_slave()). If it cannot, neither
+          register it for an ACK below nor wait for one further down: the
+          decision is reused by the wait, so that a slave connecting or
+          disconnecting in between cannot make us wait for an ACK which was
+          never requested.
+        */
+        const bool semisync_skip_ack=
+          repl_semisync_master.trx_reaches_no_slave(thd);
+        if (semisync_skip_ack)
+          repl_semisync_master.skip_ack_wait(thd);
+#endif
 
         if (likely(!error))
         {
@@ -9080,7 +9094,8 @@ err:
             mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
             mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-            if (repl_semisync_master.report_binlog_update(thd, thd,
+            if (!semisync_skip_ack &&
+                repl_semisync_master.report_binlog_update(thd, thd,
                                                          log_file_name, offset))
             {
               sql_print_error("Failed to run 'after_flush' hooks");
@@ -9115,7 +9130,8 @@ err:
         mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
         mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-        if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+        if (!semisync_skip_ack &&
+            repl_semisync_master.wait_after_sync(log_file_name, offset))
         {
           error=1;
           /* error is already printed inside hook */
@@ -10149,6 +10165,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
   entry.do_binlog_group_commit_ordered= false;
+  entry.semisync_skip_ack= false;
   entry.end_event= end_ev;
   cache_mngr->using_stmt_cache= using_stmt_cache;
   cache_mngr->using_trx_cache= using_trx_cache;
@@ -10962,11 +10979,22 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
               (buf, current->cache_mngr->last_commit_pos_file.engine_file_no);
           else
             filename= current->cache_mngr->last_commit_pos_file.legacy_name;
-          if (likely(!current->error) &&
-              unlikely(repl_semisync_master.
-                       report_binlog_update(current->thd, waiter_thd, filename,
-                                            (my_off_t)current->cache_mngr->
-                                            last_commit_pos_offset)))
+          /*
+            If this transaction can never be ACKed (see
+            Repl_semi_sync_master::trx_reaches_no_slave()), do not register it
+            for an ACK, and remember that in the entry so that the wait further
+            down is skipped as well.
+          */
+          current->semisync_skip_ack=
+            repl_semisync_master.trx_reaches_no_slave(current->thd);
+          if (current->semisync_skip_ack)
+            repl_semisync_master.skip_ack_wait(current->thd);
+          else if (likely(!current->error) &&
+                   unlikely(repl_semisync_master.
+                            report_binlog_update(current->thd, waiter_thd,
+                                                 filename,
+                                                 (my_off_t)current->cache_mngr->
+                                                 last_commit_pos_offset)))
           {
             current->error= ER_ERROR_ON_WRITE;
             current->commit_errno= -1;
@@ -11061,7 +11089,7 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
     for (current= leader; current != NULL; current= current->next)
     {
       last= current->next == NULL;
-      if (likely(!current->error))
+      if (likely(!current->error) && !current->semisync_skip_ack)
         current->error=
           repl_semisync_master.wait_after_sync(current->cache_mngr->
                                                last_commit_pos_file.legacy_name,
