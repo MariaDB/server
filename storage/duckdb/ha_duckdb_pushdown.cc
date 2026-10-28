@@ -1051,3 +1051,114 @@ int ha_duckdb_select_handler::end_scan()
 
   DBUG_RETURN(0);
 }
+
+
+/** Whether an expression means the same in MariaDB and in DuckDB. */
+static bool duckdb_item_is_portable(Item *item, TABLE *table)
+{
+  switch (item->type())
+  {
+  case Item::FIELD_ITEM:
+    return item->used_tables() == table->map;
+  case Item::NULL_ITEM:
+    return true;
+  case Item::CONST_ITEM:
+    return item->basic_const_item() && !item->with_param() &&
+           !item->with_sp_var();
+  case Item::COND_ITEM:
+  {
+    List_iterator_fast<Item> li(*((Item_cond *) item)->argument_list());
+    while (Item *arg= li++)
+      if (!duckdb_item_is_portable(arg, table))
+        return false;
+    return true;
+  }
+  case Item::FUNC_ITEM:
+  {
+    Item_func *func= (Item_func *) item;
+    switch (func->functype())
+    {
+    case Item_func::EQ_FUNC: case Item_func::NE_FUNC:
+    case Item_func::LT_FUNC: case Item_func::LE_FUNC:
+    case Item_func::GE_FUNC: case Item_func::GT_FUNC:
+    case Item_func::ISNULL_FUNC: case Item_func::ISNOTNULL_FUNC:
+    case Item_func::NOT_FUNC: case Item_func::BETWEEN:
+    case Item_func::IN_FUNC: case Item_func::NEG_FUNC:
+      break;
+    case Item_func::UNKNOWN_FUNC:
+    {
+      const char *name= func->func_name();
+      if (strcmp(name, "+") && strcmp(name, "-") && strcmp(name, "*"))
+        return false;
+      break;
+    }
+    default:
+      return false;
+    }
+    for (uint i= 0; i < func->argument_count(); i++)
+      if (!duckdb_item_is_portable(func->arguments()[i], table))
+        return false;
+    return true;
+  }
+  default:
+    return false;
+  }
+}
+
+
+/**
+  The server skips the direct UPDATE/DELETE path when the statement is logged
+  in ROW format, and the row by row path is slow and has no index lookups in
+  DuckDB. If the statement can be forwarded as is, ha_duckdb::rnd_init() runs
+  it whole in DuckDB and logs the statement itself (MDEV-40831).
+
+  The conditions are those of the direct path in mysql_update() and
+  mysql_delete(), minus binlog_is_row, plus what logging the statement needs:
+  it must be deterministic and must not come from a replica or run in Galera.
+*/
+bool duckdb_can_run_dml_in_engine(THD *thd, TABLE *table)
+{
+  LEX *lex= thd->lex;
+  if ((lex->sql_command != SQLCOM_UPDATE &&
+       lex->sql_command != SQLCOM_DELETE) ||
+      !thd->is_current_stmt_binlog_format_row() ||
+      thd->slave_thread || thd->in_sub_stmt || WSREP(thd) || lex->is_stmt_unsafe())
+    return false;
+
+  SELECT_LEX *sl= lex->first_select_lex();
+  TABLE_LIST *tl= lex->query_tables;
+  if (tl->table != table || tl->next_global || lex->all_selects_list->next_select_in_list() ||
+      tl->has_period() || table->triggers || table->vfield || lex->ignore ||
+      lex->has_returning() || sl->order_list.elements ||
+      sl->limit_params.explicit_limit ||
+      table->reginfo.lock_type < TL_FIRST_WRITE)
+    return false;
+
+  /*
+    The statement text goes to DuckDB as it is, so only forward what both
+    sides read the same way: no double quotes (a string for MariaDB, an
+    identifier for DuckDB), and a condition and new values made of this
+    table's columns, plain literals and a few operators.
+  */
+  if (memchr(thd->query(), '"', thd->query_length()))
+    return false;
+  if (sl->where && !duckdb_item_is_portable(sl->where, table))
+    return false;
+  List_iterator_fast<Item> it(lex->value_list);
+  while (Item *value= it++)
+    if (!duckdb_item_is_portable(value, table))
+      return false;
+  return true;
+}
+
+
+longlong duckdb_query_id(THD *thd) { return (longlong) thd->query_id; }
+
+
+int duckdb_binlog_dml(THD *thd)
+{
+  if (!mysql_bin_log.is_open() || !(thd->variables.option_bits & OPTION_BIN_LOG))
+    return 0;
+  return thd->binlog_query(THD::STMT_QUERY_TYPE, thd->query(),
+                           thd->query_length(), true, false, false, 0);
+}

@@ -228,6 +228,10 @@ before MariaDB creates a partition handler or starts the table-copy protocol.
 
 DROP DATABASE: `duckdb_drop_database()` → `DROP SCHEMA IF EXISTS "db"`.
 
+### Path 2a: Whole-statement DML under `binlog_format=ROW`
+
+The server does not use the direct DML path when the statement is logged in ROW format. For a simple single-table `UPDATE`/`DELETE`, `ha_duckdb::rnd_init()` runs the statement whole through `direct_update_rows()` / `direct_delete_rows()`, writes it to the binary log as a `Query` event (`duckdb_binlog_dml()`), and `rnd_next()` returns end-of-file, so `update_row()`/`delete_row()` are never called. `duckdb_can_run_dml_in_engine()` decides: the statement must be deterministic, not run on a replica, in Galera or inside a trigger or function, have no triggers on the table, virtual columns, `IGNORE`, `RETURNING`, `ORDER BY`, `LIMIT` or subquery, contain no double quote, and use only this table's columns, literals and a few operators (comparisons, `AND`/`OR`/`NOT`, `IN`, `BETWEEN`, `+`, `-`, `*`). Anything else takes Path 3. The client sees `0 rows affected`, and row-event consumers (CDC tools) see a `Query` event instead of row events.
+
 ### Path 3: Row-by-Row DML
 
 ```
