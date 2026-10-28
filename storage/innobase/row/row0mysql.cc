@@ -671,6 +671,7 @@ handle_new_error:
 	case DB_INTERRUPTED:
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
 	case DB_TABLE_NOT_FOUND:
+	case DB_TABLESPACE_DELETED:
 	case DB_DECRYPTION_FAILED:
 	case DB_COMPUTE_VALUE_FAILED:
 	rollback_to_savept:
