@@ -1,0 +1,32 @@
+--echo #
+--echo # MDEV-40524: ST_Distance returns incorrect minimum distance 
+--echo # between a Point and a multi-segment LineString/Polygon
+--echo #
+
+--echo # 1. Verify distance to closest segment in a 2-segment LineString (original bug report cases)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5)')) AS distance1;
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6)')) AS distance2;
+
+--echo # 2. Adding additional segments
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6,10 10)')) AS one_more;
+
+--echo # 3. Pre-appending the segment (Control case)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(6 6,4 6,6 5)')) AS d_prepend;
+
+--echo # 4. Polygon segment evaluation
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('POLYGON((4 6,6 5,6 6,4 6))')) AS d_polygon;
+
+--echo # 5. Multipoint control case
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('MULTIPOINT(6 5,20 20)')) AS d_multipoint;
+
+--echo # 6. Reverse arguments (Validates the cur_point_edge symmetry in val_real)
+SELECT ST_Distance(ST_GeomFromText('LINESTRING(4 6,6 5,6 6)'), ST_GeomFromText('POINT(5 5)')) AS d_reverse;
+
+--echo # 7. LineString to LineString (Edge-to-edge calculation on the missed pointer)
+SELECT ST_Distance(ST_GeomFromText('LINESTRING(4 6,6 5,6 6)'), ST_GeomFromText('LINESTRING(3 5, 5 4)')) AS d_lines;
+
+--echo # 8. Intersection exactly on the previously ignored segment (Distance must be 0)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5.5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6)')) AS d_intersect;
+
+--echo # 9. Negative coordinates (Validates sweep-line sorting behavior in quadrant III)
+SELECT ST_Distance(ST_GeomFromText('POINT(-5 -5)'), ST_GeomFromText('LINESTRING(-4 -6,-6 -5,-6 -6)')) AS d_negative;
