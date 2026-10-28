@@ -1310,4 +1310,34 @@ SET NAMES DEFAULT;
 set optimizer_trace=@saved_optimizer_trace;
 --enable_view_protocol
 
+--echo #
+--echo # MDEV-24658: Optimizer trace reads a column not marked for read
+--echo #
+
+set @saved_optimizer_trace=@@optimizer_trace;
+set optimizer_trace='enabled=on';
+# Disable the view and ps protocols here.  The view protocol
+# renumbers the block printed in the condition.  The ps protocol keeps
+# condition processing in the prepare phase, so the trace read here
+# has no original condition.
+--disable_view_protocol
+--disable_ps_protocol
+
+create table t1 (i int);
+create table t2 (c int);
+insert into t2 values (1);
+
+# t2 has one row, so it is a const/system table whose column c is a known
+# constant.  A table with more than one row can be constant only through a
+# unique key equality, and then the read column stays in the read set.
+select 1 from (select 1 in (select 1 from t1 where (select 1 from t2 having c)) from t2) as z;
+select json_valid(trace) as valid_json,
+       json_detailed(json_extract(trace, '$**.original_condition')) as original_condition
+  from information_schema.optimizer_trace;
+
+drop table t1, t2;
+--enable_ps_protocol
+--enable_view_protocol
+set optimizer_trace=@saved_optimizer_trace;
+
 --echo # End of 10.11 tests
