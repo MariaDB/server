@@ -1,0 +1,198 @@
+#
+# MDEV-34817: Performance schema is not cleared of removed package routines
+#
+SET @save_sql_mode= @@sql_mode;
+CREATE DATABASE mdev34817;
+USE mdev34817;
+SET sql_mode=ORACLE;
+CREATE PROCEDURE p1 AS BEGIN NULL; END;
+$$
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+;
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+;
+connect  con1,localhost,root,,mdev34817;
+SET sql_mode=ORACLE;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+pkg1.f1()
+1
+CALL p1;
+connect  con2,localhost,root,,mdev34817;
+SET sql_mode=ORACLE;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+pkg1.f1()
+1
+connection default;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+FUNCTION	pkg1.f1	2
+PROCEDURE	p1	1
+PROCEDURE	pkg1.p1	2
+# DROP PACKAGE BODY: package routines are gone, p1 stays
+DROP PACKAGE BODY pkg1;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+PROCEDURE	p1	1
+# DROP PACKAGE: re-create routines, then drop package
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+;
+connection con1;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+pkg1.f1()
+1
+connection default;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+FUNCTION	pkg1.f1	1
+PROCEDURE	p1	1
+PROCEDURE	pkg1.p1	1
+DROP PACKAGE pkg1;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+PROCEDURE	p1	1
+# DROP DATABASE: drop everything
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+;
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+;
+connection con2;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+pkg1.f1()
+1
+disconnect con2;
+disconnect con1;
+connection default;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+FUNCTION	pkg1.f1	1
+PROCEDURE	p1	1
+PROCEDURE	pkg1.p1	1
+DROP DATABASE mdev34817;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+#
+# Differentiate between package routines and standalone routines
+# (with a dot(.) in the name. ex: `pkg1.p1`
+#
+CREATE DATABASE mdev34817;
+USE mdev34817;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+;
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+;
+CREATE PROCEDURE `pkg1.p1` AS BEGIN NULL; END;
+$$
+CREATE PROCEDURE `pkg1.p9` AS BEGIN NULL; END;
+$$
+CALL pkg1.p1;
+CALL `pkg1.p1`;
+CALL `pkg1.p1`;
+CALL `pkg1.p9`;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+FUNCTION	pkg1.f1	0
+PROCEDURE	pkg1.p1	1
+PROCEDURE	pkg1.p1	2
+PROCEDURE	pkg1.p9	1
+# Only the package routines are gone
+DROP PACKAGE BODY pkg1;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+PROCEDURE	pkg1.p1	2
+PROCEDURE	pkg1.p9	1
+#
+# Routines of packages with names truncated in performance schema
+#
+connect  con1,localhost,root,,mdev34817;
+SET NAMES utf8mb4;
+SET sql_mode=ORACLE;
+CREATE PACKAGE kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk AS PROCEDURE p1; PROCEDURE p2; END;
+$$
+CREATE PACKAGE BODY kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk AS
+PROCEDURE p1 AS BEGIN NULL; END;
+PROCEDURE p2 AS BEGIN NULL; END;
+END;
+$$
+CREATE PACKAGE жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж AS PROCEDURE p1; END;
+$$
+CREATE PACKAGE BODY жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж AS PROCEDURE p1 AS BEGIN NULL; END; END;
+$$
+CALL kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.p1;
+CALL kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk.p2;
+CALL жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж.p1;
+SELECT object_type, CHAR_LENGTH(object_name), count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_name NOT LIKE 'pkg%'
+    AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name;
+object_type	CHAR_LENGTH(object_name)	count_star
+PROCEDURE	64	2
+PROCEDURE	32	1
+DROP PACKAGE BODY kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk;
+DROP PACKAGE BODY жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж;
+SELECT object_type, CHAR_LENGTH(object_name), count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_name NOT LIKE 'pkg%'
+    AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name;
+object_type	CHAR_LENGTH(object_name)	count_star
+disconnect con1;
+connection default;
+DROP DATABASE mdev34817;
+SELECT object_type, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+ORDER BY object_type, object_name, count_star;
+object_type	object_name	count_star
+USE test;
+SET sql_mode= @save_sql_mode;
+# End of 10.11 tests
