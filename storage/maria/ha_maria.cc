@@ -4303,6 +4303,15 @@ static int maria_backup_end(THD *thd, const backup_target *,
       my_error(ER_ERROR_ON_WRITE, MYF(0), "aria_log", my_errno);
       return 1;
     }
+    /*
+      After a write error, the log is read-only and translog_flush()
+      returns success, but the log files can end before end_lsn.
+    */
+    if (translog_status != TRANSLOG_OK)
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(0), "aria_log", 0);
+      return 1;
+    }
     DEBUG_SYNC(thd, "maria_backup_log_end");
   }
   if (stage == BACKUP_FINISHED && sink->ha_data)

@@ -1,0 +1,13 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+call mtr.add_suppression("Aria engine: checkpoint failed");
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+INSERT INTO t1 VALUES ('a');
+# The next log file cannot be created.
+INSERT INTO t1 SELECT REPEAT('b', 250) FROM seq_1_to_50000;
+ERROR HY000: Can't create/write to file 'aria_log.#' (Errcode)
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+ERROR HY000: Error writing file 'aria_log' (errno: 0 "Internal error/check (Not system error)")
+# restart
+DROP TABLE t1;

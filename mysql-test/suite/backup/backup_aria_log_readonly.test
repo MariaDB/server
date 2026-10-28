@@ -1,0 +1,41 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/not_as_root.inc
+# translog_stop_writing() fails a debug assertion.
+--source include/not_debug.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# After a write error, the Aria log is read-only and translog_flush()
+# returns success. BACKUP SERVER must fail, because the log files can
+# end before the end of the backup log.
+call mtr.add_suppression("Aria engine: checkpoint failed");
+
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+# The table is not empty, so that every row is logged.
+INSERT INTO t1 VALUES ('a');
+
+--echo # The next log file cannot be created.
+perl;
+chmod 0555, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+EOF
+# The log file number depends on the Aria log that earlier tests left.
+--replace_regex /file '.*aria_log\.[0-9]+/file 'aria_log.#/ /Errcode: [0-9]+ "[^"]*"/Errcode/
+--error 1
+INSERT INTO t1 SELECT REPEAT('b', 250) FROM seq_1_to_50000;
+perl;
+chmod 0755, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+EOF
+
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error ER_ERROR_ON_WRITE
+eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk';
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--source include/restart_mysqld.inc
+DROP TABLE t1;
