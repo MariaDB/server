@@ -178,7 +178,7 @@ ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ALTER TABLE t1 ADD KEY idx2(f);
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXIST
+--error ER_CANT_DROP_FIELD_OR_KEY
 alter table t1 drop column b;
 insert into t1 values(1,1);
 --error ER_DUP_ENTRY
