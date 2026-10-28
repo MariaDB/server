@@ -339,6 +339,7 @@ static int create_and_open_blob_key(const char *name,
   keydef.flag=      0;
   keydef.length=    keyseg.length;
 
+  memset(&blob_desc, 0, sizeof(blob_desc));
   blob_desc.offset=     BLOB_OFFSET;
   blob_desc.packlength= BLOB_PACKLEN;
 

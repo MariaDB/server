@@ -1,0 +1,170 @@
+DROP TABLE IF EXISTS t1, t2, t_wide, t_narrow, t_blob;
+#
+# The record of a partitioned table is reshaped, and only above
+# the threshold.
+#
+# A partition's AVG_ROW_LENGTH is the width that partition lays a
+# row out in.  A column left inline reserves what it was declared
+# as; one moved out of the record reserves a length prefix and a
+# pointer instead, which is what a declared blob reserves.  The
+# three tables below differ in nothing else, so the widths they
+# report say where each one keeps its payload.
+#
+# The aggregate in information_schema.TABLES is a whole-table
+# figure computed from the data the partitions have allocated, so
+# it says nothing about the layout.  Read the partitions.
+#
+CREATE TABLE t_narrow (id INT, a VARCHAR(32)) ENGINE=MEMORY
+CHARACTER SET latin1
+PARTITION BY HASH(id) PARTITIONS 2;
+CREATE TABLE t_wide (id INT, a VARCHAR(3000)) ENGINE=MEMORY
+CHARACTER SET latin1
+PARTITION BY HASH(id) PARTITIONS 2;
+CREATE TABLE t_blob (id INT, a BLOB) ENGINE=MEMORY
+CHARACTER SET latin1
+PARTITION BY HASH(id) PARTITIONS 2;
+INSERT INTO t_narrow SELECT seq, 'x' FROM seq_1_to_10;
+INSERT INTO t_wide   SELECT seq, 'x' FROM seq_1_to_10;
+INSERT INTO t_blob   SELECT seq, 'x' FROM seq_1_to_10;
+# 38 = null byte + INT + one length byte + the declared 32.
+# 15 = null byte + INT + two length bytes + a pointer.
+SELECT TABLE_NAME, PARTITION_NAME, AVG_ROW_LENGTH
+FROM information_schema.PARTITIONS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('t_narrow','t_wide','t_blob')
+ORDER BY TABLE_NAME, PARTITION_NAME;
+TABLE_NAME	PARTITION_NAME	AVG_ROW_LENGTH
+t_blob	p0	15
+t_blob	p1	15
+t_narrow	p0	38
+t_narrow	p1	38
+t_wide	p0	15
+t_wide	p1	15
+DROP TABLE t_narrow, t_wide, t_blob;
+#
+# Rows reach the partition they belong in, and come back whole.
+# Two promoted columns with narrow ones between and after them is
+# the arrangement that catches an offset delta applied where a
+# running one was needed.
+#
+CREATE TABLE t1 (
+id INT,
+b VARCHAR(2000),
+c INT,
+d VARCHAR(3000),
+e CHAR(10)
+) ENGINE=MEMORY CHARACTER SET latin1
+PARTITION BY HASH(id) PARTITIONS 4;
+INSERT INTO t1 VALUES (1, REPEAT('b',100), 11, REPEAT('d',200), 'one');
+INSERT INTO t1 VALUES (2, '',              22, NULL,            '');
+INSERT INTO t1 VALUES (3, REPEAT('x',1999), 33, REPEAT('y',3000), 'three');
+INSERT INTO t1 VALUES (4, REPEAT('z',40),  44, REPEAT('w',40),  'four');
+INSERT INTO t1 VALUES (5, NULL,            55, REPEAT('v',2999), 'five');
+SELECT id, LENGTH(b), LEFT(b,1), c, LENGTH(d), LEFT(d,1), e
+FROM t1 ORDER BY id;
+id	LENGTH(b)	LEFT(b,1)	c	LENGTH(d)	LEFT(d,1)	e
+1	100	b	11	200	d	one
+2	0		22	NULL	NULL	
+3	1999	x	33	3000	y	three
+4	40	z	44	40	w	four
+5	NULL	NULL	55	2999	v	five
+# Pruning to one partition reads that partition's records only.
+SELECT id, LENGTH(b), LENGTH(d) FROM t1 PARTITION (p1) ORDER BY id;
+id	LENGTH(b)	LENGTH(d)
+1	100	200
+5	NULL	2999
+SELECT id, LENGTH(b), LENGTH(d) FROM t1 WHERE id = 3;
+id	LENGTH(b)	LENGTH(d)
+3	1999	3000
+# Rows per partition, which is what says the promoted column did
+# not disturb the partitioning function's view of the record.
+SELECT PARTITION_NAME, TABLE_ROWS
+FROM information_schema.PARTITIONS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1'
+ORDER BY PARTITION_NAME;
+PARTITION_NAME	TABLE_ROWS
+p0	1
+p1	2
+p2	1
+p3	1
+#
+# An ordered index scan merges the partitions through a buffer of
+# whole records, so it reads a promoted column through whatever
+# the record holds for it.
+#
+CREATE TABLE t2 (
+id INT,
+b VARCHAR(2000),
+KEY USING BTREE (id)
+) ENGINE=MEMORY CHARACTER SET latin1
+PARTITION BY HASH(id) PARTITIONS 4;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(64 + seq), seq * 10)
+FROM seq_1_to_20;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 ORDER BY id;
+id	LENGTH(b)	LEFT(b,1)
+1	10	A
+2	20	B
+3	30	C
+4	40	D
+5	50	E
+6	60	F
+7	70	G
+8	80	H
+9	90	I
+10	100	J
+11	110	K
+12	120	L
+13	130	M
+14	140	N
+15	150	O
+16	160	P
+17	170	Q
+18	180	R
+19	190	S
+20	200	T
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 ORDER BY id DESC LIMIT 5;
+id	LENGTH(b)	LEFT(b,1)
+20	200	T
+19	190	S
+18	180	R
+17	170	Q
+16	160	P
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id BETWEEN 8 AND 12
+ORDER BY id;
+id	LENGTH(b)	LEFT(b,1)
+8	80	H
+9	90	I
+10	100	J
+11	110	K
+12	120	L
+#
+# UPDATE and DELETE across partitions.  An UPDATE that changes the
+# partitioning column moves the row between partitions, writing it
+# to one and deleting it from another.
+#
+UPDATE t2 SET b = CONCAT(b, b) WHERE id <= 3;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id <= 3 ORDER BY id;
+id	LENGTH(b)	LEFT(b,1)
+1	20	A
+2	40	B
+3	60	C
+UPDATE t2 SET id = id + 100 WHERE id = 7;
+SELECT id, LENGTH(b), LEFT(b,1) FROM t2 WHERE id > 100;
+id	LENGTH(b)	LEFT(b,1)
+107	70	G
+DELETE FROM t2 WHERE id > 15;
+SELECT COUNT(*), SUM(LENGTH(b)) FROM t2;
+COUNT(*)	SUM(LENGTH(b))
+14	1190
+#
+# A partitioned table's capacity is per partition, so a promoted
+# column buys room there as well.
+#
+CREATE TABLE t_wide (id INT, a VARCHAR(60000)) ENGINE=MEMORY
+CHARACTER SET latin1
+MAX_ROWS = 1000
+PARTITION BY HASH(id) PARTITIONS 2;
+INSERT INTO t_wide SELECT seq, REPEAT('q', 100) FROM seq_1_to_200;
+SELECT COUNT(*) FROM t_wide;
+COUNT(*)
+200
+DROP TABLE t1, t2, t_wide;

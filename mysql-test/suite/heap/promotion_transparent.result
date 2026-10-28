@@ -1,0 +1,221 @@
+#
+# A VARCHAR wide enough for the engine to store out of line must be
+# indistinguishable from a narrow one at the SQL layer.  Every table
+# below is declared CHARACTER SET latin1 so that the declared width
+# in characters equals the width in bytes, and the threshold is
+# reached exactly where the declaration says it is.
+#
+# t_narrow stays inline.  t_wide is stored as a blob by the engine.
+#
+CREATE TABLE t_narrow (a VARCHAR(8)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_wide (a VARCHAR(200)) ENGINE=MEMORY CHARACTER SET latin1;
+#
+# 0. Promotion is in effect.
+#
+# Everything after this point is a check that promotion changes
+# nothing, and would pass just as well if the engine never promoted
+# anything.  This is the check that it does.
+#
+# An inline VARCHAR(60000) reserves its declared width in every row,
+# so at a 1MB ceiling the table holds about 17 rows whatever the
+# values are.  Stored out of line it holds the 200 short rows below
+# with room to spare.  Without promotion this INSERT is refused.
+#
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET max_heap_table_size= 1024*1024;
+CREATE TABLE t_proof (a VARCHAR(60000)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_proof SELECT CONCAT('row', seq) FROM seq_1_to_200;
+SELECT COUNT(*) AS rows_held FROM t_proof;
+rows_held
+200
+SELECT COUNT(*) AS intact FROM t_proof WHERE a = CONCAT('row', SUBSTR(a, 4));
+intact
+200
+DROP TABLE t_proof;
+SET max_heap_table_size= @save_max_heap_table_size;
+#
+# 1. Declared type is unchanged
+#
+SHOW CREATE TABLE t_narrow;
+Table	Create Table
+t_narrow	CREATE TABLE `t_narrow` (
+  `a` varchar(8) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW CREATE TABLE t_wide;
+Table	Create Table
+t_wide	CREATE TABLE `t_wide` (
+  `a` varchar(200) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT column_name, data_type, column_type,
+character_maximum_length, character_octet_length
+FROM information_schema.columns
+WHERE table_schema='test' AND table_name IN ('t_narrow','t_wide')
+ORDER BY table_name, column_name;
+column_name	data_type	column_type	character_maximum_length	character_octet_length
+a	varchar	varchar(8)	8	8
+a	varchar	varchar(200)	200	200
+#
+# 2. Type reported to the client is unchanged
+#
+INSERT INTO t_narrow VALUES ('abc');
+INSERT INTO t_wide VALUES ('abc');
+SELECT a FROM t_narrow;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t_narrow	t_narrow	a	a	253	8	3	Y	0	0	8
+a
+abc
+SELECT a FROM t_wide;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t_wide	t_wide	a	a	253	200	3	Y	0	0	8
+a
+abc
+#
+# 3. A table built from the column keeps the type
+#
+CREATE TABLE t_ctas ENGINE=MEMORY AS SELECT a FROM t_wide;
+SHOW CREATE TABLE t_ctas;
+Table	Create Table
+t_ctas	CREATE TABLE `t_ctas` (
+  `a` varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_ctas;
+#
+# 4. Width is the only difference across the threshold.  At
+#    CHARACTER SET latin1 the promotion threshold is 32 bytes, so
+#    these two straddle it and must still agree on everything but
+#    the declared width.
+#
+CREATE TABLE t_below (a VARCHAR(32)) ENGINE=MEMORY CHARACTER SET latin1;
+CREATE TABLE t_above (a VARCHAR(33)) ENGINE=MEMORY CHARACTER SET latin1;
+SELECT table_name, data_type, character_maximum_length
+FROM information_schema.columns
+WHERE table_schema='test' AND table_name IN ('t_below','t_above')
+ORDER BY table_name;
+table_name	data_type	character_maximum_length
+t_above	varchar	33
+t_below	varchar	32
+DROP TABLE t_below, t_above;
+#
+# 5. VARCHAR comparison semantics, which differ from a blob's.
+#    latin1_swedish_ci pads, so trailing spaces must not make a
+#    value distinct, and comparison must stay case insensitive.
+#
+DELETE FROM t_narrow;
+DELETE FROM t_wide;
+INSERT INTO t_narrow VALUES ('ab'), ('AB   '), ('cd');
+INSERT INTO t_wide   VALUES ('ab'), ('AB   '), ('cd');
+SELECT 'narrow' AS which, COUNT(DISTINCT a) AS distinct_vals FROM t_narrow
+UNION ALL
+SELECT 'wide', COUNT(DISTINCT a) FROM t_wide;
+which	distinct_vals
+narrow	2
+wide	2
+SELECT 'narrow' AS which, COUNT(*) AS eq_padded FROM t_narrow WHERE a='ab'
+UNION ALL
+SELECT 'wide', COUNT(*) FROM t_wide WHERE a='ab';
+which	eq_padded
+narrow	2
+wide	2
+SELECT 'narrow' AS which, LENGTH(a) AS len, CHAR_LENGTH(a) AS clen
+FROM t_narrow WHERE a='cd'
+UNION ALL
+SELECT 'wide', LENGTH(a), CHAR_LENGTH(a) FROM t_wide WHERE a='cd';
+which	len	clen
+narrow	2	2
+wide	2	2
+#
+# 6. Ordering and grouping agree.
+#
+#    'ab' and 'AB   ' collate equal, so their order relative to each
+#    other is a tie that neither table is obliged to break the same
+#    way.  BINARY breaks it deterministically without displacing the
+#    collation from the primary sort.  For grouping, the same tie
+#    makes the representative value arbitrary, so count the groups
+#    rather than name them.
+#
+SELECT a FROM t_narrow ORDER BY a, BINARY a;
+a
+AB   
+ab
+cd
+SELECT a FROM t_wide ORDER BY a, BINARY a;
+a
+AB   
+ab
+cd
+SELECT 'narrow' AS which, COUNT(*) AS groups
+FROM (SELECT a FROM t_narrow GROUP BY a) g
+UNION ALL
+SELECT 'wide', COUNT(*) FROM (SELECT a FROM t_wide GROUP BY a) g;
+which	groups
+narrow	2
+wide	2
+SELECT 'narrow' AS which, COUNT(*) AS rows_in_group FROM t_narrow
+GROUP BY a HAVING COUNT(*) > 1
+UNION ALL
+SELECT 'wide', COUNT(*) FROM t_wide GROUP BY a HAVING COUNT(*) > 1;
+which	rows_in_group
+narrow	2
+wide	2
+#
+# 7. A UNION of the two is a VARCHAR of the wider declaration
+#
+CREATE TABLE t_union ENGINE=MEMORY AS
+SELECT a FROM t_narrow UNION ALL SELECT a FROM t_wide;
+SHOW CREATE TABLE t_union;
+Table	Create Table
+t_union	CREATE TABLE `t_union` (
+  `a` varchar(200) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_union;
+#
+# 8. Indexes on a promoted column keep VARCHAR key semantics: the
+#    padded duplicate is rejected, and NULL is still distinct.
+#
+CREATE TABLE t_uniq (a VARCHAR(200), UNIQUE KEY (a)) ENGINE=MEMORY
+CHARACTER SET latin1;
+INSERT INTO t_uniq VALUES ('ab');
+INSERT INTO t_uniq VALUES ('ab   ');
+ERROR 23000: Duplicate entry 'ab   ' for key 'a'
+INSERT INTO t_uniq VALUES ('AB');
+ERROR 23000: Duplicate entry 'AB' for key 'a'
+INSERT INTO t_uniq VALUES (NULL), (NULL);
+SELECT COUNT(*) AS rows_held FROM t_uniq;
+rows_held
+3
+SELECT a FROM t_uniq WHERE a='ab';
+a
+ab
+DROP TABLE t_uniq;
+#
+# 9. A BTREE index over a promoted column ranges correctly
+#
+CREATE TABLE t_btree (a VARCHAR(200), KEY USING BTREE (a)) ENGINE=MEMORY
+CHARACTER SET latin1;
+INSERT INTO t_btree SELECT CONCAT('v', LPAD(seq, 6, '0')) FROM seq_1_to_50;
+SELECT COUNT(*) AS in_range FROM t_btree
+WHERE a BETWEEN 'v000010' AND 'v000019';
+in_range
+10
+SELECT a FROM t_btree WHERE a='v000042';
+a
+v000042
+DROP TABLE t_btree;
+#
+# 10. NULL and the empty string stay distinct from each other
+#
+CREATE TABLE t_null (a VARCHAR(200)) ENGINE=MEMORY CHARACTER SET latin1;
+INSERT INTO t_null VALUES (NULL), (''), ('  ');
+SELECT COUNT(*) AS n_null FROM t_null WHERE a IS NULL;
+n_null
+1
+SELECT COUNT(*) AS n_empty FROM t_null WHERE a='';
+n_empty
+2
+SELECT a IS NULL AS is_null, LENGTH(a) AS len FROM t_null ORDER BY is_null, len;
+is_null	len
+0	0
+0	2
+1	NULL
+DROP TABLE t_null;
+DROP TABLE t_narrow, t_wide;

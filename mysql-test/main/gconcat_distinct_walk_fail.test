@@ -9,12 +9,14 @@
 --source include/have_sequence.inc
 
 CREATE TABLE t1 (a VARCHAR(100));
-INSERT INTO t1 SELECT LPAD(seq MOD 200, 100, '0') FROM seq_1_to_600;
+INSERT INTO t1 SELECT LPAD(seq MOD 1000, 100, '0') FROM seq_1_to_2000;
 
 --echo #
 --echo # Starve the duplicate filter so that it spills and the walk has to
 --echo # merge, then make the merging walk fail.
 --echo #
+# It is how many distinct values there are, not how wide they are, that
+# fills the filter, so the column's width is not what this test turns.
 SET @@tmp_memory_table_size=0;
 SET SESSION debug_dbug='+d,unique_walk_merge_fail';
 SELECT LENGTH(GROUP_CONCAT(DISTINCT a)) AS gc_len FROM t1;

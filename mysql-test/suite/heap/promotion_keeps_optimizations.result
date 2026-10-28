@@ -1,0 +1,71 @@
+SET @save_os= @@optimizer_switch;
+#
+# SELECT DISTINCT deduplicates with a hash of the row where it can,
+# and rescans the table once per surviving row where it cannot.  The
+# hash key needs a bounded width, which a VARCHAR has and a blob has
+# not.
+#
+CREATE TABLE narrow (a VARCHAR(20), b INT) CHARACTER SET latin1;
+CREATE TABLE wide (a VARCHAR(100), b INT) CHARACTER SET latin1;
+CREATE TABLE declared (a TEXT, b INT) CHARACTER SET latin1;
+INSERT INTO narrow SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+INSERT INTO wide SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+INSERT INTO declared SELECT CONCAT('v', seq MOD 40), seq FROM seq_1_to_200;
+FLUSH STATUS;
+SELECT DISTINCT a, SUM(b) OVER () FROM narrow;
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	603
+FLUSH STATUS;
+SELECT DISTINCT a, SUM(b) OVER () FROM wide;
+# must read the same number of rows as the narrow column
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	603
+FLUSH STATUS;
+SELECT DISTINCT a, SUM(b) OVER () FROM declared;
+# a column with no maximum width rescans, which is why the
+# fallback exists
+SHOW STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	4503
+DROP TABLE narrow, wide, declared;
+#
+# A correlated subquery caches its answers in a MEMORY table keyed
+# on the outer values.  The cache is turned off for a column with no
+# maximum width, because the key such a column would need is not the
+# one the SQL layer builds.
+#
+SET optimizer_switch='subquery_cache=on';
+CREATE TABLE outer_narrow (a VARCHAR(20)) CHARACTER SET latin1;
+CREATE TABLE outer_wide (a VARCHAR(100)) CHARACTER SET latin1;
+CREATE TABLE outer_declared (a TEXT) CHARACTER SET latin1;
+CREATE TABLE inner_tab (b VARCHAR(100), c INT) CHARACTER SET latin1;
+INSERT INTO outer_narrow SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO outer_wide SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO outer_declared SELECT CONCAT('v', seq MOD 5) FROM seq_1_to_100;
+INSERT INTO inner_tab SELECT CONCAT('v', seq MOD 5), seq FROM seq_1_to_50;
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+WHERE VARIABLE_NAME='Subquery_cache_hit';
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_narrow.a) FROM outer_narrow;
+SELECT VARIABLE_VALUE - @h0 > 0 AS narrow_was_cached
+FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+narrow_was_cached
+1
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+WHERE VARIABLE_NAME='Subquery_cache_hit';
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_wide.a) FROM outer_wide;
+SELECT VARIABLE_VALUE - @h0 > 0 AS wide_was_cached
+FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+wide_was_cached
+1
+SELECT VARIABLE_VALUE INTO @h0 FROM information_schema.session_status
+WHERE VARIABLE_NAME='Subquery_cache_hit';
+SELECT (SELECT MAX(c) FROM inner_tab WHERE b = outer_declared.a)
+FROM outer_declared;
+SELECT VARIABLE_VALUE - @h0 > 0 AS declared_was_cached
+FROM information_schema.session_status WHERE VARIABLE_NAME='Subquery_cache_hit';
+declared_was_cached
+0
+DROP TABLE outer_narrow, outer_wide, outer_declared, inner_tab;
+SET optimizer_switch= @save_os;

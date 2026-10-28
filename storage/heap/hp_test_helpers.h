@@ -64,6 +64,7 @@ static int create_and_open_ceiling(const char *name,
   keydef.flag=      HA_NOSAME;
   keydef.length=    4;
 
+  memset(&blob_desc, 0, sizeof(blob_desc));
   blob_desc.offset=     BLOB_OFFSET;
   blob_desc.packlength= BLOB_PACKLEN;
 
