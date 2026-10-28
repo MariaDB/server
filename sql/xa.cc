@@ -22,6 +22,7 @@
 #include "my_cpu.h"
 #include <pfs_transaction_provider.h>
 #include <mysql/psi/mysql_transaction.h>
+#include "rpl_rli.h" // rgi->is_parallel_exec
 
 static bool slave_applier_reset_xa_trans(THD *thd);
 
@@ -524,6 +525,8 @@ static bool trans_xa_get_backup_lock(THD *thd, MDL_request *mdl_request)
   DBUG_ASSERT(thd->backup_commit_lock == 0);
   MDL_REQUEST_INIT(mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                    MDL_EXPLICIT);
+  if (thd->rgi_slave && thd->rgi_slave->is_parallel_exec)
+    mdl_request->is_teammate_callback= rpl_group_info::ignore_mdl_priority;
   if (thd->mdl_context.acquire_lock(mdl_request,
                                     thd->variables.lock_wait_timeout))
     return 1;
@@ -1166,6 +1169,7 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->transaction->all.ha_list= 0;
 
   ha_close_connection(thd);
+  trans_xa_release_backup_lock(thd);
   thd->transaction->cleanup();
   thd->transaction->all.reset();
 
