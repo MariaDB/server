@@ -10,6 +10,7 @@ into outfile 'MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key'
 call mtr.add_suppression("filekeys-data-too-large.key too large, must be less than 1048576 bytes");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 INSTALL SONAME 'file_key_management';
 ERROR HY000: File MYSQLTEST_VARDIR/tmp/filekeys-data-too-large.key too large, must be less than 1048576 bytes
 FOUND 1 /filekeys-data-too-large.key too large, must be less than 1048576 bytes/ in mysqld.1.err

@@ -1868,6 +1868,20 @@ fil_crypt_rotate_page(
 		return;
 	}
 
+	/* lets tests stop the rotation of a table in the middle: from page
+	16 on, wait until the keyword is removed. The system and undo
+	tablespaces are not stopped, so that the threads reach the table. */
+	DBUG_EXECUTE_IF("fil_crypt_rotate_page_wait",
+		while (offset >= 16
+		       && DBUG_IF("fil_crypt_rotate_page_wait")
+		       && space_id != TRX_SYS_SPACE
+		       && !srv_is_undo_tablespace(uint32_t(space_id))
+		       && srv_shutdown_state == SRV_SHUTDOWN_NONE
+		       && !space->is_stopping()) {
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(10));
+		});
+
 	uint32_t retry_count= 0;
 retry_page:
 	mtr_t mtr{nullptr};

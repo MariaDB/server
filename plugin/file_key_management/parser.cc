@@ -73,6 +73,7 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
 #include "parser.h"
 #include <m_string.h>
 #include <mysys_err.h>
+#include <mysql/plugin_encryption.h>
 
 #define FILE_PREFIX "FILE:"
 #define MAX_KEY_FILE_SIZE 1024*1024
@@ -88,7 +89,7 @@ openssl enc -aes-256-cbc -md sha1 -k "secret" -in keys.txt -out keys.enc
 #define OpenSSL_key_len    32
 #define OpenSSL_iv_len     16
 
-bool Parser::parse(std::map<uint,keyentry> *keys)
+bool Parser::parse(keymap *keys)
 {
   const char *secret= filekey;
   char buf[MAX_SECRET_SIZE + 1];
@@ -101,7 +102,9 @@ bool Parser::parse(std::map<uint,keyentry> *keys)
     secret= buf;
   }
 
-  return parse_file(keys, secret);
+  bool res= parse_file(keys, secret);
+  secure_zero(buf, sizeof buf);
+  return res;
 }
 
 
@@ -114,14 +117,14 @@ bool Parser::read_filekey(const char *filekey, char *secret)
   int f= open(filekey, O_RDONLY|O_BINARY);
   if (f == -1)
   {
-    my_error(EE_FILENOTFOUND, ME_ERROR_LOG, filekey, errno);
+    my_error(EE_FILENOTFOUND, log_flags, filekey, errno);
     return 1;
   }
 
   int len= read(f, secret, MAX_SECRET_SIZE + 1);
   if (len <= 0)
   {
-    my_error(EE_READ, ME_ERROR_LOG, filekey, errno);
+    my_error(EE_READ, log_flags, filekey, errno);
     close(f);
     return 1;
   }
@@ -133,7 +136,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
     my_printf_error(EE_READ,
                     "Cannot read %s, the filekey is too long, "
                     "max secret size is %d bytes",
-                    ME_ERROR_LOG, filekey, MAX_SECRET_SIZE);
+                    log_flags, filekey, MAX_SECRET_SIZE);
     return 1;
   }
   secret[len]= '\0';
@@ -149,7 +152,7 @@ bool Parser::read_filekey(const char *filekey, char *secret)
    @return 0 when ok, 1 for an error
  */
 
-bool Parser::parse_file(std::map<uint,keyentry> *keys, const char *secret)
+bool Parser::parse_file(keymap *keys, const char *secret)
 {
   char *buffer= read_and_decrypt_file(secret);
 
@@ -166,16 +169,27 @@ bool Parser::parse_file(std::map<uint,keyentry> *keys, const char *secret)
     case 1: // comment
       break;
     case -1: // error
+      secure_zero(&key, sizeof key);
+      secure_zero(buffer, strlen(buffer));
       free(buffer);
       return 1;
     case 0:
-      (*keys)[key.id] = key;
+      if (!(*keys)[key.id].insert(std::make_pair(key.version, key)).second)
+      {
+        report_error("Duplicate key id and version", 0);
+        secure_zero(&key, sizeof key);
+        secure_zero(buffer, strlen(buffer));
+        free(buffer);
+        return 1;
+      }
       break;
     }
   }
 
+  secure_zero(&key, sizeof key);
+  secure_zero(buffer, strlen(buffer));
   free(buffer);
-  if (keys->size() == 0 || (*keys)[1].id == 0)
+  if (keys->find(1) == keys->end())
   {
     report_error("System key id 1 is missing", 0);
     return 1;
@@ -187,7 +201,7 @@ bool Parser::parse_file(std::map<uint,keyentry> *keys, const char *secret)
 void Parser::report_error(const char *reason, size_t position)
 {
   my_printf_error(EE_READ, "%s at %s line %u, column %zu",
-    ME_ERROR_LOG, reason, filename, line_number, position + 1);
+    log_flags, reason, filename, line_number, position + 1);
 }
 
 /*
@@ -234,6 +248,27 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
 
     p++;
     key->id= (unsigned int)id;
+    key->version= 1;
+
+    /*
+      Optional key version: <id>;<version>;<hex key>. A hex key never
+      contains ';', so digits followed by ';' can only be a version.
+    */
+    char *v= p;
+    longlong version= 0;
+    while (isdigit(*v) && version <= (longlong) UINT_MAX32)
+      version= version * 10 + *v++ - '0';
+    if (*v == ';' && v > p)
+    {
+      if (version < 1 || version >= (longlong) ENCRYPTION_KEY_VERSION_INVALID)
+      {
+        report_error("Invalid key version", p - *line_ptr);
+        return -1;
+      }
+      key->version= (unsigned int) version;
+      p= v + 1;
+    }
+
     key->length=0;
     while (isxdigit(p[0]) && isxdigit(p[1]) && key->length < sizeof(key->key))
     {
@@ -270,14 +305,14 @@ char* Parser::read_and_decrypt_file(const char *secret)
   if (!filename || !filename[0])
   {
     my_printf_error(EE_CANT_OPEN_STREAM, "file-key-management-filename is not set",
-                    ME_ERROR_LOG);
+                    log_flags);
     goto err0;
   }
 
   f= open(filename, O_RDONLY|O_BINARY, 0);
   if (f < 0)
   {
-    my_error(EE_FILENOTFOUND, ME_ERROR_LOG, filename, errno);
+    my_error(EE_FILENOTFOUND, log_flags, filename, errno);
     goto err0;
   }
 
@@ -286,7 +321,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
   buffer= (uchar *) malloc((size_t) MAX_KEY_FILE_SIZE+1 );
   if (!buffer)
   {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
+    my_error(EE_OUTOFMEMORY, log_flags | ME_FATAL, file_size);
     goto err1;
   }
 
@@ -298,7 +333,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
     if ((len= read(f, dst, (uint)(end - dst))) < 0)
     {
       my_printf_error(EE_READ, "Read from %s failed, errno %d",
-                     ME_ERROR_LOG, filename, errno);
+                     log_flags, filename, errno);
       goto err2;
     }
   }
@@ -306,12 +341,12 @@ char* Parser::read_and_decrypt_file(const char *secret)
   if (file_size > MAX_KEY_FILE_SIZE)
   {
     my_printf_error(EE_READ, "File %s too large, must be less than %d bytes",
-                   ME_ERROR_LOG, filename, MAX_KEY_FILE_SIZE);
+                   log_flags, filename, MAX_KEY_FILE_SIZE);
     goto err2;
   }
   my_printf_error(EE_ERROR_FIRST,
                   "Read from %s, read bytes: %zd, max key file size: %d bytes",
-                  ME_ERROR_LOG | ME_NOTE, filename, file_size,
+                  log_flags | ME_NOTE, filename, file_size,
                   MAX_KEY_FILE_SIZE);
   // Check for file encryption
   uchar *decrypted;
@@ -323,7 +358,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
     decrypted= (uchar*)malloc(file_size+1);
     if (!decrypted)
     {
-      my_error(EE_OUTOFMEMORY, ME_ERROR_LOG | ME_FATAL, file_size);
+      my_error(EE_OUTOFMEMORY, log_flags | ME_FATAL, file_size);
       goto err2;
     }
     my_bytes_to_key(buffer + OpenSSL_prefix_len,
@@ -337,9 +372,13 @@ char* Parser::read_and_decrypt_file(const char *secret)
                      iv, OpenSSL_iv_len))
 
     {
-      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", ME_ERROR_LOG, filename);
+      secure_zero(key, sizeof key);
+      secure_zero(iv, sizeof iv);
+      my_printf_error(EE_READ, "Cannot decrypt %s. Wrong key?", log_flags, filename);
       goto err3;
     }
+    secure_zero(key, sizeof key);
+    secure_zero(iv, sizeof iv);
 
     free(buffer);
     buffer= decrypted;
@@ -347,7 +386,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
   }
   else if (*secret)
   {
-    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", ME_ERROR_LOG, filename);
+    my_printf_error(EE_READ, "Cannot decrypt %s. Not encrypted", log_flags, filename);
     goto err2;
   }
 
@@ -356,6 +395,7 @@ char* Parser::read_and_decrypt_file(const char *secret)
   return (char*) buffer;
 
 err3:
+  secure_zero(decrypted, file_size + 1);
   free(decrypted);
 err2:
   free(buffer);

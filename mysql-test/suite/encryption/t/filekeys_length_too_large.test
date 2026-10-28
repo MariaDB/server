@@ -17,6 +17,7 @@ let SEARCH_PATTERN=filekeys-data-too-large.key too large, must be less than 1048
 eval call mtr.add_suppression("$SEARCH_PATTERN");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error");
 call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 
 replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR;
 --error 2

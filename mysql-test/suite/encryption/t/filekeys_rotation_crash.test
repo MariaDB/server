@@ -1,0 +1,63 @@
+#
+# MDEV-20713 Key rotation with file_key_management: kill the server while
+# a tablespace is being re-encrypted
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--source filekeys_plugin_exists.inc
+
+create table t1 (a int primary key, b varchar(200)) engine=innodb;
+insert into t1 select seq, repeat(md5(seq), 6) from seq_1_to_20000;
+--let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_tablespaces_encryption WHERE min_key_version <> 1 OR rotating_or_flushing <> 0
+--source include/wait_condition.inc
+checksum table t1;
+
+--echo # Start a slow rotation to version 3 and kill the server in the middle
+# Version 3, not 2: with innodb_encryption_rotate_key_age=1 InnoDB only
+# re-encrypts pages that are more than one version old (MDEV-31094).
+set global debug_dbug= '+d,fil_crypt_rotate_page_wait';
+# The key file is copied to a writable place by the -master.sh script
+--let $keys= $MYSQLTEST_VARDIR/tmp/keys_rotation_crash.txt
+--append_file $keys
+1;3;1396373f2269fd88769de6368fb7273b9c6abad8c929a8e72c6ab5e12d59b977
+EOF
+flush file_key_management_keys;
+--let $wait_condition= SELECT key_rotation_page_number >= 16 FROM information_schema.innodb_tablespaces_encryption WHERE name = 'test/t1'
+--source include/wait_condition.inc
+--source include/kill_mysqld.inc
+
+--echo # Restart without encryption threads: the interrupted tablespace still
+--echo # has min_key_version 1, and pages of both versions can be read
+--let $restart_parameters= --innodb-encryption-threads=0
+--source include/start_mysqld.inc
+select name, current_key_version, min_key_version
+from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+checksum table t1;
+check table t1;
+
+--echo # The rotation resumes
+set global innodb_encryption_threads= 4;
+--let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_tablespaces_encryption WHERE current_key_id = 1 AND (min_key_version <> 3 OR rotating_or_flushing <> 0)
+--source include/wait_condition.inc
+select name, current_key_version, min_key_version
+from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+checksum table t1;
+
+--echo # The redo log still uses version 1. Changing its size makes InnoDB
+--echo # create a new one with the latest key version, then version 1 is retired
+--let $restart_parameters= --innodb-log-file-size=24M
+--source include/restart_mysqld.inc
+--remove_file $keys
+--write_file $keys
+1;3;1396373f2269fd88769de6368fb7273b9c6abad8c929a8e72c6ab5e12d59b977
+2;1;1f58f0887443895d8bff8221664f971af0fb9a52b51d9ece6af6a4cc9047da1e
+EOF
+--source include/restart_mysqld.inc
+select * from information_schema.file_key_management_keys order by key_id, key_version;
+checksum table t1;
+check table t1;
+
+drop table t1;
