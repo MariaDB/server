@@ -1,0 +1,134 @@
+MariaDB frm parser test - Data Types
+Testing various column data types
+CREATE TABLE t_integers (
+tiny_col TINYINT,
+small_col SMALLINT,
+medium_col MEDIUMINT,
+int_col INT,
+big_col BIGINT,
+tiny_unsigned TINYINT UNSIGNED,
+int_signed INT SIGNED
+);
+CREATE TABLE `t_integers` (
+  `tiny_col` tinyint(4) DEFAULT NULL,
+  `small_col` smallint(6) DEFAULT NULL,
+  `medium_col` mediumint(9) DEFAULT NULL,
+  `int_col` int(11) DEFAULT NULL,
+  `big_col` bigint(20) DEFAULT NULL,
+  `tiny_unsigned` tinyint(3) unsigned DEFAULT NULL,
+  `int_signed` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_integers;
+CREATE TABLE t_float (
+float_col FLOAT,
+double_col DOUBLE,
+real_col REAL,
+float_precision FLOAT(7,4),
+double_precision DOUBLE(15,8)
+);
+CREATE TABLE `t_float` (
+  `float_col` float DEFAULT NULL,
+  `double_col` double DEFAULT NULL,
+  `real_col` double DEFAULT NULL,
+  `float_precision` float(7,4) DEFAULT NULL,
+  `double_precision` double(15,8) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_float;
+CREATE TABLE t_decimal (
+dec_col DECIMAL,
+dec_precision DECIMAL(10,2),
+numeric_col NUMERIC(8,3),
+fixed_col FIXED(12,4)
+);
+CREATE TABLE `t_decimal` (
+  `dec_col` decimal(10,0) DEFAULT NULL,
+  `dec_precision` decimal(10,2) DEFAULT NULL,
+  `numeric_col` decimal(8,3) DEFAULT NULL,
+  `fixed_col` decimal(12,4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_decimal;
+CREATE TABLE t_strings (
+char_col CHAR(10),
+varchar_col VARCHAR(255),
+binary_col BINARY(16),
+varbinary_col VARBINARY(100),
+tinytext_col TINYTEXT,
+text_col TEXT,
+mediumtext_col MEDIUMTEXT,
+longtext_col LONGTEXT
+);
+CREATE TABLE `t_strings` (
+  `char_col` char(10) DEFAULT NULL,
+  `varchar_col` varchar(255) DEFAULT NULL,
+  `binary_col` binary(16) DEFAULT NULL,
+  `varbinary_col` varbinary(100) DEFAULT NULL,
+  `tinytext_col` tinytext DEFAULT NULL,
+  `text_col` text DEFAULT NULL,
+  `mediumtext_col` mediumtext DEFAULT NULL,
+  `longtext_col` longtext DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_strings;
+CREATE TABLE t_blobs (
+tinyblob_col TINYBLOB,
+blob_col BLOB,
+mediumblob_col MEDIUMBLOB,
+longblob_col LONGBLOB
+);
+CREATE TABLE `t_blobs` (
+  `tinyblob_col` tinyblob DEFAULT NULL,
+  `blob_col` blob DEFAULT NULL,
+  `mediumblob_col` mediumblob DEFAULT NULL,
+  `longblob_col` longblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_blobs;
+CREATE TABLE t_datetime (
+date_col DATE,
+time_col TIME,
+datetime_col DATETIME,
+timestamp_col TIMESTAMP,
+year_col YEAR,
+time_precision TIME(3),
+datetime_precision DATETIME(6),
+timestamp_precision TIMESTAMP(6)
+);
+CREATE TABLE `t_datetime` (
+  `date_col` date DEFAULT NULL,
+  `time_col` time DEFAULT NULL,
+  `datetime_col` datetime DEFAULT NULL,
+  `timestamp_col` timestamp NULL DEFAULT NULL,
+  `year_col` year(4) DEFAULT NULL,
+  `time_precision` time(3) DEFAULT NULL,
+  `datetime_precision` datetime(6) DEFAULT NULL,
+  `timestamp_precision` timestamp(6) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_datetime;
+CREATE TABLE t_enum_set (
+status ENUM('active', 'inactive', 'pending'),
+permissions SET('read', 'write', 'execute', 'admin')
+);
+CREATE TABLE `t_enum_set` (
+  `status` enum('active','inactive','pending') DEFAULT NULL,
+  `permissions` set('read','write','execute','admin') DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_enum_set;
+CREATE TABLE t_bit (
+flag_col BIT,
+bits_col BIT(8),
+large_bits BIT(64)
+);
+CREATE TABLE `t_bit` (
+  `flag_col` bit(1) DEFAULT NULL,
+  `bits_col` bit(8) DEFAULT NULL,
+  `large_bits` bit(64) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_bit;
+CREATE TABLE t_json (
+id INT,
+data JSON
+);
+CREATE TABLE `t_json` (
+  `id` int(11) DEFAULT NULL,
+  `data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`data`))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_json;
+Data types test completed
