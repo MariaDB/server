@@ -132,6 +132,12 @@ public:
   void sql_type(String &str) const override;
   int reset() override;
   Copy_func *get_copy_func(const Field *from) const override;
+  bool memcpy_field_possible(const Field *from) const override
+  {
+    // values of other types must be validated by store()
+    return from->type_handler() == &type_handler_vector &&
+           Field_varstring::memcpy_field_possible(from);
+  }
   int  store(const char *to, size_t length, CHARSET_INFO *charset) override;
   int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;
