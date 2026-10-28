@@ -7193,7 +7193,8 @@ int spider_db_open_item_ident(
       {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
-      str->q_append(alias, alias_length);
+      if (alias)
+        str->q_append(alias, alias_length);
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_escaped_name(str, item_ident->field_name.str,
           field_name_length)))
@@ -7201,9 +7202,12 @@ int spider_db_open_item_ident(
         DBUG_RETURN(error_num);
       }
     } else {
-      if (str->reserve(alias_length))
-        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-      str->q_append(alias, alias_length);
+      if (alias_length)
+      {
+        if (str->reserve(alias_length))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(alias, alias_length);
+      }
       if ((error_num = spider_dbton[dbton_id].db_util->
         append_escaped_name_with_charset(str, item_ident->field_name.str,
           field_name_length, system_charset_info)))

@@ -81,6 +81,24 @@
 # define MY_ALIGNED(n)      __attribute__((__aligned__((n))))
 #endif
 
+/*
+  __has_cpp_attribute is available:
+
+ - C++20
+ - clang
+ - gcc
+ - msvc, since 15.8
+*/
+#ifndef __has_cpp_attribute
+#define __has_cpp_attribute(x) 0
+#endif
+
+#if defined(__cplusplus) && __has_cpp_attribute(gnu::nonnull)
+#define ATTRIBUTE_NONNULL [[gnu::nonnull]]
+#else
+#define ATTRIBUTE_NONNULL
+#endif
+
 /**
   Generic (compiler-independent) features.
 */
