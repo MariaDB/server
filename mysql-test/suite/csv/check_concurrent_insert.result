@@ -1,0 +1,35 @@
+#
+# CHECK TABLE reads a row count and a data file length that agree
+# while another connection inserts a row
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+connect  con1,localhost,root,,;
+# The lock allows inserts by other connections
+LOCK TABLES t1 READ LOCAL;
+SET DEBUG_SYNC='tina_check_counted SIGNAL counted WAIT_FOR inserted TIMEOUT 2';
+CHECK TABLE t1;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC='now WAIT_FOR counted';
+# Waits until CHECK TABLE has read the length of the data file
+INSERT INTO t1 VALUES (4);
+SET DEBUG_SYNC='now SIGNAL inserted';
+connection con1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	debug sync point wait timed out
+test.t1	check	status	OK
+UNLOCK TABLES;
+disconnect con1;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC='RESET';
+SELECT * FROM t1;
+v
+1
+2
+3
+4
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
