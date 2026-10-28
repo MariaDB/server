@@ -848,6 +848,7 @@ public:
     SYSVAR_ASSERT(scope() == ONLY_SESSION)
     *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
   }
+  /// Duplicate of Sys_var_charptr::do_string_check() with @ref max_length check
   bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
@@ -860,6 +861,17 @@ public:
     }
     else
     {
+      uint32 _offset;
+      char charset_buff[STRING_BUFFER_USUAL_SIZE];
+      String charset_str(charset_buff, sizeof(charset_buff), str.charset());
+      if (String::needs_conversion(res->length(), res->charset(),
+                                   charset_str.charset(), &_offset))
+      {
+        uint _errors;
+        charset_str.copy(res->ptr(), res->length(),
+                  res->charset(), charset_str.charset(), &_errors);
+        res= &charset_str;
+      }
       if (res->length() > max_length)
       {
         my_error(ER_WRONG_STRING_LENGTH, MYF(0),
@@ -1744,20 +1756,13 @@ public:
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     option.var_type|= GET_STR;
   }
+  /// Sys_var_dbug::do_check() with fixed charset()
   bool do_check(THD *thd, set_var *var) override
   {
-    char buff[STRING_BUFFER_USUAL_SIZE];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-
-    if (!(res=var->value->val_str(&str)))
-      var->save_result.string_value= empty_lex_str;
-    else
-    {
-      if (!thd->make_lex_string(&var->save_result.string_value,
-                                res->ptr(), res->length()))
-        return true;
-    }
-    return false;
+    bool error= Sys_var_charptr::do_string_check(thd, var, system_charset_info);
+    if (!var->save_result.string_value.str)
+      var->save_result.string_value.str= const_cast<char *>("");
+    return error;
   }
   bool session_update(THD *thd, set_var *var) override
   {
