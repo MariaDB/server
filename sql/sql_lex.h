@@ -1727,6 +1727,16 @@ public:
                          const LEX_CSTRING *table_name);
   bool optimize_constant_subqueries();
   void optimize_out_order_list();
+
+  st_select_lex *get_merged_into()
+  {
+    st_select_lex *ret= this;
+
+    while (ret->merged_into)
+      ret= ret->merged_into;
+
+    return ret;
+  }
 };
 typedef class st_select_lex SELECT_LEX;
 
