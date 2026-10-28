@@ -10,6 +10,8 @@
 
 # The log becomes read-only. The shutdown must not close and free the
 # log file that was not created.
+# ma_commit() must not flush the log up to a COMMIT record that was not
+# written (Valgrind reports the uninitialized LSN).
 call mtr.add_suppression("Aria engine: checkpoint failed");
 
 --let MYSQLD_DATADIR= `SELECT @@datadir`
