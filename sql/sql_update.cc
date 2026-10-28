@@ -96,6 +96,8 @@ bool compare_record(const TABLE *table)
           if (((table->record[0][null_byte_index]) & field->null_bit) !=
               ((table->record[1][null_byte_index]) & field->null_bit))
             return TRUE;
+          if (field->is_real_null())
+            continue;
         }
         if (field->cmp_binary_offset(table->s->rec_buff_length))
           return TRUE;
@@ -109,8 +111,8 @@ bool compare_record(const TABLE *table)
      including those not in the write_set. This is cheaper than the
      field-by-field comparison done above.
   */ 
-  if (table->s->can_cmp_whole_record)
-    return cmp_record(table,record[1]);
+  if (table->s->can_cmp_whole_record && !cmp_record(table,record[1]))
+    return FALSE;
   /* Compare null bits */
   if (memcmp(table->null_flags,
 	     table->null_flags+table->s->rec_buff_length,
@@ -121,6 +123,7 @@ bool compare_record(const TABLE *table)
   {
     Field *field= *ptr;
     if (field->has_explicit_value() && !field->vcol_info &&
+	!field->is_real_null() &&
 	field->cmp_binary_offset(table->s->rec_buff_length))
       return TRUE;
   }
