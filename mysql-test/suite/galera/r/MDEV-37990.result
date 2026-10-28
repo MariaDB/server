@@ -1,0 +1,64 @@
+connection node_2;
+connection node_1;
+USE test;
+SET SESSION autocommit=0;
+SHOW VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+CREATE TABLE master (
+id INT PRIMARY KEY,
+name VARCHAR(50) NOT NULL,
+description VARCHAR(100)
+) ENGINE=InnoDB;
+CREATE TABLE dependent_no_cascade (
+id INT PRIMARY KEY AUTO_INCREMENT,
+master_id INT NOT NULL,
+data VARCHAR(50),
+FOREIGN KEY (master_id) REFERENCES master(id)
+) ENGINE=InnoDB;
+CREATE TABLE dependent_with_cascade (
+id INT PRIMARY KEY AUTO_INCREMENT,
+master_id INT NOT NULL,
+data VARCHAR(50),
+FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+INSERT INTO master (id, name, description) VALUES 
+(1, 'Master 1', 'First master record'),
+(2, 'Master 2', 'Second master record'),
+(3, 'Master 3', 'Third master record'),
+(4, 'Master 4', 'Fourth master record'),
+(5, 'Master 5', 'Fifth master record');
+COMMIT;
+INSERT INTO dependent_no_cascade (master_id, data) VALUES 
+(1, 'Dependent no cascade 1'),
+(2, 'Dependent no cascade 2'),
+(3, 'Dependent no cascade 3'),
+(4, 'Dependent no cascade 4'),
+(5, 'Dependent no cascade 5');
+COMMIT;
+INSERT INTO dependent_with_cascade (master_id, data) VALUES 
+(1, 'Dependent with cascade 1'),
+(2, 'Dependent with cascade 2'),
+(3, 'Dependent with cascade 3'),
+(4, 'Dependent with cascade 4'),
+(5, 'Dependent with cascade 5');
+COMMIT;
+INSERT INTO master (id, name, description) VALUES (6, 'Master 6', 'Sixth master record - newly inserted');
+COMMIT;
+ALTER TABLE dependent_with_cascade
+DROP FOREIGN KEY dependent_with_cascade_ibfk_1,
+ADD FOREIGN KEY (master_id) REFERENCES master(id) ON DELETE CASCADE ON UPDATE CASCADE;
+UPDATE master SET name = 'Master 6 UPDATE 1' WHERE id = 6;
+COMMIT;
+# Capture master's binlog
+# Capture slave's binlog
+connection node_2;
+# Compare per-(transaction, table) Table_map counts
+no duplicate Table_map events on slave
+connection node_1;
+DROP TABLE dependent_with_cascade;
+DROP TABLE dependent_no_cascade;
+DROP TABLE master;
+disconnect node_2;
+disconnect node_1;
+# End of test
