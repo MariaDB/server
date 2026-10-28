@@ -1944,7 +1944,12 @@ private:
     {
       memset_aligned<512>(buf, 0, size);
       write_checkpoint_buf(reinterpret_cast<uint64_t*>(buf), c);
-      ret= backup_stream_write(dst, buf, size);
+#ifdef _WIN32
+      LARGE_INTEGER pos{0};
+#endif
+      if (IF_WIN(SetFilePointerEx(dst, pos, nullptr, FILE_BEGIN),
+                 !lseek(dst, 0, SEEK_SET)))
+        ret= backup_stream_write(dst, buf, size);
       aligned_free(buf);
     }
 
@@ -2350,7 +2355,7 @@ int InnoDB_backup::copy_file_shortcut_try(int dst, fil_node_t *node,
                                           uint32_t final_limit,
                                           buf_page_t **blocks) noexcept
 {
-# if 0
+# if 1
   return 1; // work around https://github.com/rr-debugger/rr/issues/4059
 # endif
   const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};

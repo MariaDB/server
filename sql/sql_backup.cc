@@ -155,7 +155,7 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
           size-= size_t(wrote);
         }
         while (size);
-        assert(wo == o);
+        assert(wo == o || ret < 0);
       }
       else if (backup_stream_write(out_fd, b, size_t(ret)))
       {
