@@ -3130,12 +3130,48 @@ int ha_federatedx::info(uint flag)
 error:
   if (iop && *iop)
   {
-    my_printf_error((*iop)->error_code(), "Received error: %d : %s", MYF(0),
-                    (*iop)->error_code(), (*iop)->error_str());
+    if ((flag & HA_STATUS_VARIABLE) && !(flag & HA_STATUS_NO_LOCK))
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_QUERY_ON_FOREIGN_DATA_SOURCE,
+                          "FederatedX: Table '%s' is inaccessible: "
+                          "%d : %s",
+                          share->table_name,
+                          (*iop)->error_code(),
+                          (*iop)->error_str());
+      error_code= 0;
+    }
+    else
+    {
+      my_printf_error((*iop)->error_code(),
+                      ": %d : %s", MYF(0),
+                      (*iop)->error_code(), (*iop)->error_str());
+      error_code= (*iop)->error_code();
+    }
   }
   else if (remote_error_number != -1 /* error already reported */)
   {
     error_code= remote_error_number;
+    /*
+     * Downgrade remote errors to warnings only when called from the
+     * INFORMATION_SCHEMA table scan path.
+     *
+     * INFORMATION_SCHEMA scans (sql_show.cc, fill_schema_table_by_open)
+     * call ha_federatedx::info() with HA_STATUS_VARIABLE set but WITHOUT
+     * HA_STATUS_NO_LOCK. All other callers that trigger the error path
+     * (e.g. direct SELECT, DELETE, SHOW TABLE STATUS) pass
+     * HA_STATUS_NO_LOCK alongside HA_STATUS_VARIABLE.
+     *
+     * This combination is therefore used as an indirect signal that we are
+     * inside an I_S scan, where aborting with a hard error would break the
+     * entire query rather than just skipping the inaccessible table.
+     *
+     * NOTE: This is an indirect inference based on current caller conventions.
+     * If a future caller passes HA_STATUS_VARIABLE without HA_STATUS_NO_LOCK
+     * for a non-I_S purpose, it would unintentionally receive
+     * warning-downgrade behavior. A cleaner long-term solution would be an
+     * explicit flag or context distinguishing I_S scans from direct access.
+     */
     my_error(error_code, MYF(0), ER_THD(thd, error_code));
   }
 fail:
