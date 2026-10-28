@@ -3632,3 +3632,40 @@ DROP TABLE mysql.proc;
 RENAME TABLE proc_backup TO mysql.proc;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-39399 ASAN heap-use-after-free in sql/protocol.h, SIGSEGV in
+--echo # Protocol::valid_handler
+--echo #
+
+CREATE TABLE t1 (a INT);
+
+--error ER_SP_NO_RETSET
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW SHOW PROFILES;
+--error ER_SP_NO_RETSET
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW SHOW PROFILE;
+
+delimiter |;
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  XA RECOVER;
+  RETURN 1;
+END|
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SHOW TRIGGERS;
+  RETURN 1;
+END|
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  SHOW PLUGINS;
+  RETURN 1;
+END|
+delimiter ;|
+
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
