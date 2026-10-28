@@ -898,9 +898,9 @@ fil_crypt_needs_rotation(
 		return false;
 	}
 
-	/* this is rotation encrypted => encrypted,
-	* only reencrypt if key is sufficiently old */
-	if (key_version + rotate_key_age < latest_key_version) {
+	/* this is rotation encrypted => encrypted, only reencrypt if the
+	key is innodb_encryption_rotate_key_age (or more) versions old */
+	if (key_version + rotate_key_age <= latest_key_version) {
 		return true;
 	}
 

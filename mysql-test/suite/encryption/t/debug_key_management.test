@@ -26,6 +26,24 @@ let $wait_condition= select count(*) = $tables_count from information_schema.inn
 --source include/wait_condition.inc
 select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;
 
+--echo #
+--echo # MDEV-31094 innodb_encryption_rotate_key_age behaviour is misleading
+--echo #
+--echo # Pages that are innodb_encryption_rotate_key_age versions behind
+--echo # are re-encrypted, not only pages that are more versions behind
+let $wait_condition= select min_key_version = 10 from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+--source include/wait_condition.inc
+set global innodb_encryption_rotate_key_age=1;
+set global debug_key_management_version=11;
+let $wait_condition= select min_key_version = 11 from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+--source include/wait_condition.inc
+select name, current_key_version, min_key_version from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+set global innodb_encryption_rotate_key_age=2;
+set global debug_key_management_version=13;
+let $wait_condition= select min_key_version = 13 from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+--source include/wait_condition.inc
+select name, current_key_version, min_key_version from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+
 # Test redo log key rotation and crash recovery.
 SET GLOBAL innodb_log_checkpoint_now = 1;
 SET GLOBAL innodb_flush_log_at_trx_commit = 1;
