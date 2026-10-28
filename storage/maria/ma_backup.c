@@ -217,6 +217,33 @@ uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 
 #define MAX_RETRY 10
 
+#ifndef DBUG_OFF
+/**
+  Simulate a torn read in a test: change the second half of a page,
+  as if a concurrent write had replaced it during the read.
+
+  @param page        page in the read buffer
+  @param block_size  page size
+  @param torn        whether a page was already torn in this read call
+*/
+static void aria_backup_debug_tear(uchar *page, uint block_size,
+                                   my_bool *torn)
+{
+  my_bool tear= FALSE;
+  DBUG_EXECUTE_IF("aria_backup_torn_read", tear= !*torn;);
+  DBUG_EXECUTE_IF("aria_backup_torn_read_always", tear= TRUE;);
+  if (tear)
+  {
+    uint i;
+    for (i= block_size / 2; i < block_size; i++)
+      page[i]^= 0xa5;
+    *torn= TRUE;
+  }
+}
+#else
+# define aria_backup_debug_tear(page, block_size, torn) ((void) 0)
+#endif
+
 int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                     uchar *buffer, size_t buffer_size, size_t *bytes_read)
 {
@@ -225,6 +252,9 @@ int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
   my_off_t filepos;
   size_t length;
   size_t blocks;
+#ifndef DBUG_OFF
+  my_bool torn= FALSE;
+#endif
   uchar *buffer_end;
   DBUG_ENTER("aria_read_index");
 
@@ -287,6 +317,7 @@ retry:
     */
     if (!_ma_check_if_zero(buffer, cap->block_size))
       continue;
+    aria_backup_debug_tear(buffer, cap->block_size, &torn);
 
     length= _ma_get_page_used(&share, buffer);
     if (length > cap->block_size - CRC_SIZE)
@@ -382,6 +413,9 @@ int aria_read_data(File dfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
   my_off_t filepos;
   size_t length;
   uchar *buffer_end;
+#ifndef DBUG_OFF
+  my_bool torn= FALSE;
+#endif
   DBUG_ENTER("aria_read_data");
 
   share.keypage_header= cap->keypage_header;
@@ -441,6 +475,7 @@ retry:
     */
     if (!_ma_check_if_zero(buffer, cap->block_size - CRC_SIZE))
       continue;
+    aria_backup_debug_tear(buffer, cap->block_size, &torn);
 
     /* Test if encrypted page. Note that bitmap pages are not encrypted */
     if (cap->encrypted && (block % cap->bitmap_pages_covered))
