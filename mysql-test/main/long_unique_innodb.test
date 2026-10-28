@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source include/have_sequence.inc
 
 #
 # MDEV-371 Unique indexes for blobs
@@ -187,3 +188,38 @@ select * from t1;
 drop table t1;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-35026 ALTER TABLE loses USING HASH on a unique key
+--echo #
+
+create table t (
+  id int(10) unsigned not null auto_increment,
+  x int(10) unsigned default null,
+  y int(10) unsigned default null,
+  primary key (id),
+  unique key y (y) using hash,
+  key fk_1 (x),
+  constraint fk_1 foreign key (x) references t (id)
+) engine=innodb;
+
+insert t select seq, seq, seq from seq_1_to_1001;
+show create table t;
+alter table t drop foreign key fk_1;
+show create table t;
+alter table t drop column x;
+show create table t;
+drop table t;
+
+--echo # Engine change must not keep the hidden hash column
+create table t (a int, unique (a) using hash) engine=innodb;
+show create table t;
+alter table t engine=memory;
+select engine from information_schema.tables where table_schema=database() and table_name='t';
+show create table t;
+alter table t engine=myisam;
+select engine from information_schema.tables where table_schema=database() and table_name='t';
+show create table t;
+drop table t;
+
+--echo # End of 10.11 tests
