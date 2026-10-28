@@ -1,6 +1,11 @@
 #!/bin/sh
+#
 # Copyright Abandoned 1996 TCX DataKonsult AB & Monty Program KB & Detron HB
 # This file is public domain and comes with NO WARRANTY of any kind
+#
+# Note: The interpreter must be kept as 'bin/sh' to stay compatible with BSD
+# systems. Do not switch it to Bash and avoid introducing bashisms in the
+# syntax.
 #
 # Script to start the MySQL daemon and restart it if it dies unexpectedly
 #

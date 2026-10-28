@@ -53,6 +53,7 @@ Created 3/26/1996 Heikki Tuuri
 
 #include <set>
 #include <new>
+#include <unordered_map>
 
 /** The bit pattern corresponding to TRX_ID_MAX */
 const byte trx_id_max_bytes[8] = {
@@ -70,6 +71,185 @@ const byte timestamp_max_bytes[7] = {
 	0xff, 0xff, 0xff, 0xff, 0x0f, 0x42, 0x3f
 };
 #endif /* SIZEOF_VOIDP */
+
+/** Metadata locks that trx_resurrect_table_locks() acquired for
+recovered transactions, together with the background
+connection that owns them.
+
+One metadata lock is acquired per table and shared by all recovered
+transactions that modified the table; it is released once the last of
+them has been completed, by rollback or, for a transaction that was
+recovered in the XA PREPARED state, by XA COMMIT or XA ROLLBACK.
+
+The locks are kept here and not in trx_t, because only a recovered
+transaction can ever hold any. The object is created by
+trx_lists_init_at_db_start() and published in trx_sys.recovery,
+and it is deleted as soon as the last recovered transaction
+has been freed, so that neither the locks nor the connection
+will outlive the recovered transactions. */
+class recovery_mdl
+{
+  /** A metadata lock on one table */
+  struct table_mdl
+  {
+    /** The metadata lock */
+    MDL_ticket *mdl;
+    /** Number of references by recovered transactions that have not
+    been freed yet */
+    uint32_t n_ref;
+  };
+
+  /** Background connection that owns the metadata locks */
+  THD *const m_thd;
+  /** Metadata locks, by table identifier. Only one lock is acquired
+  per table, no matter how many recovered transactions
+  modified the table. Protected by trx_sys.recovery_mutex */
+  std::unordered_map<table_id_t, table_mdl> m_mdl;
+
+public:
+  recovery_mdl(THD *thd) noexcept : m_thd(thd) { ut_ad(m_thd); }
+
+  ~recovery_mdl() noexcept
+  {
+    for (const auto &i : m_mdl)
+      mdl_release(m_thd, i.second.mdl);
+    destroy_background_thd(m_thd);
+  }
+
+  /** @return the connection that owns the metadata locks */
+  THD *thd() const noexcept { return m_thd; }
+
+  /** @return whether no recovered transaction holds metadata locks */
+  bool empty() const noexcept { return m_mdl.empty(); }
+
+  /** Position of the metadata lock of a table */
+  typedef std::unordered_map<table_id_t, table_mdl>::iterator iterator;
+
+  /** @return the position of the metadata lock of a table
+  @retval end()  if no metadata lock was acquired on the table */
+  iterator find(table_id_t table_id) noexcept { return m_mdl.find(table_id); }
+
+  /** @return the end of the metadata locks */
+  iterator end() noexcept { return m_mdl.end(); }
+
+  /** Reference a metadata lock for one more recovered transaction.
+  @param i  position returned by find() */
+  void reference(iterator i) noexcept
+  {
+    ut_ad(i != m_mdl.end());
+    i->second.n_ref++;
+  }
+
+  /** Record a metadata lock that was acquired for one recovered
+  transaction. The transaction is recorded in trx_t::mod_tables, which
+  trx_t::commit_in_memory() passes to release().
+  @param table_id  table identifier, for which find() returned end()
+  @param mdl       the metadata lock, or nullptr if none was acquired.
+                   No metadata lock is acquired on an intermediate table
+                   whose name starts with #sql. */
+  void add(table_id_t table_id, MDL_ticket *mdl)
+  {
+    ut_ad(m_mdl.find(table_id) == m_mdl.end());
+    if (mdl)
+      m_mdl.emplace(table_id, table_mdl{mdl, 1});
+  }
+
+  /** Drop one reference on the metadata lock of a table, releasing
+  the lock if this was the last reference.
+  @param table_id  table identifier */
+  void release(table_id_t table_id) noexcept
+  {
+    auto i= m_mdl.find(table_id);
+    if (i != m_mdl.end() && !--i->second.n_ref)
+    {
+      mdl_release(m_thd, i->second.mdl);
+      m_mdl.erase(i);
+    }
+  }
+
+  /** Drop the references of a recovered transaction, releasing each
+  metadata lock whose last reference is being dropped.
+  @param trx  recovered transaction that is being completed */
+  void release(const trx_t &trx) noexcept
+  {
+    for (const auto &p : trx.mod_tables)
+      release(p.first->id);
+  }
+};
+
+ATTRIBUTE_COLD recovery_mdl *trx_sys_t::recovery_prune_low() noexcept
+{
+  recovery_mdl *r= recovery.load(std::memory_order_relaxed);
+  /* Hand the object over for deletion once the last recovered
+  transaction has released its metadata locks, so that neither the locks
+  nor the connection will outlive the recovered transactions.
+
+  Only a thread that has no connection of its own may delete it, because
+  the destructor invokes destroy_background_thd(). Whether the caller has
+  one is a property of the thread, not of the transaction: this is
+  reached both from the rollback of a recovered transaction, on a
+  background thread, and from a user connection that is completing a
+  transaction which was recovered in the XA PREPARED state. Hence
+  current_thd and not trx_t::mysql_thd, which is empty in both cases. */
+  if (!r || !r->empty() || srv_shutdown_state != SRV_SHUTDOWN_NONE ||
+      current_thd)
+    return nullptr;
+  recovery.store(nullptr, std::memory_order_relaxed);
+  return r;
+}
+
+ATTRIBUTE_COLD void trx_sys_t::recovery_prune() noexcept
+{
+  recovery_mutex.wr_lock();
+  recovery_mdl *r{recovery_prune_low()};
+  recovery_mutex.wr_unlock();
+  delete r;
+}
+
+ATTRIBUTE_COLD void trx_sys_t::recovery_release_low(const trx_t &trx)
+  noexcept
+{
+  /* A recovered transaction never has a connection of its own:
+  trx_t::disconnect_prepared() and trx_resurrect() are the only places
+  that set trx_t::is_recovered, and both leave mysql_thd empty. */
+  ut_ad(!trx.mysql_thd);
+  recovery_mutex.wr_lock();
+  if (recovery_mdl *r= recovery.load(std::memory_order_relaxed))
+    r->release(trx);
+  recovery_mdl *r{recovery_prune_low()};
+  recovery_mutex.wr_unlock();
+  delete r;
+}
+
+ATTRIBUTE_COLD
+void trx_sys_t::recovery_release_table_low(table_id_t table_id) noexcept
+{
+  recovery_mutex.wr_lock();
+  if (recovery_mdl *r= recovery.load(std::memory_order_relaxed))
+    r->release(table_id);
+  recovery_mdl *r{recovery_prune_low()};
+  recovery_mutex.wr_unlock();
+  delete r;
+}
+
+ATTRIBUTE_COLD void trx_sys_t::recovery_shutdown() noexcept
+{
+  /* This is invoked at the end of trx_sys_t::close() only, after
+  every transaction has been freed. No other thread can be accessing
+  recovery, and therefore recovery_mutex need not be acquired. */
+  ut_ad(srv_shutdown_state == SRV_SHUTDOWN_EXIT_THREADS);
+  recovery_mdl *r= recovery.load(std::memory_order_relaxed);
+  recovery.store(nullptr, std::memory_order_relaxed);
+  delete r;
+}
+
+#ifndef DBUG_OFF
+ATTRIBUTE_COLD THD *trx_sys_t::recovery_thd() noexcept
+{
+  recovery_mdl *r= recovery.load(std::memory_order_relaxed);
+  return r ? r->thd() : nullptr;
+}
+#endif /* !DBUG_OFF */
 
 static const ulint MAX_DETAILED_ERROR_LEN = 512;
 
@@ -565,6 +745,42 @@ void trx_t::disconnect_prepared() noexcept
   trx_sys.rw_trx_hash.put_pins(this);
 }
 
+/** Resurrect a table lock of a recovered transaction, and remember the
+table in trx_t::mod_tables, so that trx_t::commit_in_memory() will drop
+the reference on the metadata lock of the table.
+@param trx    recovered transaction
+@param table  table that the transaction had modified; its reference
+              will be released
+@param empty  whether the transaction had emptied the table
+@retval true   if the table was recorded in trx->mod_tables now. The
+               same table may be reached through more than one undo log;
+               only the first occurrence is recorded.
+@retval false  if it had been recorded already, or if the table is not
+               readable, in which case it was removed from the cache */
+static bool trx_resurrect_table_lock(trx_t *trx, dict_table_t *table,
+                                     bool empty) noexcept
+{
+  if (!table->is_readable())
+  {
+    dict_sys.lock(SRW_LOCK_CALL);
+    table->release();
+    dict_sys.remove(table);
+    dict_sys.unlock();
+    return false;
+  }
+
+  const bool first= trx->mod_tables.emplace(table, 0).second;
+
+  lock_table_resurrect(table, trx, empty ? LOCK_X : LOCK_IX);
+
+  DBUG_LOG("ib_trx",
+           "resurrect " << ib::hex(trx->id) << " lock on " << table->name);
+  /* Release the table reference, but retain the metadata lock until the
+  recovered transaction has been completed. */
+  table->release();
+  return first;
+}
+
 MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Resurrect the table locks for a resurrected transaction. */
 static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
@@ -620,28 +836,56 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
   if (err != DB_SUCCESS)
     return err;
 
-  for (auto p : tables)
-  {
-    if (dict_table_t *table=
-        dict_table_open_on_id(p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE))
+  /* Resurrect the metadata locks as well, so that DDL cannot execute
+  concurrently with a recovered transaction that holds locks on the
+  table. The locks are owned by trx_sys.recovery and released in
+  trx_t::free(), once the recovered transaction has been completed.
+
+  This includes transactions that were recovered in the XA PREPARED
+  state. They are completed by a user connection, which may issue
+  XA COMMIT or XA ROLLBACK at any time, or not at all before the next
+  shutdown. Until then, DDL must be blocked on the tables that they
+  had modified.
+
+  trx_lists_init_at_db_start() created trx_sys.recovery before
+  resurrecting anything, but only for the server. Mariabackup --export
+  has no metadata locks to acquire. */
+  recovery_mdl *const recovery=
+    trx_sys.recovery.load(std::memory_order_relaxed);
+  ut_ad(!recovery == (srv_operation != SRV_OPERATION_NORMAL));
+
+  if (!recovery)
+    for (const auto &p : tables)
     {
-      if (!table->is_readable())
+      if (dict_table_t *table=
+          dict_table_open_on_id(p.first, false, DICT_TABLE_OP_LOAD_TABLESPACE))
+        trx_resurrect_table_lock(trx, table, p.second);
+    }
+  else
+  {
+    THD *const thd= recovery->thd();
+
+    for (const auto &p : tables)
+    {
+      /* Acquire a metadata lock only if no other recovered transaction
+      holds one on this table already. */
+      const recovery_mdl::iterator i= recovery->find(p.first);
+      const bool acquired= i != recovery->end();
+      MDL_ticket *mdl= nullptr;
+      dict_table_t *table= acquired
+        ? dict_table_open_on_id(p.first, false, DICT_TABLE_OP_LOAD_TABLESPACE)
+        : dict_table_open_on_id(p.first, false, DICT_TABLE_OP_LOAD_TABLESPACE,
+                                thd, &mdl);
+
+      if (table && trx_resurrect_table_lock(trx, table, p.second))
       {
-        dict_sys.lock(SRW_LOCK_CALL);
-        table->release();
-        dict_sys.remove(table);
-        dict_sys.unlock();
-        continue;
+        if (acquired)
+          recovery->reference(i);
+        else
+          recovery->add(p.first, mdl);
       }
-
-      if (trx->state == TRX_STATE_PREPARED)
-        trx->mod_tables.emplace(table, 0);
-
-      lock_table_resurrect(table, trx, p.second ? LOCK_X : LOCK_IX);
-
-      DBUG_LOG("ib_trx",
-               "resurrect " << ib::hex(trx->id) << " lock on " << table->name);
-      table->release();
+      else
+        mdl_release(thd, mdl);
     }
   }
 
@@ -733,8 +977,20 @@ corrupted:
 
 	if (trx_sys.is_undo_empty()) {
 func_exit:
+		trx_sys.recovery_prune();
 		purge_sys.clone_oldest_view<true>(nullptr);
 		return DB_SUCCESS;
+	}
+
+	/* One background connection owns the metadata locks of all
+	recovered transactions. */
+	ut_ad(!trx_sys.recovery.load(std::memory_order_relaxed));
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		trx_sys.recovery.store(
+			new recovery_mdl(
+				innobase_create_background_thd(
+					"InnoDB recovery")),
+			std::memory_order_relaxed);
 	}
 
 	/* Look from the rollback segments if there exist undo logs for
@@ -1453,7 +1709,14 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(mtr_t *mtr)
     {
       commit_tables();
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
-      is_recovered= false;
+      /* Release the metadata locks of a recovered transaction. This
+      must be done while mod_tables and is_recovered are still valid:
+      commit_cleanup() will clear mod_tables. */
+      if (UNIV_UNLIKELY(is_recovered))
+      {
+        is_recovered= false;
+        trx_sys.recovery_release(*this);
+      }
     }
 
     if (UNIV_LIKELY(!dict_operation))

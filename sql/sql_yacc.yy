@@ -1693,6 +1693,7 @@ rule:
         derived_table_list table_reference_list_parens
         nested_table_reference_list join_table_parens
         update_table_list table_function
+        delete_single_table
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -9805,6 +9806,7 @@ predicate:
         | predicate LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
             Lex->escape_used= true;
+            Lex->check_escape_placeholder($5);
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $5, true);
             if (unlikely(!$$))
               MYSQL_YYABORT;
@@ -9819,6 +9821,7 @@ predicate:
         | predicate not LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
             Lex->escape_used= true;
+            Lex->check_escape_placeholder($6);
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $6, true);
             if (unlikely(!item))
               MYSQL_YYABORT;
@@ -14014,7 +14017,7 @@ delete_part2:
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
             LEX *lex= Lex;
-            lex->last_table()->vers_conditions= lex->vers_conditions;
+            $2->vers_conditions= lex->vers_conditions;
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
                   new (thd->mem_root) Sql_cmd_delete(false)))
@@ -14042,12 +14045,12 @@ delete_single_table:
 
             Lex->query_tables= 0;
             Lex->query_tables_last= &Lex->query_tables;
-            if (unlikely(!Select->
-                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type,
-                                           Select->pop_index_hints(),
-                                           $5)))
+            if (!($$= Select->
+                    add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
+                                      YYPS->m_lock_type,
+                                      YYPS->m_mdl_type,
+                                      Select->pop_index_hints(),
+                                      $5)))
               MYSQL_YYABORT;
             Lex->auxiliary_table_list.first->correspondent_table=
               Lex->query_tables;
@@ -14060,7 +14063,7 @@ delete_single_table_for_period:
           delete_single_table opt_for_portion_of_time_clause
           {
             if ($2)
-              Lex->last_table()->period_conditions= Lex->period_conditions;
+              $1->period_conditions= Lex->period_conditions;
           }
         ;
 
