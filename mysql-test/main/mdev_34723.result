@@ -392,7 +392,7 @@ BEGIN
 INSERT INTO t2 VALUES ('OLD', OLD), ('NEW', NEW);
 END|
 UPDATE t1 SET a = 100;
-ERROR HY000: Cannot cast 'row' as 'int' in assignment of `test`.`t2`.`val`
+ERROR 42S22: Unknown column 'OLD' in 'VALUES'
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT, b INT);
 CREATE TABLE t2 (a INT, b INT);
@@ -544,6 +544,7 @@ DROP TABLE t;
 CREATE TABLE t (a INT, b INT);
 CREATE TRIGGER tr BEFORE INSERT ON t FOR EACH ROW DO (SELECT 1 FROM (SELECT DISTINCT a, b FROM t) d WHERE (a, b) = NEW);
 INSERT INTO t VALUES (1,2);
+ERROR 42S22: Unknown column 'NEW' in 'WHERE'
 DROP TABLE t;
 #
 # MDEV-41826: Crash in Table_triggers_list::mark_fields_used on
@@ -553,7 +554,7 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW DO (SELECT a = NEW FROM t2);
 INSERT INTO t1 VALUES (1);
-ERROR HY000: Illegal parameter data types int and row for operation '='
+ERROR 42S22: Unknown column 'NEW' in 'SELECT'
 ALTER TABLE t2 CHANGE a b INT;
 INSERT INTO t1 VALUES (1);
 ERROR 42S22: Unknown column 'a' in 'SELECT'

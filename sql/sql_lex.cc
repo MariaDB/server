@@ -9775,6 +9775,9 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
   sp_variable *spv;
   uint unused_off;
   const LEX_CSTRING new_or_old= {name->str, name->length};
+  enum_sql_command cmd= thd->lex->sql_command;
+  bool got_error;
+  Item *trigger_specific_item;
   DBUG_ASSERT(spcont);
   DBUG_ASSERT(sphead);
 
@@ -9816,13 +9819,16 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     return splocal;
   }
 
-  if (is_trigger_new_or_old_reference(&new_or_old))
+  if (fields_are_impossible() ||
+      ( cmd == SQLCOM_SET_OPTION &&
+      is_trigger_new_or_old_reference(&new_or_old)))
   {
     bool new_row= (new_or_old.str[0] == 'N' || new_or_old.str[0] == 'n');
     return create_and_link_Item_trigger_field_or_row(thd, &new_or_old,
                                                      new_row, true);
   }
 
+possibly_field:
   if (thd->variables.sql_mode & MODE_ORACLE)
   {
     if (lex_string_eq(name, STRING_WITH_LEN("SQLCODE")))
@@ -9839,8 +9845,7 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     user's triggers that use local variable names coinciding with the reserved
     values wouldn't be changed
   */
-  bool got_error;
-  Item *trigger_specific_item=
+  trigger_specific_item=
     create_item_ident_trigger_specific(thd, Lex_ident_sys(*name), &got_error);
   if (trigger_specific_item)
     /*
