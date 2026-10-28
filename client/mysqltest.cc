@@ -348,6 +348,8 @@ struct st_connection
   size_t name_len;
   MYSQL_STMT* stmt;
   MYSQL_BIND *ps_params;
+  /* PS_bind_long: send ps_params as long data before each PS_execute */
+  my_bool ps_long_data;
   /* Set after send to disallow other queries before reap */
   my_bool pending;
 
@@ -428,6 +430,7 @@ enum enum_commands {
   Q_OPTIMIZER_TRACE,
   Q_PS_PREPARE,
   Q_PS_BIND,
+  Q_PS_BIND_LONG,
   Q_PS_EXECUTE,
   Q_PS_CLOSE,
   Q_UNKNOWN,			       /* Unknown command.   */
@@ -555,6 +558,7 @@ const char *command_names[]=
   "optimizer_trace",
   "PS_prepare",
   "PS_bind",
+  "PS_bind_long",
   "PS_execute",
   "PS_close",
   0
@@ -11374,7 +11378,8 @@ static void handle_no_active_connection(struct st_command *command,
 void run_prepare_stmt(struct st_connection *cn, struct st_command *command, const char *query,
                       size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 void run_bind_stmt(struct st_connection *cn, struct st_command *command, const char *query,
-                   size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
+                   size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings,
+                   my_bool long_data);
 void run_execute_stmt(struct st_connection *cn, struct st_command *command, const char *query,
                       size_t query_len, DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings);
 void run_close_stmt(struct st_connection *cn, struct st_command *command, const char *query,
@@ -11418,7 +11423,9 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
     goto end;
     break;
   case Q_PS_BIND:
-    run_bind_stmt(cn, command, query, query_len, ds, ds_warnings);
+  case Q_PS_BIND_LONG:
+    run_bind_stmt(cn, command, query, query_len, ds, ds_warnings,
+                  command->type == Q_PS_BIND_LONG);
     flags &= ~QUERY_SEND_FLAG;
     goto end;
     break;
@@ -12221,15 +12228,15 @@ void run_prepare_stmt(struct st_connection *cn, struct st_command *command,
   query - query string to execute
   query_len - length query string to execute
   ds - output buffer where to store result form query
+  long_data - send the values as long data before each execution
 
   RETURN VALUE
   error - function will not return
 */
 
 void run_bind_stmt(struct st_connection *cn, struct st_command *command,
-                    const char *query, size_t query_len, DYNAMIC_STRING *ds,
-                      DYNAMIC_STRING *ds_warnings
-                      )
+                   const char *query, size_t query_len, DYNAMIC_STRING *ds,
+                   DYNAMIC_STRING *ds_warnings, my_bool long_data)
 {
   MYSQL_STMT *stmt= cn->stmt;
   DBUG_ENTER("run_bind_stmt");
@@ -12252,6 +12259,8 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
                                                      stmt->param_count,
                                                      MYF(MY_WME|MY_FAE));
   bzero((char *) ps_params, sizeof(MYSQL_BIND) * stmt->param_count);
+  /* Long data can only be a string, so every parameter is bound as one */
+  cn->ps_long_data= long_data;
 
   int i=0;
   char *c;
@@ -12262,7 +12271,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
   while (p != nullptr)
   {
     (void)strtol(p, &c, 10);
-    if (!*c)
+    if (!long_data && !*c)
     {
       ps_params[i].buffer_type= MYSQL_TYPE_LONG;
       l= (long*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(long),
@@ -12274,7 +12283,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
     else
     {
       (void)strtod(p, &c);
-      if (!*c)
+      if (!long_data && !*c)
       {
         ps_params[i].buffer_type= MYSQL_TYPE_DECIMAL;
         d= (double*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(double),
@@ -12347,6 +12356,16 @@ void run_execute_stmt(struct st_connection *cn, struct st_command *command,
     if (mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, (void*) &type))
       die("mysql_stmt_attr_set(STMT_ATTR_CURSOR_TYPE) failed': %d %s",
           mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
+  }
+
+  if (cn->ps_params && cn->ps_long_data)
+  {
+    for (ulong i= 0; i < stmt->param_count; i++)
+      if (mysql_stmt_send_long_data(stmt, (uint) i,
+                                    (const char *) cn->ps_params[i].buffer,
+                                    cn->ps_params[i].buffer_length))
+        die("mysql_stmt_send_long_data() failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
   }
 
   /*
@@ -13625,6 +13644,7 @@ int main(int argc, char **argv)
       case Q_REAP:
       case Q_PS_PREPARE:
       case Q_PS_BIND:
+      case Q_PS_BIND_LONG:
       case Q_PS_EXECUTE:
       case Q_PS_CLOSE:
       {

@@ -793,6 +793,12 @@ static void wsrep_init_provider_status_variables()
 int wsrep_init_server()
 {
   wsrep::log::logger_fn(wsrep_log_cb);
+  /*
+    wsrep_gtid_domain_id from command line or config file does not
+    go through wsrep_gtid_domain_id_update(), so copy it here.
+    It may still be overridden by donor's domain if SST/IST happens.
+  */
+  wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
   try
   {
     Wsrep_status::init_once(wsrep_status_file);

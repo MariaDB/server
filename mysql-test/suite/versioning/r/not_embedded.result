@@ -93,3 +93,21 @@ connection default;
 commit;
 drop table t;
 set timestamp= default;
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+# DELETE privilege is not enough for DELETE HISTORY with a subquery
+create database mysqltest;
+create table mysqltest.t (a int) with system versioning;
+create table mysqltest.t2 (d timestamp(6));
+insert into mysqltest.t2 values (now(6));
+create user mysqltest_1@localhost;
+grant select, delete on mysqltest.* to mysqltest_1@localhost;
+connect  user1,localhost,mysqltest_1,,mysqltest;
+delete history from t before system_time (select d from t2);
+ERROR 42000: DELETE HISTORY command denied to user 'mysqltest_1'@'localhost' for table `mysqltest`.`t`
+disconnect user1;
+connection default;
+drop user mysqltest_1@localhost;
+drop database mysqltest;
+# End of 10.11 tests
