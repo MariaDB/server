@@ -1,0 +1,90 @@
+#
+# MDEV-41522 INSERT ... ON DUPLICATE KEY UPDATE requires SELECT on
+# a column that is only written
+#
+CREATE TABLE t1 (i INT PRIMARY KEY, s VARCHAR(5), r VARCHAR(5) DEFAULT 'r');
+CREATE USER mysqltest_1@localhost;
+GRANT INSERT, UPDATE, SELECT(i) ON t1 TO mysqltest_1@localhost;
+connect  con1,localhost,mysqltest_1,,test;
+INSERT INTO t1 (i,s) VALUES (1,'a');
+UPDATE t1 SET s='b' WHERE i=1;
+INSERT INTO t1 (i,s) VALUES (1,'c') ON DUPLICATE KEY UPDATE s='c';
+INSERT INTO t1 (i,s) VALUES (2,'a') ON DUPLICATE KEY UPDATE s='c';
+connection default;
+SELECT * FROM t1 ORDER BY i;
+i	s	r
+1	c	r
+2	a	r
+connection con1;
+INSERT INTO t1 (i,s) SELECT 1,'d' ON DUPLICATE KEY UPDATE s='d';
+INSERT INTO t1 (i,s) SELECT 3,'a' ON DUPLICATE KEY UPDATE s='d';
+connection default;
+SELECT * FROM t1 ORDER BY i;
+i	s	r
+1	d	r
+2	a	r
+3	a	r
+connection con1;
+INSERT INTO t1 SET i=1,s='a' ON DUPLICATE KEY UPDATE s='f';
+INSERT INTO t1 (i,s) VALUES (1,'a'),(4,'b') ON DUPLICATE KEY UPDATE s='m';
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=s;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 's' in table 't1'
+INSERT INTO t1 (i,s) SELECT 1,'a' ON DUPLICATE KEY UPDATE s=s;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 's' in table 't1'
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=(SELECT s);
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 's' in table 't1'
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='x' RETURNING s;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 's' in table 't1'
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=i;
+PREPARE stmt FROM
+'INSERT INTO t1 (i,s) VALUES (1,?) ON DUPLICATE KEY UPDATE s=?';
+SET @s='p';
+EXECUTE stmt USING @s,@s;
+SET @s='q';
+EXECUTE stmt USING @s,@s;
+connection default;
+SELECT * FROM t1 ORDER BY i;
+i	s	r
+1	q	r
+2	a	r
+3	a	r
+4	b	r
+REVOKE UPDATE ON t1 FROM mysqltest_1@localhost;
+GRANT UPDATE(i,s), SELECT(r) ON t1 TO mysqltest_1@localhost;
+connection con1;
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='e';
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE r='x';
+ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for column 'r' in table 't1'
+INSERT INTO t1 (i,s) SELECT 1,'a' ON DUPLICATE KEY UPDATE r='x';
+ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for column 'r' in table 't1'
+connection default;
+REVOKE UPDATE(s) ON t1 FROM mysqltest_1@localhost;
+connection con1;
+EXECUTE stmt USING @s,@s;
+ERROR 42000: UPDATE command denied to user 'mysqltest_1'@'localhost' for column 's' in table 't1'
+DEALLOCATE PREPARE stmt;
+connection default;
+SELECT * FROM t1 ORDER BY i;
+i	s	r
+1	e	r
+2	a	r
+3	a	r
+4	b	r
+CREATE VIEW v1 AS SELECT i,s,r FROM t1;
+GRANT INSERT, UPDATE, SELECT(i) ON v1 TO mysqltest_1@localhost;
+connection con1;
+INSERT INTO v1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='v';
+SELECT s FROM v1;
+ERROR 42000: SELECT command denied to user 'mysqltest_1'@'localhost' for column 's' in table 'v1'
+disconnect con1;
+connection default;
+SELECT * FROM t1 ORDER BY i;
+i	s	r
+1	v	r
+2	a	r
+3	a	r
+4	b	r
+DROP VIEW v1;
+DROP TABLE t1;
+DROP USER mysqltest_1@localhost;
+# End of 11.4 tests
