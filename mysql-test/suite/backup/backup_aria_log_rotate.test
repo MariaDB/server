@@ -1,0 +1,76 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# BACKUP SERVER copies the Aria table files at BACKUP_WAIT_FOR_FLUSH.
+# Commits to tables that are safe for online backup continue until
+# BACKUP_LOCK_COMMIT. Here they make the log continue in new files
+# before the end of the log is determined. The backup must contain them:
+# recovery applies the log from the start checkpoint, over several
+# whole log files, to the copied table files.
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 VALUES (0, 'a');
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+--let BACKUP_DIR= $MYSQLTEST_VARDIR/bk
+--let FIRST_LOG= $MYSQLTEST_VARDIR/tmp/backup_aria_first_log
+
+--connect bk,localhost,root
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR copied';
+perl;
+opendir my $d, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+my @n= sort map { /^aria_log\.(\d{8})$/ ? $1 : () } readdir $d;
+open my $f, '>', $ENV{FIRST_LOG} or die "$ENV{FIRST_LOG}: $!";
+print $f $n[-1];
+EOF
+INSERT INTO t1 SELECT seq, REPEAT('b', 250) FROM seq_1_to_50000;
+UPDATE t1 SET c= REPEAT('c', 200) WHERE a % 2;
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection bk
+--reap
+--disconnect bk
+--connection default
+SET DEBUG_SYNC='RESET';
+
+perl;
+sub last_log {
+  opendir my $d, $_[0] or die "$_[0]: $!";
+  my @n= sort map { /^aria_log\.(\d{8})$/ ? $1 : () } readdir $d;
+  return $n[-1];
+}
+open my $f, '<', $ENV{FIRST_LOG} or die "$ENV{FIRST_LOG}: $!";
+my $first= <$f>;
+my $server= last_log($ENV{MYSQLD_DATADIR});
+my $backup= last_log($ENV{BACKUP_DIR});
+print "The log continued in at least two new files: ",
+  ($server >= $first + 2 ? 1 : 0), "\n";
+print "The backup has the same last log file: ",
+  ($backup == $server ? 1 : 0), "\n";
+unlink $ENV{FIRST_LOG};
+EOF
+
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP TABLE t1;
+--rmdir $MYSQLTEST_VARDIR/bk

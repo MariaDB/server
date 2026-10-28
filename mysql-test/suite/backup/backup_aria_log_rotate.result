@@ -1,0 +1,32 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 VALUES (0, 'a');
+connect bk,localhost,root;
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR copied';
+INSERT INTO t1 SELECT seq, REPEAT('b', 250) FROM seq_1_to_50000;
+UPDATE t1 SET c= REPEAT('c', 200) WHERE a % 2;
+SET DEBUG_SYNC='now SIGNAL go';
+connection bk;
+disconnect bk;
+connection default;
+SET DEBUG_SYNC='RESET';
+The log continued in at least two new files: 1
+The backup has the same last log file: 1
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+50001	11250001
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+50001	11250001
+# restart
+DROP TABLE t1;
