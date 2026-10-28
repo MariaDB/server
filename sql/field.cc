@@ -7451,10 +7451,19 @@ int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(!table || table->in_use == current_thd);
 
-  rc= well_formed_copy_with_check((char*) ptr, field_length,
-                                  cs, from, length,
-                                  Field_string::char_length(),
-                                  false, &copy_length);
+  if (length)
+    rc= well_formed_copy_with_check((char*) ptr, field_length,
+                                    cs, from, length,
+                                    Field_string::char_length(),
+                                    false, &copy_length);
+  else
+  {
+    /*
+      well_formed_copy_with_check() for 0 bytes is always well formed.
+    */
+    rc= 0;
+    copy_length= 0;
+  }
 
   /* Append spaces if the string was shorter than the field. */
   if (copy_length < field_length)
@@ -8019,10 +8028,19 @@ int Field_varstring::store(const char *from,size_t length,CHARSET_INFO *cs)
   uint copy_length;
   int rc;
 
-  rc= well_formed_copy_with_check((char*) get_data(), field_length,
-                                  cs, from, length,
-                                  Field_varstring::char_length(),
-                                  true, &copy_length);
+
+  if (length)
+  {
+    rc= well_formed_copy_with_check((char*) get_data(), field_length,
+                                    cs, from, length,
+                                    Field_varstring::char_length(),
+                                    true, &copy_length);
+  }
+  else
+  {
+    rc= 0;
+    copy_length =0;
+  }
 
   store_length(copy_length);
 
