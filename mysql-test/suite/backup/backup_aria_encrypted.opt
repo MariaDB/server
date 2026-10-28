@@ -1,0 +1,5 @@
+--plugin-load-add=$FILE_KEY_MANAGEMENT_SO
+--loose-file-key-management
+--loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+--loose-file-key-management-encryption-algorithm=aes_cbc
+--aria-encrypt-tables=ON

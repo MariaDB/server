@@ -1,0 +1,60 @@
+#
+# BACKUP SERVER of encrypted Aria tables
+#
+SELECT @@aria_encrypt_tables;
+@@aria_encrypt_tables
+1
+CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+CREATE TABLE at0 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=0;
+INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_10000;
+INSERT INTO at0 SELECT seq, MD5(seq) FROM seq_1_to_10000;
+SELECT COUNT(*), SUM(id) FROM at1;
+COUNT(*)	SUM(id)
+10000	50005000
+SELECT COUNT(*), SUM(id) FROM at0;
+COUNT(*)	SUM(id)
+10000	50005000
+BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
+#
+# The Aria log files have to be part of the backup
+#
+#
+# The copied files should not contain any clear text
+#
+at1.MAD has clear text: no
+at1.MAI has clear text: no
+at0.MAD has clear text: no
+at0.MAI has clear text: no
+#
+# Start the server on the backup and check that the tables are intact
+#
+# restart: --defaults-file=MYSQLTEST_VARDIR/backup_aria_encrypted/backup.cnf --datadir=MYSQLTEST_VARDIR/backup_aria_encrypted
+CHECK TABLE at1, at0 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.at1	check	status	OK
+test.at0	check	status	OK
+SELECT COUNT(*), SUM(id) FROM at1;
+COUNT(*)	SUM(id)
+10000	50005000
+SELECT COUNT(*), SUM(id) FROM at0;
+COUNT(*)	SUM(id)
+10000	50005000
+SELECT txt FROM at1 WHERE id=1;
+txt
+c4ca4238a0b923820dcc509a6f75849b
+SELECT txt FROM at0 WHERE id=10000;
+txt
+b7a782741f667201b54880c925faec4b
+#
+# Restart on the original data directory
+#
+# restart
+SELECT COUNT(*), SUM(id) FROM at1;
+COUNT(*)	SUM(id)
+10000	50005000
+SELECT COUNT(*), SUM(id) FROM at0;
+COUNT(*)	SUM(id)
+10000	50005000
+DROP TABLE at1, at0;
