@@ -1,0 +1,387 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-36025 backup taken from parallel replica may contain prepared transactions
+--echo #
+
+# The tests proves the following.
+#
+# 1. The patch replaces MDEV-21953/MDEV-23586 W2(S1),B(X2),W1(S3) deadlock
+#     and its post-fixes MDEV-37453.
+# 2. Applies "ignore-priority" requesting and scheduling of BACKUP MDL
+#    by parallel slave worker threads.
+#    A. demonstrate a shared lock request by a parallel worker which
+#       is being waited for (prior-commit) is granted immediately even
+#       though there exists a waiting X lock in the way.
+#    B. show fainess of MDL acquision, that is a waiting X by
+#       BLOCK_COMMIT of backup thread is granted in due time
+#       that is all slave workers have gathered a group-committable "team".
+
+
+# Legends
+# -------
+#
+# Threads notations.
+# L or Li, F,F1,F2 - Leader and Follower slave group commit transactions,
+#   the number index indicates binlog ordering (read as gtid seq_no).
+# T are utility transaction to help building trx dependencies on slave and
+# W are worker threads/transactions when their F/L role is irrelevant.
+#
+# Locks notations.
+# Si, Xi - typical MDL:s that are acquired by the slave worker and the
+#   backup thread; i stands for ordering of acquiring the BACKUP MDL;
+#   Si(Fj or Lk) describes the owner of the MDL lock or request.
+#   Note a parallel slave thread can re-request S lock to advance the index.
+# To present the MDL queue we use `;' to separate the granted head from
+# waiters that are ordered by `k` index as below.
+#   Si,... ; Xk, ...
+# E,g S1(F2); X2(B) - reads a shared BACKUP MDL is granted to the slave thread
+# and there is a backup thread waiter for X.
+
+# PROOF 1.
+# --------
+# The plot.
+# It's about having the MDL requests order as
+#
+#   S1(F2); X2(B), S3(L1)
+#
+# where the Follower will be waiting for (prior commit of)  L leader (2 > 1),
+# while the latter is delayed.
+# Also F -depends-> L in data part and therefore  L is going to kill it.
+# Upon retry F2 will find X2 lock in the way of its S4 (one more request at its
+# retry) which it won't be allowed to bypass. After L1 has committed
+# the MDL queue settles into
+#
+#   /* granted */ X2(B); /* waiting*/ S4(F2).
+#
+# T auxiliary slave local trx orchestrates necessary timings to conduct the plot.
+#
+# This all proves the safety of concurrent execution of the parallel slave and
+# backup thread in a simple setup, reported in the referreced bugs.
+# The most importantly we prove the state of the waiting queue of
+#         ...; X2,S3(L)
+# is resolved into
+#       /* granted */ S3(L); X2.
+
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE = innodb;
+INSERT INTO  t1 VALUES (1, 0);
+INSERT INTO  t1 VALUES (2, 0);
+--sync_slave_with_master
+--source include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads  = @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+
+# Proof 1
+
+--connection master
+begin /* trx1/L1 */;
+  delete from t1 where a = 1;
+  update t1 set b = 1 where a = 2;
+commit;
+begin /* trx2/F2 */;
+  delete from t1 where a = 2;
+commit;
+
+--save_master_pos
+
+--connect (aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+# block the 1st worker and wait for the 2nd ready to commit
+  DELETE FROM t1 WHERE a = 1;
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# While the 1st worker is locked out run backup
+--connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BACKUP STAGE START;
+--send BACKUP STAGE BLOCK_COMMIT
+
+--connection aux_slave
+# Make sure BACKUP lock is waiting
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+# release the 1st work
+let $status_var= Slave_retried_transactions;
+let $status_var_value= query_get_value(SHOW STATUS LIKE '$status_var', Value, 1);
+--sleep 1
+ROLLBACK;
+
+# that will kick the 2nd out of the current WfPTtC into next retry one
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+let $status_var_comparsion= >;
+--source include/wait_for_status_var.inc
+
+--connection aux_slave
+# Make sure trx1 is waiting for MDL
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+--connection backup_slave
+reap;
+BACKUP STAGE END;
+
+--connection slave
+--sync_with_master
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+# PROOF 2.A
+# The plot.
+# It's about initially having the MDL requests shape the lock as
+#   /* granted */ S1(F3),S3(F2); /* waiting */ X3(B)
+# by time of S4(L1) request. It must bypass X3 and
+# in transaction non-dependent case that would end up with
+#   /* granted */ S1,S3,S4(L); /* waiting*/ X3
+# However here we complicate the matter with the Proof 1's kind of
+# the data dependency of F2 -> L1.
+# L1 commits alone and in that process killes F2 into retry,
+# the latter's S5 (its 2nd that is) request will see the BACKUP MDL state as
+#   S1(F3); X3, S5(F2)
+# so it will be allowed (3 > 2) to leapfrog X3. The state now
+#   /* granted*/ S1,S5(F2); /* waiting */ X3
+# and immediately, as F2 will turn into the leader role, L2 and F3 commit
+# to leave
+#   X3(granted).
+#
+# This all futher validates the safety of Proof 1 under more stringent
+# condtion of the paralle slave retry and effective functionality of
+# jumping over "ignoring" incompatible BACKUP MDL request in the way.
+
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_threads= 3;
+--source include/start_slave.inc
+
+--connection master
+# Insert new, non-conflicting rows for the 3 workers.
+INSERT INTO t1 VALUES (11,0), (12,0), (13,0), (14,0);
+
+--connection master
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection aux_slave
+BEGIN;
+# block L1
+  DELETE FROM t1 WHERE a = 11;
+
+--connection master
+begin /* trx1/L1 */;
+  delete from t1 where a = 11;
+  update t1 set b = 1 where a = 12;
+commit;
+begin /* trx2/F2 */; ## TODO: delay F2
+  delete from t1 where a = 12;
+  update t1 set b=2 where a=14;
+commit;
+begin /* trx3/F3  */;
+  delete from t1 where a = 13;
+commit;
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# While the 1st worker is locked out run backup
+--connection backup_slave
+BACKUP STAGE START;
+--send BACKUP STAGE BLOCK_COMMIT
+
+--connection aux_slave
+# Make sure BACKUP lock is waiting
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+# Prepare to hang again F2 now at its retry
+--connect (aux_slave2,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+  send UPDATE t1 SET b=2 WHERE a=14;
+
+--connection slave
+# wait the aux_slave2 spoiler starts waiting for F2 lock, and then..
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.INNODB_LOCK_WAITS;
+--source include/wait_condition.inc
+
+# .. release L
+ROLLBACK;
+
+# prove the MDL lock state is now  /* granted */  S1(F3); /* waiting */ X3
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock" and Command = "Query"
+--source include/wait_condition.inc
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Updating" and Command = "Slave_worker"
+--source include/wait_condition.inc
+
+# Finish L2=F2,F3 group
+--connection aux_slave2
+--reap
+ROLLBACK;
+
+--connection backup_slave
+reap;
+BACKUP STAGE END;
+
+# Correctness proof
+--connection master
+--sync_slave_with_master
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+# PROOF 2.B.
+# The plot further extends the scenario of the Proof 2.A to introduce
+# one more replicated transaction which can't leapfrog the X of backup.
+# It's about initally having the MDL queue state as
+#   /* granted */ S1(F2),S2(F3); /* waiting */ X3(B),
+# Along the way to commit L1 kills F2 and bypasses X3. Past F2 retry
+# the BACKUP MDL queue state gets about
+#   S3(F3),S5(F2); X3
+# Before the 2nd group commits S6(by L4) is requested and it won't be able
+# to make to the grantees 'cos 4 > 3 and 2.
+# In the following the plot 2.A is largely repeated, and in the end
+# the BACKUP MDL will have
+#     /*granted*/ X3; /*waiting*/ S6
+# which proves the ignore-priority scheduler's fairness.
+
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_threads= 4;
+--source include/start_slave.inc
+
+--connection master
+# Insert new, non-conflicting rows for the 3 workers.
+INSERT INTO t1 VALUES (21,0), (22,0), (23,0), (24,0);
+
+--connection master
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+--connection aux_slave
+BEGIN;
+# block the 1st follower
+  DELETE FROM t1 WHERE a = 21;
+
+--connection master
+begin /* trx1/L1 */;
+  delete from t1 where a = 21;
+  update t1 set b = 1 where a = 22;
+commit;
+begin /* trx2/F2 */;
+  delete from t1 where a = 22;
+  update t1 set b=2 where a=24;
+commit;
+begin /* trx3/F3  */;
+  delete from t1 where a = 23;
+commit;
+
+--connection slave
+--source include/start_slave.inc
+
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# While the 1st worker is locked out run backup
+--connection backup_slave
+BACKUP STAGE START;
+--send BACKUP STAGE BLOCK_COMMIT
+
+--connection aux_slave
+# Make sure BACKUP lock is waiting
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+# Prepare to hang F2 at its retry
+connection aux_slave2;
+BEGIN;
+  --send UPDATE t1 SET b=1 WHERE a=24
+
+--connection slave
+# wait the aux_slave2 spoiler starts waiting for F2 lock, and then..
+--connection aux_slave
+--let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.INNODB_LOCK_WAITS;
+--source include/wait_condition.inc
+
+# .. release L
+ROLLBACK;
+
+--echo # prove the MDL lock state is about to become /*granted*/ S2,S5(F2); /* waitng */ X3
+--connection aux_slave
+# F3 is waiting for the innodb lock waiting F2
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock" and Command = "Query"
+--source include/wait_condition.inc
+
+# Before to finish F2/L2,F3 group conduct Proof 3 specfic actions
+connection master;
+INSERT INTO t1 VALUES (25,0) /* L4 third slave group commit leader */;
+
+# L4 can't leapfrog
+connection slave;
+--let $wait_condition= SELECT COUNT(*) = 2 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+# Complete L2,F3
+connection aux_slave2;
+--reap
+ROLLBACK;
+
+connection backup_slave;
+reap;
+
+--echo L4's S6 is waiting
+connection slave;
+--echo INSERT(25) is backup-locked out
+select * from t1 where a = 25;
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+connection backup_slave;
+BACKUP STAGE END;
+
+# Correctness proof
+connection master;
+sync_slave_with_master;
+--echo INSERT(25) is done
+select * from t1 where a = 25;
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+
+# Clean up.
+--connection slave
+--source include/stop_slave.inc
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc
+--echo # End of the tests
