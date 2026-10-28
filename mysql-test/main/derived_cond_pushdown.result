@@ -21807,7 +21807,6 @@ id	id	id
 0	1	1
 0	3	3
 drop table t1,t2,t3;
-# End of 10.11 tests
 #
 # MDEV-36295 INTERVAL() pushed into a derived table
 #
@@ -21817,4 +21816,4 @@ select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 
 a	b
 5	20
 drop table t1;
-# End of 13.2 tests
+# End of 10.11 tests
