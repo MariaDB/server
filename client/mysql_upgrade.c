@@ -877,8 +877,6 @@ static int upgrade_already_done(int silent)
     else
       verbose("This installation of MariaDB is already upgraded to %s.\n"
               "There is no need to run mysql_upgrade again.", version);
-    if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mysql_upgrade");
   }
   return 0;
 }
@@ -1513,11 +1511,17 @@ int main(int argc, char **argv)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
 
   /*
-    Read the mysql_upgrade_info file to check if mysql_upgrade
-    already has been run for this installation of MariaDB
+    If mysql_upgrade_info file already shows the current version, check
+    only the system tables. They can still be from an older version,
+    e.g if a dump from an older server was restored (MDEV-39343).
   */
-  if (!opt_force && !upgrade_already_done(0))
-    goto end;                                   /* Upgrade already done */
+  if (!opt_force && !upgrade_already_done(1))
+  {
+    verbose("This installation of MariaDB is already upgraded to %s.\n"
+            "Checking system tables only. Use --force to check all tables.",
+            upgrade_from_version);
+    opt_systables_only= TRUE;
+  }
 
   if (opt_version_check && check_version_match())
     die("Upgrade failed");
@@ -1545,7 +1549,6 @@ int main(int argc, char **argv)
 
   DBUG_ASSERT(phase == phases_total);
 
-end:
   print_conn_args("mariadb-check");
   free_used_memory();
   my_end(my_end_arg);
