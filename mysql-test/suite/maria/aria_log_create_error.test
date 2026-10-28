@@ -1,0 +1,32 @@
+--source include/have_maria.inc
+--source include/have_sequence.inc
+--source include/not_as_root.inc
+# translog_stop_writing() fails a debug assertion.
+--source include/not_debug.inc
+
+--echo #
+--echo # The creation of a new Aria log file fails
+--echo #
+
+# The log becomes read-only. The shutdown must not close and free the
+# log file that was not created.
+call mtr.add_suppression("Aria engine: checkpoint failed");
+
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+# The table is not empty, so that every row is logged.
+INSERT INTO t1 VALUES ('a');
+
+perl;
+chmod 0555, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+EOF
+# The log file number depends on the Aria log that earlier tests left.
+--replace_regex /file '.*aria_log\.[0-9]+/file 'aria_log.#/ /Errcode: [0-9]+ "[^"]*"/Errcode/
+--error 1
+INSERT INTO t1 SELECT REPEAT('b', 250) FROM seq_1_to_50000;
+perl;
+chmod 0755, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+EOF
+
+--source include/restart_mysqld.inc
+DROP TABLE t1;

@@ -1677,7 +1677,10 @@ static my_bool translog_create_new_file()
     goto error_lock;
 
   if ((file->handler.file= create_logfile_by_number_no_cache(file_no)) == -1)
+  {
+    pop_dynamic(&log_descriptor.open_files);
     goto error_lock;
+  }
   translog_file_init(file, file_no, 0);
 
   log_descriptor.max_file++;
@@ -1696,13 +1699,15 @@ static my_bool translog_create_new_file()
 
   DBUG_PRINT("info", ("file_no: %lu", (ulong)file_no));
 
-  if (translog_write_file_header())
-    goto error;
-
-  if (ma_control_file_write_and_force(last_checkpoint_lsn, file_no,
+  if (translog_write_file_header() ||
+      ma_control_file_write_and_force(last_checkpoint_lsn, file_no,
                                       max_trid_in_control_file,
                                       recovery_failures))
-    goto error;
+  {
+    /* translog_destroy() closes and frees the file in open_files */
+    translog_stop_writing();
+    DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 
