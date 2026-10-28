@@ -25369,4 +25369,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 deallocate prepare s;
 drop table t1;
 set names default;
+#
+# MDEV-36295 INTERVAL() pushed into a derived table
+#
+create table t1 (a int, b int);
+insert into t1 values (1,10),(5,20),(9,30);
+select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 1;
+a	b
+5	20
+drop table t1;
 # End of 11.4 tests

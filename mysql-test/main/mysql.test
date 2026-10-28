@@ -793,9 +793,14 @@ create user ser@localhost identified by "ass";
 --echo MYSQL --disable-ssl-verify-server-cert -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
 --exec $MYSQL -user -pass --disable-ssl-verify-server-cert -e "\\s"
+# GnuTLS client cannot verify CA-signed cert by password, give it the CA
+let $ssl_ca=;
+if ($CLIENT_TLS_LIBRARY == "GnuTLS") {
+  let $ssl_ca= --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem;
+}
 --echo MYSQL --ssl-verify-server-cert -e "\\s"
 --replace_regex /^.[^S].*// /\b[-A-Z_0-9]+,/XXX,/
---exec $MYSQL -user -pass --ssl-verify-server-cert -e "\\s"
+--exec $MYSQL -user -pass $ssl_ca --ssl-verify-server-cert -e "\\s"
 drop user ser@localhost;
 
 --echo #

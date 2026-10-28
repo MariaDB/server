@@ -457,3 +457,62 @@ insert into t values (default);
 drop sequence s;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-35867 mariadb-check --repair does not repair sequences, only
+--echo # changes the status to OK
+--echo #
+
+let $datadir=`select @@datadir`;
+create table t1 (next_not_cached_value bigint(21) NOT NULL,
+  minimum_value bigint(21) NOT NULL, maximum_value bigint(21) NOT NULL,
+  start_value bigint(21) NOT NULL, increment bigint(21) NOT NULL,
+  cache_size bigint(21) unsigned NOT NULL,
+  cycle_option tinyint(1) unsigned NOT NULL,
+  cycle_count bigint(21) NOT NULL) engine=myisam;
+insert into t1 values (1,1,9223372036854775806,1,1,1000,0,0),
+                      (2,1,9223372036854775806,1,1,1000,0,0);
+create sequence s1 engine=myisam;
+repair table s1;
+flush tables;
+--remove_file $datadir/test/s1.MYD
+--remove_file $datadir/test/s1.MYI
+--copy_file $datadir/test/t1.MYD $datadir/test/s1.MYD
+--copy_file $datadir/test/t1.MYI $datadir/test/s1.MYI
+repair table s1;
+repair table s1 extended;
+repair table s1 use_frm;
+--disable_ps2_protocol
+select next value for s1;
+--enable_ps2_protocol
+delete from t1;
+flush tables;
+--remove_file $datadir/test/s1.MYD
+--remove_file $datadir/test/s1.MYI
+--copy_file $datadir/test/t1.MYD $datadir/test/s1.MYD
+--copy_file $datadir/test/t1.MYI $datadir/test/s1.MYI
+repair table s1;
+drop table t1;
+drop sequence s1;
+
+create table t1 (next_not_cached_value bigint(21) NOT NULL,
+  minimum_value bigint(21) NOT NULL, maximum_value bigint(21) NOT NULL,
+  start_value bigint(21) NOT NULL, increment bigint(21) NOT NULL,
+  cache_size bigint(21) unsigned NOT NULL,
+  cycle_option tinyint(1) unsigned NOT NULL,
+  cycle_count bigint(21) NOT NULL) engine=innodb;
+insert into t1 values (1,1,9223372036854775806,1,1,1000,0,0),
+                      (2,1,9223372036854775806,1,1,1000,0,0);
+create sequence s1 engine=innodb;
+alter table s1 discard tablespace;
+flush tables t1 for export;
+--copy_file $datadir/test/t1.ibd $datadir/test/s1.ibd
+unlock tables;
+--disable_warnings
+alter table s1 import tablespace;
+--enable_warnings
+repair table s1;
+drop table t1;
+drop sequence s1;
+
+--echo # End of 11.4 tests

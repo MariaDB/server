@@ -242,7 +242,7 @@ static inline bool read_str(const uchar **buf, const uchar *buf_end,
 {
   if (unlikely(*buf >= buf_end))
     return 1;
-  if ((uint) **buf >= buf_end - *buf)
+  if (**buf >= buf_end - *buf)
     return 1;
   *len= (uint8) **buf;
   *str= (char*) (*buf)+1;
@@ -2755,7 +2755,7 @@ XA_prepare_log_event(const uchar *buf, size_t event_len)
   if (unlikely(event_len < needed_len))
     return;
   buf+= header_len;
-  static_assert(sizeof(bool) == 1);
+  static_assert(sizeof(bool) == 1, "Code assumes sizeof(bool)==1");
   one_phase= * (bool *) buf;
   buf+= 1;
   long loc_formatID= uint4korr(buf);
@@ -2804,7 +2804,7 @@ bool Log_event_data_type::unpack_optional_attributes(const char *pos,
         if (pos >= end)
           return true;
         uint length= (uchar) *pos++;
-        if (end - pos < length)
+        if (end - pos < (ptrdiff_t)length)
           return true;
         m_data_type_name= {pos, length};
         pos+= length;
@@ -3750,7 +3750,7 @@ static void parse_column_name(std::vector<std::string> &vec,
   while (p < end)
   {
     unsigned len= (uint)safe_net_field_length_ll(&p, end - p);
-    if (unlikely(!p || len > end - p))
+    if (unlikely(!p || len > (size_t)(end - p)))
       return;
     vec.push_back(std::string(reinterpret_cast<char *>(p), len));
     p+= len;
@@ -3784,7 +3784,7 @@ static void parse_set_str_value(std::vector<Table_map_log_event::
     for (unsigned int i= 0; i < count; i++)
     {
       unsigned len1= (uint)safe_net_field_length_ll(&p, end - p);
-      if (unlikely(!p || len1 > end - p))
+      if (unlikely(!p || len1 > (size_t)(end - p)))
         return;
       vec.back().push_back(std::string(reinterpret_cast<char *>(p), len1));
       p+= len1;
@@ -3888,7 +3888,7 @@ Optional_metadata_fields(unsigned char* optional_metadata,
     // Get length and move field to the value.
     field++;
     len= (uint)safe_net_field_length_ll(&field, metadata_end - field);
-    if (unlikely(!field || metadata_end - field < len))
+    if (unlikely(!field || (size_t)(metadata_end - field) < len))
       break;
 
     switch(type)

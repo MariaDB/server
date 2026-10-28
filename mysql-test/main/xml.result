@@ -1323,7 +1323,10 @@ foo
 # End of 10.5 tests
 #
 #
-# ExtractValue/UpdateXML crash
+# Start of 10.6 tests
+#
+#
+# MDEV-39210 ExtractValue/UpdateXML crash
 #
 SELECT ExtractValue('<!a/><!b/>', '/a');
 ExtractValue('<!a/><!b/>', '/a')
