@@ -4137,6 +4137,10 @@ public:
   {
     return false;
   }
+  virtual bool adjust_spparam_charset(Spvar_definition *def, Item *from) const
+  {
+    return false;
+  }
   Type_handler() : m_name(0,0) {}
   virtual ~Type_handler() = default;
   /**
@@ -7282,6 +7286,7 @@ public:
   {
     return true;
   }
+  bool adjust_spparam_charset(Spvar_definition *def, Item *from) const override;
 };
 
 
