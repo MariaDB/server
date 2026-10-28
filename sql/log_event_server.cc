@@ -2327,7 +2327,16 @@ end:
   thd->first_successful_insert_id_in_prev_stmt_for_binlog= 0;
   thd->first_successful_insert_id_in_prev_stmt= 0;
   thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
-  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  /*
+    Not for BINLOG statement: thd->mem_root holds memory of the statement
+    itself (e.g. Items of EXECUTE IMMEDIATE).
+  */
+  if (thd->slave_thread
+#ifdef WITH_WSREP
+      || (WSREP(thd) && wsrep_thd_is_applying(thd))
+#endif /* WITH_WSREP */
+     )
+    free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
   DBUG_RETURN(thd->is_slave_error);
 }
 

@@ -1,0 +1,31 @@
+--source ../include/have_duckdb.inc
+--source include/not_msan.inc
+--disable_warnings
+
+#
+# MDEV-41208 SIGABRT in StringValue::Get after SET NAMES BINARY
+#
+# MariaDB types mixed numeric/string COALESCE as VARCHAR. DuckDB types it as
+# INTEGER because untyped string literals take the other argument's type.
+# Fetching that integer with GetValueUnsafe<string>() asserts VARCHAR.
+#
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1);
+
+SELECT COALESCE(1,'t') FROM t1;
+SELECT COALESCE(c1,'t') FROM t1;
+SELECT IFNULL(1,'t') FROM t1;
+
+SET NAMES BINARY;
+SELECT COALESCE(1,'t') FROM t1;
+SELECT COALESCE(c1,'t') FROM t1;
+SELECT IFNULL(1,'t') FROM t1;
+SET NAMES utf8mb4;
+
+CREATE TABLE t2 (c1 VARCHAR(10) CHARACTER SET utf8mb4 PRIMARY KEY) ENGINE=DuckDB;
+INSERT INTO t2 VALUES ('ab');
+SELECT c1 FROM t2;
+SELECT COALESCE(c1, 'z') FROM t2;
+
+DROP TABLE t1, t2;

@@ -102,6 +102,7 @@ v	a
 r	after
 connection master;
 drop table t;
+connection slave;
 #
 # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
 #            table (on UPDATE)
@@ -140,6 +141,7 @@ id	a	v	ok
 2	start	t	1
 connection master;
 drop table t;
+connection slave;
 #
 # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
 #            table (on UPDATE)

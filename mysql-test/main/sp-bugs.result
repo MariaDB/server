@@ -460,6 +460,22 @@ ERROR 42000: PROCEDURE test.outer_p does not exist
 deallocate prepare stmt;
 drop procedure inner_p;
 #
+# MDEV-41470 Server crashes in check_grant / delete_precheck on 2nd execution of SP
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT COUNT(*) FROM t1, t2);
+CREATE VIEW v1 AS SELECT f1();
+CREATE PROCEDURE p1() DELETE FROM v1;
+CALL p1;
+ERROR HY000: The target table v1 of the DELETE is not updatable
+CALL p1;
+ERROR HY000: The target table v1 of the DELETE is not updatable
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+#
 # End of 11.4 tests
 #
 #

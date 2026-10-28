@@ -158,5 +158,14 @@ a
 3
 99
 99
+## Case 9: Statement event in EXECUTE IMMEDIATE (works)
+execute immediate "binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'";
+select * from t1;
+a
+3
+3
+99
+99
+99
 drop table t0, t1;
 # End of 10.11 tests
