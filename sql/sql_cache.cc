@@ -588,6 +588,9 @@ void inline fix_local_query_cache_mode(THD *thd)
   effect by another thread. This enables a quick path in execution to skip waits
   when the outcome is known.
 
+  The lock attempt also fails if disabling of the cache is pending, even if
+  it was requested while we were waiting.
+
   @param mode TIMEOUT the lock can abort because of a timeout
               TRY the lock can abort because it is locked now
               WAIT wait for lock (default)
@@ -607,7 +610,7 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
 
   mysql_mutex_lock(&structure_guard_mutex);
   DBUG_EXECUTE_IF("status_wait_query_cache_mutex_sleep", { sleep(5); });
-  if (m_cache_status == DISABLED)
+  if (m_cache_status != OK)
   {
     mysql_mutex_unlock(&structure_guard_mutex);
     DBUG_RETURN(TRUE);
@@ -617,6 +620,8 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
 
   while (1)
   {
+    if (m_cache_status != OK)
+      break;
     if (m_cache_lock_status == Query_cache::UNLOCKED)
     {
       m_cache_lock_status= Query_cache::LOCKED;
@@ -668,7 +673,7 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
     }
   }
   if (interrupt)
-    m_requests_in_progress--;
+    end_request();
   mysql_mutex_unlock(&structure_guard_mutex);
 
   DBUG_RETURN(interrupt);
@@ -755,7 +760,27 @@ void Query_cache::unlock(void)
               m_cache_lock_status == Query_cache::LOCKED_NO_WAIT);
   m_cache_lock_status= Query_cache::UNLOCKED;
   DBUG_PRINT("Query_cache",("Sending signal"));
-  mysql_cond_signal(&COND_cache_status_changed);
+  if (m_cache_status == OK)
+    mysql_cond_signal(&COND_cache_status_changed);
+  else
+  {
+    /* All waiters in try_lock() should give up */
+    mysql_cond_broadcast(&COND_cache_status_changed);
+  }
+  end_request();
+  mysql_mutex_unlock(&structure_guard_mutex);
+  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Unregister a request to the query cache and free the cache if it was
+  the last request and disabling of the cache is pending.
+*/
+
+void Query_cache::end_request()
+{
+  mysql_mutex_assert_owner(&structure_guard_mutex);
   DBUG_ASSERT(m_requests_in_progress > 0);
   m_requests_in_progress--;
   if (m_requests_in_progress == 0 && m_cache_status == DISABLE_REQUEST)
@@ -764,8 +789,25 @@ void Query_cache::unlock(void)
     free_cache();
     m_cache_status= DISABLED;
   }
-  mysql_mutex_unlock(&structure_guard_mutex);
-  DBUG_VOID_RETURN;
+}
+
+
+/**
+  Get the query block the thread is writing results to.
+
+  @note The cache must be locked.
+
+  @return NULL if the writer was dropped or the cache memory where the
+          block was allocated has been freed (the cache could be
+          re-enabled meanwhile).
+*/
+
+Query_cache_block *
+Query_cache::writer_query_block(Query_cache_tls *query_cache_tls)
+{
+  if (query_cache_tls->cache_generation != m_cache_generation)
+    query_cache_tls->first_query_block= NULL;
+  return query_cache_tls->first_query_block;
 }
 
 
@@ -1084,7 +1126,7 @@ Query_cache::insert(THD *thd, Query_cache_tls *query_cache_tls,
   if (try_lock(thd, Query_cache::WAIT))
     DBUG_VOID_RETURN;
 
-  Query_cache_block *query_block = query_cache_tls->first_query_block;
+  Query_cache_block *query_block= writer_query_block(query_cache_tls);
   if (query_block == NULL)
   {
     /*
@@ -1145,7 +1187,7 @@ Query_cache::abort(THD *thd, Query_cache_tls *query_cache_tls)
     While we were waiting another thread might have changed the status
     of the writer. Make sure the writer still exists before continue.
   */
-  Query_cache_block *query_block= query_cache_tls->first_query_block;
+  Query_cache_block *query_block= writer_query_block(query_cache_tls);
   if (query_block)
   {
     THD_STAGE_INFO(thd, stage_storing_result_in_query_cache);
@@ -1195,7 +1237,7 @@ void Query_cache::end_of_result(THD *thd)
     DBUG_VOID_RETURN;
   }
 
-  query_block= query_cache_tls->first_query_block;
+  query_block= writer_query_block(query_cache_tls);
   if (query_block)
   {
     /*
@@ -1278,7 +1320,7 @@ Query_cache::Query_cache(size_t query_cache_limit_arg,
    query_cache_limit(query_cache_limit_arg),
    queries_in_cache(0), hits(0), inserts(0), refused(0),
    total_blocks(0), lowmem_prunes(0),
-   m_cache_status(OK),
+   m_cache_status(OK), m_cache_generation(0),
    min_allocation_unit(ALIGN_SIZE(min_allocation_unit_arg)),
    min_result_data_size(ALIGN_SIZE(min_result_data_size_arg)),
    def_query_hash_size(ALIGN_SIZE(def_query_hash_size_arg)),
@@ -1318,10 +1360,10 @@ size_t Query_cache::resize(size_t query_cache_size_arg)
       if (query->writer())
       {
         /*
-           Drop the writer; this will cancel any attempts to store
-           the processed statement associated with this writer.
+           Drop the writer; free_cache() changes the cache generation,
+           which will cancel any attempts to store the processed statement
+           associated with this writer.
          */
-        query->writer()->first_query_block= NULL;
         query->writer(0);
         refused++;
       }
@@ -1568,6 +1610,7 @@ def_week_frmt: %zu, in_trans: %d, autocommit: %d",
 	inserts++;
 	queries_in_cache++;
 	thd->query_cache_tls.first_query_block= query_block;
+	thd->query_cache_tls.cache_generation= m_cache_generation;
 	header->writer(&thd->query_cache_tls);
 	header->tables_type(tables_type);
 
@@ -2531,6 +2574,7 @@ void Query_cache::destroy()
 void Query_cache::disable_query_cache(THD *thd)
 {
   lock(thd);
+  QC_DEBUG_SYNC("wait_in_query_cache_disable");
   m_cache_status= DISABLE_REQUEST;
   unlock();
 }
@@ -2833,6 +2877,7 @@ void Query_cache::free_cache()
   }
 #endif
   my_free(cache);
+  m_cache_generation++;
   make_disabled();
   my_hash_free(&queries);
   my_hash_free(&tables);
@@ -2944,8 +2989,13 @@ void Query_cache::free_query_internal(Query_cache_block *query_block)
 
   if (query->writer() != 0)
   {
-    /* Tell MySQL that this query should not be cached anymore */
-    query->writer()->first_query_block= NULL;
+    /*
+      Tell MySQL that this query should not be cached anymore.
+      If disabling is pending, the writer could have given up and gone
+      already; it will notice the cache generation change instead.
+    */
+    if (m_cache_status == OK)
+      query->writer()->first_query_block= NULL;
     query->writer(0);
   }
   double_linked_list_exclude(query_block, &queries_blocks);
