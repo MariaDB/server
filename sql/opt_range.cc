@@ -15518,13 +15518,15 @@ bool QUICK_GROUP_MIN_MAX_SELECT::add_range(SEL_ARG *sel_range)
     and leave an unstored (NO_MIN_RANGE/NO_MAX_RANGE) side zeroed.
   */
   uchar min_key[MAX_KEY_LENGTH + 1], max_key[MAX_KEY_LENGTH + 1];
+  //memset(min_key, 0xA5, MAX_KEY_LENGTH + 1);
+  //memset(max_key, 0xA5, MAX_KEY_LENGTH + 1);
   uchar *min_key_p= min_key, *max_key_p= max_key;
-  sel_range->store_min(min_max_arg_len, &min_key_p, 0);
-  sel_range->store_max(min_max_arg_len, &max_key_p, 0);
-  range= new QUICK_RANGE(join->thd, min_key, min_max_arg_len,
-                         make_keypart_map(sel_range->part),
-                         max_key, min_max_arg_len,
-                         make_keypart_map(sel_range->part),
+  bool have_min= sel_range->store_min(min_max_arg_len, &min_key_p, 0);
+  bool have_max= sel_range->store_max(min_max_arg_len, &max_key_p, 0);
+  range= new QUICK_RANGE(join->thd, min_key, have_min?min_max_arg_len:0,
+                         have_min? make_keypart_map(sel_range->part): 0,
+                         max_key, have_max? min_max_arg_len:0,
+                         have_max? make_keypart_map(sel_range->part): 0,
                          range_flag);
   if (!range)
     return TRUE;
