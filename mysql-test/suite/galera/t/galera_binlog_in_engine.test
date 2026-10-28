@@ -1,0 +1,215 @@
+#
+# Galera with the binlog implemented in InnoDB (--binlog-storage-engine=innodb).
+#
+# Both nodes write the binlog into InnoDB, the applier on node_2 binlogs the
+# replicated transactions through --log-slave-updates. Node_2 joins the
+# cluster through rsync SST, which must transfer the InnoDB binlog files.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb_binlog.inc
+--source include/have_sequence.inc
+
+--connection node_1
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+SELECT @@binlog_storage_engine;
+--connection node_2
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+SELECT @@binlog_storage_engine;
+
+--echo #
+--echo # Autocommit DML and DDL
+--echo #
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, b VARCHAR(1000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'a');
+UPDATE t1 SET b = 'b' WHERE id = 1;
+INSERT INTO t1 VALUES (2, 'c');
+DELETE FROM t1 WHERE id = 2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE b = 'b'
+--source include/wait_condition.inc
+SELECT * FROM t1;
+
+--echo #
+--echo # Multi-statement transaction with a savepoint rollback
+--echo #
+--connection node_1
+START TRANSACTION;
+INSERT INTO t1 VALUES (10, 'x');
+SAVEPOINT s1;
+INSERT INTO t1 VALUES (11, 'rolled back');
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES (12, 'y');
+COMMIT;
+
+--echo # Statement rollback inside a transaction
+START TRANSACTION;
+INSERT INTO t1 VALUES (20, 'z');
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (21, 'rolled back'), (20, 'dup');
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY id;
+
+--echo #
+--echo # Writes on node_2 replicate to node_1
+--echo #
+--connection node_2
+INSERT INTO t1 VALUES (30, 'from node_2');
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE id = 30
+--source include/wait_condition.inc
+SELECT * FROM t1 WHERE id = 30;
+
+--echo #
+--echo # A transaction smaller than the binlog cache but with several
+--echo # events replicates.
+--echo #
+--connection node_1
+START TRANSACTION;
+--disable_query_log
+--let $i = 100
+while ($i < 120)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('s', 1000))
+  --inc $i
+}
+--enable_query_log
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 20 FROM t1 WHERE id BETWEEN 100 AND 119
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1 WHERE id BETWEEN 100 AND 119;
+
+--echo #
+--echo # Transactions larger than the binlog cache (32k) are spilled to the
+--echo # engine binlog as out-of-band data while they execute. The spilled
+--echo # data is read back from the engine binlog for replication.
+--echo #
+--connection node_1
+START TRANSACTION;
+--disable_query_log
+--let $i = 200
+while ($i < 260)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('l', 1000))
+  --inc $i
+}
+--enable_query_log
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 60 FROM t1 WHERE id BETWEEN 200 AND 259
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 200 AND 259;
+
+--echo # Rollback to a savepoint and statement rollback after the savepoint
+--echo # and the statement start have been spilled
+--connection node_1
+START TRANSACTION;
+--disable_query_log
+--let $i = 400
+while ($i < 440)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('a', 1000))
+  --inc $i
+}
+SAVEPOINT s1;
+while ($i < 500)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('r', 1000))
+  --inc $i
+}
+--enable_query_log
+ROLLBACK TO SAVEPOINT s1;
+--disable_query_log
+--let $i = 500
+while ($i < 540)
+{
+  --eval INSERT INTO t1 VALUES ($i, REPEAT('b', 1000))
+  --inc $i
+}
+--enable_query_log
+--echo # A statement larger than the binlog cache that fails at its end
+--error ER_DUP_ENTRY
+INSERT INTO t1 SELECT seq, REPEAT('d', 1000) FROM seq_600_to_700 UNION ALL SELECT 400, 'dup';
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 80 FROM t1 WHERE id BETWEEN 400 AND 700
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+
+--echo # A multi-megabyte transaction, with many out-of-band nodes
+--connection node_1
+CREATE TABLE t2 (id INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(65 + seq % 26), 20000) FROM seq_1_to_200;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 200 FROM t2
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--echo #
+--echo # Streaming replication, with fragments smaller and larger than the
+--echo # binlog cache. A fragment starting in the middle of spilled data is
+--echo # read back from the engine binlog from that point.
+--echo #
+--connection node_1
+DELETE FROM t2;
+SET SESSION wsrep_trx_fragment_unit = 'bytes';
+SET SESSION wsrep_trx_fragment_size = 10000;
+START TRANSACTION;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_51_to_100;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+SET SESSION wsrep_trx_fragment_size = 100000;
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('u', 5000) WHERE id <= 50;
+UPDATE t2 SET b = REPEAT('v', 5000) WHERE id > 50;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--echo # Rollback of a streaming transaction after spilled fragments
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('w', 5000);
+ROLLBACK;
+SET SESSION wsrep_trx_fragment_size = 0;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 100 FROM t2 WHERE b LIKE 'v%' OR b LIKE 'u%'
+--source include/wait_condition.inc
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+
+--connection node_1
+DROP TABLE t2;
+
+--echo # The cluster is consistent
+--connection node_1
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
+--connection node_2
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+
+--echo #
+--echo # Both nodes have binlogged the same replicated transactions with the
+--echo # same GTIDs (wsrep_gtid_domain_id=1) in the engine binlog
+--echo #
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.tables WHERE table_name = 't1'
+--source include/wait_condition.inc
+--source suite/galera/include/galera_binlog_in_engine_check_gtid_history.inc

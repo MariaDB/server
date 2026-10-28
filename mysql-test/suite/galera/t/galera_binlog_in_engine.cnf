@@ -1,0 +1,19 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+log-bin
+log-slave-updates
+binlog-storage-engine=innodb
+binlog-cache-size=32768
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=1
+server-id=11
+
+[mysqld.2]
+log-bin
+log-slave-updates
+binlog-storage-engine=innodb
+binlog-cache-size=32768
+wsrep_gtid_mode=ON
+wsrep_gtid_domain_id=1
+server-id=12

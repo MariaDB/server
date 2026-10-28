@@ -60,13 +60,15 @@ bool init_binlog_cache_dir()
       2 /* prefix */ + 10 /* max len of thread_id */ + 1 /* underline */;
 
   /*
-    Even if the binary log is disabled (and thereby we wouldn't use the binlog
-    cache), we need to try to build the directory name, so if it exists while
-    the binlog is off (e.g. due to a previous run of mariadbd, or an SST), we
-    can delete it.
+    Even if the binary log is disabled, or implemented in a storage engine
+    (--binlog-storage-engine), and thereby we wouldn't use the binlog cache
+    dir, we need to try to build the directory name, so if it exists (e.g.
+    due to a previous run of mariadbd, or an SST from a server with a file
+    binlog), we can delete it.
   */
+  const bool use_cache_dir= opt_bin_log && !opt_binlog_engine_hton;
   dirname_part(binlog_cache_dir,
-               opt_bin_log ? log_bin_basename : opt_log_basename, &length);
+               use_cache_dir ? log_bin_basename : opt_log_basename, &length);
   /*
     Must ensure the full name of the tmp file is shorter than FN_REFLEN, to
     avoid overflowing the name buffer in write and commit.
@@ -85,17 +87,18 @@ bool init_binlog_cache_dir()
   MY_DIR *dir_info= my_dir(binlog_cache_dir, MYF(0));
 
   /*
-    If the binlog cache dir exists, yet binlogging is disabled, delete the
+    If the binlog cache dir exists, yet it is not used, delete the
     directory and skip the initialization logic.
   */
-  if (!opt_bin_log)
+  if (!use_cache_dir)
   {
     if (dir_info)
     {
       sql_print_information(
-          "Found binlog cache dir '%s', yet binary logging is "
-          "disabled. Deleting directory.",
-          binlog_cache_dir);
+          "Found binlog cache dir '%s', yet binary logging is %s. "
+          "Deleting directory.",
+          binlog_cache_dir,
+          opt_bin_log ? "implemented in a storage engine" : "disabled");
       my_dirend(dir_info);
       my_rmtree(binlog_cache_dir, MYF(0));
     }

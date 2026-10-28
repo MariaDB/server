@@ -5498,11 +5498,8 @@ static int init_server_components()
   if (WSREP_ON && !wsrep_recovery && !opt_abort)
   {
     if (binlog_engine_used)
-    {
-      sql_print_error("Galera cannot be used with the "
-                      "--binlog-storage-engine option");
-      unireg_abort(1);
-    }
+      sql_print_warning("Galera support for --binlog-storage-engine is "
+                        "experimental");
     if (opt_bootstrap) // bootstrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
@@ -6023,7 +6020,7 @@ static int init_server_components()
       unireg_abort(1);
   }
 
-  if (!binlog_engine_used && unlikely(init_binlog_cache_dir()))
+  if (unlikely(init_binlog_cache_dir()))
     unireg_abort(1);
 
 #ifdef HAVE_REPLICATION

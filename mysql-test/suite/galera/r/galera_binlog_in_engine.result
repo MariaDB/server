@@ -1,0 +1,169 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+SELECT @@binlog_storage_engine;
+@@binlog_storage_engine
+innodb
+connection node_2;
+call mtr.add_suppression("Galera support for --binlog-storage-engine is experimental");
+SELECT @@binlog_storage_engine;
+@@binlog_storage_engine
+innodb
+#
+# Autocommit DML and DDL
+#
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY, b VARCHAR(1000)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'a');
+UPDATE t1 SET b = 'b' WHERE id = 1;
+INSERT INTO t1 VALUES (2, 'c');
+DELETE FROM t1 WHERE id = 2;
+connection node_2;
+SELECT * FROM t1;
+id	b
+1	b
+#
+# Multi-statement transaction with a savepoint rollback
+#
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (10, 'x');
+SAVEPOINT s1;
+INSERT INTO t1 VALUES (11, 'rolled back');
+ROLLBACK TO SAVEPOINT s1;
+INSERT INTO t1 VALUES (12, 'y');
+COMMIT;
+# Statement rollback inside a transaction
+START TRANSACTION;
+INSERT INTO t1 VALUES (20, 'z');
+INSERT INTO t1 VALUES (21, 'rolled back'), (20, 'dup');
+ERROR 23000: Duplicate entry '20' for key 'PRIMARY'
+COMMIT;
+connection node_2;
+SELECT * FROM t1 ORDER BY id;
+id	b
+1	b
+10	x
+12	y
+20	z
+#
+# Writes on node_2 replicate to node_1
+#
+connection node_2;
+INSERT INTO t1 VALUES (30, 'from node_2');
+connection node_1;
+SELECT * FROM t1 WHERE id = 30;
+id	b
+30	from node_2
+#
+# A transaction smaller than the binlog cache but with several
+# events replicates.
+#
+connection node_1;
+START TRANSACTION;
+COMMIT;
+connection node_2;
+SELECT COUNT(*) FROM t1 WHERE id BETWEEN 100 AND 119;
+COUNT(*)
+20
+#
+# Transactions larger than the binlog cache (32k) are spilled to the
+# engine binlog as out-of-band data while they execute. The spilled
+# data is read back from the engine binlog for replication.
+#
+connection node_1;
+START TRANSACTION;
+COMMIT;
+connection node_2;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 200 AND 259;
+COUNT(*)	SUM(CRC32(b))
+60	49462348260
+# Rollback to a savepoint and statement rollback after the savepoint
+# and the statement start have been spilled
+connection node_1;
+START TRANSACTION;
+ROLLBACK TO SAVEPOINT s1;
+# A statement larger than the binlog cache that fails at its end
+INSERT INTO t1 SELECT seq, REPEAT('d', 1000) FROM seq_600_to_700 UNION ALL SELECT 400, 'dup';
+ERROR 23000: Duplicate entry '400' for key 'PRIMARY'
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+COUNT(*)	SUM(CRC32(b))
+80	225646963920
+connection node_2;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1 WHERE id BETWEEN 400 AND 700;
+COUNT(*)	SUM(CRC32(b))
+80	225646963920
+# A multi-megabyte transaction, with many out-of-band nodes
+connection node_1;
+CREATE TABLE t2 (id INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(65 + seq % 26), 20000) FROM seq_1_to_200;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+200	408044645975
+connection node_2;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+200	408044645975
+#
+# Streaming replication, with fragments smaller and larger than the
+# binlog cache. A fragment starting in the middle of spilled data is
+# read back from the engine binlog from that point.
+#
+connection node_1;
+DELETE FROM t2;
+SET SESSION wsrep_trx_fragment_unit = 'bytes';
+SET SESSION wsrep_trx_fragment_size = 10000;
+START TRANSACTION;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, REPEAT(CHAR(97 + seq % 26), 3000) FROM seq_51_to_100;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+100	204584762876
+SET SESSION wsrep_trx_fragment_size = 100000;
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('u', 5000) WHERE id <= 50;
+UPDATE t2 SET b = REPEAT('v', 5000) WHERE id > 50;
+COMMIT;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+100	293268403800
+# Rollback of a streaming transaction after spilled fragments
+START TRANSACTION;
+UPDATE t2 SET b = REPEAT('w', 5000);
+ROLLBACK;
+SET SESSION wsrep_trx_fragment_size = 0;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+100	293268403800
+connection node_2;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t2;
+COUNT(*)	SUM(CRC32(b))
+100	293268403800
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
+connection node_1;
+DROP TABLE t2;
+# The cluster is consistent
+connection node_1;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
+COUNT(*)	SUM(CRC32(b))
+165	352434020159
+connection node_2;
+SELECT COUNT(*), SUM(CRC32(b)) FROM t1;
+COUNT(*)	SUM(CRC32(b))
+165	352434020159
+connection node_1;
+DROP TABLE t1;
+#
+# Both nodes have binlogged the same replicated transactions with the
+# same GTIDs (wsrep_gtid_domain_id=1) in the engine binlog
+#
+connection node_2;
+connection node_1;
+connection node_2;
+# gtid_binlog_pos domain 1 matches on both nodes
+# The binlogs of both nodes have the same replicated GTIDs
