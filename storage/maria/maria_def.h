@@ -1293,7 +1293,8 @@ extern PSI_mutex_key key_SHARE_BITMAP_lock, key_SORT_INFO_mutex,
                      key_SHARE_intern_lock, key_SHARE_key_del_lock,
                      key_SHARE_close_lock,
                      key_SERVICE_THREAD_CONTROL_lock,
-                     key_PAGECACHE_cache_lock;
+                     key_PAGECACHE_cache_lock,
+                     key_maria_backup_context_mutex;
 
 extern PSI_mutex_key key_CRYPT_DATA_lock;
 

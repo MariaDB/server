@@ -592,24 +592,6 @@ int backup_config_append(IF_WIN(const char*, int) target,
   return -1;
 }
 
-/**
-   Invoke handlerton::backup_file() on a storage engine in a thread
-   that may or may not be associated with a BACKUP SERVER connection,
-   between handlerton::backup_start() and handlerton::backup_end()
-   of the same backup stage.
-   @param thd     the BACKUP SERVER session
-   @param plugin  storage engine
-   @param arg     the name to check
-   @return whether the name should be excluded
-*/
-static my_bool backup_name_filtered(THD *thd, plugin_ref plugin, void *arg)
-  noexcept
-{
-  const handlerton *hton= plugin_hton(plugin);
-  LEX_CSTRING &name{*static_cast<LEX_CSTRING*>(arg)};
-  return hton->backup_file && !hton->backup_file(BACKUP_LOCK_COMMIT, name);
-}
-
 /** process-wide backup context */
 struct backup_context
 {
@@ -979,18 +961,10 @@ struct backup_context
             cleanup_table_after_inplace_alter() deleting a
             #sql-alter*.frm file before we get a chance to copy it.
           */
-          !memcmp(name, tmp_file_prefix, tmp_file_prefix_length))
+          !memcmp(name, tmp_file_prefix, tmp_file_prefix_length) ||
+          /* The storage engines copy their other files */
+          !is_db_file(name, len))
         continue;
-
-      if (!is_db_file(name, len))
-      {
-        LEX_CSTRING n{name, len};
-        if (plugin_foreach_with_mask(nullptr, backup_name_filtered,
-                                     MYSQL_STORAGE_ENGINE_PLUGIN,
-                                     PLUGIN_IS_DELETED|PLUGIN_IS_READY,
-                                     &n))
-          continue;
-      }
 
       if (backup::copy_or_stream(target, sink,
 #ifndef _WIN32
