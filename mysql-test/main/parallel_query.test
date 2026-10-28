@@ -1,0 +1,107 @@
+#
+# Test KILL and KILL QUERY statements.
+#
+
+-- source include/count_sessions.inc
+-- source include/not_embedded.inc
+# this will be used in the future  -- source include/have_innodb.inc
+-- source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+SET DEBUG_SYNC='RESET';
+
+--disable_service_connection
+
+--echo #
+--echo # MDEV-39492 Parallel Query: Study how to create worker threads
+--echo #
+
+set session parallel_worker_threads=3;
+--echo # we should currently see 3 warnings;
+select seq from seq_1_to_2;
+
+set session parallel_worker_threads=10;
+--echo # the 10th workers throws out an error
+--error ER_ARGUMENT_OUT_OF_RANGE
+select seq from seq_1_to_2;
+
+set session parallel_worker_threads=0;
+connect (killee, localhost, root, , );
+
+--echo # check that kill query on a parallel worker is passed to the manager
+
+--connection killee
+let $id= `select connection_id()`;
+set session parallel_worker_threads=3;
+
+# worker THDs don't inherit session vars, we are using a debug_sync_set_action
+# to pause execution in our worker threads just after they have done something
+
+SET @save_dbug= @@global.debug_dbug;
+SET GLOBAL debug_dbug = "+d,pwt_worker_pause_before_signal";
+
+--send select seq from seq_1_to_2;
+--echo # now use the default connection to view/kill the thread group executing
+--echo # the parallel work
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
+let $name= "Parallel Worker 1 For Thread ID $id";
+let $killID= `SELECT @kid:=ID from information_schema.processlist
+ where info like $name limit 1`;
+--echo # wait for all 3 workers to hit our debug sync point
+let $wait_condition=
+  select count(*) = 3 from information_schema.processlist
+  where state like 'debug sync%' and info like '%Thread ID $id';
+--source include/wait_condition.inc
+--echo # then have a look at what is in our process list without thread ID
+select USER, DB, STATE, SUBSTRING(INFO, 1, 32)
+  from information_schema.processlist
+  where (INFO regexp '.*parallel worker.*' or
+         STATE regexp '.*parallel worker.*') and
+        NOT INFO regexp '.*information_schema\.processlist.*';
+--replace_result $killID ID
+eval kill query $killID;
+--echo # signal our workers to continue execution
+SET DEBUG_SYNC = "now SIGNAL pwt_worker_continue";
+--echo # then wait for the manager thread to clean up and go back to sleep
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where command = 'Sleep' and id = $id;
+--source include/wait_condition.inc
+#select * from information_schema.processlist;
+--echo # review error message on --reap
+--connection killee
+--error ER_QUERY_INTERRUPTED
+reap;
+
+SET DEBUG_SYNC = "RESET";
+
+--echo # save as above, but kill a worker with a simple kill and see the
+--echo # connection drop
+
+--send select seq from seq_1_to_2;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR pwt_worker_paused';
+let $name= "Parallel Worker 1 For Thread ID $id";
+let $killID= `SELECT @kid:=ID from information_schema.processlist
+ where info like $name limit 1`;
+--replace_result $killID ID
+eval kill $killID;
+SET DEBUG_SYNC = "now SIGNAL pwt_worker_continue";
+let $wait_condition=
+  select count(*) = 0 from information_schema.processlist
+  where command = 'Sleep' and id = $id;
+--source include/wait_condition.inc
+connection killee;
+--disable_warnings
+--error ER_QUERY_INTERRUPTED
+reap;
+
+--echo # killee connection now dead, confirmed below
+
+connection default;
+
+SET GLOBAL debug_dbug = @save_dbug;
+SET DEBUG_SYNC = "RESET";
+
+--source include/wait_until_count_sessions.inc
