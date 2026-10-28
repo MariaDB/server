@@ -1387,10 +1387,6 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
       break;
   }
 
-  /*
-    TODO: Rotate the Aria log when determining the commit LSN so that
-    we can safely copy the last complete log file.
-  */
   fail= run_backup_stage(thd, BACKUP_END) || fail;
 
   if (!fail)

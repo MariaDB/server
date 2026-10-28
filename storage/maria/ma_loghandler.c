@@ -8830,6 +8830,43 @@ uint32 translog_get_first_file(TRANSLOG_ADDRESS horizon)
 
 
 /**
+  @brief Make a log page end at a given address
+
+  Change a log page that was read from a log file to the page that
+  translog_flush() writes when the horizon is at the given address:
+  the bytes from the address to the end of the page are filled with
+  TRANSLOG_FILLER, and the page checksum is computed again. The bytes
+  before the address do not change when the log grows, except for the
+  checksum and the sector protection.
+
+  @param page            the log page that contains addr
+  @param addr            the end of the log, at a chunk boundary
+
+  @retval 0 OK
+  @retval 1 the page is not the page of addr, or it uses sector protection
+*/
+
+my_bool translog_cut_page(uchar *page, TRANSLOG_ADDRESS addr)
+{
+  uint offset= (uint) (LSN_OFFSET(addr) % TRANSLOG_PAGE_SIZE);
+  uint flags= page[TRANSLOG_PAGE_FLAGS];
+  DBUG_ENTER("translog_cut_page");
+
+  if (uint3korr(page) != LSN_OFFSET(addr) / TRANSLOG_PAGE_SIZE ||
+      uint3korr(page + 3) != LSN_FILE_NO(addr) ||
+      (flags & ~(TRANSLOG_PAGE_CRC | TRANSLOG_RECORD_CRC)) ||
+      offset < page_overhead[flags])
+    DBUG_RETURN(1);
+  memset(page + offset, TRANSLOG_FILLER, TRANSLOG_PAGE_SIZE - offset);
+  if (flags & TRANSLOG_PAGE_CRC)
+    int4store(page + 3 + 3 + 1,
+              translog_crc(page + page_overhead[flags],
+                           TRANSLOG_PAGE_SIZE - page_overhead[flags]));
+  DBUG_RETURN(0);
+}
+
+
+/**
   @brief Gets min file number which is needed
 
   @retval minimum file number

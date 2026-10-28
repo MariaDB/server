@@ -428,6 +428,7 @@ extern LSN translog_first_theoretical_lsn();
 extern LSN translog_next_LSN(TRANSLOG_ADDRESS addr, TRANSLOG_ADDRESS horizon);
 extern my_bool translog_purge_at_flush();
 extern uint32 translog_get_first_file(TRANSLOG_ADDRESS horizon);
+extern my_bool translog_cut_page(uchar *page, TRANSLOG_ADDRESS addr);
 extern uint32 translog_get_first_needed_file();
 extern char *translog_filename_by_fileno(uint32 file_no, char *path);
 extern void translog_set_file_size(uint32 size);

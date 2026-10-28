@@ -3748,6 +3748,9 @@ struct maria_backup_context
   from this checkpoint, because the table files may be copied before
   any later checkpoint */
   LSN checkpoint_lsn{LSN_IMPOSSIBLE};
+  /** end of the log in the backup, determined after all table files
+  were copied */
+  TRANSLOG_ADDRESS end_lsn{LSN_IMPOSSIBLE};
 
   maria_backup_context()
   {
@@ -4042,6 +4045,69 @@ static bool maria_backup_table(const backup_target &target,
 }
 
 /**
+   Copy the last Aria log file of the backup up to the end of the log.
+   The log can grow after its end was determined. The pages before the
+   page of the end do not change. The page of the end is copied as
+   translog_flush() wrote it when the end was the horizon.
+   @param target  backup target
+   @param sink    worker context
+   @param path    log file name
+   @param prefix  length of the path prefix to omit from the backup
+   @param end     end of the log in the backup
+   @return whether the operation failed
+*/
+static bool maria_backup_log_tail(const backup_target &target,
+                                  const backup_sink &sink, const char *path,
+                                  size_t prefix, TRANSLOG_ADDRESS end) noexcept
+{
+  /* An integer multiple of TRANSLOG_PAGE_SIZE */
+  constexpr size_t buf_size{1U << 20};
+  const char *name= path + prefix;
+  const my_off_t size= LSN_OFFSET(end) - LSN_OFFSET(end) % TRANSLOG_PAGE_SIZE +
+    TRANSLOG_PAGE_SIZE;
+  const File src= my_open(path, O_RDONLY | O_BINARY, MYF(MY_WME));
+  if (src < 0)
+    return true;
+  uchar *buf= static_cast<uchar*>(my_malloc(PSI_INSTRUMENT_ME, buf_size,
+                                            MYF(MY_WME)));
+  backup_fd dst;
+  int err= buf ? maria_backup_create(target, sink, name, size, &dst) : 1;
+  if (err > 0)
+  {
+    my_free(buf);
+    my_close(src, MYF(0));
+    return true;
+  }
+  bool read_failed= false;
+
+  for (my_off_t pos= 0; !err && pos < size; )
+  {
+    const size_t len= size_t(MY_MIN(my_off_t{buf_size}, size - pos));
+    if (my_pread(src, buf, len, pos, MYF(MY_WME | MY_NABP)))
+    {
+      read_failed= true;
+      break;
+    }
+    pos+= len;
+    if (pos == size && translog_cut_page(buf + len - TRANSLOG_PAGE_SIZE, end))
+    {
+      my_error(ER_ERROR_ON_READ, MYF(0), name, HA_ERR_CRASHED);
+      read_failed= true;
+      break;
+    }
+    err= backup_stream_write(dst, buf, len);
+  }
+
+  if (sink.stream == backup_sink::NO_STREAM)
+    err|= IF_WIN(!CloseHandle(dst), close(dst));
+  if (err && !read_failed)
+    my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
+  my_free(buf);
+  my_close(src, MYF(0));
+  return err || read_failed;
+}
+
+/**
    Write aria_log_control to the backup.
    @param target          backup target
    @param sink            worker context
@@ -4083,7 +4149,7 @@ static bool maria_backup_control_file(const backup_target &target,
 
 /* A C++ function pointer compatible wrapper of a C function */
 static void *
-maria_backup_start(THD *, const backup_target *target,
+maria_backup_start(THD *thd, const backup_target *target,
                    backup_stages stage, const backup_sink *sink) noexcept
 {
   switch (stage) {
@@ -4123,20 +4189,25 @@ maria_backup_start(THD *, const backup_target *target,
       return reinterpret_cast<void*>(-1);
     return sink->ha_data;
   case BACKUP_LOCK_COMMIT:
+    static_cast<maria_backup_context*>(sink->ha_data)->next= 0;
+    return sink->ha_data;
+  case BACKUP_FINISHED:
     break;
   default:
     return sink->ha_data;
   }
 
+  DEBUG_SYNC(thd, "maria_backup_log_copy");
   {
-    maria_backup_context *ctx=
-      static_cast<maria_backup_context*>(sink->ha_data);
-    ctx->next= 0;
+    /*
+      Copy the log up to maria_backup_context::end_lsn. The log files
+      are not purged until maria_backup_end(BACKUP_FINISHED).
+    */
+    const maria_backup_context *ctx=
+      static_cast<const maria_backup_context*>(sink->ha_data);
     const size_t prefix{strlen(maria_data_root) + 1};
     const size_t size{prefix + sizeof "aria_log.00000001"};
-    const TRANSLOG_ADDRESS horizon{translog_get_horizon()};
-    translog_flush(horizon);
-    const uint32 last{LSN_FILE_NO(horizon)};
+    const uint32 last{LSN_FILE_NO(ctx->end_lsn)};
     bool fail{false};
 
     /* FIXME: copy one log file per thread */
@@ -4149,14 +4220,17 @@ maria_backup_start(THD *, const backup_target *target,
     memcpy(filename, maria_data_root, prefix - 1);
     filename[prefix - 1]= '/';
 
-    for (uint32 i{translog_get_first_file(horizon)}; i <= last; i++)
+    for (uint32 i{translog_get_first_file(ctx->end_lsn)}; i < last; i++)
     {
       snprintf(filename + prefix, size - prefix, "aria_log.%08" PRIu32, i);
       if (backup::copy_or_stream(*target, *sink, filename, prefix))
         goto fail;
     }
 
-    if (maria_backup_control_file(*target, *sink, ctx->checkpoint_lsn, last))
+    snprintf(filename + prefix, size - prefix, "aria_log.%08" PRIu32, last);
+    if (maria_backup_log_tail(*target, *sink, filename, prefix,
+                              ctx->end_lsn) ||
+        maria_backup_control_file(*target, *sink, ctx->checkpoint_lsn, last))
     fail:
       fail= true;
     free(filename);
@@ -4201,10 +4275,11 @@ static int maria_backup_step(THD *, const backup_target *target,
 }
 
 /**
-   Free the Aria backup context at the end of BACKUP SERVER.
+   Determine the end of the log at BACKUP_LOCK_COMMIT, and free the
+   Aria backup context at the end of BACKUP SERVER.
    @param stage   the last stage, or BACKUP_ABORTED or BACKUP_FINISHED
    @param sink    worker context
-   @return 0
+   @return whether the operation failed
 */
 static int maria_backup_end(THD *thd, const backup_target *,
                             backup_stages stage, const backup_sink *sink)
@@ -4212,6 +4287,24 @@ static int maria_backup_end(THD *thd, const backup_target *,
 {
   if (stage == BACKUP_WAIT_FOR_FLUSH)
     DEBUG_SYNC(thd, "maria_backup_tables_copied");
+  if (stage == BACKUP_LOCK_COMMIT)
+  {
+    /*
+      All table files were copied. The log in the backup ends here, so
+      that it does not contain the transactions that commit after
+      BACKUP_END released the locks. The log is copied in
+      maria_backup_start(BACKUP_FINISHED).
+    */
+    maria_backup_context *ctx=
+      static_cast<maria_backup_context*>(sink->ha_data);
+    ctx->end_lsn= translog_get_horizon();
+    if (translog_flush(ctx->end_lsn))
+    {
+      my_error(ER_ERROR_ON_WRITE, MYF(0), "aria_log", my_errno);
+      return 1;
+    }
+    DEBUG_SYNC(thd, "maria_backup_log_end");
+  }
   if (stage == BACKUP_FINISHED && sink->ha_data)
   {
     translog_enable_purge();

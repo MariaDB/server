@@ -1,0 +1,102 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# BACKUP SERVER determines the end of the Aria log at BACKUP_LOCK_COMMIT,
+# after it copied the table files. It copies the log up to that end at
+# BACKUP_FINISHED, after the locks were released. The UPDATE writes log
+# records (and data pages, because the page cache is small) while its
+# commit waits for the backup lock. Before the log is copied, the UPDATE
+# commits and more writes make the log continue in a new file.
+# The backup must not contain any of these changes.
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+INSERT INTO t1 SELECT REPEAT('a', 200) FROM seq_1_to_1000;
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--let MYSQLD_DATADIR= `SELECT @@datadir`
+--let BACKUP_DIR= $MYSQLTEST_VARDIR/bk
+--let LAST_LOG= $MYSQLTEST_VARDIR/tmp/backup_aria_last_log
+
+--connect bk,localhost,root
+SET DEBUG_SYNC='maria_backup_log_end SIGNAL ended WAIT_FOR go';
+SET DEBUG_SYNC='maria_backup_log_copy SIGNAL copying WAIT_FOR copy';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR ended';
+perl;
+opendir my $d, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+my @n= sort map { /^aria_log\.(\d{8})$/ ? $1 : () } readdir $d;
+open my $f, '>', $ENV{LAST_LOG} or die "$ENV{LAST_LOG}: $!";
+print $f $n[-1];
+EOF
+
+--connect dml,localhost,root
+--send UPDATE t1 SET c= REPEAT('b', 250)
+--connection default
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = 'Waiting for backup lock' AND info LIKE 'UPDATE t1%'
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go';
+SET DEBUG_SYNC='now WAIT_FOR copying';
+
+--connection dml
+--reap
+CREATE TABLE t2 (c VARCHAR(255)) ENGINE=Aria;
+# The table is not empty, so that every row is logged.
+INSERT INTO t2 VALUES ('c');
+INSERT INTO t2 SELECT REPEAT('c', 250) FROM seq_1_to_50000;
+--disconnect dml
+
+--connection default
+perl;
+opendir my $d, $ENV{MYSQLD_DATADIR} or die "$ENV{MYSQLD_DATADIR}: $!";
+my @n= sort map { /^aria_log\.(\d{8})$/ ? $1 : () } readdir $d;
+open my $f, '<', $ENV{LAST_LOG} or die "$ENV{LAST_LOG}: $!";
+my $last= <$f>;
+print "The log continues in a new file: ", ($n[-1] > $last ? 1 : 0), "\n";
+EOF
+SET DEBUG_SYNC='now SIGNAL copy';
+
+--connection bk
+--reap
+--disconnect bk
+--connection default
+SET DEBUG_SYNC='RESET';
+
+perl;
+opendir my $d, $ENV{BACKUP_DIR} or die "$ENV{BACKUP_DIR}: $!";
+my @n= sort map { /^aria_log\.(\d{8})$/ ? $1 : () } readdir $d;
+open my $f, '<', $ENV{LAST_LOG} or die "$ENV{LAST_LOG}: $!";
+my $last= <$f>;
+print "The backup ends in the log file of the log end: ",
+  ($n[-1] == $last ? 1 : 0), "\n";
+unlink $ENV{LAST_LOG};
+EOF
+
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+SHOW TABLES;
+
+--echo # The log of the backup continues from the page where it was cut.
+INSERT INTO t1 VALUES ('d');
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+SELECT COUNT(*) FROM t2;
+DROP TABLE t1, t2;
+--rmdir $MYSQLTEST_VARDIR/bk

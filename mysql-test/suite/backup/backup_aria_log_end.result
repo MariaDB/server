@@ -1,0 +1,57 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+INSERT INTO t1 SELECT REPEAT('a', 200) FROM seq_1_to_1000;
+connect bk,localhost,root;
+SET DEBUG_SYNC='maria_backup_log_end SIGNAL ended WAIT_FOR go';
+SET DEBUG_SYNC='maria_backup_log_copy SIGNAL copying WAIT_FOR copy';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ended';
+connect dml,localhost,root;
+UPDATE t1 SET c= REPEAT('b', 250);
+connection default;
+SET DEBUG_SYNC='now SIGNAL go';
+SET DEBUG_SYNC='now WAIT_FOR copying';
+connection dml;
+CREATE TABLE t2 (c VARCHAR(255)) ENGINE=Aria;
+INSERT INTO t2 VALUES ('c');
+INSERT INTO t2 SELECT REPEAT('c', 250) FROM seq_1_to_50000;
+disconnect dml;
+connection default;
+The log continues in a new file: 1
+SET DEBUG_SYNC='now SIGNAL copy';
+connection bk;
+disconnect bk;
+connection default;
+SET DEBUG_SYNC='RESET';
+The backup ends in the log file of the log end: 1
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+SHOW TABLES;
+Tables_in_test
+t1
+# The log of the backup continues from the page where it was cut.
+INSERT INTO t1 VALUES ('d');
+# Kill the server
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1001	200001
+# restart
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1000	250000
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+50001
+DROP TABLE t1, t2;
