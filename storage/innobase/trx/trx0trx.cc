@@ -1462,16 +1462,8 @@ trx_finalize_for_fts(
 				committed, false if it was rolled back. */
 {
 	if (is_commit) {
-		const ib_rbt_node_t*	node;
-		ib_rbt_t*		tables;
-		fts_savepoint_t*	savepoint;
-
-		savepoint = static_cast<fts_savepoint_t*>(
-			ib_vector_last(trx->fts_trx->savepoints));
-
-		tables = savepoint->tables;
-
-		for (node = rbt_first(tables);
+		ib_rbt_t*		tables = trx->fts_trx->tables;
+		for (const ib_rbt_node_t *node = rbt_first(tables);
 		     node;
 		     node = rbt_next(tables, node)) {
 			fts_trx_table_t**	ftt;

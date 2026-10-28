@@ -30,6 +30,7 @@ Created 3/26/1996 Heikki Tuuri
 #include <mysql/service_wsrep.h>
 
 #include "fsp0fsp.h"
+#include "fts0fts.h"
 #include "lock0lock.h"
 #include "mach0data.h"
 #include "pars0pars.h"
@@ -147,6 +148,8 @@ dberr_t trx_t::rollback_low(const undo_no_t *savept) noexcept
       else if (!apply_online_log)
         apply_online_log= j->first->is_native_online_ddl();
     }
+    if (fts_trx)
+      fts_trx_rollback(this, limit);
     MONITOR_INC(MONITOR_TRX_ROLLBACK_SAVEPOINT);
   }
 

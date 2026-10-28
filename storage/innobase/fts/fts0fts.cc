@@ -2210,62 +2210,17 @@ static int fts_ptr1_ptr2_cmp(const void *p1, const void *p2)
   return b > a ? -1 : a > b;
 }
 
-/******************************************************************//**
-Create a savepoint instance.
-@return savepoint instance */
-static
-fts_savepoint_t*
-fts_savepoint_create(
-/*=================*/
-	ib_vector_t*	savepoints,		/*!< out: InnoDB transaction */
-	const void*	name,			/*!< in: savepoint */
-	mem_heap_t*	heap)			/*!< in: heap */
-{
-	fts_savepoint_t*	savepoint;
-
-	savepoint = static_cast<fts_savepoint_t*>(
-		ib_vector_push(savepoints, NULL));
-
-	memset(savepoint, 0x0, sizeof(*savepoint));
-	savepoint->name = name;
-	static_assert(!offsetof(fts_trx_table_t, table), "ABI");
-	savepoint->tables = rbt_create(sizeof(fts_trx_table_t*), fts_ptr2_cmp);
-
-	return(savepoint);
-}
-
-/******************************************************************//**
-Create an FTS trx.
+/** Create an FTS trx.
+@param trx InnoDB transaction
 @return FTS trx */
 fts_trx_t*
-fts_trx_create(
-/*===========*/
-	trx_t*	trx)				/*!< in/out: InnoDB
-						transaction */
+fts_trx_create(trx_t *trx)
 {
-	fts_trx_t*		ftt;
-	ib_alloc_t*		heap_alloc;
-	mem_heap_t*		heap = mem_heap_create(1024);
-
-	ut_a(trx->fts_trx == NULL);
-
-	ftt = static_cast<fts_trx_t*>(mem_heap_alloc(heap, sizeof(fts_trx_t)));
-	ftt->trx = trx;
-	ftt->heap = heap;
-
-	heap_alloc = ib_heap_allocator_create(heap);
-
-	ftt->savepoints = static_cast<ib_vector_t*>(ib_vector_create(
-		heap_alloc, sizeof(fts_savepoint_t), 4));
-
-	ftt->last_stmt = static_cast<ib_vector_t*>(ib_vector_create(
-		heap_alloc, sizeof(fts_savepoint_t), 4));
-
-	/* Default instance has no name and no heap. */
-	fts_savepoint_create(ftt->savepoints, NULL, NULL);
-	fts_savepoint_create(ftt->last_stmt, NULL, NULL);
-
-	return(ftt);
+  ut_a(!trx->fts_trx);
+  mem_heap_t *heap {mem_heap_create(1024)};
+  static_assert(!offsetof(fts_trx_table_t, table), "ABI");
+  return new (mem_heap_alloc(heap, sizeof(fts_trx_t)))
+    fts_trx_t{trx, rbt_create(sizeof(fts_trx_table_t*), fts_ptr2_cmp), heap};
 }
 
 /** Compare two doc_id */
@@ -2281,60 +2236,20 @@ int fts_doc_id_cmp(const void *p1, const void *p2)
                     *static_cast<const doc_id_t*>(p2));
 }
 
-/******************************************************************//**
-Create an FTS trx table.
+/** Create an FTS trx table.
+@param fts_trx fulltext transaction
+@param table fulltext table
 @return FTS trx table */
 static
 fts_trx_table_t*
-fts_trx_table_create(
-/*=================*/
-	fts_trx_t*	fts_trx,		/*!< in: FTS trx */
-	dict_table_t*	table)			/*!< in: table */
+fts_trx_table_create(fts_trx_t *fts_trx, dict_table_t *table)
 {
-	fts_trx_table_t*	ftt;
-
-	ftt = static_cast<fts_trx_table_t*>(
-		mem_heap_zalloc(fts_trx->heap, sizeof *ftt));
-
-	ftt->table = table;
-	ftt->fts_trx = fts_trx;
-
-	static_assert(!offsetof(fts_trx_row_t, doc_id), "ABI");
-	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_doc_id_cmp);
-
-	return(ftt);
-}
-
-/******************************************************************//**
-Clone an FTS trx table.
-@return FTS trx table */
-static
-fts_trx_table_t*
-fts_trx_table_clone(
-/*=================*/
-	const fts_trx_table_t*	ftt_src)	/*!< in: FTS trx */
-{
-	fts_trx_table_t*	ftt;
-
-	ftt = static_cast<fts_trx_table_t*>(
-		mem_heap_alloc(ftt_src->fts_trx->heap, sizeof(*ftt)));
-
-	memset(ftt, 0x0, sizeof(*ftt));
-
-	ftt->table = ftt_src->table;
-	ftt->fts_trx = ftt_src->fts_trx;
-
-	static_assert(!offsetof(fts_trx_row_t, doc_id), "ABI");
-	ftt->rows = rbt_create(sizeof(fts_trx_row_t), fts_doc_id_cmp);
-
-	/* Copy the rb tree values to the new savepoint. */
-	rbt_merge_uniq(ftt->rows, ftt_src->rows);
-
-	/* These are only added on commit. At this stage we only have
-	the updated row state. */
-	ut_a(ftt_src->added_doc_ids == NULL);
-
-	return(ftt);
+  return new (mem_heap_alloc(fts_trx->heap, sizeof(fts_trx_table_t)))
+    fts_trx_table_t{table, fts_trx,
+                    static_cast<ib_vector_t*>
+                    (ib_vector_create(ib_heap_allocator_create(fts_trx->heap),
+                                      sizeof(fts_trx_row_t), 16)),
+                    nullptr, nullptr, nullptr};
 }
 
 /******************************************************************//**
@@ -2345,13 +2260,11 @@ fts_trx_table_t*
 fts_trx_init(
 /*=========*/
 	trx_t*			trx,		/*!< in: transaction */
-	dict_table_t*		table,		/*!< in: FTS table instance */
-	ib_vector_t*		savepoints)	/*!< in: Savepoints */
+	dict_table_t*		table)		/*!< in: FTS table */
 {
 	fts_trx_table_t*	ftt;
 	ib_rbt_bound_t		parent;
-	ib_rbt_t* tables = static_cast<fts_savepoint_t*>(
-		ib_vector_last(savepoints))->tables;
+	ib_rbt_t*		tables = trx->fts_trx->tables;
 	rbt_search_cmp(tables, &parent, &table, fts_ptr1_ptr2_cmp, nullptr);
 
 	if (parent.result == 0) {
@@ -2369,77 +2282,78 @@ fts_trx_init(
 	return(ftt);
 }
 
-/******************************************************************//**
-Notify the FTS system about an operation on an FTS-indexed table. */
-static
-void
-fts_trx_table_add_op(
-/*=================*/
-	fts_trx_table_t*ftt,			/*!< in: FTS trx table */
-	doc_id_t	doc_id,			/*!< in: doc id */
-	fts_row_state	state,			/*!< in: state of the row */
-	ib_vector_t*	fts_indexes)		/*!< in: FTS indexes affected */
+/** Apply an operation to the state of a row.
+@param rows    rows changed in the transaction, indexed by doc-id
+@param doc_id  document identifier
+@param state   the operation */
+static void fts_trx_row_apply(ib_rbt_t *rows, doc_id_t doc_id,
+                              fts_row_state state)
 {
-	ib_rbt_t*	rows;
-	ib_rbt_bound_t	parent;
+  ib_rbt_bound_t parent;
+  rbt_search(rows, &parent, &doc_id);
 
-	rows = ftt->rows;
-	rbt_search(rows, &parent, &doc_id);
-
-	/* Row id found, update state, and if new state is FTS_NOTHING,
-	we delete the row from our tree. */
-	if (parent.result == 0) {
-		fts_trx_row_t*	row = rbt_value(fts_trx_row_t, parent.last);
-
-		row->state = fts_trx_row_get_new_state(row->state, state);
-
-		if (row->state == FTS_NOTHING) {
-			if (row->fts_indexes) {
-				ib_vector_free(row->fts_indexes);
-			}
-
-			ut_free(rbt_remove_node(rows, parent.last));
-			row = NULL;
-		} else if (row->fts_indexes != NULL) {
-			ib_vector_free(row->fts_indexes);
-			row->fts_indexes = fts_indexes;
-		}
-
-	} else { /* Row-id not found, create a new one. */
-		fts_trx_row_t	row;
-
-		row.doc_id = doc_id;
-		row.state = state;
-		row.fts_indexes = fts_indexes;
-
-		rbt_add_node(rows, &parent, &row);
-	}
+  /* Row id found, update state, and if new state is FTS_NOTHING,
+  we delete the row from our tree. */
+  if (parent.result == 0)
+  {
+    fts_trx_row_t *row= rbt_value(fts_trx_row_t, parent.last);
+    row->state= fts_trx_row_get_new_state(row->state, state);
+    if (row->state == FTS_NOTHING)
+      ut_free(rbt_remove_node(rows, parent.last));
+  }
+  else
+  {
+    /* dummy undo_no=0; we are in fts_commit_table(), cannot rollback */
+    fts_trx_row_t row{doc_id, state, 0};
+    rbt_add_node(rows, &parent, &row);
+  }
 }
 
-/******************************************************************//**
-Notify the FTS system about an operation on an FTS-indexed table. */
-void
-fts_trx_add_op(
-/*===========*/
-	trx_t*		trx,			/*!< in: InnoDB transaction */
-	dict_table_t*	table,			/*!< in: table */
-	doc_id_t	doc_id,			/*!< in: new doc id */
-	fts_row_state	state,			/*!< in: state of the row */
-	ib_vector_t*	fts_indexes)		/*!< in: FTS indexes affected
-						(NULL=all) */
+/** Merge the operations of a transaction into the state of the rows.
+@param ftt  FTS table of a committing transaction
+@return rows changed, indexed by doc-id */
+static ib_rbt_t *fts_trx_table_fold(const fts_trx_table_t *ftt) noexcept
 {
-	fts_trx_table_t*	tran_ftt;
-	fts_trx_table_t*	stmt_ftt;
+  static_assert(!offsetof(fts_trx_row_t, doc_id), "ABI");
+  ib_rbt_t *rows= rbt_create(sizeof(fts_trx_row_t), fts_doc_id_cmp);
+  for (ulint i= 0; i < ib_vector_size(ftt->ops); i++)
+  {
+    const fts_trx_row_t *op= static_cast<const fts_trx_row_t*>
+      (ib_vector_get_const(ftt->ops, i));
+    fts_trx_row_apply(rows, op->doc_id, op->state);
+  }
+  return rows;
+}
 
-	if (!trx->fts_trx) {
-		trx->fts_trx = fts_trx_create(trx);
-	}
+void fts_trx_add_op(trx_t *trx, dict_table_t *table, doc_id_t doc_id,
+                    fts_row_state state) noexcept
+{
+  ut_ad(trx->undo_no);
+  if (!trx->fts_trx)
+    trx->fts_trx= fts_trx_create(trx);
 
-	tran_ftt = fts_trx_init(trx, table, trx->fts_trx->savepoints);
-	stmt_ftt = fts_trx_init(trx, table, trx->fts_trx->last_stmt);
+  new (ib_vector_push(fts_trx_init(trx, table)->ops, nullptr))
+    fts_trx_row_t{doc_id, state, trx->undo_no};
+}
 
-	fts_trx_table_add_op(tran_ftt, doc_id, state, fts_indexes);
-	fts_trx_table_add_op(stmt_ftt, doc_id, state, fts_indexes);
+void fts_trx_rollback(trx_t *trx, undo_no_t limit) noexcept
+{
+  ib_rbt_t *tables= trx->fts_trx->tables;
+
+  for (const ib_rbt_node_t *node= rbt_first(tables); node; )
+  {
+    fts_trx_table_t *ftt= *rbt_value(fts_trx_table_t*, node);
+    const ib_rbt_node_t *next= rbt_next(tables, node);
+
+    while (!ib_vector_is_empty(ftt->ops) &&
+           static_cast<const fts_trx_row_t*>
+             (ib_vector_last_const(ftt->ops))->undo_no > limit)
+      ib_vector_pop(ftt->ops);
+
+    if (ib_vector_is_empty(ftt->ops))
+      ut_free(rbt_remove_node(tables, node));
+    node= next;
+  }
 }
 
 /******************************************************************//**
@@ -2961,7 +2875,8 @@ fts_commit_table(
 
 	trx_start_internal(trx);
 
-	rows = ftt->rows;
+	ut_ad(!ftt->rows);
+	rows = ftt->rows = fts_trx_table_fold(ftt);
 
 	ftt->fts_trx->trx = trx;
 
@@ -3016,11 +2931,8 @@ fts_commit(
 	const ib_rbt_node_t*	node;
 	dberr_t			error;
 	ib_rbt_t*		tables;
-	fts_savepoint_t*	savepoint;
 
-	savepoint = static_cast<fts_savepoint_t*>(
-		ib_vector_last(trx->fts_trx->savepoints));
-	tables = savepoint->tables;
+	tables = trx->fts_trx->tables;
 
 	for (node = rbt_first(tables), error = DB_SUCCESS;
 	     node != NULL && error == DB_SUCCESS;
@@ -5018,19 +4930,6 @@ fts_trx_table_rows_free(
 	const ib_rbt_node_t*	node;
 
 	for (node = rbt_first(rows); node; node = rbt_first(rows)) {
-		fts_trx_row_t*	row;
-
-		row = rbt_value(fts_trx_row_t, node);
-
-		if (row->fts_indexes != NULL) {
-			/* This vector shouldn't be using the
-			heap allocator.  */
-			ut_a(row->fts_indexes->allocator->arg == NULL);
-
-			ib_vector_free(row->fts_indexes);
-			row->fts_indexes = NULL;
-		}
-
 		ut_free(rbt_remove_node(rows, node));
 	}
 
@@ -5039,41 +4938,28 @@ fts_trx_table_rows_free(
 }
 
 /*********************************************************************//**
-Free an FTS savepoint instance. */
-UNIV_INLINE
+Free an FTS trx. */
 void
-fts_savepoint_free(
-/*===============*/
-	fts_savepoint_t*	savepoint)	/*!< in: savepoint instance */
+fts_trx_free(
+/*=========*/
+	fts_trx_t*	fts_trx)		/* in, own: FTS trx */
 {
-	const ib_rbt_node_t*	node;
-	ib_rbt_t*		tables = savepoint->tables;
+	ib_rbt_t*	tables = fts_trx->tables;
 
-	/* Nothing to free! */
-	if (tables == NULL) {
-		return;
-	}
+	while (const ib_rbt_node_t* node = rbt_first(tables)) {
+		fts_trx_table_t*	ftt
+			= *rbt_value(fts_trx_table_t*, node);
 
-	for (node = rbt_first(tables); node; node = rbt_first(tables)) {
-		fts_trx_table_t*	ftt;
-		fts_trx_table_t**	fttp;
-
-		fttp = rbt_value(fts_trx_table_t*, node);
-		ftt = *fttp;
-
-		/* This can be NULL if a savepoint was released. */
 		if (ftt->rows != NULL) {
 			fts_trx_table_rows_free(ftt->rows);
 			ftt->rows = NULL;
 		}
 
-		/* This can be NULL if a savepoint was released. */
 		if (ftt->added_doc_ids != NULL) {
 			fts_doc_ids_free(ftt->added_doc_ids);
 			ftt->added_doc_ids = NULL;
 		}
 
-		/* The default savepoint name must be NULL. */
 		if (ftt->docs_added_graph) {
 			que_graph_free(ftt->docs_added_graph);
 		}
@@ -5084,45 +4970,6 @@ fts_savepoint_free(
 
 	ut_a(rbt_empty(tables));
 	rbt_free(tables);
-	savepoint->tables = NULL;
-}
-
-/*********************************************************************//**
-Free an FTS trx. */
-void
-fts_trx_free(
-/*=========*/
-	fts_trx_t*	fts_trx)		/* in, own: FTS trx */
-{
-	ulint		i;
-
-	for (i = 0; i < ib_vector_size(fts_trx->savepoints); ++i) {
-		fts_savepoint_t*	savepoint;
-
-		savepoint = static_cast<fts_savepoint_t*>(
-			ib_vector_get(fts_trx->savepoints, i));
-
-		/* The default savepoint name must be NULL. */
-		if (i == 0) {
-			ut_a(savepoint->name == NULL);
-		}
-
-		fts_savepoint_free(savepoint);
-	}
-
-	for (i = 0; i < ib_vector_size(fts_trx->last_stmt); ++i) {
-		fts_savepoint_t*	savepoint;
-
-		savepoint = static_cast<fts_savepoint_t*>(
-			ib_vector_get(fts_trx->last_stmt, i));
-
-		/* The default savepoint name must be NULL. */
-		if (i == 0) {
-			ut_a(savepoint->name == NULL);
-		}
-
-		fts_savepoint_free(savepoint);
-	}
 
 	if (fts_trx->heap) {
 		mem_heap_free(fts_trx->heap);
@@ -5369,308 +5216,6 @@ fts_create(
 	new(fts) fts_t(table, heap);
 
 	return(fts);
-}
-
-/*********************************************************************//**
-Take a FTS savepoint. */
-UNIV_INLINE
-void
-fts_savepoint_copy(
-/*===============*/
-	const fts_savepoint_t*	src,	/*!< in: source savepoint */
-	fts_savepoint_t*	dst)	/*!< out: destination savepoint */
-{
-	const ib_rbt_node_t*	node;
-	const ib_rbt_t*		tables;
-
-	tables = src->tables;
-
-	for (node = rbt_first(tables); node; node = rbt_next(tables, node)) {
-
-		fts_trx_table_t*	ftt_dst;
-		const fts_trx_table_t**	ftt_src;
-
-		ftt_src = rbt_value(const fts_trx_table_t*, node);
-
-		ftt_dst = fts_trx_table_clone(*ftt_src);
-
-		rbt_insert(dst->tables, &ftt_dst, &ftt_dst);
-	}
-}
-
-/*********************************************************************//**
-Take a FTS savepoint. */
-void
-fts_savepoint_take(
-/*===============*/
-	fts_trx_t*	fts_trx,	/*!< in: fts transaction */
-	const void*	name)		/*!< in: savepoint */
-{
-	mem_heap_t*		heap;
-	fts_savepoint_t*	savepoint;
-	fts_savepoint_t*	last_savepoint;
-
-	ut_a(name != NULL);
-
-	heap = fts_trx->heap;
-
-	/* The implied savepoint must exist. */
-	ut_a(ib_vector_size(fts_trx->savepoints) > 0);
-
-	last_savepoint = static_cast<fts_savepoint_t*>(
-		ib_vector_last(fts_trx->savepoints));
-	savepoint = fts_savepoint_create(fts_trx->savepoints, name, heap);
-
-	if (last_savepoint->tables != NULL) {
-		fts_savepoint_copy(last_savepoint, savepoint);
-	}
-}
-
-/*********************************************************************//**
-Lookup a savepoint instance.
-@return 0 if not found */
-static
-ulint
-fts_savepoint_lookup(
-/*==================*/
-	ib_vector_t*	savepoints,	/*!< in: savepoints */
-	const void*	name)		/*!< in: savepoint */
-{
-  ut_a(ib_vector_size(savepoints) > 0);
-  for (ulint i= 1; i < ib_vector_size(savepoints); ++i)
-    if (name == static_cast<const fts_savepoint_t*>
-        (ib_vector_get(savepoints, i))->name)
-      return i;
-  return 0;
-}
-
-/*********************************************************************//**
-Release the savepoint data identified by  name. All savepoints created
-after the named savepoint are kept.
-@return DB_SUCCESS or error code */
-void
-fts_savepoint_release(
-/*==================*/
-	trx_t*		trx,		/*!< in: transaction */
-	const void*	name)		/*!< in: savepoint name */
-{
-	ut_a(name != NULL);
-
-	ib_vector_t*	savepoints = trx->fts_trx->savepoints;
-
-	ut_a(ib_vector_size(savepoints) > 0);
-
-	if (ulint i = fts_savepoint_lookup(savepoints, name)) {
-		fts_savepoint_t*        savepoint;
-		savepoint = static_cast<fts_savepoint_t*>(
-			ib_vector_get(savepoints, i));
-
-		if (i == ib_vector_size(savepoints) - 1) {
-			/* If the savepoint is the last, we save its
-			tables to the  previous savepoint. */
-			fts_savepoint_t*	prev_savepoint;
-			prev_savepoint = static_cast<fts_savepoint_t*>(
-				ib_vector_get(savepoints, i - 1));
-
-			ib_rbt_t*	tables = savepoint->tables;
-			savepoint->tables = prev_savepoint->tables;
-			prev_savepoint->tables = tables;
-		}
-
-		fts_savepoint_free(savepoint);
-		ib_vector_remove(savepoints, *(void**)savepoint);
-
-		/* Make sure we don't delete the implied savepoint. */
-		ut_a(ib_vector_size(savepoints) > 0);
-	}
-}
-
-/**********************************************************************//**
-Refresh last statement savepoint. */
-void
-fts_savepoint_laststmt_refresh(
-/*===========================*/
-	trx_t*			trx)	/*!< in: transaction */
-{
-
-	fts_trx_t*              fts_trx;
-	fts_savepoint_t*        savepoint;
-
-	fts_trx = trx->fts_trx;
-
-	savepoint = static_cast<fts_savepoint_t*>(
-		ib_vector_pop(fts_trx->last_stmt));
-	fts_savepoint_free(savepoint);
-
-	ut_ad(ib_vector_is_empty(fts_trx->last_stmt));
-	savepoint = fts_savepoint_create(fts_trx->last_stmt, NULL, NULL);
-}
-
-/********************************************************************
-Undo the Doc ID add/delete operations in last stmt */
-static
-void
-fts_undo_last_stmt(
-/*===============*/
-	fts_trx_table_t*	s_ftt,	/*!< in: Transaction FTS table */
-	fts_trx_table_t*	l_ftt)	/*!< in: last stmt FTS table */
-{
-	ib_rbt_t*		s_rows;
-	ib_rbt_t*		l_rows;
-	const ib_rbt_node_t*	node;
-
-	l_rows = l_ftt->rows;
-	s_rows = s_ftt->rows;
-
-	for (node = rbt_first(l_rows);
-	     node;
-	     node = rbt_next(l_rows, node)) {
-		fts_trx_row_t*	l_row = rbt_value(fts_trx_row_t, node);
-		ib_rbt_bound_t	parent;
-
-		rbt_search(s_rows, &parent, &(l_row->doc_id));
-
-		if (parent.result == 0) {
-			fts_trx_row_t*	s_row = rbt_value(
-				fts_trx_row_t, parent.last);
-
-			switch (l_row->state) {
-			case FTS_INSERT:
-				ut_free(rbt_remove_node(s_rows, parent.last));
-				break;
-
-			case FTS_DELETE:
-				if (s_row->state == FTS_NOTHING) {
-					s_row->state = FTS_INSERT;
-				} else if (s_row->state == FTS_DELETE) {
-					ut_free(rbt_remove_node(
-						s_rows, parent.last));
-				}
-				break;
-
-			/* FIXME: Check if FTS_MODIFY need to be addressed */
-			case FTS_MODIFY:
-			case FTS_NOTHING:
-				break;
-			default:
-				ut_error;
-			}
-		}
-	}
-}
-
-/**********************************************************************//**
-Rollback to savepoint indentified by name.
-@return DB_SUCCESS or error code */
-void
-fts_savepoint_rollback_last_stmt(
-/*=============================*/
-	trx_t*		trx)		/*!< in: transaction */
-{
-	ib_vector_t*		savepoints;
-	fts_savepoint_t*	savepoint;
-	fts_savepoint_t*	last_stmt;
-	fts_trx_t*		fts_trx;
-	ib_rbt_bound_t		parent;
-	const ib_rbt_node_t*    node;
-	ib_rbt_t*		l_tables;
-	ib_rbt_t*		s_tables;
-
-	fts_trx = trx->fts_trx;
-	savepoints = fts_trx->savepoints;
-
-	savepoint = static_cast<fts_savepoint_t*>(ib_vector_last(savepoints));
-	last_stmt = static_cast<fts_savepoint_t*>(
-		ib_vector_last(fts_trx->last_stmt));
-
-	l_tables = last_stmt->tables;
-	s_tables = savepoint->tables;
-
-	for (node = rbt_first(l_tables);
-	     node;
-	     node = rbt_next(l_tables, node)) {
-
-		fts_trx_table_t**	l_ftt;
-
-		l_ftt = rbt_value(fts_trx_table_t*, node);
-
-		rbt_search_cmp(
-			s_tables, &parent, &(*l_ftt)->table,
-			fts_ptr1_ptr2_cmp, nullptr);
-
-		if (parent.result == 0) {
-			fts_trx_table_t**	s_ftt;
-
-			s_ftt = rbt_value(fts_trx_table_t*, parent.last);
-
-			fts_undo_last_stmt(*s_ftt, *l_ftt);
-		}
-	}
-}
-
-/**********************************************************************//**
-Rollback to savepoint indentified by name.
-@return DB_SUCCESS or error code */
-void
-fts_savepoint_rollback(
-/*===================*/
-	trx_t*		trx,		/*!< in: transaction */
-	const void*	name)		/*!< in: savepoint */
-{
-	ib_vector_t*	savepoints;
-
-	ut_a(name != NULL);
-
-	savepoints = trx->fts_trx->savepoints;
-
-	/* We pop all savepoints from the the top of the stack up to
-	and including the instance that was found. */
-	ulint i = fts_savepoint_lookup(savepoints, name);
-
-	if (i == 0) {
-		/* fts_trx_create() must have been invoked after
-		this savepoint had been created, and we must roll back
-		everything. */
-		i = 1;
-	}
-
-	{
-		fts_savepoint_t*	savepoint;
-
-		while (ib_vector_size(savepoints) > i) {
-			savepoint = static_cast<fts_savepoint_t*>(
-				ib_vector_pop(savepoints));
-
-			if (savepoint->name != NULL) {
-				/* Since name was allocated on the heap, the
-				memory will be released when the transaction
-				completes. */
-				savepoint->name = NULL;
-
-				fts_savepoint_free(savepoint);
-			}
-		}
-
-		/* Pop all a elements from the top of the stack that may
-		have been released. We have to be careful that we don't
-		delete the implied savepoint. */
-
-		for (savepoint = static_cast<fts_savepoint_t*>(
-				ib_vector_last(savepoints));
-		     ib_vector_size(savepoints) > 1
-		     && savepoint->name == NULL;
-		     savepoint = static_cast<fts_savepoint_t*>(
-				ib_vector_last(savepoints))) {
-
-			ib_vector_pop(savepoints);
-		}
-
-		/* Make sure we don't delete the implied savepoint. */
-		ut_a(ib_vector_size(savepoints) > 0);
-
-		/* Restore the savepoint. */
-		fts_savepoint_take(trx->fts_trx, name);
-	}
 }
 
 bool fts_check_aux_table(const char *name,
