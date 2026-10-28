@@ -46,8 +46,8 @@
 # leave a <build directory>/abi_check.out file.
 #
 # A developer with a justified API change will then do a
-# mv <build directory>/abi_check.out include/mysql/plugin.pp 
-# to replace the old canons with the new ones.
+# build of the target abi_update and verify the API change
+# in the git difference is as intended.
 #
 
 SET(abi_check_out ${BINARY_DIR}/abi_check.out)
@@ -65,7 +65,7 @@ FOREACH(file ${ABI_HEADERS})
       ERROR_QUIET OUTPUT_FILE ${tmpfile})
   EXECUTE_PROCESS(
     COMMAND sed -e "/^# /d"
-                -e "/^[	]*$/d"
+                -e "/^[ 	;]*$/d"
                 -e "/^#pragma GCC set_debug_pwd/d"
                 -e "/^#ident/d"
     RESULT_VARIABLE result OUTPUT_FILE ${abi_check_out} INPUT_FILE ${tmpfile})
