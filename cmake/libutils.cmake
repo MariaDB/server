@@ -19,10 +19,8 @@
 # convenience library is a static library that can be linked to shared library
 # On systems that force position-independent code, linking into shared library
 # normally requires compilation with a special flag (often -fPIC). To enable 
-# linking static libraries to shared, we compile source files that come into 
-# static library with the PIC flag (${CMAKE_SHARED_LIBRARY_C_FLAGS} in CMake)
-# Some systems, like Windows or OSX do not need special compilation (Windows 
-# never uses PIC and OSX always uses it). 
+# linking static libraries to shared, we compile source files with a PIC
+# property that cmake understands.
 #
 # The intention behind convenience libraries is simplify the build and to reduce
 # excessive recompiles.
@@ -44,18 +42,12 @@
 # library from several convenience libraries
 
 # Important global flags 
-# - WITH_PIC : If set, it is assumed that everything is compiled as position
-# independent code (that is CFLAGS/CMAKE_C_FLAGS contain -fPIC or equivalent)
-# If defined, ADD_CONVENIENCE_LIBRARY does not add PIC flag to compile flags
-#
 # - DISABLE_SHARED: If set, it is assumed that shared libraries are not produced
-# during the build. ADD_CONVENIENCE_LIBRARY does not add anything to compile flags
+# during the build. ADD_CONVENIENCE_LIBRARY does not mark the target with the
+# POSITION_INDEPENDENT_CODE property.
 
 
 GET_FILENAME_COMPONENT(MYSQL_CMAKE_SCRIPT_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
-IF(WIN32 OR CYGWIN OR APPLE OR WITH_PIC OR DISABLE_SHARED OR NOT CMAKE_SHARED_LIBRARY_C_FLAGS)
- SET(_SKIP_PIC 1)
-ENDIF()
 
 INCLUDE(CMakeParseArguments)
 # CREATE_EXPORTS_FILE (VAR target api_functions)
@@ -97,18 +89,15 @@ MACRO(CREATE_EXPORTS_FILE VAR TARGET API_FUNCTIONS)
 ENDMACRO()
 
 
-# MYSQL_ADD_CONVENIENCE_LIBRARY(name source1...sourceN)
+# ADD_CONVENIENCE_LIBRARY(name source1...sourceN)
 # Create static library that can be linked to shared library.
-# On systems that force position-independent code, adds -fPIC or 
-# equivalent flag to compile flags.
 MACRO(ADD_CONVENIENCE_LIBRARY)
   SET(TARGET ${ARGV0})
   SET(SOURCES ${ARGN})
   LIST(REMOVE_AT SOURCES 0)
   ADD_LIBRARY(${TARGET} STATIC ${SOURCES})
-  IF(NOT _SKIP_PIC)
-    SET_TARGET_PROPERTIES(${TARGET} PROPERTIES  COMPILE_FLAGS
-    "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+  IF(NOT DISABLE_SHARED)
+    SET_TARGET_PROPERTIES(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
   ENDIF()
 ENDMACRO()
 
@@ -137,9 +126,8 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
   SET(SOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_depends.c)
   ADD_LIBRARY(${TARGET} STATIC ${SOURCE_FILE})
   SET_TARGET_PROPERTIES(${TARGET} PROPERTIES OUTPUT_NAME ${OUTPUT_NAME})
-  IF(NOT _SKIP_PIC)
-    SET_TARGET_PROPERTIES(${TARGET} PROPERTIES  COMPILE_FLAGS
-    "${CMAKE_SHARED_LIBRARY_C_FLAGS}")
+  IF(NOT DISABLE_SHARED)
+    SET_TARGET_PROPERTIES(${TARGET} PROPERTIES POSITION_INDEPENDENT_CODE ON)
   ENDIF()
 
   SET(OSLIBS)
@@ -268,22 +256,18 @@ MACRO(MERGE_LIBRARIES)
       SET(LIBTYPE MODULE)
     ENDIF()
     # check for non-PIC libraries
-    IF(NOT _SKIP_PIC)
-      FOREACH(LIB ${LIBS})
-        GET_TARGET_PROPERTY(LTYPE ${LIB} TYPE)
-        IF(LTYPE STREQUAL "STATIC_LIBRARY")
-          GET_TARGET_PROPERTY(LIB_COMPILE_FLAGS ${LIB} COMPILE_FLAGS)
-          STRING(REPLACE "${CMAKE_SHARED_LIBRARY_C_FLAGS}" 
-            "<PIC_FLAG>" LIB_COMPILE_FLAGS "${LIB_COMPILE_FLAGS}")
-          IF(NOT LIB_COMPILE_FLAGS MATCHES "<PIC_FLAG>")
-            MESSAGE(FATAL_ERROR 
-            "Attempted to link non-PIC static library ${LIB} to shared library ${TARGET}\n"
-            "Please use ADD_CONVENIENCE_LIBRARY, instead of ADD_LIBRARY for ${LIB}"
-            )
-          ENDIF()
+    FOREACH(LIB ${LIBS})
+      GET_TARGET_PROPERTY(LTYPE ${LIB} TYPE)
+      IF(LTYPE STREQUAL "STATIC_LIBRARY")
+	GET_TARGET_PROPERTY(LIB_PIC ${LIB} POSITION_INDEPENDENT_CODE)
+	IF(NOT LIB_PIC)
+          MESSAGE(FATAL_ERROR
+          "Attempted to link non-PIC static library ${LIB} to shared library ${TARGET}\n"
+          "Please use ADD_CONVENIENCE_LIBRARY, instead of ADD_LIBRARY for ${LIB}"
+          )
         ENDIF()
-      ENDFOREACH()
-    ENDIF()
+      ENDIF()
+    ENDFOREACH()
     CREATE_EXPORTS_FILE(SRC ${TARGET} "${ARG_EXPORTS}")
     IF(NOT ARG_NOINSTALL)
       ADD_VERSION_INFO(${TARGET} SHARED SRC)
