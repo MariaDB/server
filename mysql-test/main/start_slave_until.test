@@ -20,6 +20,9 @@
 
 --source include/not_embedded.inc
 
+# Valid statements below require an unconfigured replica.
+--source include/reset_master_slave.inc
+
 #
 # Invalid query options (using slave+master options)
 #  
