@@ -1977,7 +1977,8 @@ rule: <-- starts at col 1
 query:
           END_OF_INPUT
           {
-            if (!thd->bootstrap &&
+            /* On kill the lexer reported the kill error */
+            if (!thd->bootstrap && !YYLIP->stopped_on_kill &&
               (!(thd->lex->lex_options & OPTION_LEX_FOUND_COMMENT)))
               my_yyabort_error((ER_EMPTY_QUERY, MYF(0)));
 

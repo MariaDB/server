@@ -3702,9 +3702,13 @@ ret:
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {
-    thd->clear_error();
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
-             db.str, table_name.str, sql_copy);
+    /* Keep the kill error, the table definition is not broken. */
+    if (!parser_state.m_lip.stopped_on_kill)
+    {
+      thd->clear_error();
+      my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
+               db.str, table_name.str, sql_copy);
+    }
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */
@@ -4070,7 +4074,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
 
   error= parse_sql(thd, &parser_state, NULL);
   if (unlikely(error))
+  {
+    /* The kill error is reported, the .frm is not corrupted. */
+    if (parser_state.m_lip.stopped_on_kill)
+      *error_reported= true;
     goto end;
+  }
 
   if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
@@ -4549,6 +4558,16 @@ partititon_err:
           file as part of a normal query.
         */
         error_reported= TRUE;
+      }
+      else if (thd->is_error() &&
+               thd->get_stmt_da()->sql_errno() == uint(thd->killed_errno()))
+      {
+        /*
+          The kill error is reported, the .frm is not corrupted.
+          mysql_unpack_partition() does not return stopped_on_kill, so the
+          reported error is checked.
+        */
+        error_reported= true;
       }
       goto err;
     }

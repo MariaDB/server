@@ -1632,6 +1632,11 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         if (parser_state.init(thd, (char*) trg_create_str->str,
                               trg_create_str->length))
           goto err_with_lex_cleanup;
+        /*
+          Name-only loads (DROP/RENAME TABLE, I_S.TRIGGERS) need every
+          trigger name, e.g. for the .TRN files.
+        */
+        parser_state.m_lip.ignore_kill= names_only;
 
         if (!trigger_list->client_cs_names.is_empty())
           creation_ctx= Trigger_creation_ctx::create(thd,
@@ -1658,9 +1663,21 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         Deprecated_trigger_syntax_handler error_handler;
         thd->push_internal_handler(&error_handler);
 
+        DBUG_EXECUTE_IF("kill_on_second_trigger_load",
+                        if (trg_create_str !=
+                            trigger_list->definitions_list.head())
+                          thd->set_killed(KILL_QUERY););
+
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
         DBUG_ASSERT(!parse_error || lex.sphead == 0);
+
+        /*
+          The handler swallowed the kill error raised in parse_sql(). Raise
+          it again, the trigger is not broken.
+        */
+        if (parser_state.m_lip.fail_if_stopped_on_kill())
+          goto err_with_lex_cleanup;
 
         /*
           Not strictly necessary to invoke this method here, since we know
@@ -1849,6 +1866,9 @@ err_with_lex_cleanup:
   }
 
 error:
+  /* Callers free table->triggers only on success, closefrm() never does. */
+  delete table->triggers;
+  table->triggers= NULL;
   if (unlikely(!thd->is_error()))
   {
     /*

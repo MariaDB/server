@@ -4831,13 +4831,15 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message()
+  /* Return true if the kill has an error and it was raised */
+  inline bool send_kill_message()
   {
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
       my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
+    return err != 0;
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
@@ -5111,6 +5113,9 @@ public:
   void parse_error(const char *err_text, const char *yytext)
   {
     Lex_input_stream *lip= &m_parser_state->m_lip;
+    /* The lexer reported the kill. */
+    if (lip->stopped_on_kill)
+      return;
     if (!yytext && !(yytext= lip->get_tok_start()))
         yytext= "";
     /* Push an error into the error stack */

@@ -1433,14 +1433,18 @@ Event_job_data::execute(THD *thd, bool drop)
 
     thd->m_digest= NULL;
     thd->m_statement_psi= NULL;
+    DBUG_EXECUTE_IF("kill_before_event_parse", thd->set_killed(KILL_QUERY););
     res= parse_sql(thd, & parser_state, creation_ctx);
     thd->m_digest= parent_digest;
     thd->m_statement_psi= parent_locker;
 
     if (res)
     {
-      sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
-                      thd->is_fatal_error ? "fatal " : "", dbname.str, name.str);
+      /* print_warnings() logs the kill error, the event is not broken. */
+      if (!parser_state.m_lip.stopped_on_kill)
+        sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
+                        thd->is_fatal_error ? "fatal " : "",
+                        dbname.str, name.str);
       goto end;
     }
   }

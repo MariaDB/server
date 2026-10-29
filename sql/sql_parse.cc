@@ -10591,6 +10591,9 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
                            ? ORAparse(thd) : MYSQLparse(thd);
 
+  if (parser_state->m_lip.fail_if_stopped_on_kill())
+    mysql_parse_status= true;
+
   if (mysql_parse_status)
     /*
       Restore the original LEX if it was replaced when parsing

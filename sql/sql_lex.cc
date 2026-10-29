@@ -832,9 +832,31 @@ Lex_input_stream::reset(char *buffer, size_t length)
   ignore_space= MY_TEST(m_thd->variables.sql_mode & MODE_IGNORE_SPACE);
   stmt_prepare_mode= FALSE;
   multi_statements= TRUE;
+  ignore_kill= false;
+  stopped_on_kill= false;
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
   m_cpp_ptr= m_cpp_buf;
+}
+
+
+/**
+  Fail the parse if the lexer stopped on kill, as the parsed text may be cut
+  short. Raise the kill error again if an internal error handler swallowed
+  it, so it can be called again after the handler is popped.
+
+  @retval true   The lexer stopped on kill, the parse must fail
+  @retval false  Otherwise
+*/
+
+bool Lex_input_stream::fail_if_stopped_on_kill() const
+{
+  if (!stopped_on_kill)
+    return false;
+  if (!m_thd->is_error())
+    m_thd->send_kill_message();
+  DBUG_ASSERT(m_thd->is_error() || m_thd->get_internal_handler());
+  return true;
 }
 
 
@@ -2006,9 +2028,27 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
 
-  if (thd->killed)
+  /* Kill before or after the '+' token, to cut the text short */
+  DBUG_EXECUTE_IF("lex_kill_before_plus",
+                  {
+                    const char *p= m_ptr;
+                    while (p < m_end_of_query && my_isspace(cs, *p))
+                      p++;
+                    if (p < m_end_of_query && *p == '+')
+                      thd->set_killed(KILL_QUERY);
+                  });
+  DBUG_EXECUTE_IF("lex_kill_after_plus",
+                  if (m_tok_start && *m_tok_start == '+')
+                    thd->set_killed(KILL_QUERY););
+
+  /* End the input after END_OF_INPUT, as MY_LEX_END does */
+  if (stopped_on_kill)
+    return 0;
+
+  /* ABORT_QUERY and KILL_BAD_DATA have no kill error and read on. */
+  if (thd->killed && !ignore_kill && thd->send_kill_message())
   {
-    thd->send_kill_message();
+    stopped_on_kill= true;
     return END_OF_INPUT;
   }
 

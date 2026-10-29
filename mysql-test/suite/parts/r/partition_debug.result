@@ -5209,4 +5209,26 @@ t1	CREATE TABLE `t1` (
  PARTITION BY RANGE (`x`)
 (PARTITION `p0` VALUES LESS THAN (10) ENGINE = MyISAM)
 drop table t1;
+#
+# MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+#            virtual column expressions
+#
+create table t1 (a int) partition by hash (a) partitions 2;
+insert into t1 values (1);
+flush tables;
+connect con1, localhost, root;
+set debug_sync= 'TABLE_after_field_clone signal opening wait_for go';
+select * from t1;
+connection default;
+set debug_sync= 'now wait_for opening';
+kill query CON1_ID;
+connection con1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+disconnect con1;
+connection default;
+set debug_sync= 'reset';
+drop table t1;
 # End of 10.11 tests
