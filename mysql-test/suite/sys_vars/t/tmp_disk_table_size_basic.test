@@ -26,6 +26,9 @@
 ###############################################################################
 
 --source include/load_sysvars.inc
+# The --error ER_RECORD_FILE_FULL below requires the views from perfschema to
+# be present in INFORMATION_SCHEMA.views.
+--source include/have_perfschema.inc
 
 ##############################################################
 #           START OF tmp_disk_table_size TESTS                    #
