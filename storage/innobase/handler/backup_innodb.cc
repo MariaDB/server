@@ -2265,7 +2265,7 @@ public:
       if (!err && cp_size)
       {
         uint64_t cp_buf[8]{};
-        write_checkpoint_buf(cp_buf, c);
+        write_checkpoint_buf(cp_buf, c + log_sys.START_OFFSET);
         err= backup_stream_write(dst, cp_buf, sizeof cp_buf) ||
           backup_stream_write(dst, field_ref_zero, cp_size - sizeof cp_buf);
       }
