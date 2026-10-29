@@ -535,8 +535,8 @@ private:
       {
         const uint64_t begin= log_sys.START_OFFSET +
           (hl == first_lsn) * (checkpoint - hl);
-#ifdef copy_file_shortcut
-        if (1 == (f= copy_file_shortcut(s, d, begin, end)))
+#ifdef clone_file_range
+        if (1 == (f= clone_file_range(d, s, begin, end - begin)))
 #endif
         f= backup::copy(s, d, begin, end);
         if (!f && hl == first_lsn)
@@ -1020,9 +1020,9 @@ public:
       {
         ut_ad(!(uint(begin) & bs_1));
         ut_ad(!(uint(end) & bs_1));
-#ifdef copy_file_shortcut
-        if (1 == (err= copy_file_shortcut(tracked.file,
-                                          ctx.log_dst, begin, end)))
+#ifdef clone_file_range
+        if (1 == (err= clone_file_range(ctx.log_dst, tracked.file,
+                                        begin, end - begin)))
 #endif
           err= backup::copy(tracked.file, ctx.log_dst, begin, end);
       }
@@ -1856,9 +1856,9 @@ private:
     queue.clear();
   }
 
-#ifdef copy_file_shortcut
+#ifdef clone_file_range
   /**
-     Try copy_file_shortcut() to back up a persistent InnoDB data file.
+     Try clone_file_range() to back up a persistent InnoDB data file.
      @param dst          target file handle
      @param node         InnoDB data file
      @param start        the page number at the start of the file
@@ -1871,11 +1871,10 @@ private:
      @retval 1 if the operation is not supported
      @retval 2 if the tablespace is being dropped
   */
-  static int copy_file_shortcut_try(int dst, fil_node_t *node,
-                                    uint32_t start, uint32_t limit,
-                                    uint32_t page_size, uint32_t final_limit,
-                                    buf_page_t **blocks)
-    noexcept;
+  static int clone_file_try(int dst, fil_node_t *node,
+                            uint32_t start, uint32_t limit,
+                            uint32_t page_size, uint32_t final_limit,
+                            buf_page_t **blocks) noexcept;
 #endif
 
   /**
@@ -2326,34 +2325,28 @@ buf_page_t **InnoDB_backup::backup_batch_start(buf_page_t **end,
                                   innodb_backup.ctx.BACKUP_BATCH_SIZE);
 }
 
-#ifdef copy_file_shortcut
-int InnoDB_backup::copy_file_shortcut_try(int dst, fil_node_t *node,
-                                          uint32_t start, uint32_t limit,
-                                          uint32_t page_size,
-                                          uint32_t final_limit,
-                                          buf_page_t **blocks) noexcept
+#ifdef clone_file_range
+int InnoDB_backup::clone_file_try(int dst, fil_node_t *node,
+                                  uint32_t start, uint32_t limit,
+                                  uint32_t page_size, uint32_t final_limit,
+                                  buf_page_t **blocks) noexcept
 {
-# if 0
-  return 1; // work around https://github.com/rr-debugger/rr/issues/4059
-# endif
   const uint32_t BATCH{innodb_backup.ctx.BACKUP_BATCH_SIZE};
   for (uint32_t page{0};;)
   {
     while (page < limit)
     {
       const uint32_t end_page{(start & ~(BATCH - 1)) + BATCH};
-      const uint32_t last{std::min(limit, page + (end_page - start))};
-      start+= last - page;
+      const uint32_t pages{std::min(limit - page, end_page - start)};
+      start+= pages;
       int err;
       buf_page_t **end= backup_batch_start(blocks, node->space, end_page);
       if (end)
       {
-        /* TODO: avoid copying freed page ranges, or pages that were
-        allocated after the backup started */
-        err= copy_file_shortcut(node->handle, dst,
-                                uint64_t{page} * page_size,
-                                uint64_t{last} * page_size);
-        page= last;
+        err= clone_file_range(dst, node->handle,
+                              uint64_t{page} * page_size,
+                              uint64_t{pages} * page_size);
+        page+= pages;
       }
       else
       {
@@ -2513,9 +2506,8 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       limit= buf_dblwr.begin();
 
     buf_page_t *blocks[context::BACKUP_BATCH_SIZE_MAX];
-#ifdef copy_file_shortcut
-    err= copy_file_shortcut_try(f, node, start, limit,
-                                page_size, final_limit, blocks);
+#ifdef clone_file_range
+    err= clone_file_try(f, node, start, limit, page_size, final_limit, blocks);
     if (err == 1)
 #endif
     {

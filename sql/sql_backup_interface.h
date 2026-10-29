@@ -152,18 +152,17 @@ int append(handle src, backup_fd stream, uint64_t start, uint64_t end)
 
 #ifdef __linux__
 /**
-   Try to copy a portion of a file via copy_file_range(2).
+   Try to clone a portion of a file.
+   @param dst   destination file descriptor
    @param src   source file descriptor
-   @param dst   target to append src to
-   @param start first offset to copy
-   @param end   last offset to copy (exclusive)
+   @param start first offset to clone
+   @param l     length to clone
    @return error code (non-positive)
    @retval 0   on success
    @retval 1   if a fallback to backup::copy() is needed
 */
-int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
-  noexcept;
-# define copy_file_shortcut copy_file_range_try
+int clone_file_range(int dst, int src, uint64_t start, uint64_t l) noexcept;
+# define clone_file_range clone_file_range
 #endif
 
 /** Append to the configuration file.

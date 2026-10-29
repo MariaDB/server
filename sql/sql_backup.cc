@@ -73,7 +73,10 @@ using tpool::pwrite;
 # include <sys/types.h>
 # include <dirent.h>
 # include <sys/mman.h>
-
+# ifdef __linux__
+#  include <sys/ioctl.h>
+#  include <linux/fs.h> /* FICLONE, FICLONERANGE (Linux 4.5) */
+# endif
 #endif
 
 /**
@@ -187,41 +190,6 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
   return ret;
 }
 
-#ifdef __APPLE__
-/* The inline copy_entire_file() invokes fcopyfile() */
-#elif defined _WIN32
-/* CopyFileEx() should be used */
-#else
-/** Copy a file (whole content).
-@param src  source file descriptor
-@param dst  target to append src to
-@return error code (non-positive)
-@retval 0   on success */
-int copy_entire_file(int src, int dst) noexcept
-{
-  uint64_t end(lseek(src, 0, SEEK_END));
-#ifdef POSIX_FADV_NOREUSE
-  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NOREUSE);
-  std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
-#endif
-  int ret;
-# ifdef copy_file_shortcut
-  ret= int(copy_file_shortcut(src, dst, 0, end));
-  if (ret == 1)
-# endif
-  {
-#ifdef POSIX_FADV_SEQUENTIAL
-    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
-#endif
-    ret= backup::copy(src, dst, 0, end);
-#ifdef POSIX_FADV_NORMAL
-    std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
-#endif
-  }
-  return ret;
-}
-#endif
-
 #if defined __linux__ || defined __FreeBSD__
 using copying_step= ssize_t(int,int,size_t,off_t*);
 template<copying_step step,bool nonblocking>
@@ -252,6 +220,89 @@ copy_step(int in_fd, int out_fd, size_t count, off_t *offset) noexcept
   return copy_file_range(in_fd, offset, out_fd, offset, count, 0);
 }
 # define cfr(src,dst,start,end) stepwise<copy_step,false>(src, dst, start, end)
+#endif
+
+#ifdef __APPLE__
+/* The inline copy_entire_file() invokes fcopyfile() */
+#elif defined _WIN32
+/* CopyFileEx() should be used */
+#else
+/** Copy a file (whole content).
+@param src  source file descriptor
+@param dst  target to append src to
+@return error code (non-positive)
+@retval 0   on success */
+int copy_entire_file(int src, int dst) noexcept
+{
+# if defined __linux__ && defined FICLONE
+  do
+  {
+    const int ret{ioctl(dst, FICLONE, src)};
+    assert(ret <= 0);
+    if (ret)
+      switch (errno) { case EOPNOTSUPP: case EXDEV: case EINVAL: continue; }
+    return ret;
+  }
+  while (false);
+# endif
+  uint64_t end(lseek(src, 0, SEEK_END));
+#ifdef POSIX_FADV_NOREUSE
+  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NOREUSE);
+  std::ignore= posix_fadvise(dst, 0, 0, POSIX_FADV_NOREUSE);
+#endif
+# ifdef __linux__
+  if (end >> 20 < 4)
+    /*
+      For small files, try copy_file_range(2). For large files,
+      backup::copy() should perform better with the Linux block cache.
+    */
+    do
+    {
+      const ssize_t ret{cfr(src, dst, 0, off_t(end))};
+      assert(ret <= 0);
+      if (ret) switch (errno) { case EOPNOTSUPP: case EXDEV: continue; }
+      return int(ret);
+    }
+    while (false);
+# endif
+#ifdef POSIX_FADV_SEQUENTIAL
+  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+  const int ret{backup::copy(src, dst, 0, end)};
+#ifdef POSIX_FADV_NORMAL
+  std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
+#endif
+  return ret;
+}
+#endif
+
+#ifdef __linux__
+/**
+   Try to copy a portion of a file via ioctl(FICLONERANGE).
+   @param dst   destination file descriptor
+   @param src   source file descriptor
+   @param start first offset to clone
+   @param l     length to clone
+   @return error code (non-positive)
+   @retval 0   on success
+   @retval 1   if a fallback to backup::copy() is needed
+*/
+int clone_file_range(int dst, int src, uint64_t start, uint64_t l) noexcept
+{
+# ifdef FICLONERANGE
+  do
+  {
+    struct file_clone_range fcr{src, start, l, start};
+    const int ret{ioctl(dst, FICLONERANGE, &fcr)};
+    assert(ret <= 0);
+    if (ret)
+      switch (errno) { case EOPNOTSUPP: case EXDEV: case EINVAL: continue; }
+    return ret;
+  }
+  while (false);
+# endif
+  return 1;
+}
 #endif
 
 namespace backup {
@@ -482,29 +533,6 @@ int backup_stream_zeropad(backup_fd stream, size_t written) noexcept
   written&= 511;
   return written ? backup_stream_write(stream, zerobuf, 512 - written) : 0;
 }
-
-#ifdef __linux__
-/**
-   Try to copy a portion of a file via copy_file_range(2).
-   @param src   source file descriptor
-   @param dst   target to append src to
-   @param start first offset to copy
-   @param end   last offset to copy (exclusive)
-   @return error code (non-positive)
-   @retval 0   on success
-   @retval 1   if a fallback to backup::copy() is needed
-*/
-int copy_file_range_try(int src, int dst, uint64_t start, uint64_t end)
-  noexcept
-{
-  assert(end >= start);
-  ssize_t ret{cfr(src, dst, off_t(start), off_t(end))};
-  assert(ret <= 0);
-  if (ret && (errno == EOPNOTSUPP || errno == EXDEV))
-    return 1;
-  return int(ret);
-}
-#endif
 
 /** Append to the configuration file.
 @param target   backup target directory
