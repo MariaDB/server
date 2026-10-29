@@ -302,4 +302,22 @@ INSERT INTO t1 VALUES ( 1255, "mariadb", "InnoDB");
 ALTER TABLE t1 ADD FULLTEXT(col_text_1);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-41757 Phrase search misses rows of a FULLTEXT index built over
+--echo # rows with an empty string in an earlier indexed column
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a TEXT, c TEXT, FULLTEXT(a, c))
+ENGINE=InnoDB;
+# Row 4 has an externally stored first column. That matters on 13.1 and
+# main, where recovery uses fts_init_recover_all_docs().
+INSERT INTO t1 VALUES (1, '', 'hello world'), (2, NULL, 'hello world'),
+  (3, 'x', 'hello world'), (4, REPEAT('long ', 4000), 'hello world');
+# The rows are only in the FTS cache, and are tokenized again on recovery
+let $shutdown_timeout= 0;
+--source include/restart_mysqld.inc
+let $shutdown_timeout=;
+SELECT id FROM t1 WHERE MATCH(a, c) AGAINST('"hello world"' IN BOOLEAN MODE)
+ORDER BY id;
+DROP TABLE t1;
+
 SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
