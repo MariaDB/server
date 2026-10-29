@@ -2825,12 +2825,37 @@ row_sel_field_store_in_mysql_format_func(
 			length of the data to the first byte or the first
 			two bytes of dest. */
 
+			if (UNIV_UNLIKELY(len + templ->mysql_length_bytes
+					   > templ->mysql_col_len)) {
+				/* The length decoded from the InnoDB
+				record does not fit in the destination
+				column. This can only happen if the
+				record itself is corrupted */
+				ib::warn() << "Truncating a corrupted"
+					" VARCHAR field: record claims "
+					<< len << " bytes, but the column"
+					" only holds "
+					<< (templ->mysql_col_len
+					    - templ->mysql_length_bytes);
+				len = templ->mysql_col_len
+					- templ->mysql_length_bytes;
+			}
+
 			dest = row_mysql_store_true_var_len(
 				dest, len, templ->mysql_length_bytes);
 			/* Copy the actual data. Leave the rest of the
 			buffer uninitialized. */
 			memcpy(dest, data, len);
 			break;
+		}
+
+		if (UNIV_UNLIKELY(len > templ->mysql_col_len)) {
+			ib::warn() << "Truncating a corrupted CHAR/BINARY"
+				" field: record claims " << len
+				<< " bytes, but the column only holds "
+				<< templ->mysql_col_len;
+			len = templ->mysql_col_len;
+			pad = dest + len;
 		}
 
 		/* Copy the actual data */
@@ -2888,6 +2913,14 @@ row_sel_field_store_in_mysql_format_func(
 		break;
 
 	case DATA_MYSQL:
+		if (UNIV_UNLIKELY(len > templ->mysql_col_len)) {
+			ib::warn() << "Truncating a corrupted column:"
+				" record claims " << len << " bytes, but"
+				" the column only holds "
+				<< templ->mysql_col_len;
+			pad = dest + (len = templ->mysql_col_len);
+		}
+
 		memcpy(dest, data, len);
 
 		ut_ad(templ->mysql_col_len >= len);
