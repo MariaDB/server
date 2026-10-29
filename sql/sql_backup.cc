@@ -95,6 +95,8 @@ static ssize_t pread_write(backup::handle in_fd, backup_fd out_fd,
 {
   assert(end >= o);
   uint64_t count{end - o};
+  if (!count)
+    return 0;
 #if SIZEOF_SIZE_T < 8
   size_t size{65536};
 #else
