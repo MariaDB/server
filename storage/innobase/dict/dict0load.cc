@@ -2289,6 +2289,14 @@ dict_load_tablespace(
 		fil_space_t::VALIDATE_SPACE_ID,
 		{table->name.m_name, strlen(table->name.m_name)}, filepath);
 
+	/* fil_space_t::create() may have added the tablespace to
+	fil_system.default_encrypt_tables. Signalling here covers
+	every caller of dict_sys_t::load_table() and
+	dict_load_table_on_id(), including dict_table_open_on_name()
+	for a table that some other thread had already loaded into
+	the cache. */
+	fil_crypt_threads_signal();
+
 	if (!table->space) {
 		/* We failed to find a sensible tablespace file */
 		table->file_unreadable = true;
