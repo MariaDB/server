@@ -516,7 +516,7 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   found_records= accepted_rows= 0;
   fetch_limit= HA_POS_ERROR;
   thd= thd_arg;
-  sum_funcs= sum_funcs2= 0;
+  sum_funcs= 0;
   procedure= 0;
   having= tmp_having= having_history= 0;
   having_is_correlated= false;
@@ -530,7 +530,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   simple_order= 0;
   simple_group= 0;
   ordered_index_usage= ordered_index_void;
-  need_distinct= 0;
   skip_sort_order= 0;
   with_two_phase_optimization= 0;
   save_qep= 0;
@@ -559,7 +558,6 @@ void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
   no_rows_in_result_called= 0;
   positions= best_positions= 0;
   pushdown_query= 0;
-  original_join_tab= 0;
   explain= NULL;
   tmp_table_keep_current_rowid= 0;
   allowed_top_level_tables= 0;
@@ -1462,7 +1460,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                       select_lex, select_lex->select_number, this));
   select_lex->join= this;
   join_list= &select_lex->top_join_list;
-  union_part= unit_arg->is_unit_op();
 
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_prepare(thd, "join_preparation");
@@ -2248,7 +2245,6 @@ JOIN::optimize_inner()
   do_send_rows = (unit->lim.get_select_limit()) ? 1 : 0;
 
   set_allowed_join_cache_types();
-  need_distinct= TRUE;
 
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_prepare(thd, "join_optimization");
@@ -2316,8 +2312,6 @@ JOIN::optimize_inner()
     select_lex->update_used_tables();
   }
   
-  eval_select_list_used_tables();
-
   table_count= select_lex->leaf_tables.elements;
 
   if (select_lex->options & OPTION_SCHEMA_TABLE &&
@@ -3590,7 +3584,6 @@ int JOIN::optimize_stage2()
     tmp_table_param.precomputed_group_by= TRUE;
     if (join_tab->is_using_agg_loose_index_scan())
     {
-      need_distinct= FALSE;
       tmp_table_param.precomputed_group_by= FALSE;
     }
   }
@@ -3813,7 +3806,6 @@ bool JOIN::make_aggr_tables_info()
   if (join_tab && top_join_tab_count && tables_list)
   {
     join_tab[top_join_tab_count - 1].fields= &fields_list;
-    join_tab[top_join_tab_count - 1].all_fields= &all_fields;
   }
 
   /*
@@ -3932,7 +3924,6 @@ bool JOIN::make_aggr_tables_info()
 
         //todo: new:
         curr_tab->ref_array= &items1;
-        curr_tab->all_fields= &tmp_all_fields1;
         curr_tab->fields= &tmp_fields_list1;
 
         DBUG_RETURN(thd->is_error());
@@ -4020,7 +4011,6 @@ bool JOIN::make_aggr_tables_info()
     // Need to set them now for correct group_fields setup, reset at the end.
     set_items_ref_array(items1);
     curr_tab->ref_array= &items1;
-    curr_tab->all_fields= &tmp_all_fields1;
     curr_tab->fields= &tmp_fields_list1;
     set_postjoin_aggr_write_func(curr_tab);
 
@@ -4162,7 +4152,6 @@ bool JOIN::make_aggr_tables_info()
       curr_all_fields= &tmp_all_fields2;
       set_items_ref_array(items2);
       curr_tab->ref_array= &items2;
-      curr_tab->all_fields= &tmp_all_fields2;
       curr_tab->fields= &tmp_fields_list2;
       set_postjoin_aggr_write_func(curr_tab);
 
@@ -4247,7 +4236,6 @@ bool JOIN::make_aggr_tables_info()
       JOIN_TAB *last_tab= join_tab + top_join_tab_count + aggr_tables - 1;
       // Set grouped fields on the last table
       last_tab->ref_array= &items3;
-      last_tab->all_fields= &tmp_all_fields3;
       last_tab->fields= &tmp_fields_list3;
     }
     if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
@@ -15684,29 +15672,6 @@ void JOIN::drop_unused_derived_keys()
 
 
 /*
-  Evaluate the bitmap of used tables for items from the select list
-*/
-
-inline void JOIN::eval_select_list_used_tables()
-{
-  select_list_used_tables= 0;
-  Item *item;
-  List_iterator_fast<Item> it(fields_list);
-  while ((item= it++))
-  {
-    select_list_used_tables|= item->used_tables();
-  }
-  Item_outer_ref *ref;
-  List_iterator_fast<Item_outer_ref> ref_it(select_lex->inner_refs_list);
-  while ((ref= ref_it++))
-  {
-    item= ref->outer_ref;
-    select_list_used_tables|= item->used_tables();
-  }
-}
-
-
-/*
   Determine {after which table we'll produce ordered set} 
 
   SYNOPSIS
@@ -17585,14 +17550,6 @@ void JOIN::cleanup(bool full)
 
   if (full)
     have_query_plan= QEP_DELETED;
-
-  if (original_join_tab)
-  {
-    /* Free the original optimized join created for the group_by_handler */
-    join_tab= original_join_tab;
-    original_join_tab= 0;
-    table_count= original_table_count;
-  }
 
   if (join_tab)
   {

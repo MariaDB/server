@@ -623,11 +623,6 @@ typedef struct st_join_table {
     It is only used to prune searches in best_extension_by_limited_search()
   */
   table_map     key_dependent;
-   /*
-    Tables that have expression in their attached condition clause that depends
-    on this table.
-  */
-  table_map     related_tables;
 
   /*
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
@@ -774,16 +769,13 @@ typedef struct st_join_table {
 
   /**
     List of topmost expressions in the select list. The *next* JOIN_TAB
-    in the plan should use it to obtain correct values. Same applicable to
-    all_fields. These lists are needed because after tmp tables functions
-    will be turned to fields. These variables are pointing to
-    tmp_fields_list[123]. Valid only for tmp tables and the last non-tmp
-    table in the query plan.
+    in the plan should use it to obtain correct values. This list is needed
+    because after tmp tables functions will be turned to fields. This
+    variable is pointing to tmp_fields_list[123]. Valid only for tmp tables
+    and the last non-tmp table in the query plan.
     @see JOIN::make_aggr_tables_info()
   */
   List<Item> *fields;
-  /** List of all expressions in the select list */
-  List<Item> *all_fields;
   /*
     Pointer to the ref array slice which to switch to before sending
     records. Valid only for tmp tables.
@@ -1614,7 +1606,6 @@ public:
      group_list)
   */
   bool	   group;
-  bool     need_distinct;
 
   /**
     Indicates that grouping will be performed on the result set during
@@ -1633,7 +1624,7 @@ public:
          setup_end_select_func
   */
   bool     sort_and_group; 
-  bool     first_record,full_join, no_field_update;
+  bool     first_record,full_join;
   bool     hash_join;
   bool	   do_send_rows;
   table_map const_table_map;
@@ -1667,8 +1658,6 @@ public:
      make_join_statistics)
   */
   table_map outer_join;
-  /* Bitmap of tables used in the select list items */
-  table_map select_list_used_tables;
   /* Tables that has HA_NON_COMPARABLE_ROWID (does not support rowid) set */
   table_map not_usable_rowid_map;
   /* Tables that have a possiblity to use EQ_ref */
@@ -1711,8 +1700,6 @@ public:
   POSITION *next_sort_position; /* Next free space in sort_positions */
 
   Pushdown_query *pushdown_query;
-  JOIN_TAB *original_join_tab;
-  uint	   original_table_count;
   uint	   sort_space;
 
 /******* Join optimization state members start *******/
@@ -1785,8 +1772,6 @@ public:
   List<Cached_item> group_fields, group_fields_cache;
   THD	   *thd;
   Item_sum  **sum_funcs, ***sum_funcs_end;
-  /** second copy of sumfuncs (for queries with 2 temporary tables */
-  Item_sum  **sum_funcs2, ***sum_funcs_end2;
   Procedure *procedure;
   Item	    *having;
   Item      *tmp_having; ///< To store having when processed temporary table
@@ -1824,12 +1809,6 @@ public:
     restore_no_rows_in_result() in ::reinit()
   */
   bool no_rows_in_result_called;
-
-  /**
-    This is set if SQL_CALC_ROWS was calculated by filesort()
-    and should be taken from the appropriate JOIN_TAB
-  */
-  bool filesort_found_rows;
 
   bool subq_exit_fl;
   
@@ -1954,7 +1933,6 @@ public:
 
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
-  bool union_part; ///< this subselect is part of union 
 
   enum join_optimization_state { NOT_OPTIMIZED=0,
                                  OPTIMIZATION_IN_PROGRESS=1,
@@ -2134,7 +2112,6 @@ public:
   void drop_unused_derived_keys();
   bool get_best_combination();
   bool add_sorting_to_table(JOIN_TAB *tab, ORDER *order);
-  inline void eval_select_list_used_tables();
   /* 
     Return the table for which an index scan can be used to satisfy 
     the sort order needed by the ORDER BY/(implicit) GROUP BY clause 
