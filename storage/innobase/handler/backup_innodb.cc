@@ -2209,7 +2209,7 @@ public:
     {
       /* Copy the necessary part of the first log file. */
       ut_ad(lsn == ctx.first_lsn);
-      c= ctx.checkpoint_end_lsn - lsn + log_sys.START_OFFSET;
+      c= ctx.checkpoint_end_lsn - lsn;
       chunk[-1]= {0, 512};
       const lsn_t end=
         std::min(ctx.last_lsn, lsn + ctx.first_size - log_sys.START_OFFSET);
