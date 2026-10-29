@@ -8348,6 +8348,7 @@ static void usage(void)
          "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead "
          "of 'mariadbd --verbose --help'.");
   }
+  fflush(stdout);
   DBUG_VOID_RETURN;
 }
 #endif /*!EMBEDDED_LIBRARY*/

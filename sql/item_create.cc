@@ -4781,6 +4781,8 @@ Create_func_json_search::create_native(THD *thd, const LEX_CSTRING *name,
   }
   else
   {
+    if (arg_count > 3)
+      thd->lex->check_escape_placeholder(item_list->elem(3));
     func= new (thd->mem_root) Item_func_json_search(thd, *item_list);
   }
 

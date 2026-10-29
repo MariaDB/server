@@ -380,6 +380,11 @@ private:
   nodes vector in this words heap instead of private mem_heap_t
   per word. It is used for information schema read query */
   mem_heap_t* m_words_heap= nullptr;
+  /* If set, default_word_processor adds a record to the last word
+  when the words are equal under this collation, instead of when
+  they are equal as bytes. It is used by OPTIMIZE, because the index
+  lookup and the DELETE in the aux tables match words by collation. */
+  CHARSET_INFO *m_collation= nullptr;
 
 private:
   /** FTS-specific record comparison logic */
@@ -440,4 +445,6 @@ public:
   { m_words_heap= words_heap; }
 
   mem_heap_t *words_heap() const noexcept { return m_words_heap; }
+
+  void set_collation(CHARSET_INFO *cs) noexcept { m_collation= cs; }
 };

@@ -10,7 +10,8 @@ let mysql_datadir=`select @@datadir`;
 flush tables;
 perl;
   $f=$ENV{mysql_datadir} . '/mysql/user.MAI';
-  sysopen F, $f, 2  or die "sysopen $f: $!";
+  # :raw, as text mode on Windows drops a trailing Ctrl-Z byte on close
+  open F, "+<:raw", $f or die "open $f: $!";
   # set the open_count to 1, "table was not closed properly"
   sysseek F, 24, O_RDWR or die "sysseek: $!";
   syswrite F, 1, 1 or die "syswrite: $!";

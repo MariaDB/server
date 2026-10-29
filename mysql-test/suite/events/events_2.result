@@ -460,4 +460,21 @@ set global event_scheduler=0;
 drop event daily_table_creation;
 drop schema andre;
 use test;
+#
+# MDEV-41652 SIGFPE in get_next_time/Event_queue_element::compute_next_execution_time
+#
+set global event_scheduler=1;
+create event e1 on schedule every 268435456 hour do select 1;
+create event e2 on schedule every 33554432 day do select 1;
+create event e3 on schedule every 357913942 year do select 1;
+select event_name, interval_value, interval_field, status
+from information_schema.events order by event_name;
+event_name	interval_value	interval_field	status
+e1	268435456	HOUR	DISABLED
+e2	33554432	DAY	DISABLED
+e3	357913942	YEAR	DISABLED
+set global event_scheduler=0;
+drop event e1;
+drop event e2;
+drop event e3;
 # End of 10.11 tests

@@ -1,0 +1,40 @@
+--source have_federatedx.inc
+--source include/federated.inc
+
+--echo #
+--echo # MDEV-40839: SET members from the 9th on were lost when a SET column
+--echo # with more than 8 members was read through a select handler
+--echo #
+
+connection default;
+set global federated_pushdown=1;
+
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+CREATE TABLE federated.t1 (id int NOT NULL primary key, s set('a','b','c','d','e','f','g','h','i','j'));
+INSERT INTO federated.t1 VALUES (1,'a'),(2,'a,i'),(3,'h,i,j'),(4,'i'),(5,'a,b,c,d,e,f,g,h');
+
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+--replace_result $SLAVE_MYPORT SLAVE_PORT
+eval
+CREATE TABLE federated.t1 (id int NOT NULL primary key, s set('a','b','c','d','e','f','g','h','i','j'))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:$SLAVE_MYPORT/federated/t1';
+
+--echo # remote server (the truth)
+connection slave;
+select * from federated.t1 order by id;
+--echo # federated, pushdown on
+connection master;
+select * from federated.t1 order by id;
+select id, s from federated.t1 where id > 0 order by id;
+--echo # federated, pushdown off
+set global federated_pushdown=0;
+select * from federated.t1 order by id;
+set global federated_pushdown=0;
+
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+--source include/federated_cleanup.inc

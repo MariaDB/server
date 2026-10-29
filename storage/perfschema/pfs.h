@@ -54,8 +54,8 @@ extern MY_THREAD_LOCAL void* THR_PFS_SG;  // global_status
 extern MY_THREAD_LOCAL void* THR_PFS_SS;  // session_status
 extern MY_THREAD_LOCAL void* THR_PFS_SBT; // status_by_thread
 extern MY_THREAD_LOCAL void* THR_PFS_SBU; // status_by_user
-extern MY_THREAD_LOCAL void* THR_PFS_SBA; // status_by_host
-extern MY_THREAD_LOCAL void* THR_PFS_SBH; // status_by_account
+extern MY_THREAD_LOCAL void* THR_PFS_SBA; // status_by_account
+extern MY_THREAD_LOCAL void* THR_PFS_SBH; // status_by_host
 
 #define PSI_VOLATILITY_UNKNOWN 0
 #define PSI_VOLATILITY_SESSION 1
