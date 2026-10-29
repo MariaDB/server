@@ -1,0 +1,52 @@
+--source include/have_aria.inc
+
+--echo #
+--echo # MDEV-41759 MyISAM and Aria: an excluded phrase in boolean mode excludes all rows that contain its words, in any order
+--echo #
+
+let $engine= MyISAM;
+let $engines= 2;
+while ($engines)
+{
+  --echo # $engine
+  eval CREATE TABLE t1 (id INT PRIMARY KEY, c TEXT, FULLTEXT(c))
+    ENGINE=$engine;
+  INSERT INTO t1 VALUES
+    (1, 'xxxx alpha beta'),
+    (2, 'xxxx beta alpha'),
+    (3, 'xxxx alpha gamma beta'),
+    (4, 'xxxx');
+  --sorted_result
+  SELECT id FROM t1
+    WHERE MATCH(c) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+  --echo # through an enclosing excluded group
+  --sorted_result
+  SELECT id FROM t1
+    WHERE MATCH(c) AGAINST('+xxxx -("alpha beta")' IN BOOLEAN MODE);
+  --echo # inside a required group
+  --sorted_result
+  SELECT id FROM t1
+    WHERE MATCH(c) AGAINST('+xxxx +(+xxxx -"alpha beta")' IN BOOLEAN MODE);
+  --echo # next to a required phrase
+  --sorted_result
+  SELECT id FROM t1
+    WHERE MATCH(c) AGAINST('+"xxxx beta" -"alpha beta"' IN BOOLEAN MODE);
+  DROP TABLE t1;
+
+  --echo # several indexed columns, with NULLs
+  eval CREATE TABLE t1
+    (id INT PRIMARY KEY, c1 TEXT, c2 TEXT, FULLTEXT(c1,c2)) ENGINE=$engine;
+  INSERT INTO t1 VALUES
+    (1, 'xxxx alpha', 'beta'),
+    (2, 'xxxx', 'alpha beta'),
+    (3, 'xxxx beta', 'alpha'),
+    (4, 'xxxx', NULL),
+    (5, NULL, 'xxxx alpha beta');
+  --sorted_result
+  SELECT id FROM t1
+    WHERE MATCH(c1,c2) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+  DROP TABLE t1;
+
+  let $engine= Aria;
+  dec $engines;
+}
