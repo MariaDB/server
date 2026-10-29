@@ -1518,8 +1518,11 @@ public:
     {
     unlink_old:
       ut_ad(lsn < log_sys.first_lsn);
+      auto end= queue.end();
+      auto found= std::find(queue.begin() + non_log, end, lsn);
       mutex.wr_unlock();
-      context::delete_log(lsn);
+      if (found == end)
+        context::delete_log(lsn);
     }
 
     if (UNIV_LIKELY(log_sys.resize_log.m_file != OS_FILE_CLOSED))
