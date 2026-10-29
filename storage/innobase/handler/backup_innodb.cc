@@ -496,8 +496,7 @@ private:
         return 1;
       }
       d= CreateFile(d_, GENERIC_WRITE, 0, my_win_file_secattr(),
-                    CREATE_NEW,
-                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, nullptr);
+                    CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
       if (d == INVALID_HANDLE_VALUE)
       {
       error_return:
