@@ -84,6 +84,8 @@
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 LOGGER logger;
+/* Number of messages written to the error log, indexed by loglevel */
+ulong log_counts[3];
 
 READ_ONLY_SYSVAR const char *log_bin_index= 0;
 READ_ONLY_SYSVAR const char *log_bin_basename= 0;
@@ -1480,6 +1482,10 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 
   if (likely(thd))
     thd->error_printed_to_log= 1;
+
+  /* Count only when there is an error log to write the message to */
+  if (*error_log_handler_list)
+    log_counts[level]++;
 
   /* currently we don't need locking here as there is no error_log table */
   for (current_handler= error_log_handler_list ; *current_handler ;)

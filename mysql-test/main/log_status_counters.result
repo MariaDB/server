@@ -1,0 +1,40 @@
+#
+# MDEV-5194 Adding status Log_errors / Log_warnings
+#
+SET @save_log_warnings= @@global.log_warnings;
+FLUSH GLOBAL STATUS;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+Variable_name	Value
+Log_errors	0
+Log_notes	0
+Log_warnings	0
+# log_warnings=2: failed login is written to the error log and counted
+SET GLOBAL log_warnings= 2;
+connect(localhost,no_such_user,wrong,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,no_such_user,wrong,;
+ERROR 28000: Access denied for user 'no_such_user'@'localhost' (using password: YES)
+connection default;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+Variable_name	Value
+Log_errors	0
+Log_notes	0
+Log_warnings	1
+# log_warnings=1: failed login is not written, so not counted
+SET GLOBAL log_warnings= 1;
+connect(localhost,no_such_user,wrong,test,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,no_such_user,wrong,;
+ERROR 28000: Access denied for user 'no_such_user'@'localhost' (using password: YES)
+connection default;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+Variable_name	Value
+Log_errors	0
+Log_notes	0
+Log_warnings	1
+# FLUSH GLOBAL STATUS resets the counters
+FLUSH GLOBAL STATUS;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+Variable_name	Value
+Log_errors	0
+Log_notes	0
+Log_warnings	0
+SET GLOBAL log_warnings= @save_log_warnings;

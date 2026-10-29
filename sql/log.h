@@ -1487,6 +1487,7 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern transaction_participant binlog_tp;
 extern LOGGER logger;
+extern ulong log_counts[3];
 
 extern const char *log_bin_index;
 extern const char *log_bin_basename;

@@ -8076,6 +8076,9 @@ SHOW_VAR status_vars[]= {
   SHOW_FUNC_ENTRY("Key",       &show_default_keycache),
   {"optimizer_join_prefixes_check_calls",     (char*) offsetof(STATUS_VAR, optimizer_join_prefixes_check_calls), SHOW_LONG_STATUS},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
+  {"Log_errors",               (char*) &log_counts[ERROR_LEVEL],       SHOW_LONG},
+  {"Log_notes",                (char*) &log_counts[INFORMATION_LEVEL], SHOW_LONG},
+  {"Log_warnings",             (char*) &log_counts[WARNING_LEVEL],     SHOW_LONG},
 #ifndef DBUG_OFF
   {"malloc_calls",             (char*) &malloc_calls, SHOW_LONG},
 #endif
@@ -8417,6 +8420,7 @@ static int mysql_init_variables(void)
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
   grant_option= 0;
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
+  bzero(log_counts, sizeof(log_counts));
   malloc_calls= 0;
   subquery_cache_miss= subquery_cache_hit= 0;
   delayed_insert_threads= delayed_insert_writes= delayed_rows_in_use= 0;
