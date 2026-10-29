@@ -431,6 +431,7 @@ extern uint32 translog_get_first_file(TRANSLOG_ADDRESS horizon);
 extern uint32 translog_get_first_needed_file();
 extern char *translog_filename_by_fileno(uint32 file_no, char *path);
 extern void translog_set_file_size(uint32 size);
+extern my_bool translog_rotate();
 
 /* record parts descriptor */
 struct st_translog_parts
