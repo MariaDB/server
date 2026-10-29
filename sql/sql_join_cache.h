@@ -211,7 +211,7 @@ protected:
     This is set to true for the first inner table of an outer join or a
     semi-join.
     The flag must be set by the init method.
-    Currently any implementation of the virtial init method calls
+    Currently any implementation of the virtual init method calls
     the function JOIN_CACHE::calc_record_fields() to set this flag.
   */
   bool with_match_flag;
@@ -505,7 +505,7 @@ protected:
   virtual bool skip_next_candidate_for_match(uchar *rec_ptr)= 0;
   /*
     Shall read the given record from the join buffer into the
-    the corresponding record buffer
+    corresponding record buffer
   */
   virtual void read_next_candidate_for_match(uchar *rec_ptr)= 0;
 
@@ -1242,7 +1242,7 @@ class JOIN_TAB_SCAN_MRR: public JOIN_TAB_SCAN
   /* Flag to be passed to the MRR interface */
   uint mrr_mode;
 
-  /* MRR buffer assotiated with this join cache */
+  /* MRR buffer associated with this join cache */
   HANDLER_BUFFER mrr_buff;
 
   /* Shall initialize the MRR buffer */

@@ -405,7 +405,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 {
   /*
     Assign members db, table_name, new_db and new_name
-    to simplify further comparisions: we want to see if it's a RENAME
+    to simplify further comparisons: we want to see if it's a RENAME
     later just by comparing the pointers, avoiding the need for strcmp.
   */
   db= table_list->db;

@@ -75,7 +75,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
     DBUG_RETURN(true);
   }
 
-  /* Otherwise, just append the new error as a exception condition. */
+  /* Otherwise, just append the new error as an exception condition. */
   save_stmt_da->push_warning(thd, sql_errno, sqlstate,
                              Sql_condition::WARN_LEVEL_ERROR,
                              message);
@@ -254,13 +254,13 @@ Condition_information::aggregate(THD *thd, const Diagnostics_area *da)
 /**
   Create an UTF-8 string item to represent a condition item string.
 
-  @remark The string might not have a associated charset. For example,
+  @remark The string might not have an associated charset. For example,
           this can be the case if the server does not or fails to process
           the error message file.
 
   @remark See "Design notes about Sql_condition::m_message_text." in sql_error.cc
 
-  @return Pointer to an string item, NULL on failure.
+  @return Pointer to a string item, NULL on failure.
 */
 
 Item *

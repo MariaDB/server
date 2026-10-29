@@ -178,7 +178,7 @@ bool read_ha_rows_and_check_limit(json_engine_t *je, const char *read_elem_key,
 
   @return
     0  OK
-    1  An Error occured
+    1  An Error occurred
 */
 int json_read_object(json_engine_t *je, Read_named_member *members,
                      String *err_buf)

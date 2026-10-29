@@ -293,7 +293,7 @@ protected:
   virtual bool prepare_inner(THD *thd) = 0;
 
   /**
-    @brief Perform the command-specific actions of optimization and excution
+    @brief Perform the command-specific actions of optimization and execution
     @param thd  global context the processed statement
     @returns false on success, true on error
   */

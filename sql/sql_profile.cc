@@ -18,7 +18,7 @@
 /**
   @file
 
-  Implement query profiling as as list of metaphorical fences, with one fence
+  Implement query profiling as a list of metaphorical fences, with one fence
   per query, and each fencepost a change of thd->proc_info state (with a
   snapshot of system statistics).  When asked, we can then iterate over the 
   fenceposts and calculate the distance between them, to inform the user what

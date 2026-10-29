@@ -130,7 +130,7 @@ bool LEX::prepare_unreferenced_in_with_clauses()
     of parsing the query or of the specification of a CTE has been finished,
     thus the chain of table references used in the parsed fragment has been
     already built. It is assumed that parameters of the method specify a
-    a sub-chain of this chain.
+    sub-chain of this chain.
     If a table reference can be potentially a table reference to a CTE and it
     has not been resolved yet then the method tries to find the definition
     of the CTE against which the reference can be resolved. If it succeeds
@@ -301,7 +301,7 @@ bool With_clause::check_dependencies()
   if (dependencies_are_checked)
     return false;
   /* 
-    Look for for definitions with the same query name.
+    Look for definitions with the same query name.
     When found report an error and return true immediately.
     For each table T defined in this with clause look for all other tables
     from the same with clause that are used in the specification of T.
@@ -488,7 +488,7 @@ With_element *find_table_def_in_with_clauses(TABLE_LIST *tbl,
         the FROM clause of a descendant of top_unit->with_element
         and this with element belongs to with_clause then this
         element must be used as the barrier for the search in the
-        the list of CTEs from with_clause unless the clause contains
+        list of CTEs from with_clause unless the clause contains
         RECURSIVE.
       */
       With_element *barrier= 0;
@@ -1465,7 +1465,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
   if (!with_elem ||!with_elem->is_recursive)
   {
     /*
-      If this select is not from the specification of a with elememt or
+      If this select is not from the specification of a with element or
       if this not a recursive with element then there is nothing to check.
     */
     return false;

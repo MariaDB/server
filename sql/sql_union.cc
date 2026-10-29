@@ -603,7 +603,7 @@ void select_unit_ext::change_select()
 
   @detail
     - If this operation is not distinct, we try to find it and increase the
-    counter by "increment" setted in select_unit_ext::change_select().
+    counter by "increment" set in select_unit_ext::change_select().
 
     - If it is distinct, for UNION we write this record; for INTERSECT we
     try to find it and increase the intersect counter if found; for EXCEPT
@@ -748,7 +748,7 @@ int select_unit_ext::send_data(List<Item> &values)
 
 /*
   @brief
-    Do post-operation after a operator
+    Do post-operation after an operator
 
   @detail
     We need to scan in these cases:
@@ -1230,7 +1230,7 @@ bool st_select_lex_unit::join_union_type_attributes(THD *thd_arg,
     {
       /*
         If the outer query has a GROUP BY clause, an outer reference to this
-        query block may have been wrapped in a Item_outer_ref, which has not
+        query block may have been wrapped in an Item_outer_ref, which has not
         been fixed yet. An Item_type_holder must be created based on a fixed
         Item, so use the inner Item instead.
       */
@@ -2145,7 +2145,7 @@ void st_select_lex_unit::optimize_bag_operation(bool is_outer_distinct)
   bool any_intersect_distinct= false;
   SELECT_LEX *prev_sl= first_select();
 
-  /* process INTERSECT subsequence in the begining */
+  /* process INTERSECT subsequence in the beginning */
   for (sl= prev_sl->next_select(); sl; prev_sl= sl, sl= sl->next_select())
   {
     if (sl->linkage != INTERSECT_TYPE)
@@ -2234,7 +2234,7 @@ void st_select_lex_unit::optimize_bag_operation(bool is_outer_distinct)
     }
   }
   /*
-    if disable_index points to a INTERSECT, based on rule 1 we can set it
+    if disable_index points to an INTERSECT, based on rule 1 we can set it
     to the last INTERSECT node.
   */
   if (disable_index && disable_index->linkage == INTERSECT_TYPE &&
@@ -2645,7 +2645,7 @@ bool st_select_lex_unit::exec_inner()
     part then the first call of this method executes only this part
     while the following calls execute the recursive part. If there are
     no anchors each call executes the whole unit.
-    Before the excution the method cleans up the temporary table 
+    Before the execution the method cleans up the temporary table 
     to where the new rows of the recursive table are sent.
     After the execution the unit these rows are copied to the 
     temporary tables created for recursive references of T. 
@@ -2882,7 +2882,7 @@ void st_select_lex_unit::reinit_exec_mechanism()
 
 /**
   Change the select_result object used to return the final result of
-  the unit, replacing occurences of old_result with new_result.
+  the unit, replacing occurrences of old_result with new_result.
 
   @param new_result New select_result object
   @param old_result Old select_result object

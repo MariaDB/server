@@ -1528,7 +1528,7 @@ protected:
   enum enum_reopt_result {
     REOPT_NEW_PLAN, /* there is a new reoptimized plan */
     REOPT_OLD_PLAN, /* no new improved plan can be found, use the old one */
-    REOPT_ERROR,    /* an irrecovarable error occurred during reoptimization */
+    REOPT_ERROR,    /* an irrecoverable error occurred during reoptimization */
     REOPT_NONE      /* not yet reoptimized */
   };
 
@@ -1671,7 +1671,7 @@ public:
   table_map select_list_used_tables;
   /* Tables that has HA_NON_COMPARABLE_ROWID (does not support rowid) set */
   table_map not_usable_rowid_map;
-  /* Tables that have a possiblity to use EQ_ref */
+  /* Tables that have a possibility to use EQ_ref */
   table_map eq_ref_tables;
 
   table_map allowed_top_level_tables;
@@ -2298,7 +2298,7 @@ int opt_sum_query(THD* thd,
 /* from sql_delete.cc, used by opt_range.cc */
 extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
-/** class to copying an field/item to a key struct */
+/** class to copying a field/item to a key struct */
 
 class store_key :public Sql_alloc
 {

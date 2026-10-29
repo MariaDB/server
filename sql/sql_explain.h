@@ -826,7 +826,7 @@ public:
   /*
     Index use: key name and length.
     Note: that when one is accessing I_S tables, those may show use of 
-    non-existant indexes.
+    non-existent indexes.
 
     key.key_name == NULL means 'NULL' will be shown in tabular output.
     key.key_len == (uint)-1 means 'NULL' will be shown in tabular output.

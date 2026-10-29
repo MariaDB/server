@@ -201,7 +201,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     Check if this is a table type that stores index and data separately,
     like ISAM or MyISAM. We assume fixed order of engine file name
     extensions array. First element of engine file name extensions array
-    is meta/index file extention. Second element - data file extention. 
+    is meta/index file extension. Second element - data file extension. 
   */
   ext= table->file->bas_ext();
   if (!ext[0] || !ext[1])
@@ -1457,7 +1457,7 @@ send_result_message:
         table->next_global= save_next_global;
       }
     }
-    /* Error path, a admin command failed. */
+    /* Error path, an admin command failed. */
     if (thd->transaction_rollback_request || fatal_error)
     {
       /*

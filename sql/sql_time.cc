@@ -751,7 +751,7 @@ null_date:
     calc_time_diff()
       l_time1         - TIME/DATE/DATETIME value
       l_time2         - TIME/DATE/DATETIME value
-      l_sign          - 1 absolute values are substracted,
+      l_sign          - 1 absolute values are subtracted,
                         -1 absolute values are added.
       seconds_out     - Out parameter where difference between
                         l_time1 and l_time2 in seconds is stored.

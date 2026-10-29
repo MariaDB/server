@@ -99,7 +99,7 @@
     select *
     from (t1 left join t2 on t2.col=t1.col) left join t3 on t1.col=t3.col
 
-  or an equvalent query:
+  or an equivalent query:
 
     select *
     from (t1 left join t3 on t3.col=t1.col) left join t2 on t1.col=t2.col
@@ -178,7 +178,7 @@
 
   == 2.2.3 Building the TABLE_LIST structure ==
   Then, we walk through the table_pos objects via {table_pos::next} edges and
-  create a parsed LEFT JOIN data sructure.
+  create a parsed LEFT JOIN data structure.
 
   For a chain of t1-t2-t3-t4-t5 we would create:
 
@@ -385,7 +385,7 @@ static bool process_outer_relations(THD* thd,
   of check in "beginning") in case we have non-directional cycle
 
   @bdetail
-    Recusively check if table "beginning" is reachable from table "tab" through
+    Recursively check if table "beginning" is reachable from table "tab" through
     the table_pos::inner_side pointers.
 */
 
@@ -413,7 +413,7 @@ static bool check_directed_cycle(THD* thd, table_pos *tab,
                +--------+
       However for such graph we would first call
       check_directed_cycle(tab=t3,beginning=t3) and detect the loop.
-      We won't get to the point where we we would call
+      We won't get to the point where we would call
       check_directed_cycle(tab=t3,beginning=t1)
     */
     return FALSE;
@@ -913,7 +913,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
         /\
   tableN  nest_tableN-2
          ...
-           join_list of of NESTED_JOIN_2
+           join_list of NESTED_JOIN_2
             /\
       table3  nest_table1  --nested_join-> NESTED_JOIN_1
               join_list of NESTED_JOIN1
@@ -1054,7 +1054,7 @@ bool setup_oracle_join(THD *thd, Item **conds,
   // parts of WHERE moved to ON (original ONs will be fixed later)
   for (i= 0; i < n_tables; i++)
   {
-    // we have to count becaust this lists are included in other lists
+    // we have to count because this lists are included in other lists
     List_iterator<Item> it(*all_fields);
     Item *item;
     for (uint j= 0; j < tab[i].on_conds.elements && (item= it++); j++)

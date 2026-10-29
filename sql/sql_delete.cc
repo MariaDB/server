@@ -1564,7 +1564,7 @@ void multi_delete::abort_result_set()
     }
   }
   /*
-    Mark all temporay tables as not completely binlogged
+    Mark all temporary tables as not completely binlogged
     All future usage of these tables will enforce row level logging, which
     ensures that all future usage of them enforces row level logging.
   */
@@ -1820,7 +1820,7 @@ bool multi_delete::send_eof()
     {
       /*
         No error message was sent and query was not killed (in which case
-        mysql_execute_command() will send the error mesage).
+        mysql_execute_command() will send the error message).
       */
       ::my_ok(thd, deleted);  // Ends the DELETE statement
     }

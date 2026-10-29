@@ -2959,7 +2959,7 @@ Type_handler_varchar::Column_definition_set_attributes(
   if (attr.has_explicit_length())
   {
     /*
-      Long VARCHAR's are automaticly converted to blobs in mysql_prepare_table
+      Long VARCHAR's are automatically converted to blobs in mysql_prepare_table
       if they don't have a default value
     */
     return def->check_length(ER_TOO_BIG_DISPLAYWIDTH, MAX_FIELD_BLOBLENGTH);
@@ -7404,7 +7404,7 @@ Type_handler_int_result::Item_type_std_attributes_generic(const Item *item)
     Item (e.g. for subselect), we need to add one extra character for
     a possible sign.
     The code below works both for optimized Item_int and other item kinds.
-    It evaluates max_length from the precision and the optinal sign length.
+    It evaluates max_length from the precision and the optional sign length.
   */
   DBUG_ASSERT(item->decimals == 0);
   uint32 max_length= item->decimal_precision() + (item->unsigned_flag ? 0 : 1);
@@ -9584,7 +9584,7 @@ int Type_handler_timestamp_common::cmp_native(const Native &a,
 {
   /*
     Optimize a simple case:
-    Either both timeatamp values have the same fractional precision,
+    Either both timestamp values have the same fractional precision,
     or both values are zero datetime '0000-00-00 00:00:00.000000',
   */
   if (a.length() == b.length())
@@ -9797,7 +9797,7 @@ Type_handler_general_purpose_int::partition_field_append_value(
 
      Before appending, we value is first converted to field_cs.
      a) If the conversion succeeds, the value is printed in its field_cs
-        represenation.
+        representation.
      b) If the conversion fails, the value is printed without conversion,
         using the original character set introducer followed by the original
         string hex representation.

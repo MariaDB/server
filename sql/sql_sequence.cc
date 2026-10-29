@@ -590,8 +590,8 @@ SEQUENCE::~SEQUENCE()
 
 /*
   The following functions is to ensure that we when reserve new values
-  trough sequence object sequence we have only one writer at at time.
-  A sequence table can have many readers (trough normal SELECT's).
+  through sequence object sequence we have only one writer at a time.
+  A sequence table can have many readers (through normal SELECT's).
 
   We mark that we have a write lock in the table object so that
   ha_sequence::write_row() can check if we have a lock. If already locked, then
@@ -687,7 +687,7 @@ int SEQUENCE::read_initial_values(TABLE *table)
     table->reginfo.lock_type= save_lock_type;
     /*
       Doing mysql_lock_tables() may have started a read only transaction.
-      If that happend, it's better that we commit it now, as a lot of
+      If that happened, it's better that we commit it now, as a lot of
       code assumes that there is no active stmt transaction directly after
       open_tables().
       But we also don't want to commit the stmt transaction while in a
@@ -799,7 +799,7 @@ void sequence_definition::adjust_values(longlong next_value)
 
     /*
       Ensure that next_free_value has the right offset, so that we can
-      generate a serie by just adding real_increment. The goal is to
+      generate a series by just adding real_increment. The goal is to
       adjust next_free_value upwards such that
 
       next_free_value % real_increment == offset

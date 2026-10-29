@@ -261,7 +261,7 @@ bool LEX::set_trigger_new_row(const LEX_CSTRING *name, Item *val,
 
   @remark If spvar is not specified, the name is used to search for the
           variable in the parse-time context. If the variable does not
-          exist, a error is set and NULL is returned to the caller.
+          exist, an error is set and NULL is returned to the caller.
 
   @return An Item_splocal object representing the SP variable, or NULL on error.
 */
@@ -1006,7 +1006,7 @@ extern "C" {
   @param wc     - the character to be escaped
   @param str    - the destination string
   @param end    - the end of the destination string
-  @returns      - a code according to the wc_mb() convension.
+  @returns      - a code according to the wc_mb() convention.
 */
 int my_wc_mb_utf8mb3_with_escape(CHARSET_INFO *cs, my_wc_t escape, my_wc_t wc,
                                  uchar *str, uchar *end)
@@ -1059,7 +1059,7 @@ int my_wc_mb_utf8mb3_opt_escape(CHARSET_INFO *cs,
   @param end       - the end of the destination string
   @param sep       - the string delimiter (e.g. ' or ")
   @param escape    - the escape character (backslash, or 0)
-  @returns         - a code according to the wc_mb() convension.
+  @returns         - a code according to the wc_mb() convention.
 */
 int my_wc_mb_utf8mb3_escape(CHARSET_INFO *cs, my_wc_t wc,
                             uchar *str, uchar *end,
@@ -2966,7 +2966,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
       next_state= MY_LEX_START;        // Allow signed numbers
       return(tokval);                  // Was keyword
     }
-    yySkip();                  // next state does a unget
+    yySkip();                  // next state does an unget
   }
 
   yyUnget();                       // ptr points now after last token char
@@ -2976,7 +2976,7 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
 
   /*
      Note: "SELECT _bla AS 'alias'"
-     _bla should be considered as a IDENT if charset haven't been found.
+     _bla should be considered as an IDENT if charset hasn't been found.
      So we don't use MYF(MY_WME) with get_charset_by_csname to avoid
      producing an error.
   */
@@ -3349,7 +3349,7 @@ void st_select_lex_node::substitute_in_tree(st_select_lex_node *subst)
 /*
   include on level down (but do not link)
 
-  SYNOPSYS
+  SYNOPSIS
     st_select_lex_node::include_standalone()
     upper - reference on node under which this node should be included
     ref - references on reference on this node
@@ -3486,7 +3486,7 @@ void st_select_lex_node::exclude()
 /*
   Exclude level of current unit from tree of SELECTs
 
-  SYNOPSYS
+  SYNOPSIS
     st_select_lex_unit::exclude_level()
 
   NOTE: units which belong to current will be brought up on level of
@@ -3534,7 +3534,7 @@ void st_select_lex_unit::exclude_level()
   }
   else
   {
-    // exclude currect unit from list of nodes
+    // exclude current unit from list of nodes
     (*prev)= next;
     if (next)
       next->prev= prev;
@@ -3568,7 +3568,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
     Mark all selects from resolved to 1 before select where was
     found table as depended (of select where was found table)
 
-    We move by name resolution context, bacause during merge can some select
+    We move by name resolution context, because during merge can some select
     be excluded from SELECT tree
   */
   Name_resolution_context *c= &this->context;
@@ -4771,7 +4771,7 @@ TABLE_LIST *LEX::unlink_first_table(bool *link_to_local)
   Bring first local table of first most outer select to first place in global
   table list
 
-  SYNOPSYS
+  SYNOPSIS
      LEX::first_lists_tables_same()
 
   NOTES
@@ -4949,7 +4949,7 @@ void LEX::restore_backup_query_tables_list(Query_tables_list *backup)
   Checks for usage of routines and/or tables in a parsed statement
 
   SYNOPSIS
-    LEX:table_or_sp_used()
+    LEX::table_or_sp_used()
 
   RETURN
     FALSE  No routines and tables used
@@ -5339,7 +5339,7 @@ bool st_select_lex::handle_derived(LEX *lex, uint phases)
   Returns first unoccupied table map and table number in this select.
   Map and table are returned in *'map' and *'tablenr' accordingly.
 
-  @retrun TRUE  no free table map/table number
+  @return TRUE  no free table map/table number
   @return FALSE found free table map/table number
 */
 
@@ -5655,7 +5655,7 @@ void SELECT_LEX::update_used_tables()
     }
     /*
       - There is no need to check sj_on_expr, because merged semi-joins inject
-        sj_on_expr into the parent's WHERE clase.
+        sj_on_expr into the parent's WHERE clause.
       - For non-merged semi-joins (aka JTBMs), we need to check their
         left_expr. There is no need to check the rest of the subselect, we know
         it is uncorrelated and so cannot refer to any tables in this select.
@@ -6495,7 +6495,7 @@ bool LEX::is_partition_management() const
 
 /**
   Exclude last added SELECT_LEX (current) in the UNIT and return pointer in it
-  (previous become currect)
+  (previous become current)
 
   @return detached SELECT_LEX or NULL in case of error
 */
@@ -7003,7 +7003,7 @@ bool LEX::check_create_package_cycle_dependency(const Lex_ident_sys_st &db,
     {
       /*
         The exact raised error is not important here.
-        It will be overriden to: Unknown data type: '`pkg`.`type`'
+        It will be overridden to: Unknown data type: '`pkg`.`type`'
       */
       DBUG_ASSERT(thd->get_internal_handler());
       my_error(ER_UNKNOWN_ERROR, MYF(0), "Cycle found in TYPE definition");
@@ -7907,7 +7907,7 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
       Reset sql_command to SQLCOM_EXECUTE to make "dynamic open cursor"
       use the same command flags: sql_command_flags[SQLCOM_EXECUTE].
       "dynamic open cursor" is very similar to EXECUTE.
-      This makes the reprepare observer related code work correcly in
+      This makes the reprepare observer related code work correctly in
       Prepared_statement::execute_loop().
     */
     DBUG_ASSERT(cursor_stmt->sql_command == SQLCOM_END);
@@ -12215,10 +12215,10 @@ bool LEX::select_finalize(st_select_lex_unit *expr, Lex_select_lock l)
      RETURN ((1) IN (SELECT * FROM t1))
      IF ((1) IN (SELECT * FROM t1))
 
-  Statements of the first type call master_select_push() in the beginning.
+  Statements of the first type call main_select_push() in the beginning.
   In such case everything is properly linked.
 
-  Statements of the second type do not call mastr_select_push().
+  Statements of the second type do not call main_select_push().
   Here we catch the second case and relink thd->lex->builtin_select and
   select_lex to properly point to each other.
 
@@ -12916,7 +12916,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     4. Remove conditions from HAVING clause that can be entirely pushed
        into WHERE.
        Multiple equalities are not removed but marked with MARKER_DELETION flag.
-       They will be deleted later in substitite_for_best_equal_field() called
+       They will be deleted later in substitute_for_best_equal_field() called
        for the HAVING condition.
     5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
        of attach_to_conds so the condition could be pushed into WHERE.
@@ -12970,7 +12970,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
     4. Remove conditions from HAVING clause that can be entirely pushed
        into WHERE.
        Multiple equalities are not removed but marked with MARKER_DELETION flag.
-       They will be deleted later in substitite_for_best_equal_field() called
+       They will be deleted later in substitute_for_best_equal_field() called
        for the HAVING condition.
   */
   having= remove_pushed_top_conjuncts_for_having(thd, having);
@@ -14345,12 +14345,12 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 
   @detail
     Hints in this SELECT have already been parsed, but not resolved.
-    Hint resoution requires that
+    Hint resolution requires that
     A. Children SELECT have done their hint resolution.
     B. SELECT_SELECT objects have their correct select_number.
 
     Because of A, we have this call that is invoked at the end of each SELECT.
-    Due to B, we don't do resulution right here, we just remember the order in
+    Due to B, we don't do resolution right here, we just remember the order in
     which SELECTs must do name resolution.
     See opt_hints.h, Section "Hint Resolution" for details.
 */

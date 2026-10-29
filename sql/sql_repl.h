@@ -28,7 +28,7 @@ struct slave_connection_state;
   @ref slave_connections_needed_for_purge upon @ref COM_REGISTER_SLAVE
   * Starts as `true` (do warn), and becomes `false`
     (don't warn) when warning for the first time
-  * Also becomes `false` when the user intetionally sets
+  * Also becomes `false` when the user intentionally sets
     `@@slave_connections_needed_for_purge`
 */
 extern std::atomic<bool> warn_slaves_not_needed_for_purge;

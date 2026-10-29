@@ -711,7 +711,7 @@ protected:
                        (see TIME_MAX_INTERVAL_HOUR)
 
       If we ever need wider intervals, this code switching between
-      full datetime and interval-only should be rewised.
+      full datetime and interval-only should be revised.
     */
     DBUG_ASSERT(TIME_MAX_INTERVAL_HOUR <= 999999995959);
     /*            (YYMMDDhhmmss) */
@@ -1078,7 +1078,7 @@ public:
                                        const char *field_name,
                                        const char *value);
   /*
-    This method is used if the item was not null but convertion to
+    This method is used if the item was not null but conversion to
     TIME/DATE/DATETIME failed. We return a zero date if allowed,
     otherwise - null.
   */
@@ -4164,7 +4164,7 @@ public:
   /*
     In 10.11.8 the semantics of this method has changed to the opposite.
     It used to be called with the old data type handler as "this".
-    Now it's called with the new data type hander as "this".
+    Now it's called with the new data type handler as "this".
     To avoid problems during merges, the method name was renamed.
   */
   virtual const Type_handler *type_handler_for_implicit_upgrade() const
@@ -4508,7 +4508,7 @@ public:
                            This is needed for EXPLAIN SELECT statements.
     @returns             - A pointer to a new my_var instance.
                            nullptr if "validate_only" was passed.
-                           nullptr if the variable is not used correcly
+                           nullptr if the variable is not used correctly
                            (an SQL error is raised in this case).
   */
   virtual my_var *make_outvar(THD *thd,
@@ -4654,7 +4654,7 @@ public:
                                        bool is_in_predicate) const= 0;
   /**
     Make a simple constant replacement item for a constant "src",
-    so the new item can futher be used for comparison with "cmp", e.g.:
+    so the new item can further be used for comparison with "cmp", e.g.:
       src = cmp   ->  replacement = cmp
 
     "this" is the type handler that is used to compare "src" and "cmp".
@@ -4666,7 +4666,7 @@ public:
     @retval    - a pointer to the created replacement Item
     @retval    - NULL, if could not create a replacement (e.g. on EOM).
                  NULL is also returned for ROWs, because instead of replacing
-                 a Item_row to a new Item_row, Type_handler_row just replaces
+                 an Item_row to a new Item_row, Type_handler_row just replaces
                  its elements.
   */
   virtual Item *make_const_item_for_comparison(THD *thd,

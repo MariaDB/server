@@ -1564,7 +1564,7 @@ Item *transform_condition_or_part(THD *thd,
     In details:
     1. Check what pushable formula can be extracted from cond
     2. Build a clone PC of the formula that can be extracted
-       (the clone is built only if the extracted formula is a AND subformula
+       (the clone is built only if the extracted formula is an AND subformula
         of cond or conjunction of such subformulas)
     Do for every select specifying derived table/view:
     3. If there is no HAVING clause prepare PC to be conjuncted with

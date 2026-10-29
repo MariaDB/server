@@ -18,7 +18,7 @@
   @file
 
   @brief
-  functions to update persitent statistical tables and to read from them
+  functions to update persistent statistical tables and to read from them
 
   @defgroup Query_Optimizer  Query Optimizer
   @{
@@ -396,7 +396,7 @@ public:
 
   Reading statistical data from a statistical table is performed by the 
   following pattern. First a table dependent method sets the values of the
-  the fields that comprise the lookup key. Then, get_stat_values(...) call
+  fields that comprise the lookup key. Then, get_stat_values(...) call
   finds the row from the statistical table by the set key. If the row is
   found the values of statistical fields are read from this row and are
   distributed in the internal structures.
@@ -450,7 +450,7 @@ public:
   It is assumed that before any invocation of this method a call of the
   function st.set_key_fields has set the values of the primary key fields
   that serve to locate the row from the statistical table st where the 
-  the collected statistical data from internal structures are to be written
+  collected statistical data from internal structures are to be written
   to. The statistical data is written from the counterparts of the
   statistical fields of internal structures into which it would be read
   by the functions get_stat_values. The counterpart fields are used
@@ -2015,7 +2015,7 @@ public:
 
 
   /** 
-    @breif
+    @brief
     Change the elements of calc_state after reading the next index entry
 
     @details
@@ -2822,7 +2822,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   /* 
     Calculate values for all statistical characteristics on columns and
-    and for each field f of 'table' save them in the write_stat structure
+    for each field f of 'table' save them in the write_stat structure
     from the Field object for f. 
   */
   if (!rc)
@@ -3350,7 +3350,7 @@ read_statistics_for_tables(THD *thd, TABLE_LIST *tables, bool force_reload)
 
       /*
         The following lock is here to ensure that if a lot of threads are
-        accessing the table at the same time after a ANALYZE TABLE,
+        accessing the table at the same time after an ANALYZE TABLE,
         only one thread is loading the data from the stats tables
         and the others threads are reusing the loaded data.
       */
@@ -3540,7 +3540,7 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
 
 
 /**
-   Generate tempoary column or index name for renames
+   Generate temporary column or index name for renames
 */
 
 static LEX_CSTRING *generate_tmp_name(LEX_CSTRING *to, uint counter)
@@ -3682,7 +3682,7 @@ int rename_columns_in_stat_table(THD *thd, TABLE *tab,
   {
     /*
       All unhandled renamed fields has now a temporary name.
-      Remove all conflicing rows and rename the temporary name to
+      Remove all conflicting rows and rename the temporary name to
       the final name.
     */
 
@@ -3932,14 +3932,14 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
       }
     }
     if (!found)
-      it.remove();                              // All renames succeded
+      it.remove();                              // All renames succeeded
   }
 
   if (!indexes->is_empty())
   {
     /*
       All unhandled renamed index has now a temporary name.
-      Remove all conflicing rows and rename the temporary name to
+      Remove all conflicting rows and rename the temporary name to
       the final name.
     */
 
@@ -4009,7 +4009,7 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
 
   @details
   The function replaces the name of the table 'tab' from the database 'db' 
-  for 'new_tab' in all all statistical tables: table_stats, column_stats,
+  for 'new_tab' in all statistical tables: table_stats, column_stats,
   index_stats.
 
   @retval

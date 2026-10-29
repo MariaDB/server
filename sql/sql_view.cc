@@ -276,7 +276,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     (theoretically) updated, so it is enough to have UPDATE privilege on
     them, for example)
     - user has SELECT privilege on columns used in expressions of VIEW select
-    - for columns of underly tables used on top of SELECT list also will be
+    - for columns of underlying tables used on top of SELECT list also will be
     checked that we have not more privileges on correspondent column of view
     table (i.e. user will not get some privileges by view creation)
   */
@@ -640,7 +640,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   {
     Item *report_item= NULL;
     /* 
-       This will hold the intersection of the priviliges on all columns in the
+       This will hold the intersection of the privileges on all columns in the
        view.
      */
     privilege_t final_priv(VIEW_ANY_ACL);
@@ -1306,7 +1306,7 @@ bool mariadb_view_version_get(TABLE_SHARE *share)
                              view_timestamp_parameters, 1,
                              &file_parser_dummy_hook))
   {
-    // safety if the definition file is brocken
+    // safety if the definition file is broken
     share->tabledef_version.length= 0;
     my_error(ER_TABLE_CORRUPT, MYF(0),
              share->db.str, share->table_name.str);

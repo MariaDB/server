@@ -101,7 +101,7 @@
   Is set in slave SQL thread when there was an
   error on master, which, when is not reproducible
   on slave (i.e. the query succeeds on slave),
-  is not terminal to the state of repliation,
+  is not terminal to the state of replication,
   and should be ignored. The slave SQL thread,
   however, needs to rollback the effects of the
   succeeded statement to keep replication consistent.
@@ -266,7 +266,7 @@
   When creating a view, we need to just check its syntax omitting
   any optimizations: afterwards definition of the view will be
   reconstructed by means of ::print() methods and written to
-  to an .frm file. We need this definition to stay untouched.
+  an .frm file. We need this definition to stay untouched.
 */ 
 #define CONTEXT_ANALYSIS_ONLY_VIEW    2
 /*

@@ -723,7 +723,7 @@ static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
 static HASH acl_roles;
 /*
-  An hash containing mappings user <--> role
+  A hash containing mappings user <--> role
 
   A hash is used so as to make updates quickly
   The hashkey used represents all the entries combined
@@ -2193,7 +2193,7 @@ class User_table_json: public User_table
 
     privilege_t deny_bits(NO_ACL);
     privilege_t deny_subtree(NO_ACL);
-    /* Calculate deny field, iterating over all json entres*/
+    /* Calculate deny field, iterating over all json entries*/
     for (const deny_data_t &e : deny_entries())
     {
       if (e.type == ACL_PRIV_TYPE::PRIV_TYPE_GLOBAL)
@@ -5050,7 +5050,7 @@ bool change_password(THD *thd, LEX_USER *user)
     row-based replication.  The flag will be reset at the end of the
     statement.
     This has to be handled here as it's called by set_var.cc, which is
-    not automaticly handled by sql_parse.cc
+    not automatically handled by sql_parse.cc
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -5200,7 +5200,7 @@ int acl_set_default_role(THD *thd,
     row-based replication.  The flag will be reset at the end of the
     statement.
     This has to be handled here as it's called by set_var.cc, which is
-    not automaticly handled by sql_parse.cc
+    not automatically handled by sql_parse.cc
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
@@ -5935,7 +5935,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   if (old_row_exists)
   {
     /*
-      We should NEVER delete from the user table, as a uses can still
+      We should NEVER delete from the user table, as a user can still
       use mysqld even if he doesn't have any privileges in the user table!
     */
     if (cmp_record(table, record[1]))
@@ -8230,9 +8230,9 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   much smaller.
 
   We put a role and all roles directly granted to it in a hash, and iterate
-  the (suposedly long) array of privileges, filtering out "interesting"
+  the (supposedly long) array of privileges, filtering out "interesting"
   entries using the role hash. We put all these "interesting"
-  entries in a (suposedly small) dynamic array and them use it for merging.
+  entries in a (supposedly small) dynamic array and then use it for merging.
 */
 static const uchar *role_key(const void *role_, size_t *klen, my_bool)
 {
@@ -8269,7 +8269,7 @@ static int db_name_sort(const void *db1_, const void *db2_)
 
   @param merged ACL_DB of the role in question (or -1 if it wasn't found)
   @param first  first ACL_DB in an array for the database in question
-  @param access new privileges for the given role on the gived database
+  @param access new privileges for the given role on the given database
   @param role   the name of the given role
 
   @return a bitmap of
@@ -9049,7 +9049,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
           grant_column->rights= grant_column->init_rights;
         }
       }
-      /* scan trough all columns to get new column grant */
+      /* scan through all columns to get new column grant */
       column_priv= NO_ACL;
       for (uint idx=0 ; idx < grant_table->hash_columns.records ; idx++)
       {
@@ -10023,7 +10023,7 @@ bool grant_reload(THD *thd)
 
   /*
     Create a new memory pool but save the current memory pool to make an undo
-    opertion possible in case of failure.
+    operation possible in case of failure.
   */
   old_mem= grant_memroot;
 
@@ -10084,7 +10084,7 @@ static bool has_any_table_or_column_priv_for_show(GRANT_INFO *grant);
   Specifically if this function returns FALSE the user has some kind of
   privilege on a combination of columns in each table.
 
-  This function is usually preceeded by check_access which establish the
+  This function is usually preceded by check_access which establish the
   User-, Db- and Host access rights.
 
   @see check_access
@@ -10206,7 +10206,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
         table opening, but this function always called before table opening.
 
         NOTE: is_derived() can't be used here because subquery in this case
-        the FROM clase (derived tables) can be not be marked yet.
+        the FROM clause (derived tables) can be not be marked yet.
       */
       if (t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
           t_ref->table_function)
@@ -10431,7 +10431,7 @@ bool check_grant_column(THD *thd, GRANT_INFO *grant,
   mysql_rwlock_unlock(&LOCK_grant);
 
 
-  // column level denies are on "leaf" hierachy level, no subtree
+  // column level denies are on "leaf" hierarchy level, no subtree
   DBUG_ASSERT(!acc.deny_subtree());
 
   want_access= grant->want_privilege & ~acc;
@@ -10875,7 +10875,7 @@ bool check_grant_db(THD *thd, const access_t &access, const char *db)
 /****************************************************************************
   Check routine level grants
 
-  SYNPOSIS
+  SYNOPSIS
    bool check_grant_routine()
    thd		Thread handler
    want_access  Bits of privileges user needs to have
@@ -11025,7 +11025,7 @@ access_t get_table_grant(THD *thd, TABLE_LIST *table)
 
 
 /*
-  Determine the access priviliges for a field.
+  Determine the access privileges for a field.
 
   SYNOPSIS
     get_column_grant()
@@ -11039,7 +11039,7 @@ access_t get_table_grant(THD *thd, TABLE_LIST *table)
     The procedure may also modify: grant->grant_table and grant->version.
 
   RETURN
-    The access priviliges for the field db_name.table_name.field_name
+    The access privileges for the field db_name.table_name.field_name
 */
 
 access_t get_column_grant(THD *thd, GRANT_INFO *grant,
@@ -12319,7 +12319,7 @@ static int handle_roles_mappings_table(TABLE *table, bool drop,
     grant_table                 An open grant table handle.
     which_table                 Which grant table to handle.
     drop                        If user_from is to be dropped.
-    user_from                   The the user to be searched/dropped/renamed.
+    user_from                   The user to be searched/dropped/renamed.
     user_to                     The new name for the user if to be renamed,
                                 NULL otherwise.
 
@@ -12478,7 +12478,7 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
 
   @param struct_no  The number of the structure to handle (0..6).
   @param drop       If user_from is to be dropped.
-  @param user_from  The the user to be searched/dropped/renamed.
+  @param user_from  The user to be searched/dropped/renamed.
   @param user_to    The new name for the user if to be renamed, NULL otherwise.
 
   @note
@@ -12851,7 +12851,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     handle_grant_data()
     tables                      The array with the four open tables.
     drop                        If user_from is to be dropped.
-    user_from                   The the user to be searched/dropped/renamed.
+    user_from                   The user to be searched/dropped/renamed.
     user_to                     The new name for the user if to be renamed,
                                 NULL otherwise.
 
@@ -13187,7 +13187,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
       /*
         just like with routines, views, triggers, and events we allow
-        non-existant definers here with a warning (see sp_process_definer())
+        non-existent definers here with a warning (see sp_process_definer())
       */
       if (grantee)
         add_role_user_mapping(grantee, role);
