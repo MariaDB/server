@@ -12592,7 +12592,7 @@ bool st_select_lex::is_query_topmost(THD *thd)
 }
 
 
-void st_select_lex::optimize_out_order_list()
+void st_select_lex::drop_order_window_funcs()
 {
   /* Cleanup first related window funcs */
   for (ORDER *ord= order_list.first; ord; ord= ord->next)
@@ -12619,6 +12619,13 @@ void st_select_lex::optimize_out_order_list()
         break;
     }
   }
+}
+
+
+void st_select_lex::optimize_out_order_list()
+{
+  /* Cleanup first related window funcs */
+  drop_order_window_funcs();
   order_list.empty();
 }
 
