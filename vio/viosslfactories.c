@@ -182,6 +182,17 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
   DBUG_RETURN(0);
 }
 
+static my_bool     ssl_algorithms_added    = FALSE;
+
+void vio_check_ssl_init()
+{
+  if (!ssl_algorithms_added)
+  {
+    ssl_algorithms_added= TRUE;
+    OPENSSL_init_ssl(0, NULL);
+  }
+}
+
 #ifdef HAVE_WOLFSSL
 static int wolfssl_recv(WOLFSSL* ssl, char* buf, int sz, void* vio)
 {
@@ -387,6 +398,8 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
              ("key_file: '%s'  cert_file: '%s'  ca_file: '%s'  ca_path: '%s'  "
               "cipher: '%s' crl_file: '%s' crl_path: '%s'", key_file,
               cert_file, ca_file, ca_path, cipher, crl_file, crl_path));
+
+  vio_check_ssl_init();
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
                  my_malloc(key_memory_vio_ssl_fd,
