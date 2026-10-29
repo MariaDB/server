@@ -7462,6 +7462,13 @@ class multi_update :public select_result_interceptor
   ha_rows updated, found;
   List <Item> *fields, *values;
   List <Item> **fields_for_table, **values_for_table;
+  /*
+    ref_ptrs slot of each item of values_for_table[0..table_count-1], in
+    iteration order, when the SET values are hidden fields of the join
+    (UINT_MAX for constants).  NULL when they are not.  See
+    initialize_tables() and prepare2().
+  */
+  uint *value_slots;
   uint table_count;
   /*
    List of tables referenced in the CHECK OPTION condition of
