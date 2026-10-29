@@ -900,6 +900,7 @@ public:
     #keys elements are not empty)
   */
   uint keys;
+  uint max_keys;
 
   /*
     If true, the index descriptions describe real indexes (and it is ok to

@@ -256,14 +256,14 @@ public:
   */
   enum Type { IMPOSSIBLE, ALWAYS, MAYBE, KEY, KEY_SMALLER } type;
 
-  SEL_TREE(enum Type type_arg, MEM_ROOT *root)
-    : type(type_arg), keys(root, MAX_KEY), n_ror_scans(0)
+  SEL_TREE(enum Type type_arg, MEM_ROOT *root, size_t num_keys)
+    : type(type_arg), keys(root, num_keys), n_ror_scans(0)
   {
     keys_map.clear_all();
   }
 
-  SEL_TREE(MEM_ROOT *root) :
-    type(KEY), keys(root, MAX_KEY), n_ror_scans(0)
+  SEL_TREE(MEM_ROOT *root, size_t num_keys) :
+    type(KEY), keys(root, num_keys), n_ror_scans(0)
   { 
     keys_map.clear_all();
   }
@@ -646,7 +646,7 @@ int SEL_IMERGE::and_sel_tree(RANGE_OPT_PARAM *param, SEL_TREE *tree,
   {
     SEL_TREE *res_or_tree= 0;
     SEL_TREE *and_tree= 0;
-    if (!(res_or_tree= new SEL_TREE(param->mem_root)) ||
+    if (!(res_or_tree= new SEL_TREE(param->mem_root, param->max_keys)) ||
         !(and_tree= new SEL_TREE(tree, TRUE, param)))
       return (-1);
     if (!and_range_trees(param, *or_tree, and_tree, res_or_tree))
@@ -862,7 +862,7 @@ int SEL_IMERGE::or_sel_imerge_with_checks(RANGE_OPT_PARAM *param,
 
 SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges, RANGE_OPT_PARAM *param)
   : Sql_alloc(),
-    keys(param->mem_root, MAX_KEY),
+    keys(param->mem_root, param->max_keys),
     n_ror_scans(0)
 {
   keys_map= arg->keys_map;
@@ -2825,7 +2825,8 @@ SQL_SELECT::test_quick_select(THD *thd,
   KEY_PART *key_parts;
   KEY *key_info;
   PARAM param;
-  bool force_group_by= false, group_by_optimization_used= false;
+  bool force_group_by= false, group_by_optimization_used= false,
+    can_clone= false;
 
   if (check_stack_overrun(thd, 2*STACK_MIN_SIZE + sizeof(PARAM), buff))
     DBUG_RETURN(ERROR);               // Fatal error flag is set
@@ -2927,6 +2928,8 @@ SQL_SELECT::test_quick_select(THD *thd,
       key_parts->field=	key_part_info->field;
       key_parts->null_bit= key_part_info->null_bit;
       key_parts->image_type= Field::image_type(key_info->algorithm);
+      if (key_parts->image_type != Field::itRAW)
+        can_clone= true;
       /* Only HA_PART_KEY_SEG is used */
       key_parts->flag= (uint8) key_part_info->key_part_flag;
       key_parts->claimed= false;
@@ -2991,6 +2994,7 @@ SQL_SELECT::test_quick_select(THD *thd,
     */
     key_parts->null_bit= 0;
     key_parts->image_type= Field::image_type(key_info->algorithm);
+    can_clone= true;
     key_parts->flag= (uint8) key_info->key_part->key_part_flag;
     trace_keypart.add(key_parts->field->field_name);
     key_parts->claimed= false;
@@ -3002,6 +3006,7 @@ SQL_SELECT::test_quick_select(THD *thd,
   }
   trace_idx.end();
 
+  param.max_keys= can_clone ? MAX_KEY : param.keys;
   param.key_parts_end=key_parts;
   param.key_part_clones_end= key_parts;
   param.alloced_sel_args= 0;
@@ -3471,6 +3476,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     return true;
   }
   param->keys= keys;
+  param->max_keys= keys;
   param->key_parts_end= key_part;
 
   return FALSE;
@@ -4323,7 +4329,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   /* It should be possible to switch the following ON: */
   range_par->remove_false_where_parts= false;
 
-  range_par->keys= 1; // one index
+  range_par->max_keys= range_par->keys= 1; // one index
   range_par->using_real_indexes= FALSE;
   range_par->remove_jump_scans= FALSE;
   range_par->real_keynr[0]= 0;
@@ -8863,7 +8869,7 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
   {
     /* It's turned out that all disjuncts are always FALSE */
     res_tree= new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE,
-                                             param->mem_root);
+                                             param->mem_root, param->max_keys);
   }
   DBUG_RETURN(res_tree);
 }
@@ -9114,7 +9120,7 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   const SEL_TREE::Type type= val_bool()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
 
-  tree= new (tmp_root) SEL_TREE(type, tmp_root);
+  tree= new (tmp_root) SEL_TREE(type, tmp_root, param->max_keys);
   DBUG_RETURN(tree);
 }
 
@@ -9140,7 +9146,8 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if ((ref_tables & param->current_table) ||
       (ref_tables & ~(param->prev_tables | param->read_tables)))
     DBUG_RETURN(0);
-  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root));
+  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root,
+                                             param->max_keys));
 }
 
 
@@ -9585,7 +9592,8 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root)))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
+                                                              param->max_keys)))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value_used_tables & ~param->read_tables))
       {
@@ -10725,7 +10733,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     }
     else
     {
-      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root)))
+      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                   param->max_keys)))
       {
         DBUG_RETURN(result);
       }
@@ -10749,7 +10758,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   }
   else
   {
-    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root)))
+    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                            param->max_keys)))
       DBUG_RETURN(result);
   }
 
