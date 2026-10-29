@@ -4464,8 +4464,11 @@ Item *Item_param::shallow_copy(THD *thd) const
   case SHORT_DATA_VALUE:
   case LONG_DATA_VALUE:
   {
-    /* We can clone only if the item's lifetime will be single PS execution */
-    DBUG_ASSERT(thd->mem_root != thd->stmt_arena->mem_root);
+    /* We can clone only if the item's lifetime will be single PS execution;
+       a conventional arena, as when reprepare frees the old items, ends with
+       the statement */
+    DBUG_ASSERT(thd->stmt_arena->is_conventional() ||
+                thd->mem_root != thd->stmt_arena->mem_root);
     Item *copy= new (thd->mem_root) Item_param(thd, *this);
     if (likely(copy))
       copy->register_in(thd);
