@@ -240,7 +240,7 @@ File_option sql_modes_parameters=
   above, as it specifies the number of required parameters of the trigger in
   .trg file.
   This defines the maximum number of parameters that is read.  If there are
-  more paramaters in the file they are ignored.  Less number of parameters
+  more parameters in the file they are ignored.  Less number of parameters
   is regarded as ok.
 */
 
@@ -374,7 +374,7 @@ Trigger::~Trigger()
   Call a Table_triggers_list function for all triggers
 
   @return 0 ok
-  @return # Something went wrong. Pointer to the trigger that mailfuncted
+  @return # Something went wrong. Pointer to the trigger that malfunctioned
             returned
 */
 
@@ -1710,7 +1710,7 @@ copy_on_update_columns_list(MEM_ROOT *table_mem_root,
 
   @todo
     A lot of things to do here e.g. how about other funcs and being
-    more paranoical ?
+    more paranoid ?
 
   @todo
     This could be avoided if there is no triggers for UPDATE and DELETE.
@@ -2074,7 +2074,7 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
       if (!names_only && trigger_list->prepare_record_accessors(table))
         goto error;
 
-      /* Ensure no one is accidently using the temporary load lists */
+      /* Ensure no one is accidentally using the temporary load lists */
       trigger_list->empty_lists();
       DBUG_RETURN(0);
 
@@ -2084,7 +2084,7 @@ err_with_lex_cleanup:
       thd->spcont= save_spcont;
       thd->variables.sql_mode= save_sql_mode;
       thd->reset_db(&save_db);
-      /* Fall trough to error */
+      /* Fall through to error */
     }
   }
 
@@ -2281,7 +2281,7 @@ static bool add_table_for_trigger_internal(THD *thd,
 
 /*
   Same as above, but with an allocated buffer.
-  This is called by mysql_excute_command() in is here to keep stack
+  This is called by mysql_execute_command() in is here to keep stack
   space down in the caller.
 */
 

@@ -23,7 +23,7 @@
   Simple intrusive linked list.
 
   @remark Similar in nature to base_list, but intrusive. It keeps a
-          a pointer to the first element in the list and a indirect
+          pointer to the first element in the list and an indirect
           reference to the last element.
 */
 
@@ -101,7 +101,7 @@ public:
   All list ends with a pointer to the 'end_of_list' element, which
   data pointer is a null pointer and the next pointer points to itself.
   This makes it very fast to traverse lists as we don't have to
-  test for a specialend condition for list that can't contain a null
+  test for a special end condition for list that can't contain a null
   pointer.
 */
 
@@ -680,7 +680,7 @@ inline void bubble_sort(List<T> *list_to_sort,
 
 
 /*
-  A simple intrusive list which automaticly removes element from list
+  A simple intrusive list which automatically removes element from list
   on delete (for THD element)
 */
 

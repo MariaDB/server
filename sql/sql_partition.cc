@@ -1371,7 +1371,7 @@ range_not_increasing_error:
   This routine allocates an array for all list constants to achieve a fast
   check what partition a certain value belongs to. At the same time it does
   also check that there are no duplicates among the list constants and that
-  that the list expressions are constant integer expressions.
+  the list expressions are constant integer expressions.
 
   SYNOPSIS
     check_list_constants()
@@ -1726,7 +1726,7 @@ static void set_up_partition_func_pointers(partition_info *part_info)
     of field pointers and restore afterwards. For subpartitioned tables we do
     the copy and restore individually on the part and subpart parts. For non-
     subpartitioned tables we use the same functions as used for the parts part
-    of subpartioning.
+    of subpartitioning.
     Thus for subpartitioned tables the get_partition_id is always
     get_partition_id_with_sub, even when character sets exists.
   */
@@ -3421,7 +3421,7 @@ uint32 get_partition_id_cols_list_for_endpoint(partition_info *part_info,
   @param include_endpoint  TRUE iff the interval includes the endpoint
 
   This function finds the sub-array of part_info->list_array where values of
-  list_array[idx].list_value are contained within the specifed interval.
+  list_array[idx].list_value are contained within the specified interval.
   list_array is ordered by list_value, so
   1. For [a; +inf) or (a; +inf)-type intervals (left_endpoint==TRUE), the
      sought sub-array starts at some index idx and continues till array end.
@@ -4840,7 +4840,7 @@ bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
 
 
 /**
-  @brief Check if partition is exchangable with table by checking table options
+  @brief Check if partition is exchangeable with table by checking table options
 
   @param table_create_info Table options from table.
   @param part_elem         All the info of the partition.
@@ -6200,7 +6200,7 @@ the generated partition syntax in a correct manner.
 
       /*
         Set up partition default_engine_type either from the create_info
-        or from the previus table
+        or from the previous table
       */
       if (create_info->used_fields & HA_CREATE_USED_ENGINE)
         part_info->default_engine_type= create_info->db_type;
@@ -6460,7 +6460,7 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
 
 /*
-  Log an rename frm file
+  Log a rename frm file
   SYNOPSIS
     write_log_replace_frm()
     lpt                            Struct for parameters
@@ -7165,7 +7165,7 @@ static void release_log_entries(partition_info *part_info)
 /*
   Final part of partition changes to handle things when under
   LOCK TABLES.
-  SYNPOSIS
+  SYNOPSIS
     alter_partition_lock_handling()
     lpt                        Struct carrying parameters
   RETURN VALUES
@@ -8248,7 +8248,7 @@ void make_used_partitions_str(MEM_ROOT *alloc,
     If both (1) and (3) are applicable, (1) is preferred over (3).
     
     This function sets part_info::get_part_iter_for_interval according to
-    this criteria, and also sets some auxilary fields that the function
+    this criteria, and also sets some auxiliary fields that the function
     uses.
 */
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -8676,7 +8676,7 @@ static int get_part_iter_for_interval_cols_via_map(partition_info *part_info,
 
   @return Status of iterator
     @retval 0   No matching partitions (iterator not initialized)
-    @retval 1   Ok, iterator intialized for traversal of matching partitions.
+    @retval 1   Ok, iterator initialized for traversal of matching partitions.
     @retval -1  All partitions would match (iterator not initialized)
 */
 
@@ -8925,7 +8925,7 @@ not_found:
 
   RETURN
     0 - No matching partitions, iterator not initialized
-    1 - Some partitions would match, iterator intialized for traversing them
+    1 - Some partitions would match, iterator initialized for traversing them
    -1 - All partitions would match, iterator not initialized
 */
 

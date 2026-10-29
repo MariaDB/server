@@ -422,7 +422,7 @@ void JOIN_CACHE::create_flag_fields()
     For each field that is used to build access keys to the joined table but
     is stored in some other join cache buffer the function saves a pointer
     to the field descriptor. The array of such pointers are placed in the
-    the join cache structure just before the array of pointers to the
+    join cache structure just before the array of pointers to the
     blob fields blob_ptr.
     Any field stored in a join cache buffer that is used to construct keys
     to access tables associated with other join caches is called a referenced
@@ -552,14 +552,14 @@ void JOIN_CACHE::create_key_arg_fields()
     comprise the partial join record joined with join_tab. Otherwise, 
     for each table tab, the set of the read fields for which the descriptors
     have to be added is determined as the difference between all read fields
-    and and those for which the descriptors have been already created.
+    and those for which the descriptors have been already created.
     The latter are supposed to be marked in the bitmap tab->table->tmp_set.
     The function increases the value of 'length' to the total length of
     the added fields.
    
   NOTES
     If is_key_access() returns true the function modifies the value of
-    tab->table->tmp_set for a each table whose fields are stored in the cache.
+    tab->table->tmp_set for each table whose fields are stored in the cache.
     The function calls the method Field::fill_cache_field to figure out
     the type of the cache field and the maximal length of its representation
     in the join buffer. If this is a blob field then additionally a pointer
@@ -701,7 +701,7 @@ void JOIN_CACHE::set_constants()
   base_prefix_length= (with_length ? size_of_rec_len : 0) +
                       (prev_cache ? prev_cache->get_size_of_rec_offset() : 0);
   /*
-    Call ge_min_join_buffer_size() again as the size may have got smaller
+    Call get_min_join_buffer_size() again as the size may have got smaller
     if size_of_rec_ofs or some other variable changed since last call.
   */
   min_buff_size= 0;
@@ -1025,7 +1025,7 @@ bool JOIN_CACHE::shrink_join_buffer_in_ratio(ulonglong n, ulonglong d)
   SYNOPSIS
     realloc_buffer()
 
-  DESCRITION
+  DESCRIPTION
     The function reallocates the join buffer of the join cache. After this
     it resets the buffer for writing.
 
@@ -1132,7 +1132,7 @@ int JOIN_CACHE::init(bool for_explain)
   NOTES
     In some cases key values could be read directly from the join buffer but
     we still do not consider them embedded. In the future we'll expand the
-    the class of keys which we identify as embedded.
+    class of keys which we identify as embedded.
 
   NOTES
     The function returns FALSE if no key is used to join the records
@@ -1270,9 +1270,9 @@ bool JOIN_CACHE::check_emb_key_usage()
         - full images of those fixed length data fields that cannot have
           trailing spaces
         - significant part of fixed length fields that can have trailing spaces
-          with the prepanded length 
-        - data of non-blob variable length fields with the prepanded data length
-        - blob data from blob fields with the prepanded data length
+          with the prepended length 
+        - data of non-blob variable length fields with the prepended data length
+        - blob data from blob fields with the prepended data length
     (5) record offset values for the data fields that are referred to from 
         other caches
  
@@ -2946,7 +2946,7 @@ int JOIN_CACHE_HASHED::init_hash_table()
   SYNOPSIS
     realloc_buffer()
 
-  DESCRITION
+  DESCRIPTION
     The function reallocates the join buffer of the hashed join cache.
     After this it initializes a hash table within the buffer space and
     resets the join cache for writing.
@@ -2974,7 +2974,7 @@ int JOIN_CACHE_HASHED::realloc_buffer()
 /*
   Get maximum size of the additional space per record used for record keys
 
-  SYNOPSYS
+  SYNOPSIS
     get_max_key_addon_space_per_record()
   
   DESCRIPTION
@@ -3193,7 +3193,7 @@ bool JOIN_CACHE_HASHED::skip_if_matched()
   Skip record from a hashed join buffer if its match flag dictates to do so
 
   SYNOPSIS
-    skip_if_uneeded_match()
+    skip_if_not_needed_match()
 
   DESCRIPTION
     This implementation of the virtual function skip_if_not_needed_match does
@@ -3233,7 +3233,7 @@ bool JOIN_CACHE_HASHED::skip_if_not_needed_match()
       
   DESCRIPTION
     The function looks for a key in the hash table of the join buffer.
-    If the key is found the functionreturns the position of the reference
+    If the key is found the function returns the position of the reference
     to the next key from  to the hash element for the given key. 
     Otherwise the function returns the position where the reference to the
     newly created hash element for the given key is to be added.  
@@ -4731,7 +4731,7 @@ DESCRIPTION
   association labels are used, then record loaded into the record buffer 
   for join_tab always has a direct reference to the chain of the matching
   records from the join buffer. If association labels are not used then
-  then the chain of the matching records is obtained by the call of the
+  the chain of the matching records is obtained by the call of the
   get_key_chain_by_join_key function.
   
 RETURN VALUE   

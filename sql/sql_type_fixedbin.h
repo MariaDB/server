@@ -1539,7 +1539,7 @@ public:
   }
   /**
     Make a simple constant replacement item for a constant "src",
-    so the new item can futher be used for comparison with "cmp", e.g.:
+    so the new item can further be used for comparison with "cmp", e.g.:
       src = cmp   ->  replacement = cmp
 
     "this" is the type handler that is used to compare "src" and "cmp".
@@ -1551,7 +1551,7 @@ public:
     @retval    - a pointer to the created replacement Item
     @retval    - NULL, if could not create a replacement (e.g. on EOM).
                  NULL is also returned for ROWs, because instead of replacing
-                 a Item_row to a new Item_row, Type_handler_row just replaces
+                 an Item_row to a new Item_row, Type_handler_row just replaces
                  its elements.
   */
   Item *make_const_item_for_comparison(THD *thd, Item *src,

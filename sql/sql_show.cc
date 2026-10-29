@@ -2061,7 +2061,7 @@ static void add_table_options(THD *thd, TABLE *table,
     and NEXT_ID > 1 (the default).  We must not print the clause
     for engines that do not support this as it would break the
     import of dumps, but as of this writing, the test for whether
-    AUTO_INCREMENT columns are allowed and wether AUTO_INCREMENT=...
+    AUTO_INCREMENT columns are allowed and whether AUTO_INCREMENT=...
     is supported is identical, !(file->table_flags() & HA_NO_AUTO_INCREMENT))
     Because of that, we do not explicitly test for the feature,
     but may extrapolate its existence from that of an AUTO_INCREMENT column.
@@ -3218,7 +3218,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   DBUG_ENTER("select_result_explain_buffer::send_data");
 
   /*
-    Switch to the receiveing thread, so that we correctly count memory used
+    Switch to the receiving thread, so that we correctly count memory used
     by it. This is needed as it's the receiving thread that will free the
     memory.
     (TODO: Now that we don't change current_thd in

@@ -1139,7 +1139,7 @@ bool Item_func_in::to_be_transformed_into_in_subq(THD *thd)
   if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
     return true;
 
-  /* Occurence of '?' in IN list is checked only for PREPARE <stmt> commands */
+  /* Occurrence of '?' in IN list is checked only for PREPARE <stmt> commands */
   for (uint i=1; i < arg_count; i++)
   {
     if (!is_row_list)

@@ -443,7 +443,7 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask)
   case SQLCOM_CREATE_TABLE:
     /*
       If CREATE TABLE of non-temporary table and the table is not part
-      if a BEGIN GTID ... COMMIT group, do a implicit commit.
+      if a BEGIN GTID ... COMMIT group, do an implicit commit.
       This ensures that CREATE ... SELECT will in the same GTID group on the
       master and slave.
     */
@@ -1206,7 +1206,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
                     if false (nonblocking), then the function might
                     return when command is "half-finished", with
                     DISPATCH_COMMAND_WOULDBLOCK.
-                    Currenly, this can *only* happen when using
+                    Currently, this can *only* happen when using
                     threadpool. The command will resume, after all outstanding
                     async operations (i.e group commit) finish.
                     Threadpool scheduler takes care of "resume".
@@ -1590,7 +1590,7 @@ public:
   @param blocking        if false (nonblocking), then the function might
                          return when command is "half-finished", with
                          DISPATCH_COMMAND_WOULDBLOCK.
-                         Currenly, this can *only* happen when using threadpool.
+                         Currently, this can *only* happen when using threadpool.
                          The current command will resume, after all outstanding
                          async operations (i.e group commit) finish.
                          Threadpool scheduler takes care of "resume".
@@ -1628,7 +1628,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     goto resume;
   }
 
-  /* keep it withing 1 byte */
+  /* keep it within 1 byte */
   compile_time_assert(COM_END == 255);
 
 #if defined(ENABLED_PROFILING)
@@ -2061,7 +2061,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     }
     table_list.init_one_table(&db, (LEX_CSTRING*) &table_name, 0, TL_READ);
     /*
-      Init TABLE_LIST members necessary when the undelrying
+      Init TABLE_LIST members necessary when the underlying
       table is view.
     */
     table_list.select_lex= thd->lex->first_select_lex();
@@ -2210,8 +2210,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
       /* This code doesn't work under FTWRL */
       DBUG_ASSERT(! (options & REFRESH_READ_LOCK));
       /*
-        Simulate a reload without a attached thread session.
-        Provides a environment similar to that of when the
+        Simulate a reload without an attached thread session.
+        Provides an environment similar to that of when the
         server receives a SIGHUP signal and reloads caches
         and flushes tables.
       */
@@ -2540,7 +2540,7 @@ void log_slow_statement(THD *thd)
 
   /*
     The following should never be true with our current code base,
-    but better to keep this here so we don't accidently try to log a
+    but better to keep this here so we don't accidentally try to log a
     statement in a trigger or stored function
   */
   if (unlikely(thd->in_sub_stmt))
@@ -3160,7 +3160,7 @@ mysql_create_routine(THD *thd, LEX *lex)
   if (!lex->sphead->m_handler->sp_create_routine(thd, lex->sphead))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    /* only add privileges if really neccessary */
+    /* only add privileges if really necessary */
 
     Security_context security_context;
     bool restore_backup_context= false;
@@ -3169,7 +3169,7 @@ mysql_create_routine(THD *thd, LEX *lex)
     /*
       We're going to issue an implicit GRANT statement so we close all
       open tables. We have to keep metadata locks as this ensures that
-      this statement is atomic against concurent FLUSH TABLES WITH READ
+      this statement is atomic against concurrent FLUSH TABLES WITH READ
       LOCK. Deadlocks which can arise due to fact that this implicit
       statement takes metadata locks should be detected by a deadlock
       detector in MDL subsystem and reported as errors.
@@ -3598,7 +3598,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                        table_list.first);
 
   /*
-    Remember last commmand executed, so that we can use it in places
+    Remember last command executed, so that we can use it in places
     like mysql_audit_plugin.
   */
   thd->last_sql_command= lex->sql_command;
@@ -3821,7 +3821,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     thd->set_binlog_format_stmt();
 
   /*
-    End a active transaction so that this command will have it's
+    End an active transaction so that this command will have its
     own transaction and will also sync the binary log. If a DDL is
     not run in it's own transaction it may simply never appear on
     the slave in case the outside transaction rolls back.
@@ -4985,7 +4985,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_UNLOCK_TABLES:
     /*
       It is critical for mysqldump --single-transaction --master-data that
-      UNLOCK TABLES does not implicitely commit a connection which has only
+      UNLOCK TABLES does not implicitly commit a connection which has only
       done FLUSH TABLES WITH READ LOCK + BEGIN. If this assumption becomes
       false, mysqldump will not work.
     */
@@ -5100,7 +5100,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
           which because of the depth of inspection
           in `check_single_table_access` makes the faking likely to cause crashes,
           or unintended effects. The outcome of this is,
-          if a user does an `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
+          if a user does a `BACKUP UNLOCK` without a `BACKUP LOCKED` table,
           there may be a` ER_SPECIFIC_ACCESS_DENIED` error even though
           user has the privilege.
           Its a bit different to what happens if the user has RELOAD_ACL,
@@ -6563,7 +6563,7 @@ absent:
                "FUNCTION (UDF)", lex->spname->m_name.str);
       return 1;
     }
-    /* Fall trough to test for a stored function */
+    /* Fall through to test for a stored function */
   }
 #endif /* HAVE_DLOPEN */
 
@@ -6583,7 +6583,7 @@ absent:
   /*
     We're going to issue an implicit REVOKE statement so we close all
     open tables. We have to keep metadata locks as this ensures that
-    this statement is atomic against concurent FLUSH TABLES WITH READ
+    this statement is atomic against concurrent FLUSH TABLES WITH READ
     LOCK. Deadlocks which can arise due to fact that this implicit
     statement takes metadata locks should be detected by a deadlock
     detector in MDL subsystem and reported as errors.
@@ -7070,7 +7070,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                       relevant.
   @param no_errors    Don't report error to the client (using my_error() call).
 
-  The suppled table list contains cached privileges. This functions calls the
+  The supplied table list contains cached privileges. This functions calls the
   help functions check_access and check_grant to verify the first three steps
   in the privileges check queue:
   1. Global privileges
@@ -7920,7 +7920,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
   Parse a query.
 
   @param       thd     Current thread
-  @param       rawbuf  Begining of the query text
+  @param       rawbuf  Beginning of the query text
   @param       length  Length of the query text
 */
 
@@ -8588,7 +8588,7 @@ void st_select_lex::add_joined_table(TABLE_LIST *table)
               / \
             t3   t4
 
-    If the transformed nested join node node is a natural join node like in
+    If the transformed nested join node is a natural join node like in
     the following query
       SELECT * FROM t1 JOIN t2 LEFT JOIN t3 USING(a)  (Q6)
     the transformation additionally has to take care about setting proper
@@ -8990,7 +8990,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
 
   @param thd       pointer to current thread
   @param left_op   left  operand of the JOIN
-  @param right_op  rigth operand of the JOIN
+  @param right_op  right operand of the JOIN
 
   @seealso
     push_table_function_arg_context() serves similar purpose for table
@@ -9126,7 +9126,7 @@ void add_join_on(THD *thd, TABLE_LIST *b, Item *expr)
     SELECT * FROM t1, t2 WHERE (t1.j=t2.j and <some_cond>)
    @endverbatim
 
-  @param a		  Left join argumentex
+  @param a		  Left join argument
   @param b		  Right join argument
   @param using_fields    Field names from USING clause
 */
@@ -9705,7 +9705,7 @@ static TABLE_LIST *multi_delete_table_match(LEX *lex, TABLE_LIST *tbl,
 
 
 /**
-  Link tables in auxilary table list of multi-delete with corresponding
+  Link tables in auxiliary table list of multi-delete with corresponding
   elements in main table list, and set proper locks for them.
 
   @param lex   pointer to LEX representing multi-delete
@@ -10201,7 +10201,7 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
 bool check_ident_length(const LEX_CSTRING *ident)
 {
   /*
-    string_char_length desite the names, goes into Well_formed_prefix_status
+    string_char_length despite the names, goes into Well_formed_prefix_status
     so this is more than just a length comparison. Things like a primary key
     doesn't have a name, therefore no length. Also the ident grammar allows
     empty backtick. Check quickly the length, and if 0, accept that.

@@ -99,7 +99,7 @@ SQL_HANDLER::~SQL_HANDLER()
     first                       Unused.
 
   DESCRIPTION
-    The hash object is an TABLE_LIST struct.
+    The hash object is a TABLE_LIST struct.
     The hash key is the alias name.
     The hash key length is the alias name length plus one for the
     terminating NULL character.
@@ -118,14 +118,14 @@ static const uchar *mysql_ha_hash_get_key(const void *table_, size_t *key_len,
 
 
 /*
-  Free an hash object.
+  Free a hash object.
 
   SYNOPSIS
     mysql_ha_hash_free()
     tables                      Pointer to the hash object.
 
   DESCRIPTION
-    The hash object is an TABLE_LIST struct.
+    The hash object is a TABLE_LIST struct.
 
   RETURN
     Nothing

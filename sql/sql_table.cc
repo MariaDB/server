@@ -1463,7 +1463,7 @@ static int ddl_log_drop_tmp_table(THD *thd, DDL_LOG_STATE *ddl_log_state,
                           will be used.  If set then the caller must call
                           ddl_log_complete(ddl_log_state);
   @param  if_exists       If set, don't give an error if table doesn't exists.
-                          In this case we give an warning of level 'NOTE'
+                          In this case we give a warning of level 'NOTE'
   @param  drop_temporary  Only drop temporary tables
   @param  drop_view       Allow to delete VIEW .frm
   @param  dont_log_query  Don't write query to log files. This will also not
@@ -1690,7 +1690,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         built_ptr_query->append(',');
       }
       /*
-        This means that a temporary table was droped and as such there
+        This means that a temporary table was dropped and as such there
         is no need to proceed with the code that tries to drop a regular
         table.
       */
@@ -2440,7 +2440,7 @@ static int sort_keys(const void *a_, const void *b_)
     dup_val_count  returns count of duplicate elements
 
   DESCRIPTION
-    This function prints an warning for each value in list
+    This function prints a warning for each value in list
     which has some duplicates on its right
 
   RETURN VALUES
@@ -2849,7 +2849,7 @@ bool Column_definition::prepare_stage1_check_typelib_default()
 
 #ifndef DBUG_OFF
 /*
-   This function adds a invisible field to field_list
+   This function adds an invisible field to field_list
    SYNOPSIS
     mysql_add_invisible_field()
       thd                      Thread Object
@@ -4123,7 +4123,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     /*
       Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
       it is NOT NULL, not an AUTO_INCREMENT field, not a TIMESTAMP and not
-      updated trough a NOW() function.
+      updated through a NOW() function.
     */
     if (!sql_field->default_value &&
         !sql_field->has_default_function() &&
@@ -4974,7 +4974,7 @@ bool Table_specification_st::finalize_locked_tables(THD *thd,
         the original table
 
         The lock was made exclusive in create_table_impl(). We have now
-        to bring it back to it's orginal state.
+        to bring it back to its original state.
       */
       if (thd->locked_tables_list.reopen_tables(thd, false))
       {
@@ -5324,7 +5324,7 @@ int create_table_impl(THD *thd,
           We never come here as part of normal create table as table existence
           is  checked in open_and_lock_tables(). We may come here as part of
           ALTER TABLE when converting a table for a distributed engine to a
-          a local one.
+          local one.
         */
 
         /* Log CREATE IF NOT EXISTS on slave for distributed engines */
@@ -7535,7 +7535,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
               only up-to-date data types.
             - if this is an old column definition, e.g. from:
                 ALTER TABLE t1 COMMENT 'new comment';
-              it should have ealier called Column_definition_implicit_upgrade(),
+              it should have earlier called Column_definition_implicit_upgrade(),
               which replaces old data types to up-to-date data types.
           */
           DBUG_ASSERT(0);
@@ -8473,7 +8473,7 @@ write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
   @param if_exists          True indicates the binary logging of the query
                             should be done with "if exists" option.
 
-  @retval   >=1               Error{ 1= ROLLBACK recieved from master , 2= error
+  @retval   >=1               Error{ 1= ROLLBACK received from master , 2= error
                                     in alter so no ROLLBACK in binlog }
   @retval   0                 Success
 
@@ -8784,7 +8784,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   {
     /*
       The above should never fail. If it failed, the new structure is
-      commited and we have no way to roll back.
+      committed and we have no way to roll back.
       The best we can do is to continue, but send an error to the
       user that something when wrong
     */
@@ -9666,7 +9666,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           
           In case of TEXTs we check the data type maximum length *in bytes*
           to key part length measured *in characters* (i.e. key_part_length
-          devided to mbmaxlen). This is because it's OK to have:
+          divided to mbmaxlen). This is because it's OK to have:
           CREATE TABLE t1 (a tinytext, key(a(254)) character set utf8);
           In case of this example:
           - data type maximum length is 255.
@@ -9795,7 +9795,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         goto err;
 
       tmp_name= key_name;
-      /* We dont need LONG_UNIQUE_HASH_FIELD flag because it will be autogenerated */
+      /* We don't need LONG_UNIQUE_HASH_FIELD flag because it will be autogenerated */
       key= new (root) Key(key_type, &tmp_name, &key_create_info, generated_key,
                           &key_parts, option_list, DDL_options());
       key->without_overlaps= key_info->without_overlaps;
@@ -9998,7 +9998,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       case Alter_drop::FOREIGN_KEY:
         // Leave the DROP FOREIGN KEY names in the alter_info->drop_list.
         /* If this is DROP FOREIGN KEY without IF EXIST,
-        we can now check does it exists and if not report a error. */
+        we can now check does it exists and if not report an error. */
         if (!drop->drop_if_exists)
         {
           List <FOREIGN_KEY_INFO> fk_child_key_list;
@@ -10905,8 +10905,8 @@ static void alter_committed(THD *thd, start_alter_info* info, Master_info *mi)
 #endif
 
 /**
-  process_master_state:- process the info->state recieved from master
-  We will comapre master state with  alter_result
+  process_master_state:- process the info->state received from master
+  We will compare master state with  alter_result
     In the case of ROLLBACK_ALTER alter_result > 0
     In the case of COMMIT_ALTER alter_result == 0
   if the condition is not satisfied we will report error and
@@ -11143,7 +11143,7 @@ const char *online_alter_check_supported(THD *thd,
   @retval   true          Error
   @retval   false         Success
 
-  This is a veery long function and is everything but the kitchen sink :)
+  This is a very long function and is everything but the kitchen sink :)
   It is used to alter a table and not only by ALTER TABLE but also
   CREATE|DROP INDEX are mapped on this function.
 
@@ -11539,7 +11539,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         ENGINE = x where x is a non-existing storage engine
         We set create_info->db_type to default_engine_type
         to ensure we don't change underlying engine type
-        due to a erroneously given engine name.
+        due to an erroneously given engine name.
       */
       create_info->db_type= table->part_info->default_engine_type;
     }
@@ -11893,16 +11893,16 @@ do_continue:;
     We can use only copy algorithm if one of the following is true:
     - If the table is from an old MariaDB version and requires data
       modifications. In this case we ignore --alter-algorithm as
-      as we cannot use any other algorithm than COPY (using other
+      we cannot use any other algorithm than COPY (using other
       algorithms could open up the problem that the table .frm version
       is updated without data transformations and the table would be
       corrupted without any way for MariaDB to notice this during
       check/upgrade).
       This logic ensures that ALTER TABLE ... FORCE (no other
-      options) will always be be able to repair a table structure and
+      options) will always be able to repair a table structure and
       convert data from any old format.
     - In-place is impossible for given operation.
-    - Changes to partitioning which were not handled by fast_alter_part_table()
+    - Changes to partitioning which were not handled by fast_alter_partition_table()
       needs to be handled using table copying algorithm unless the engine
       supports auto-partitioning as such engines can do some changes
       using in-place API.
@@ -12598,7 +12598,7 @@ alter_copy:
 
       We only have to do this if name of the table is not changed.
       If we are changing to use another table handler, we don't
-      have to do the rename as the table names will not interfer.
+      have to do the rename as the table names will not interfere.
     */
     if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
                            &alter_ctx.db, &backup_name, &alter_ctx.id,
@@ -12624,7 +12624,7 @@ alter_copy:
   {
     /*
       We should not set this stage in case of rename as we in this case
-      must execute DDL_ALTER_TABLE_PHASE_COPIED to remove the orignal table
+      must execute DDL_ALTER_TABLE_PHASE_COPIED to remove the original table
     */
     ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_OLD_RENAMED);
   }

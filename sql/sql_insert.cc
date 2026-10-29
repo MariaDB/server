@@ -86,7 +86,7 @@
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h" /* wsrep_append_table_keys() */
-#include "wsrep_trans_observer.h" /* wsrep_start_transction() */
+#include "wsrep_trans_observer.h" /* wsrep_start_transaction() */
 #endif /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
@@ -731,7 +731,7 @@ int finalize_replace(TABLE *table, enum_duplicates handle_duplicates,
 
   SYNOPSIS
   mysql_insert()
-  result    NULL if the insert is not outputing results
+  result    NULL if the insert is not outputting results
             via 'RETURNING' clause.
 
   @note Like implementations of other DDL/DML in MySQL, this function
@@ -1555,7 +1555,7 @@ abort:
     fields  - fields used in insert
 
   IMPLEMENTATION
-    A view is insertable if the followings are true:
+    A view is insertable if the following are true:
     - All columns in the view are columns from a table
     - All not used columns in table have a default values
     - All field in view are unique (not referring to the same column)
@@ -1912,7 +1912,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     Reading from the same table in the RETURNING clause is not allowed.
 
     INSERT...SELECT detects this case in select_insert::prepare and also
-    uses buffering to handle it correcly.
+    uses buffering to handle it correctly.
   */
   if (!select_insert)
   {
@@ -1947,7 +1947,7 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     }
   }
   /*
-    Only call prepare_for_posistion() if we are not performing a DELAYED
+    Only call prepare_for_position() if we are not performing a DELAYED
     operation. It will instead be executed by delayed insert thread.
   */
   if (duplic == DUP_UPDATE || duplic == DUP_REPLACE)
@@ -2146,7 +2146,7 @@ int Write_record::locate_dup_record()
    fail, so we're better off just deleting the row and trying to insert again.
 
    Additionally we don't use ha_update_row in following cases:
-   * when triggers should be invoked, as it may spoil the intermedite NEW_ROW
+   * when triggers should be invoked, as it may spoil the intermediate NEW_ROW
      representation
    * when we have referenced keys, as there can be different ON DELETE/ON UPDATE
      actions
@@ -2890,7 +2890,7 @@ bool delayed_get_table(THD *thd, MDL_ticket *grl_protection_ticket,
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= Lex_ident_db(di->thd.db);
       /*
-        Nulify select_lex because, if the thread that spawned the current one
+        Nullify select_lex because, if the thread that spawned the current one
         disconnects, the select_lex will point to freed memory.
       */
       di->table_list.select_lex= NULL;
@@ -3079,7 +3079,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     creating one record only, the other record buffers and alignment
     are unnecessary.
     As the table will also need to calculate default values and
-    expresions, we have to allocate own version of fields. keys and key
+    expressions, we have to allocate own version of fields. keys and key
     parts. The key and key parts are needed as parse_vcol_defs() changes
     them in case of long hash keys.
   */
@@ -3685,7 +3685,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
 
       /*
         The code depends on that the following ASSERT always hold.
-        I don't want to accidently introduce and bugs in the following code
+        I don't want to accidentally introduce and bugs in the following code
         in this commit, so I leave the small cleaning up of the code to
         a future commit
       */
@@ -3751,7 +3751,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       if (!di->stacked_inserts && !di->tables_in_use && thd->lock)
       {
         /*
-          No one is doing a insert delayed
+          No one is doing an insert delayed
           Unlock table so that other threads can use it
         */
         MYSQL_LOCK *lock=thd->lock;

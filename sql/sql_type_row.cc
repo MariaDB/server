@@ -108,7 +108,7 @@ public:
 
 
 /*
-  This class handles fields of a ROW SP variable when it's used as a OUT
+  This class handles fields of a ROW SP variable when it's used as an OUT
   parameter in a stored procedure.
 */
 class my_var_sp_row_field: public my_var_sp

@@ -72,7 +72,7 @@ public:
   */
   enum enum_alter_table_lock
   {
-    // Maximum supported level of concurency for the given operation.
+    // Maximum supported level of concurrency for the given operation.
     ALTER_TABLE_LOCK_DEFAULT,
 
     // Allow concurrent reads & writes. If not supported, give error.
@@ -495,7 +495,7 @@ class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE statement.
+    Constructor, used to represent an ALTER TABLE statement.
   */
   Sql_cmd_alter_table() = default;
 
@@ -515,7 +515,7 @@ class Sql_cmd_alter_sequence : public Sql_cmd,
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE statement.
+    Constructor, used to represent an ALTER TABLE statement.
   */
   Sql_cmd_alter_sequence(const DDL_options &options)
    :DDL_options(options)

@@ -423,8 +423,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
    SQL-2003-N : Non Reserved keyword as per SQL-2003
    SQL-1999-R : Reserved keyword as per SQL-1999
    SQL-1999-N : Non Reserved keyword as per SQL-1999
-   MYSQL      : MySQL extention (unspecified)
-   MYSQL-FUNC : MySQL extention, function
+   MYSQL      : MySQL extension (unspecified)
+   MYSQL-FUNC : MySQL extension, function
    INTERNAL   : Not a real token, lex optimization
    OPERATOR   : SQL operator
    FUTURE-USE : Reserved for future use
@@ -2773,7 +2773,7 @@ create:
              MYSQL_YYABORT;
 
                /*
-                 For CREATE TABLE, an non-existing table is not an error.
+                 For CREATE TABLE, a non-existing table is not an error.
                  Instruct open_tables() to just take an MDL lock if the
                  table does not exist.
                */
@@ -10586,7 +10586,7 @@ trim_operands_special:
     CREATE TABLE t1 (a INT DEFAULT AVG(1));
     CREATE TABLE t1 (a INT DEFAULT (AVG(1)));
   The first query would return "syntax error".
-  Currenly both return:
+  Currently both return:
    Function or expression 'avg(' is not allowed for 'DEFAULT' ...
 */
 column_default_non_parenthesized_expr:
@@ -11086,7 +11086,7 @@ substring_operands_special:
 
 
 /*
-  Function calls using non reserved keywords, with special syntaxic forms.
+  Function calls using non reserved keywords, with special syntactic forms.
   Dedicated grammar rules are needed because of the syntax,
   but also have the potential to cause incompatibilities with other
   parts of the language.
@@ -11094,7 +11094,7 @@ substring_operands_special:
   The only reasons a function should be added here are:
   - for compatibility reasons with another SQL syntax (CURDATE),
   - for typing reasons (GET_FORMAT)
-  Any other 'Syntaxic sugar' enhancements should be *STRONGLY*
+  Any other 'Syntactic sugar' enhancements should be *STRONGLY*
   discouraged.
 */
 function_call_nonkeyword:
@@ -11432,7 +11432,7 @@ function_call_generic:
             LEX *lex= Lex;
             if (using_udf_functions)
             {
-              // find_udf expectes a 0-terminated string
+              // find_udf expects a 0-terminated string
               const Lex_ident_sys sysname(thd, &$1);
               if (sysname.is_null())
                 MYSQL_YYABORT; // EOM
@@ -14488,7 +14488,7 @@ values_with_names:
           {
             if (unlikely(Lex->insert_list->push_back($4, thd->mem_root)))
                MYSQL_YYABORT;
-            // give some name in case of using in table value constuctor (TVC)
+            // give some name in case of using in table value constructor (TVC)
             if (!$4->name.str || $4->name.str == item_empty_name)
               $4->set_name(thd, $3, (uint) ($5 - $3), thd->charset());
            }
@@ -14496,7 +14496,7 @@ values_with_names:
           {
             if (unlikely(Lex->insert_list->push_back($2, thd->mem_root)))
                MYSQL_YYABORT;
-            // give some name in case of using in table value constuctor (TVC)
+            // give some name in case of using in table value constructor (TVC)
             if (!$2->name.str || $2->name.str == item_empty_name)
               $2->set_name(thd, $1, (uint) ($3 - $1), thd->charset());
           }
@@ -15477,7 +15477,7 @@ wild_and_where:
           }
         ;
 
-/* A Oracle compatible synonym for show */
+/* An Oracle compatible synonym for show */
 describe:
           describe_command table_ident
           {

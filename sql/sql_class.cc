@@ -75,7 +75,7 @@
 #endif
 
 /*
-  The following is used to initialise Table_ident with a internal
+  The following is used to initialise Table_ident with an internal
   table name
 */
 char internal_table_name[2]= "*";
@@ -1392,7 +1392,7 @@ void THD::init()
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
-    plugin_thd_var_init() sets variables= global_system_variables, which
+    plugin_thdvar_init() sets variables= global_system_variables, which
     has reset variables.pseudo_thread_id to 0. We need to correct it here to
     avoid temporary tables replication failure.
   */
@@ -2257,15 +2257,15 @@ void THD::disconnect()
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
   /*
-    Since a active vio might have not been set yet, in
-    any case save a reference to avoid closing a inexistent
-    one or closing the vio twice if there is a active one.
+    Since an active vio might have not been set yet, in
+    any case save a reference to avoid closing an inexistent
+    one or closing the vio twice if there is an active one.
   */
   vio= active_vio;
   close_active_vio();
 #endif
 
-  /* Disconnect even if a active vio is not associated. */
+  /* Disconnect even if an active vio is not associated. */
   if (net.vio != vio)
     vio_close(net.vio);
   net.thd= 0;                                   // Don't collect statistics
@@ -3365,7 +3365,7 @@ void Item_change_list::rollback_item_tree_changes()
 
 
 /*****************************************************************************
-** Functions to provide a interface to select results
+** Functions to provide an interface to select results
 *****************************************************************************/
 
 int select_result_sink::send_data_with_check(List<Item> &items,
@@ -4517,7 +4517,7 @@ trg_event_type Statement::current_trg_event()
     both on handling DML statements INSERT/UPDATE/DELETE and DDL statement
     CREATE TRIGGER. For the last one, m_running_trgs is empty since the
     method push_current_trg_event() is run only on processing triggers, not on
-    thier creation. So take care about this case.
+    their creation. So take care about this case.
   */
   if (unlikely(m_running_trgs.elements() == 0))
     return TRG_EVENT_MAX;
@@ -5108,7 +5108,7 @@ bool Security_context::check_access(const privilege_t want_access,
   Memory management of a "temporary" security context is
   responsibility of the module that creates it.
 
-  @retval TRUE  there is no user with the given credentials. The erro
+  @retval TRUE  there is no user with the given credentials. The error
                 is reported in the thread.
   @retval FALSE success
 */
@@ -6333,7 +6333,7 @@ print_check_msg(THD *thd, const char *db_name, const char *table_name, const cha
     Seed for random() is saved for the first! usage of RAND()
     We reset examined_row_count and cuted_fields and add these to the
     result to ensure that if we have a bug that would reset these within
-    a function, we are not loosing any rows from the main statement.
+    a function, we are not losing any rows from the main statement.
 
     We do not reset value of last_insert_id().
 ****************************************************************************/
@@ -7319,7 +7319,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       /*
         DML statements that modify a table with an auto_increment
         column based on rows selected from a table are unsafe as the
-        order in which the rows are fetched fron the select tables
+        order in which the rows are fetched from the select tables
         cannot be determined and may differ on master and slave.
       */
       if (has_auto_increment_write_tables && has_read_tables)
@@ -8182,7 +8182,7 @@ static void print_unsafe_warning_to_log(THD *thd, int unsafe_type, char* buf,
 }
 
 /**
-  Auxiliary function to check if the warning for unsafe repliction statements
+  Auxiliary function to check if the warning for unsafe replication statements
   should be thrown or suppressed.
 
   Logic is:
@@ -8374,7 +8374,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_ASSERT(query_arg);
   DBUG_ASSERT(WSREP_EMULATE_BINLOG_NNULL(this) || mysql_bin_log.is_open());
 
-  /* If this is withing a BEGIN ... COMMIT group, don't log it */
+  /* If this is within a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)
   {
     direct= 0;
@@ -8416,7 +8416,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
     involving functions.
 
     3 - THD::binlog_query (here) which prints warning for top level
-    statements not covered by the two cases above: i.e., if not insided a
+    statements not covered by the two cases above: i.e., if not inside a
     procedure and a function.
 
     Besides, we should not try to print these warnings if it is not

@@ -236,7 +236,7 @@ public:
   Read a JSON object into a value of type T.
 
   Object construction is done in reader_func, which is expected to
-  constcut object T and invoke json_read_object() for it.
+  construct object T and invoke json_read_object() for it.
 */
 template <class T>
 class Read_object : public Read_value

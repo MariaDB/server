@@ -660,7 +660,7 @@ public:
      If this is a unit:
        - first SELECT that belong to this unit
      If this is a select_lex
-       - first unit that belong to this SELECT (subquries or derived tables)
+       - first unit that belong to this SELECT (subqueries or derived tables)
 
    - list of all select_lex (link_next/link_prev)
      This is to be used for things like derived tables creation, where we
@@ -1239,7 +1239,7 @@ public:
   List<TABLE_LIST> sj_nests;      /* Semi-join nests within this join */
   /*
     Beginning of the list of leaves in a FROM clause, where the leaves
-    inlcude all base tables including view tables. The tables are connected
+    include all base tables including view tables. The tables are connected
     by TABLE_LIST::next_leaf, so leaf_tables points to the left-most leaf.
 
     List of all base tables local to a subquery including all view
@@ -1433,7 +1433,7 @@ public:
     error during the first execution of a stored procedure, the SP body
     is not expelled from the SP cache. Therefore, a deeply nested
     subquery might be left unoptimized. So we need this per-subquery
-    variable to inidicate the optimization/execution state of every
+    variable to indicate the optimization/execution state of every
     subquery. Prepared statements work OK in that regard, as in
     case of an error during prepare the PS is not created.
   */
@@ -1607,7 +1607,7 @@ public:
   void set_index_hint_type(enum index_hint_type type, index_clause_map clause);
 
   /* 
-   Add a index hint to the tagged list of hints. The type and clause of the
+   Add an index hint to the tagged list of hints. The type and clause of the
    hint will be the current ones (set by set_index_hint()) 
   */
   bool add_index_hint (THD *thd, const char *str, size_t length);
@@ -2554,7 +2554,7 @@ private:
 
   /**
     Bit field that determines the type of tables that are about to be
-    be accessed while executing a statement.
+    accessed while executing a statement.
   */
   uint32 stmt_accessed_table_flag;
 
@@ -2938,7 +2938,7 @@ public:
 
   /**
     Get the current stream pointer, in the pre-processed buffer,
-    with traling spaces removed.
+    with trailing spaces removed.
   */
   const char *get_cpp_ptr_rtrim() const
   {
@@ -3013,7 +3013,7 @@ private:
   /** Starting position of the previous token parsed, in the raw buffer. */
   const char *m_tok_start_prev;
 
-  /** Begining of the query text in the input stream, in the raw buffer. */
+  /** Beginning of the query text in the input stream, in the raw buffer. */
   const char *m_buf;
 
   /** Length of the raw buffer. */
@@ -3638,8 +3638,8 @@ public:
   bool verbose:1, no_write_to_binlog:1;
   bool safe_to_cache_query:1;
   bool ignore:1;
-  bool next_is_main:1; // use "main" SELECT_LEX for nrxt allocation;
-  bool next_is_down:1; // use "main" SELECT_LEX for nrxt allocation;
+  bool next_is_main:1; // use "main" SELECT_LEX for next allocation;
+  bool next_is_down:1; // use "main" SELECT_LEX for next allocation;
   /*
     field_list was created for view and should be removed before PS/SP
     reexecution
@@ -3910,7 +3910,7 @@ public:
     {
       /*
         There are no sense to mark select_lex and union fields of LEX,
-        but we should merk all subselects as uncacheable from current till
+        but we should mark all subselects as uncacheable from current till
         most upper
       */
       SELECT_LEX *sl;
@@ -4826,7 +4826,7 @@ public:
 
   /*
     Generate "increment" instructions followed by a jump to the
-    condition test in the beginnig of the loop.
+    condition test in the beginning of the loop.
     "Increment" depends on the loop type and can be:
     - index:= index + 1;       -- integer range loops
     - index:= index - 1;       -- integer range reverse loops

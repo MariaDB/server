@@ -210,7 +210,7 @@ public:
 
 /**
   Hook class which via its methods specifies which members
-  of T should be used for participating in a intrusive list.
+  of T should be used for participating in an intrusive list.
 */
 
 template <typename T, T* T::*next, T** T::*prev>

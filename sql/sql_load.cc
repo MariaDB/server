@@ -329,7 +329,7 @@ bool Load_data_param::add_outvar_user_var(THD *thd)
 /*
   Execute LOAD DATA query
 
-  SYNOPSYS
+  SYNOPSIS
     mysql_load()
       thd - current thread
       ex  - sql_exchange object representing source file and its parsing rules
@@ -490,7 +490,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     }
     bitmap_set_all(table->write_set);
     /*
-      Let us also prepare SET clause, altough it is probably empty
+      Let us also prepare SET clause, although it is probably empty
       in this case.
     */
     if (setup_fields(thd, Ref_ptr_array(),
@@ -1665,7 +1665,7 @@ int READ_INFO::read_field(CHARSET_INFO *cs)
       if (chr == found_enclosed_char)
       {
 	if ((chr=GET) == found_enclosed_char)
-	{					// Remove dupplicated
+	{					// Remove duplicated
 	  data.append(chr);
 	  continue;
 	}

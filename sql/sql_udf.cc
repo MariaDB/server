@@ -326,7 +326,7 @@ static void del_udf(udf_func *udf)
   {
     /*
       The functions is in use ; Rename the functions instead of removing it.
-      The functions will be automaticly removed when the least threads
+      The functions will be automatically removed when the least threads
       doesn't use it anymore
     */
     const char *name= udf->name.str;
@@ -398,7 +398,7 @@ static void *find_udf_dl(const char *dl)
   DBUG_ENTER("find_udf_dl");
 
   /*
-    Because only the function name is hashed, we have to search trough
+    Because only the function name is hashed, we have to search through
     all rows to find the dl.
   */
   for (uint idx=0 ; idx < udf_hash.records ; idx++)

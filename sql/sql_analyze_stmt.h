@@ -412,7 +412,7 @@ private:
   The observed selectivity is calculated in this way.
   Some elements elem_set are checked if they belong to container.
   Observed selectivity is calculated as the count of elem_set
-  elements that belong to container devided by all elem_set elements.
+  elements that belong to container divided by all elem_set elements.
 */
 
 class Rowid_filter_tracker : public Sql_alloc

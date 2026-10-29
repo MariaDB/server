@@ -997,7 +997,7 @@ size_t err_conv(char *buff, uint to_length, const char *from,
    @param from        string from convert
    @param from_length string length
    @param from_cs     charset from convert
-   @param errors      count of errors during convertion
+   @param errors      count of errors during conversion
 
    @retval
    length of converted string

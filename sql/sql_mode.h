@@ -87,7 +87,7 @@
      - 'a' followed by four spaces - if PAD_CHAR_TO_FULL_LENGTH is enabled
      But `v` will pad trailing spaces to the full length on store anyway.
      So Field_string handles this soft dependency on store.
-     This combination of the virtial column data type and its generation
+     This combination of the virtual column data type and its generation
      expression is safe and provides consistent data in `v`, which is
      'a' followed by four spaces, no matter what PAD_CHAR_TO_FULL_LENGTH is.
 

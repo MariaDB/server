@@ -340,7 +340,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
   And if no crash we can trust the syncs in the ddl_log.
 
   What about if the rename is put into a background thread? That will cause
-  corruption and is avoided by the exlusive metadata lock.
+  corruption and is avoided by the exclusive metadata lock.
 */
 static bool exchange_name_with_ddl_log(THD *thd,
                                        const char *name,
@@ -456,7 +456,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   DBUG_RETURN(error);
 err_rename:
   /*
-    Nothing to do if any of these commands fails :( the commands itselfs
+    Nothing to do if any of these commands fails :( the commands themselves
     will log to the error log about the failures...
   */
   /* execute the ddl log entry to revert the renames */
@@ -693,7 +693,7 @@ bool Sql_cmd_alter_table_exchange_partition::
     DBUG_RETURN(TRUE);
 
   /*
-    Get exclusive mdl lock on both tables, alway the non partitioned table
+    Get exclusive mdl lock on both tables, always the non partitioned table
     first. Remember the tickets for downgrading locks later.
   */
   swap_table_mdl_ticket= swap_table->mdl_ticket;
@@ -863,7 +863,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   first_table->mdl_request.set_type(MDL_EXCLUSIVE);
 
   /*
-    Check table permissions and open it with a exclusive lock.
+    Check table permissions and open it with an exclusive lock.
     Ensure it is a partitioned table and finally, upcast the
     handler and invoke the partition truncate method. Lastly,
     write the statement to the binary log if necessary.
@@ -963,7 +963,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   /*
     All effects of a truncate operation are committed even if the
     operation fails. Thus, the query must be written to the binary
-    log. The exception is a unimplemented truncate method or failure
+    log. The exception is an unimplemented truncate method or failure
     before any call to handler::truncate() is done.
     Also, it is logged in statement format, regardless of the binlog format.
 
@@ -984,8 +984,8 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   }
 
   /*
-    A locked table ticket was upgraded to a exclusive lock. After the
-    the query has been written to the binary log, downgrade the lock
+    A locked table ticket was upgraded to an exclusive lock. After the
+    query has been written to the binary log, downgrade the lock
     to a shared one.
   */
   if (thd->locked_tables_mode)

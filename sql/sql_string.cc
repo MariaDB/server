@@ -299,7 +299,7 @@ bool Binary_string::copy_or_move(const char *str, size_t arg_length)
   Checks that the source string can be just copied to the destination string
   without conversion.
 
-  SYNPOSIS
+  SYNOPSIS
 
   needs_conversion()
   arg_length		Length of string to copy.
@@ -989,7 +989,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
        Not safe to reuse.
 
     c. Some variable strings have Alloced_length>0 and alloced==false.
-       They point to a fixed size writtable char array (typically on stack)
+       They point to a fixed size writable char array (typically on stack)
        initially but can later allocate more space on the heap when the
        fixed size array is too small (these strings become #d after allocation).
        Safe to reuse.
@@ -1016,7 +1016,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
       return from; // #d (reallocated to fit from_length bytes)
     }
     /*
-      "from" is of type #c. It currently points to a writtable char array
+      "from" is of type #c. It currently points to a writable char array
       (typically on stack), but is too small for "from_length" bytes.
       We need to reallocate either "from" or "to".
 
@@ -1170,7 +1170,7 @@ my_copy_with_hex_escaping(CHARSET_INFO *cs,
   The members as set as follows:
   m_well_formed_error_pos    To the position when "from" is not well formed
                              or NULL otherwise.
-  m_cannot_convert_error_pos To the position where a not convertable
+  m_cannot_convert_error_pos To the position where a not convertible
                              character met, or NULL otherwise.
   m_source_end_pos           To the position where scanning of the "from"
                              string stopped.

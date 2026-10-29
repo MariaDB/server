@@ -510,7 +510,7 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
   for ( ; elem1 && elem2; elem1= elem1->next, elem2= elem2->next)
   {
     int cmp;
-    // remove all constants as we don't need them for comparision
+    // remove all constants as we don't need them for comparison
     while(elem1 && ((*elem1->item)->real_item())->const_item())
     {
       elem1= elem1->next;
@@ -1096,7 +1096,7 @@ public:
     if (bound_tracker.compare_with_cache())
     {
       /* This row is part of a new partition, don't move
-         forward any more untill we get informed of a new partition. */
+         forward any more until we get informed of a new partition. */
       Table_read_cursor::prev();
       end_of_partition= true;
       return -1;
@@ -1475,7 +1475,7 @@ private:
     RANGE BETWEEN ... AND n FOLLOWING
 
   Bottom end moves first so it needs to check for partition end
-  (todo: unless it's PRECEDING and in that case it doesnt)
+  (todo: unless it's PRECEDING and in that case it doesn't)
   (todo: factor out common parts with Frame_range_n_top into
    a common ancestor)
 */
@@ -2445,7 +2445,7 @@ class Frame_positional_cursor : public Frame_cursor
   }
 
 private:
-  /* Check if a our position is within bounds.
+  /* Check if our position is within bounds.
    * The position is passed as a parameter to avoid recalculating it. */
   bool position_is_within_bounds()
   {
@@ -3197,7 +3197,7 @@ bool compute_window_func(THD *thd,
   return ret;
 }
 
-/* Make a list that is a concation of two lists of ORDER elements */
+/* Make a list that is a concatenation of two lists of ORDER elements */
 
 static ORDER* concat_order_lists(MEM_ROOT *mem_root, ORDER *list1, ORDER *list2)
 {

@@ -265,7 +265,7 @@ static HASH bookmark_hash;
 
 /*
   hidden part of opaque value passed to variable check functions.
-  Used to provide a object-like structure to non C++ consumers.
+  Used to provide an object-like structure to non C++ consumers.
 */
 struct st_item_value_holder : public st_mysql_value
 {
@@ -3103,7 +3103,7 @@ static size_t var_storage_size(int flags)
 
 
 /*
-  returns a bookmark for thd-local variables, creating if neccessary.
+  returns a bookmark for thd-local variables, creating if necessary.
   Requires that a write lock is obtained on LOCK_system_variables_hash
 */
 static st_bookmark *register_var(const char *plugin, const char *name,

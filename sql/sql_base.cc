@@ -1493,7 +1493,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
 
 
 /**
-  Close a and drop a just created table in CREATE TABLE ... SELECT.
+  Close and drop a just created table in CREATE TABLE ... SELECT.
 
   @param  thd         Thread handle
   @param  table       TABLE object for the table to be dropped
@@ -3396,7 +3396,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 
 
 /**
-   Auxiliary routine which is used for performing automatical table repair.
+   Auxiliary routine which is used for performing automatic table repair.
 */
 
 static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
@@ -3798,7 +3798,7 @@ Open_table_context::recover_from_failed_open()
 
 
 /*
-  Return a appropriate read lock type given a table object.
+  Return an appropriate read lock type given a table object.
 
   @param thd              Thread context
   @param prelocking_ctx   Prelocking context.
@@ -4988,7 +4988,7 @@ restart:
 
           /*
             Here we rely on the fact that 'tables' still points to the valid
-            TABLE_LIST element. Altough currently this assumption is valid
+            TABLE_LIST element. Although currently this assumption is valid
             it may change in future.
           */
           if (ot_ctx.recover_from_failed_open())
@@ -7203,13 +7203,13 @@ Field *find_field_in_table_sef(TABLE *table, const Lex_ident_column &name)
 
   RETURN VALUES
     0			If error: the found field is not unique, or there are
-                        no sufficient access priviliges for the found field,
+                        no sufficient access privileges for the found field,
                         or the field is qualified with non-existing table.
     not_found_field	The function was called with report_error ==
                         (IGNORE_ERRORS || IGNORE_EXCEPT_NON_UNIQUE) and a
 			field was not found.
     view_ref_found	View field is found, item passed through ref parameter
-    found field         If a item was resolved to some field
+    found field         If an item was resolved to some field
 */
 
 Field *
@@ -7392,7 +7392,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
       {
         /*
           We have just found a field allowed to cache (1) and
-          it is not dublicate search (2).
+          it is not duplicate search (2).
         */
         item->cached_table= actual_table;
       }
@@ -9017,7 +9017,7 @@ bool setup_tables_and_check_access(THD *thd, Name_resolution_context *context,
      index_list		List of index names
 
    RETURN
-     0	ok;  In this case *map will includes the choosed index
+     0	ok;  In this case *map will include the chosen index
      1	error
 */
 
@@ -10055,7 +10055,7 @@ my_bool mysql_rm_tmp_tables(void)
                                        file->name);
         if (!strcmp(reg_ext, ext))
         {
-          /* We should cut file extention before deleting of table */
+          /* We should cut file extension before deleting of table */
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
           init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);

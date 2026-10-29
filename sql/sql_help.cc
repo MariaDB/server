@@ -104,7 +104,7 @@ static void get_field(MEM_ROOT *mem, Field *field, String *res)
 
   RETURN VALUES
     0           all ok
-    1           one of the fileds was not found
+    1           one of the fields was not found
 */
 
 static bool init_fields(THD *thd, TABLE_LIST *tables,
@@ -145,7 +145,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
 
     thd           Thread handler
     topics        Table of topics
-    count         number of alredy found topics
+    count         number of already found topics
     find_fields   Filled array of information for work with fields
 
   RETURN VALUES
@@ -426,7 +426,7 @@ int search_categories(THD *thd, TABLE *categories,
     items   Table of items
     pfname  Field "name" in items
     select  "where" part of query..
-    res     list of finded names
+    res     list of found names
 */
 
 void get_all_items_for_category(THD *thd, TABLE *items, Field *pfname,
@@ -821,7 +821,7 @@ static bool init_items_for_help_command(THD *thd,
 
   @param thd          Thread handler
   @param mask         string value passed to the HELP statement
-  @oaram[out] fields  fields for result set metadata
+  @param[out] fields  fields for result set metadata
 
   @return false on success, else true.
 */

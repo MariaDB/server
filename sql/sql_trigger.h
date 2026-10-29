@@ -293,7 +293,7 @@ public:
   List<LEX_CSTRING> connection_cl_names;
   List<LEX_CSTRING> db_cl_names;
 
-  /* End of character ser context. */
+  /* End of character set context. */
 
   /**
     List of paths for triggers

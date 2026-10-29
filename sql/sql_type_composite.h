@@ -393,18 +393,18 @@ public:
     suitable for the variable.
 
     @param thd    - Current thd
-    @param var    - The variable aaddress
+    @param var    - The variable address
     @param key    - The expression
     @param buffer - The string buffer, e.g. used for val_str().
 
-    @retutns        - An null LEX_CSTRING {0,0} in case if key->val_str()
+    @returns        - A null LEX_CSTRING {0,0} in case if key->val_str()
                       returned NULL, or if could not convert the value to
                       the internal form
                     - A non-null LEX_CSTRING, usually pointing to "buffer",
                       with an internal key representation
 
-    In case of an VARCHAR-key asssoc array, the key value is converted
-    to the character set explicitlye or implicitly specified in the
+    In case of a VARCHAR-key assoc array, the key value is converted
+    to the character set explicitly or implicitly specified in the
     INDEX BY clause.
     In case of an integer-key assoc array, the key value is checked to
     be inside the allowed range according to the integer type specified

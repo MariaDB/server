@@ -305,7 +305,7 @@ functions:
 
 TODO list:
 
-  - Delayed till after-parsing qache answer (for column rights processing)
+  - Delayed till after-parsing qcache answer (for column rights processing)
   - Optimize cache resizing
       - if new_size < old_size then pack & shrink
       - if new_size > old_size copy cached query to new cache
@@ -394,7 +394,7 @@ const uchar *query_state_map;
 
 /**
   Macro that executes the requested action at a synchronization point
-  only if the thread has a associated THD session.
+  only if the thread has an associated THD session.
 */
 #if defined(ENABLED_DEBUG_SYNC)
 #define QC_DEBUG_SYNC(name)               \
@@ -3407,7 +3407,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
                             tables_used->view_db.str));
       key_length= get_table_def_key(tables_used, &key);
       /*
-        There are not callback function for for VIEWs
+        There are not callback function for VIEWs
       */
       if (!insert_table(thd, key_length, key, (*block_table),
                         tables_used->view_db.length, 0,
@@ -4194,7 +4194,7 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
 /*
   Check handler allowance to cache query with these tables
 
-  SYNOPSYS
+  SYNOPSIS
     Query_cache::ask_handler_allowance()
     thd - thread handlers
     tables_used - tables list used in query
@@ -4426,7 +4426,7 @@ my_bool Query_cache::move_by_type(uchar **border,
                             j, ntable_j, table_j, table_n));
 
       /*
-        Use aligment from beginning of table if 'next' is in same block:
+        Use alignment from beginning of table if 'next' is in same block:
 
         If ntable_j->next is intra-block (inside old block->table() elements),
         then shift it by memmove() distance.
@@ -4438,7 +4438,7 @@ my_bool Query_cache::move_by_type(uchar **border,
         ntable_j->next= shifted;
       }
 
-      // use aligment from beginning of table if 'prev' is in same block
+      // use alignment from beginning of table if 'prev' is in same block
       if ((table_j <= ntable_j->prev) && (ntable_j->prev < table_n))
       {
         shifted= (Query_cache_block_table *) ((uchar *) ntable_j->prev + move_distance);
