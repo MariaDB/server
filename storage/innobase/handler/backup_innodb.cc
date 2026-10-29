@@ -44,32 +44,48 @@ static void cache_friendly(int fd) noexcept
 # define cache_friendly(f) do {} while (0)
 #endif
 
-#ifndef _WIN32
+#ifdef _WIN32
+using tpool::pwrite;
+#else
+/**
+   Create a buffered output file.
+   @param dirfd    backup target directory handle
+   @param name     file name
+   @return file handle
+   @retval -1 on error
+*/
+static int backup_file_create_buffered(int dirfd, const char *name) noexcept
+{
+  int f{openat(dirfd, name, O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666)};
+  if (f < 0)
+    return -1;
+  cache_friendly(f);
+  return f;
+}
+
+# ifndef O_DIRECT
+#  define backup_file_create(dir,name) backup_file_create_buffered(dir,name)
+# else
 /**
    Create an unbuffered output file.
    @param dirfd    backup target directory handle
    @param name     file name
-   @param flags    O_WRONLY or O_RDWR
    @return file handle
    @retval -1 on error
 */
-static int backup_file_create(int dirfd, const char *name, int flags= O_WRONLY)
-  noexcept
+static int backup_file_create(int dirfd, const char *name) noexcept
 {
-  ut_ad(flags == O_WRONLY || flags == O_RDWR);
-# ifdef O_DIRECT
-  flags|= O_CREAT | O_TRUNC;
-  int f= openat(dirfd, name, O_DIRECT | O_EXCL | flags, 0666);
+  int flags{O_CREAT | O_TRUNC | O_WRONLY};
+  int f{openat(dirfd, name, O_DIRECT | O_EXCL | flags, 0666)};
   if (f >= 0)
     return f;
   f= openat(dirfd, name, flags, 0666);
-# else
-  int f= openat(dirfd, name, O_CREAT | O_EXCL | O_TRUNC | flags, 0666);
-# endif
-  if (f >= 0)
-    cache_friendly(f);
+  if (f < 0)
+    return -1;
+  cache_friendly(f);
   return f;
 }
+# endif
 #endif
 
 /**
@@ -83,38 +99,20 @@ static int backup_file_create(int dirfd, const char *name, int flags= O_WRONLY)
 static int backup_log_tail_clear(backup_fd log, uint64_t offset, uint bs_1)
   noexcept
 {
-#ifdef _WIN32
-  using tpool::pread;
-#endif
   ut_ad(bs_1 < log_sys.START_OFFSET);
   ut_ad(bs_1 == log_sys.write_size - 1);
   const size_t o{size_t(offset) & bs_1};
   if (!o)
     return 0;
-  /*
-    We must zero out the garbage part of the last log block.
-    Because the file may have been opened in O_DIRECT mode,
-    we must explicitly read-before-write.
-  */
-  offset+= log_sys.START_OFFSET - o;
-  size_t bs{bs_1 + 1};
-  int err{-1};
-  if (char *buf= static_cast<char*>(aligned_malloc(bs, bs)))
-  {
-    if (ssize_t(bs) == pread(log, buf, bs, offset))
-    {
-      memset(buf + o, 0, bs - o);
+  offset+= log_sys.START_OFFSET;
 #ifdef _WIN32
-      LARGE_INTEGER pos;
-      pos.QuadPart= offset;
+  LARGE_INTEGER pos;
+  pos.QuadPart= offset;
 #endif
-      if (IF_WIN(SetFilePointerEx(log, pos, nullptr, FILE_BEGIN),
-                 offset == uint64_t(lseek(log, off_t(offset), SEEK_SET))))
-        err= backup_stream_write(log, buf, bs);
-    }
-    aligned_free(buf);
-  }
-  return err;
+  if (IF_WIN(!SetFilePointerEx(log, pos, nullptr, FILE_BEGIN),
+             offset != uint64_t(lseek(log, off_t(offset), SEEK_SET))))
+    return -1;
+  return backup_stream_write(log, field_ref_zero, bs_1 + 1 - o);
 }
 
 /** Associate a transaction with the current session
@@ -442,12 +440,9 @@ private:
 #else
         std::string path{};
         log_sys.append_archive_name(path, lsn);
-        int f{openat(target.fd, path.c_str(), O_CREAT | O_EXCL | O_TRUNC | O_RDWR, 0666)};
+        int f{backup_file_create_buffered(target.fd, path.c_str())};
         if (f >= 0)
-        {
-          cache_friendly(f);
           return f;
-        }
 #endif
         my_error(ER_CANT_CREATE_FILE, MYF(ME_ERROR_LOG),
                  path.c_str(), errno);
@@ -530,27 +525,22 @@ private:
       if (unlinkat(target->fd, d_, 0))
         goto error_return;
       err= ER_CANT_CREATE_FILE;
-      d= backup_file_create(target->fd, d_, O_RDWR);
+      d= backup_file_create_buffered(target->fd, d_);
       if (d < 0)
         goto error_return;
 #endif
-      const uint64_t offset{last_lsn - hl};
-      const uint64_t end{log_sys.START_OFFSET + ((offset + 4095) & ~4095ULL)};
+      const uint64_t end{log_sys.START_OFFSET + last_lsn - hl};
       int f{extend(d, std::max<uint64_t>(log_sys.FILE_SIZE_MIN, end))};
       if (!f)
       {
-        const uint bs_1{log_sys.write_size - 1};
         const uint64_t begin= log_sys.START_OFFSET +
-          (hl == first_lsn) * ((checkpoint - hl) & ~uint64_t{bs_1});
+          (hl == first_lsn) * (checkpoint - hl);
 #ifdef copy_file_shortcut
         if (1 == (f= copy_file_shortcut(s, d, begin, end)))
 #endif
         f= backup::copy(s, d, begin, end);
-        if (!f)
-          f= backup_log_tail_clear(d, offset, bs_1);
         if (!f && hl == first_lsn)
-          f= write_checkpoint(d, checkpoint_end_lsn - hl +
-                              log_sys.START_OFFSET);
+          f= write_checkpoint(d, checkpoint_end_lsn - hl);
       }
       if (IF_WIN(!CloseHandle(d), close(d)) | f)
         goto error_return;
@@ -926,16 +916,12 @@ public:
      @param dst  destination
      @param o    start offset
      @param end  last offset (exclusive)
-     @param bs_1 log_sys.write_size - 1
      @return error code (non-positive)
      @retval 0  on success
   */
-  static int mmap_copy(const void *p, int dst, uint64_t o, uint64_t end,
-                       uint bs_1)
+  static int mmap_copy(const void *p, int dst, uint64_t o, uint64_t end)
     noexcept
   {
-    o&= ~uint64_t{bs_1};
-    end= (end + bs_1) & ~uint64_t{bs_1};
     size_t c= size_t(end - o);
     ssize_t ret;
     for (const char *b= static_cast<const char*>(p) + o;;
@@ -1028,7 +1014,7 @@ public:
       const uint64_t begin{prev - first}, end{lsn - first};
 #ifdef HAVE_PMEM
       if (log_sys.is_mmap())
-        err= mmap_copy(tracked.buf, ctx.log_dst, begin, end, bs_1);
+        err= mmap_copy(tracked.buf, ctx.log_dst, begin, end);
       else
 #endif
       {
@@ -1166,7 +1152,11 @@ public:
       if (lsn >= last)
       {
         /* The log copying finishes at or after the commit() LSN. */
-        err= backup_log_tail_clear(ctx.log_dst, last - tracked.first_lsn, bs_1);
+        err=
+#ifdef HAVE_PMEM
+          log_sys.is_mmap() ? 0 :
+#endif
+          backup_log_tail_clear(ctx.log_dst, last - tracked.first_lsn, bs_1);
 
         if (!err)
           err= extend_log(ctx.log_dst, end);
@@ -1179,8 +1169,7 @@ public:
           ctx.log_dst= OS_FILE_CLOSED;
           if (!err)
             err= write_checkpoint(first_log_dst,
-                                  ctx.checkpoint_end_lsn - ctx.first_lsn +
-                                  log_sys.START_OFFSET);
+                                  ctx.checkpoint_end_lsn - ctx.first_lsn);
           if (IF_WIN(!CloseHandle,close)(first_log_dst))
             err= -1;
           ctx.first_log_dst= OS_FILE_CLOSED;
@@ -1932,28 +1921,20 @@ private:
 
   /** Write a checkpoint header pointing to the start of the backup.
   @param dst   target file
-  @param c     offset of the FILE_CHECKPOINT mini-transaction
+  @param c     offset of the FILE_CHECKPOINT mini-transaction after the header
   @return error code
   @retval 0 on success */
   static int write_checkpoint(backup_fd dst, uint64_t c) noexcept
   {
-    int ret{-1};
-    size_t size{log_sys.write_size};
-    ut_ad(size <= log_sys.START_OFFSET);
-    if (char *buf= static_cast<char*>(aligned_malloc(size, size)))
-    {
-      memset_aligned<512>(buf, 0, size);
-      write_checkpoint_buf(reinterpret_cast<uint64_t*>(buf), c);
+    uint64_t buf[8]{};
+    write_checkpoint_buf(buf, c + log_sys.START_OFFSET);
 #ifdef _WIN32
-      LARGE_INTEGER pos{0};
+    LARGE_INTEGER pos{0};
 #endif
-      if (IF_WIN(SetFilePointerEx(dst, pos, nullptr, FILE_BEGIN),
-                 !lseek(dst, 0, SEEK_SET)))
-        ret= backup_stream_write(dst, buf, size);
-      aligned_free(buf);
-    }
-
-    return ret;
+    if (IF_WIN(!SetFilePointerEx(dst, pos, nullptr, FILE_BEGIN),
+               lseek(dst, 0, SEEK_SET)))
+      return -1;
+    return backup_stream_write(dst, buf, sizeof buf);
   }
 
 public:
@@ -2097,8 +2078,7 @@ public:
           std::ignore=
             os_file_punch_hole(dh, 0, log_sys.START_OFFSET +
                                ((ctx.checkpoint - lsn) & ~4095ULL));
-        int f= write_checkpoint(dh, ctx.checkpoint_end_lsn - lsn +
-                                log_sys.START_OFFSET);
+        int f= write_checkpoint(dh, ctx.checkpoint_end_lsn - lsn);
         if (!CloseHandle(dh) | f)
           goto fail;
       }
@@ -2215,9 +2195,7 @@ public:
     int dst{sink.stream};
     if (dst < 0)
     {
-      /* no O_DIRECT here */
-      dst= openat(target.fd, basename,
-                  O_CREAT | O_EXCL | O_TRUNC | O_WRONLY, 0666);
+      dst= backup_file_create_buffered(target.fd, basename);
       if (dst < 0)
         goto close_and_fail;
     }
@@ -2453,7 +2431,26 @@ int InnoDB_backup::backup(IF_WIN(const char *,int) target, fil_node_t *node,
       goto fail;
     }
 # endif
-    f= backup_file_create(target, name);
+    do
+    {
+# ifdef O_DIRECT
+      /*
+        Similar to fil_node_open_file_low(), we must avoid O_DIRECT
+        for ROW_FORMAT=COMPRESSED tables whose physical page size is
+        less than 4096 bytes, which we assume is the maximum physical
+        block size on the storage.
+      */
+      switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
+      case 1: /* 1024 bytes */
+      case 2: /* 2048 bytes */
+        f= backup_file_create_buffered(target, name);
+        continue;
+      }
+# endif
+      f= backup_file_create(target, name);
+    }
+    while (false);
+
     if (f < 0)
     {
       if (errno == ENOENT)
