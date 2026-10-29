@@ -16,11 +16,11 @@ ROCKSDB_DEADLOCK	CREATE TEMPORARY TABLE `ROCKSDB_DEADLOCK` (
   `DEADLOCK_ID` bigint(21) NOT NULL,
   `TIMESTAMP` bigint(21) NOT NULL,
   `TRANSACTION_ID` bigint(21) NOT NULL,
-  `CF_NAME` varchar(193) NOT NULL,
-  `WAITING_KEY` varchar(513) NOT NULL,
-  `LOCK_TYPE` varchar(193) NOT NULL,
-  `INDEX_NAME` varchar(193) NOT NULL,
-  `TABLE_NAME` varchar(193) NOT NULL,
+  `CF_NAME` longtext NOT NULL,
+  `WAITING_KEY` longtext NOT NULL,
+  `LOCK_TYPE` longtext NOT NULL,
+  `INDEX_NAME` longtext NOT NULL,
+  `TABLE_NAME` longtext NOT NULL,
   `ROLLED_BACK` bigint(21) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 create table t (i int primary key) engine=rocksdb;

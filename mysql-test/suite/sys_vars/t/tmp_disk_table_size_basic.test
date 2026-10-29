@@ -202,12 +202,28 @@ SELECT tmp_disk_table_size = @@session.tmp_disk_table_size;
 
 SET @@tmp_disk_table_size=16384;
 set @@tmp_memory_table_size=16384;
-CREATE VIEW v AS SELECT 'a';
+CREATE TABLE t_dummy(a INT);
+--disable_query_log
+let $i= 500;
+while ($i)
+{
+  eval CREATE VIEW v_$i AS SELECT * FROM t_dummy;
+  dec $i;
+}
+--enable_query_log
 
 --error ER_RECORD_FILE_FULL
 SELECT table_name FROM INFORMATION_SCHEMA.views;
 
-DROP VIEW v;
+--disable_query_log
+let $i= 500;
+while ($i)
+{
+  eval DROP VIEW v_$i;
+  dec $i;
+}
+--enable_query_log
+DROP TABLE t_dummy;
 
 --echo # End of 10.4 test
 
