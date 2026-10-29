@@ -4296,7 +4296,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     create_info.row_type= ROW_TYPE_NOT_USED;
     create_info.alter_info= &alter_info;
 
-    WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+    WSREP_TO_ISOLATION_BEGIN_FK(first_table->db.str,
+                                first_table->table_name.str, NULL,
+                                first_table);
 
     Recreate_info recreate_info;
     res= mysql_alter_table(thd, &first_table->db, &first_table->table_name,
@@ -4412,7 +4414,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (check_rename_table(thd, first_table, all_tables))
       goto error;
 
-    WSREP_TO_ISOLATION_BEGIN(0, 0, first_table);
+    WSREP_TO_ISOLATION_BEGIN_FK(0, 0, first_table, first_table);
 
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
@@ -5395,7 +5397,22 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     if (prepare_db_action(thd, DROP_ACL, &lex->name))
       break;
 
-    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL);
+#ifdef WITH_WSREP
+    if (WSREP_ON && WSREP(thd))
+    {
+      /*
+        InnoDB X-locks the FOREIGN KEY child tables of the dropped tables,
+        which may be in other databases (MDEV-39955).
+      */
+      wsrep::key_array fk_keys;
+      if (wsrep_thd_is_local(thd) &&
+          wsrep_append_fk_keys_for_db(thd, &lex->name, &fk_keys))
+        goto wsrep_error_label;
+      if (wsrep_to_isolation_begin(thd, lex->name.str, NULL, NULL, NULL,
+                                   &fk_keys))
+        goto wsrep_error_label;
+    }
+#endif /* WITH_WSREP */
 
     res= mysql_rm_db(thd, &lex->name, lex->if_exists());
     break;
