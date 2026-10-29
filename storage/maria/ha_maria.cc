@@ -3885,18 +3885,24 @@ static int maria_backup_create(const backup_target &target,
 }
 
 /**
-   Copy an Aria index or data file, checking the page checksums.
+   Copy an Aria index or data file.
 
-   The file is copied up to its size when the copy starts. Pages that are
-   appended later are not needed: as after a crash, recovery takes the
-   file length from the file and applies the log to the pages after it.
+   For a table that is safe for online backup, the page checksums are
+   checked. The file is copied up to its size when the copy starts.
+   Pages that are appended later are not needed: as after a crash,
+   recovery takes the file length from the file and applies the log to
+   the pages after it.
+
+   Other tables are copied as whole files, while writes to them are
+   blocked, with backup::copy_or_stream() where it is available.
 
    @param target   backup target
    @param sink     worker context
    @param context  open table files
    @param name     file name in the backup
    @param index    true for the index file, false for the data file
-   @param buf      buffer of buf_size bytes
+   @param buf      buffer of buf_size bytes, or nullptr if
+                   backup::copy_or_stream() copies the file
    @param buf_size buffer size, a multiple of the block size
    @return whether the operation failed
 */
@@ -3908,6 +3914,13 @@ static bool maria_backup_copy(const backup_target &target,
 {
   const uint block_size= context->capabilities.block_size;
   const File src= index ? context->kfile : context->dfile;
+  const bool online= context->capabilities.online_backup_safe;
+#ifndef _WIN32
+  if (!online)
+    /* backup::copy_or_stream() closes its copy of the descriptor */
+    return backup::copy_or_stream(target, sink,
+                                  fcntl(src, F_DUPFD_CLOEXEC, 0), name) != 0;
+#endif
   my_off_t size= my_seek(src, 0, MY_SEEK_END, MYF(0));
   if (size == MY_FILEPOS_ERROR)
   {
@@ -3915,7 +3928,8 @@ static bool maria_backup_copy(const backup_target &target,
     return true;
   }
   /* A page can be in the middle of being appended; skip it. */
-  size-= size % block_size;
+  if (online)
+    size-= size % block_size;
   backup_fd dst;
   int err= maria_backup_create(target, sink, name, size, &dst);
   if (err > 0)
@@ -3925,9 +3939,17 @@ static bool maria_backup_copy(const backup_target &target,
   for (my_off_t pos= 0; !err && pos < size; )
   {
     const size_t len= size_t(MY_MIN(my_off_t{buf_size}, size - pos));
-    const longlong n= index
-      ? aria_read_index_file(context, buf, len)
-      : aria_read_data_file(context, buf, len);
+    longlong n;
+    if (!online)
+    {
+      n= my_pread(src, buf, len, pos, MYF(MY_NABP)) ? -1 : longlong(len);
+      if (n < 0)
+        my_error(ER_ERROR_ON_READ, MYF(0), name, my_errno);
+    }
+    else
+      n= index
+        ? aria_read_index_file(context, buf, len)
+        : aria_read_data_file(context, buf, len);
     if (n <= 0)
     {
       /* The reader reported an error, or the file was truncated */
@@ -3951,29 +3973,6 @@ static bool maria_backup_copy(const backup_target &target,
 }
 
 /**
-   Copy the files of an Aria table that is not safe for online backup,
-   while its writes are blocked.
-   @param target   backup target
-   @param sink     worker context
-   @param table    table file name without extension
-   @return whether the operation failed
-*/
-static bool maria_backup_table_locked(const backup_target &target,
-                                      const backup_sink &sink,
-                                      const char *table) noexcept
-{
-  const size_t prefix{strlen(mysql_data_home) + 1};
-  char path[FN_REFLEN];
-  char *ext= strxnmov(path, sizeof path - sizeof MARIA_NAME_IEXT,
-                      mysql_data_home, "/", table, NullS);
-  strmov(ext, MARIA_NAME_IEXT);
-  if (backup::copy_or_stream(target, sink, path, prefix))
-    return true;
-  strmov(ext, MARIA_NAME_DEXT);
-  return backup::copy_or_stream(target, sink, path, prefix);
-}
-
-/**
    Copy an Aria table, or defer it to BACKUP_LOCK_COMMIT.
 
    A table that is safe for online backup is copied with page checksum
@@ -3986,13 +3985,18 @@ static bool maria_backup_table_locked(const backup_target &target,
    tables (MDL_BACKUP_DML) are blocked, but their files can be
    stale. Writes to the system, statistics and log tables
    (MDL_BACKUP_SYS_DML) are blocked only from BACKUP_LOCK_COMMIT on.
+   The files are copied from the files that
+   aria_open_files_for_backup() opened, not opened again by name.
    @param target   backup target
+   @param stage    BACKUP_WAIT_FOR_FLUSH, or BACKUP_LOCK_COMMIT for a
+                   deferred table
    @param sink     worker context
    @param ctx      Aria backup context
    @param table    table file name without extension
    @return whether the operation failed
 */
 static bool maria_backup_table(const backup_target &target,
+                               backup_stages stage,
                                const backup_sink &sink,
                                maria_backup_context *ctx,
                                const char *table) noexcept
@@ -4006,12 +4010,12 @@ static bool maria_backup_table(const backup_target &target,
     return true;
 
   bool fail;
-  if (!context.capabilities.online_backup_safe)
+  if (!context.capabilities.online_backup_safe &&
+      stage == BACKUP_WAIT_FOR_FLUSH &&
+      !strncmp(table, MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length) &&
+      table[MYSQL_SCHEMA_NAME.length] == '/')
   {
     aria_close_files_for_backup(&context);
-    if (strncmp(table, MYSQL_SCHEMA_NAME.str, MYSQL_SCHEMA_NAME.length) ||
-        table[MYSQL_SCHEMA_NAME.length] != '/')
-      return maria_backup_table_locked(target, sink, table);
     mysql_mutex_lock(&ctx->mutex);
     fail= ctx->deferred.append_val(table);
     mysql_mutex_unlock(&ctx->mutex);
@@ -4023,22 +4027,30 @@ static bool maria_backup_table(const backup_target &target,
   {
     /* Read up to 128 pages at a time, like mariadb-backup */
     const size_t buf_size= size_t{context.capabilities.block_size} * 128;
-    uchar *buf= static_cast<uchar*>(my_malloc(PSI_NOT_INSTRUMENTED, buf_size,
-                                              MYF(MY_WME)));
-    fail= !buf;
-    if (buf)
+    uchar *buf= nullptr;
+#ifndef _WIN32
+    /* The other tables are copied by backup::copy_or_stream() */
+    if (context.capabilities.online_backup_safe)
+#endif
     {
-      strmov(ext, MARIA_NAME_IEXT);
-      fail= maria_backup_copy(target, sink, &context, path + prefix,
-                              true, buf, buf_size);
-      if (!fail)
+      buf= static_cast<uchar*>(my_malloc(PSI_NOT_INSTRUMENTED, buf_size,
+                                         MYF(MY_WME)));
+      if (!buf)
       {
-        strmov(ext, MARIA_NAME_DEXT);
-        fail= maria_backup_copy(target, sink, &context, path + prefix,
-                                false, buf, buf_size);
+        aria_close_files_for_backup(&context);
+        return true;
       }
-      my_free(buf);
     }
+    strmov(ext, MARIA_NAME_IEXT);
+    fail= maria_backup_copy(target, sink, &context, path + prefix,
+                            true, buf, buf_size);
+    if (!fail)
+    {
+      strmov(ext, MARIA_NAME_DEXT);
+      fail= maria_backup_copy(target, sink, &context, path + prefix,
+                              false, buf, buf_size);
+    }
+    my_free(buf);
   }
   aria_close_files_for_backup(&context);
   return fail;
@@ -4267,9 +4279,7 @@ static int maria_backup_step(THD *, const backup_target *target,
   mysql_mutex_unlock(&ctx->mutex);
   if (!table)
     return 0;
-  if (stage == BACKUP_WAIT_FOR_FLUSH
-      ? maria_backup_table(*target, *sink, ctx, table)
-      : maria_backup_table_locked(*target, *sink, table))
+  if (maria_backup_table(*target, stage, *sink, ctx, table))
     return -1;
   return 1;
 }
