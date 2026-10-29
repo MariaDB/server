@@ -2383,6 +2383,8 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
+  else if (check_master_connection_name(base_name))
+    return true;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
@@ -2429,6 +2431,8 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
+  else if (check_master_connection_name(base_name))
+    return nullptr;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
@@ -5557,6 +5561,8 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
+  else if (check_master_connection_name(base_name))
+    return true;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
