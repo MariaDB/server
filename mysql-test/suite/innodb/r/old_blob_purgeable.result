@@ -10,7 +10,7 @@ SET @old_dbug= @@SESSION.debug_dbug;
 #
 # row_vers_impl_x_locked_purgeable: report no implicit lock.
 #
-CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
 BEGIN;
@@ -35,11 +35,12 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
 #
-# row_undo_mod_sec_is_unsafe_purgeable: report the secondary index entry
-# as still needed, which only makes the rollback delete-mark an entry it
-# could have removed.
+# row_undo_mod_sec_is_unsafe_purgeable: end the walk as if purge had
+# seen the writer before the walk got there, so that the rollback removes
+# the secondary index entry. Delete-marking it instead would leave an entry
+# that no undo log record refers to, which purge never removes.
 #
-CREATE TABLE t(a INT PRIMARY KEY, pad INT, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, pad INT, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, 0, REPEAT('x', @@innodb_page_size));
 UPDATE t SET pad = 1 WHERE a = 1;
@@ -52,14 +53,17 @@ SET SESSION debug_dbug= @old_dbug;
 SELECT a, pad, LEFT(b, 2) FROM t FORCE INDEX(b) WHERE b LIKE 'yy%';
 a	pad	LEFT(b, 2)
 1	1	yy
+CREATE TABLE t2(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t2 VALUES (1);
+InnoDB		0 transactions not purged
 CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
-DROP TABLE t;
+DROP TABLE t, t2;
 #
 # row_check_index_purgeable: stop the walk and report nothing.
 #
-CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
 connect  purge_control,localhost,root,,;
