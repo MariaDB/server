@@ -5167,6 +5167,11 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
   }
 
   ulonglong pos= lex_mi->pos;
+  slave_connection_state from_gtid_state;
+  LEX_CSTRING from_gtid= lex_mi->binlog_from_gtid;
+  slave_connection_state to_gtid_state;
+  LEX_CSTRING to_gtid= lex_mi->binlog_to_gtid;
+  rpl_binlog_state found_state;
   /*
     The positions "0" and "4" are unfortunately traditionally used
     interchangeably to mean "the start of the binlog". Thus, we might here
@@ -5181,13 +5186,50 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
   */
   if (pos == 4)
     pos= 0;
-  if (reader->init_legacy_pos(thd, lex_mi->log_file_name, pos))
+  if (pos != 0 && from_gtid.length == 0 && to_gtid.length > 0)
+  {
+    my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), "SHOW BINLOG EVENTS",
+            "Cannot combine a byte position with a GTID");
+    err= true;
+    goto end;
+  }
+  if (0 < from_gtid.length)
+  {
+    /*
+      We'll use from_gtid_state.load(...). It reads the text '0-1-2' and stored the GTID
+      inside the from_gtid_state object. So from_gtid_state will hold 0-1-2 as a rpl_gtid.
+      then we ask from_gtid_state for gtid. from_gtid_state.load(...) returns non-zero value
+      for invalid gtid
+    */
+    if (from_gtid_state.load(from_gtid.str, from_gtid.length))
+    {
+      err= true;
+      goto end;
+    }
+    found_state.init();
+    if (reader->init_gtid_pos(thd, &from_gtid_state, &found_state) <= 0)
+    {
+      err= true;
+      goto end;
+    }
+  }
+  else if (reader->init_legacy_pos(thd, lex_mi->log_file_name, pos))
   {
     err= true;
     goto end;
   }
+
+  if (0 < to_gtid.length)
+  {
+    if (to_gtid_state.load(to_gtid.str, to_gtid.length))
+    {
+      err= true;
+      goto end;
+    }
+  }
   /* The engine reader will stop at the end of the requested file. */
-  reader->enable_single_file();
+  if (from_gtid.length == 0)
+    reader->enable_single_file();
 
   {
     SELECT_LEX_UNIT *unit= &thd->lex->unit;
@@ -5198,6 +5240,8 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
     Format_description_log_event fd(4);
     char name_buf[FN_REFLEN];
     opt_binlog_engine_hton->get_filename(name_buf, file_no);
+    bool skipping= (from_gtid.length > 0);
+    bool has_to_gtid= (to_gtid.length > 0);
 
     for (ha_rows event_count= 0; event_count < limit; ++event_count)
     {
@@ -5227,6 +5271,32 @@ show_engine_binlog_events(THD* thd, Protocol *protocol, LEX_MASTER_INFO *lex_mi)
                  "SHOW BINLOG EVENTS", errmsg);
         err= true;
         break;
+      }
+      if (ev->get_type_code() == GTID_EVENT)
+      {
+        Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+
+        if (skipping)
+        {
+          rpl_gtid *wanted_from= from_gtid_state.find(gev->domain_id);
+          if (wanted_from && gev->seq_no > wanted_from->seq_no)
+            skipping= false;
+        }
+
+        if (has_to_gtid)
+        {
+          rpl_gtid *wanted_till= to_gtid_state.find(gev->domain_id);
+          if (wanted_till && gev->seq_no > wanted_till->seq_no)
+          {
+            delete ev;
+            break;
+          }
+        }
+      }
+      if (skipping)
+      {
+        delete ev;
+        continue;
       }
       int send_err= ev->net_send(protocol, name_buf, 0);
       delete ev;
