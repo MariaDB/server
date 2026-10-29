@@ -1,0 +1,81 @@
+--source include/have_aria.inc
+--source include/have_debug_sync.inc
+--source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# The header of an Aria index file holds the table state. It has no
+# checksum, and it is written outside the page cache, so BACKUP SERVER
+# reads it under the locks of its writers: THR_LOCK_maria, which
+# maria_open() and maria_close() hold, and SHARE::intern_lock of the
+# open table. The backup stages close the tables, so a.t1 is opened
+# again before the first header is read. The copy order depends on the
+# file system, so the backup stops in the header read of the first open
+# table, which is a.t1.
+CREATE DATABASE a;
+CREATE TABLE a.t1 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+CREATE TABLE a.t2 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO a.t1 VALUES (1);
+INSERT INTO a.t2 VALUES (2);
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+--connect backup,localhost,root
+SET DEBUG_SYNC='aria_backup_header SIGNAL header WAIT_FOR opened';
+SET DEBUG_SYNC='aria_backup_header_locked SIGNAL locked WAIT_FOR go';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--send_eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR header';
+SELECT * FROM a.t1;
+SET DEBUG_SYNC='now SIGNAL opened';
+SET DEBUG_SYNC='now WAIT_FOR locked';
+
+--echo # The open of a.t2 waits for THR_LOCK_maria.
+--connect open_t2,localhost,root
+--let $id= `SELECT CONNECTION_ID()`
+--send SELECT * FROM a.t2
+--connection default
+--let $wait_condition= SELECT COUNT(*) = 1 FROM performance_schema.events_waits_current w JOIN performance_schema.threads t USING (thread_id) WHERE t.processlist_id = $id AND w.end_event_id IS NULL AND w.event_name = 'wait/synch/mutex/aria/THR_LOCK_maria'
+--source include/wait_condition.inc
+
+--echo # The first write to the open a.t1 waits for SHARE::intern_lock.
+--connect write_t1,localhost,root
+--let $id= `SELECT CONNECTION_ID()`
+--send INSERT INTO a.t1 VALUES (1)
+--connection default
+--let $wait_condition= SELECT COUNT(*) = 1 FROM performance_schema.events_waits_current w JOIN performance_schema.threads t USING (thread_id) WHERE t.processlist_id = $id AND w.end_event_id IS NULL AND w.event_name = 'wait/synch/mutex/aria/SHARE::intern_lock'
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection open_t2
+--reap
+--disconnect open_t2
+--connection write_t1
+--error ER_DUP_ENTRY
+--reap
+--disconnect write_t1
+
+--connection backup
+--reap
+--disconnect backup
+
+--connection default
+SET DEBUG_SYNC='RESET';
+INSERT INTO a.t1 VALUES (3);
+
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE a.t1, a.t2 EXTENDED;
+SELECT * FROM a.t1;
+SELECT * FROM a.t2;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP DATABASE a;
+--rmdir $MYSQLTEST_VARDIR/bk

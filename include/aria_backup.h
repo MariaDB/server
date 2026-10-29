@@ -71,6 +71,8 @@ typedef struct st_aria_backup_context
   ulonglong kblock;                             /* Position in key file */
   ulonglong dblock;                             /* Position in data file */
   ARIA_TABLE_CAPABILITIES capabilities;
+  /* Real path of the index file, to find the open table */
+  char index_name[FN_REFLEN];
 } ARIA_BACKUP_CONTEXT;
 
 /*
