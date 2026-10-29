@@ -1168,7 +1168,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Warning	1064	Optimizer hint syntax error near 'test */ FROM t1 WHERE i = 10' at line 1
-Note	1003	delete  from `test`.`t1` using dual where `test`.`t1`.`i` = 10
+Note	1003	delete  from `test`.`t1` using `test`.`t1` where `test`.`t1`.`i` = 10
 
 # non-alphabetic and non-ASCII identifiers, should warn:
 
