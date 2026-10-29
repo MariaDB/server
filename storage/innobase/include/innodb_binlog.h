@@ -219,7 +219,7 @@ public:
 
 
 extern pending_lsn_fifo ibb_pending_lsn_fifo;
-extern uint32_t innodb_binlog_size_in_pages;
+extern std::atomic<uint32_t> innodb_binlog_size_in_pages;
 extern const char *innodb_binlog_directory;
 extern uint32_t binlog_cur_page_no;
 extern uint32_t binlog_cur_page_offset;

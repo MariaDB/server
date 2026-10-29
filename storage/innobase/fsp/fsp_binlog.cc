@@ -193,7 +193,7 @@ fsp_binlog_page_fifo::release_entry(uint64_t file_no, uint64_t page_no)
     of holding the mutex.
   */
   if (UNIV_LIKELY(free_buffers * MAX_FREE_BUFFERS_FRAC <=
-                  innodb_binlog_size_in_pages))
+                  innodb_binlog_size_in_pages.load(std::memory_order_relaxed)))
   {
     *(uintptr_t *)e= (uintptr_t)freelist;
     freelist= (byte *)e;
@@ -1437,7 +1437,8 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
   const uint32_t page_size= (uint32_t)ibb_page_size;
   const uint32_t page_size_shift= ibb_page_size_shift;
 
-  os_offset_t binlog_size= innodb_binlog_size_in_pages << ibb_page_size_shift;
+  uint32_t pages= innodb_binlog_size_in_pages.load(std::memory_order_relaxed);
+  os_offset_t binlog_size= pages << ibb_page_size_shift;
   if (init_page == ~(uint32_t)0 && file_size < binlog_size) {
     /*
       A crash may have left a partially pre-allocated file. If so, extend it

@@ -49,7 +49,7 @@ class ibb_xid_hash;
 static int innodb_binlog_inited= 0;
 
 pending_lsn_fifo ibb_pending_lsn_fifo;
-uint32_t innodb_binlog_size_in_pages;
+std::atomic<uint32_t> innodb_binlog_size_in_pages;
 const char *innodb_binlog_directory;
 
 /** Current write position in active binlog file. */
@@ -1630,7 +1630,7 @@ ibb_set_max_size(size_t binlog_size)
                       "size supported by InnoDB, truncated to " UINT64PF,
                       (pages << ibb_page_size_shift));
   }
-  innodb_binlog_size_in_pages= (uint32_t)pages;
+  innodb_binlog_size_in_pages.store((uint32_t)pages, std::memory_order_relaxed);
 }
 
 
@@ -2144,10 +2144,11 @@ innodb_binlog_prealloc_thread()
       ++last_created;
       mysql_mutex_unlock(&active_binlog_mutex);
 
-      mysql_mutex_lock(&purge_binlog_mutex);
-      uint32_t size_in_pages=  innodb_binlog_size_in_pages;
+      uint32_t size_in_pages=
+        innodb_binlog_size_in_pages.load(std::memory_order_relaxed);
       dberr_t res2= fsp_binlog_tablespace_create(last_created, size_in_pages,
                                                  lf_pins);
+      mysql_mutex_lock(&purge_binlog_mutex);
       if (earliest_binlog_file_no == ~(uint64_t)0)
         earliest_binlog_file_no= last_created;
       total_binlog_used_size+= (size_in_pages << ibb_page_size_shift);
