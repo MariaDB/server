@@ -776,26 +776,33 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
   {
      /* proxy-protocol-networks variable needs to be set to allow this remote address */
      my_printf_error(ER_HOST_NOT_PRIVILEGED, "Proxy header is not accepted from %s",
-       MYF(0), thd->main_security_ctx.ip);
+       MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0),
+       thd->main_security_ctx.ip);
      return ABORT;
   }
 
   if (parse_proxy_protocol_header(net, &peer_info))
   {
      /* Failed to parse proxy header*/
-     my_printf_error(ER_UNKNOWN_ERROR, "Failed to parse proxy header", MYF(0));
+     my_printf_error(ER_UNKNOWN_ERROR, "Failed to parse proxy header",
+       MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0));
      return ABORT;
   }
 
   if (peer_info.is_local_command)
     /* proxy header indicates LOCAL connection, no action necessary */
     return RETRY;
-  /* Change peer address in THD and ACL structures.*/
+  /*
+    Change peer address in THD and ACL structures. Defer the host checks
+    - see parse_client_handshake_packet().
+  */
   uint host_errors= 0;
   net->using_proxy_protocol= NET_PROXY_PROTOCOL;
   handle_proxy_header_result res=
     (handle_proxy_header_result) thd_set_peer_addr(thd, &(peer_info.peer_addr),
-                                 NULL, peer_info.port, false, &host_errors);
+                                 NULL, peer_info.port,
+                                 HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP,
+                                 &host_errors);
   if (host_errors)
     net->using_proxy_protocol |= NET_PROXY_PROTOCOL_CONNECT_ERRORS;
   return res;
@@ -818,6 +825,7 @@ static ulong my_real_read(NET *net, size_t *complen,
   size_t length;
   uint i,retry_count=0;
   ulong len=packet_error;
+  bool proxy_parsed= false;
   my_bool expect_error_packet __attribute__((unused))= 0;
 retry:
 
@@ -1003,20 +1011,24 @@ end:
   return(len);
 
 packets_out_of_order :
-  switch (handle_proxy_header(net))
+  if (!proxy_parsed)
   {
-  case ABORT:
-    /* error happened, message is already written. */
-    len= packet_error;
-    goto end;
-  case RETRY:
-    goto retry;
-  case IGNORE:
-    break;
+    switch (handle_proxy_header(net))
+    {
+    case ABORT:
+      /* error happened, message is already written. */
+      len= packet_error;
+      goto end;
+    case RETRY:
+      proxy_parsed= true;
+      goto retry;
+    case IGNORE:
+      break;
+    }
   }
   DBUG_PRINT("error", ("Packets out of order (Found: %d, expected %u)",
                        (int) net->buff[net->where_b + 3], net->pkt_nr));
-  EXTRA_DEBUG_ASSERT(0);
+  EXTRA_DEBUG_ASSERT(DBUG_IF("net_expect_protocol_errors"));
   /*
      We don't make noise server side, since the client is expected
      to break the protocol for e.g. --send LOAD DATA .. LOCAL where

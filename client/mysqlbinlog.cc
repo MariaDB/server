@@ -688,7 +688,7 @@ print_skip_replication_statement(PRINT_EVENT_INFO *pinfo, const Log_event *ev)
   cur_val= (ev->flags & LOG_EVENT_SKIP_REPLICATION_F) != 0;
   if (cur_val == pinfo->skip_replication)
     return;                                     /* Not changed. */
-  fprintf(result_file, "/*!50521 SET skip_replication=%d*/%s\n",
+  fprintf(result_file, "/*M! SET skip_replication=%d*/%s\n",
           cur_val, pinfo->delimiter);
   pinfo->skip_replication= cur_val;
 }
@@ -748,17 +748,13 @@ static bool print_partial_row_event(PRINT_EVENT_INFO *print_event_info, Log_even
       header info here for filtering.
     */
     const uchar *rows_data_begin= prle->ev_buffer_base + prle->start_offset;
-    Log_event_type event_type= (Log_event_type)(uchar)rows_data_begin[EVENT_TYPE_OFFSET];
-    uint8 const post_header_len= glob_description_event->post_header_len[event_type-1];
+    uint8 const post_header_len= PARTIAL_ROWS_HEADER_LEN;
     const uchar *table_id_ptr= rows_data_begin +
                                print_event_info->common_header_len +
                                RW_MAPID_OFFSET;
 
     ulonglong table_id;
-    if (post_header_len == 6)
-      table_id= uint4korr(table_id_ptr);
-    else
-      table_id= (ulonglong) uint6korr(table_id_ptr);
+    table_id= (ulonglong) uint6korr(table_id_ptr);
 
     /*
       Cache the flags of the Rows_log_event to use it for the last
@@ -1425,7 +1421,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 
       size_t len_to= 0;
       const char* db_to= binlog_filter->get_rewrite_db(map->get_db_name(), &len_to);
-      if (len_to && map->rewrite_db(db_to, len_to, glob_description_event))
+      if (len_to && map->rewrite_db(db_to, len_to))
       {
         error("Could not rewrite database name");
         goto err;
@@ -2527,6 +2523,53 @@ static Exit_status safe_connect()
 
 
 /**
+  Copied from sql-common/pack.c, since it is needed for reading Log_event
+  objects in sql/log_event.cc, but this function is not available in
+  libmariadbclient.
+
+  The function is simple and the format of the variable length field is
+  fixed, so we can probably live with copying the code for now.
+*/
+my_ulonglong safe_net_field_length_ll(uchar **packet, size_t packet_len)
+{
+  uchar *pos= *packet;
+  if (packet_len < 1)
+    goto err;
+  if (*pos < 251)
+  {
+    (*packet)++;
+    return (my_ulonglong) *pos;
+  }
+  if (*pos == 251)
+  {
+    (*packet)++;
+    return (my_ulonglong) NULL_LENGTH;
+  }
+  if (*pos == 252)
+  {
+    if (packet_len < 3)
+      goto err;
+    (*packet)+=3;
+    return (my_ulonglong) uint2korr(pos+1);
+  }
+  if (*pos == 253)
+  {
+    if (packet_len < 4)
+      goto err;
+    (*packet)+=4;
+    return (my_ulonglong) uint3korr(pos+1);
+  }
+  if (packet_len < 9 || *pos != 254)
+    goto err;
+  (*packet)+=9;
+  return (my_ulonglong) uint8korr(pos+1);
+err:
+  *packet = NULL;
+  return 0;
+}
+
+
+/**
   High-level function for dumping a named binlog.
 
   This function calls dump_remote_log_entries() or
@@ -3585,29 +3628,29 @@ int main(int argc, char** argv)
 
   if (!opt_raw_mode)
   {
-    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;\n");
+    fprintf(result_file, "SET @@SESSION.PSEUDO_SLAVE_MODE=1;\n");
 
     fprintf(result_file,
-	    "/*!40019 SET @@session.max_delayed_threads=0*/;\n");
+	    "SET @@session.max_delayed_threads=0;\n");
 
     if (disable_log_bin)
       fprintf(result_file,
-              "/*!32316 SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0*/;\n");
+              "SET @OLD_SQL_LOG_BIN=@@SQL_LOG_BIN, SQL_LOG_BIN=0;\n");
 
     /*
       In mysqlbinlog|mysql, don't want mysql to be disconnected after each
       transaction (which would be the case with GLOBAL.COMPLETION_TYPE==2).
     */
     fprintf(result_file,
-            "/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
-            "COMPLETION_TYPE=0*/;\n");
+            "SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,"
+            "COMPLETION_TYPE=0;\n");
 
     if (charset)
       fprintf(result_file,
-              "\n/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;"
-              "\n/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;"
-              "\n/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;"  
-              "\n/*!40101 SET NAMES %s */;\n", charset);
+              "\nSET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT;"
+              "\nSET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS;"
+              "\nSET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION;"
+              "\nSET NAMES %s;\n", charset);
   }
 
   for (save_stop_position= stop_position, stop_position= ~(my_off_t)0 ;
@@ -3672,16 +3715,16 @@ int main(int argc, char** argv)
     */
     fprintf(result_file,
             "# End of log file\nROLLBACK /* added by mysqlbinlog */;\n"
-            "/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;\n");
+            "SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE;\n");
     if (disable_log_bin)
-      fprintf(result_file, "/*!32316 SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN*/;\n");
+      fprintf(result_file, "SET SQL_LOG_BIN=@OLD_SQL_LOG_BIN;\n");
 
     if (charset)
       fprintf(result_file,
-              "/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;\n"
-              "/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;\n"
-              "/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;\n");
-    fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
+              "SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT;\n"
+              "SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS;\n"
+              "SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION;\n");
+    fprintf(result_file, "SET @@SESSION.PSEUDO_SLAVE_MODE=0;\n");
 
     if (gtid_event_filter)
     {

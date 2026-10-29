@@ -102,3 +102,23 @@ reap;
 commit;
 drop table t;
 set timestamp= default;
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+--echo # DELETE privilege is not enough for DELETE HISTORY with a subquery
+create database mysqltest;
+create table mysqltest.t (a int) with system versioning;
+create table mysqltest.t2 (d timestamp(6));
+insert into mysqltest.t2 values (now(6));
+create user mysqltest_1@localhost;
+grant select, delete on mysqltest.* to mysqltest_1@localhost;
+connect (user1,localhost,mysqltest_1,,mysqltest);
+--error ER_TABLEACCESS_DENIED_ERROR
+delete history from t before system_time (select d from t2);
+disconnect user1;
+connection default;
+drop user mysqltest_1@localhost;
+drop database mysqltest;
+
+--echo # End of 10.11 tests

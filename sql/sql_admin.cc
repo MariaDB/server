@@ -1131,7 +1131,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         repair was not implemented and we need to upgrade the table
         to a new version so we recreate the table with ALTER TABLE
       */
-      result_code= admin_recreate_table(thd, table, &recreate_info, 1);
+      result_code= (admin_recreate_table(thd, table, &recreate_info, 1) ?
+                    HA_ADMIN_FAILED : HA_ADMIN_OK);
       recreate_used= 1;
     }
 

@@ -880,7 +880,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       MYSQL_ROW row;
 
       new_line=1;
-      if (mysql_query(mysql,"show /*!40003 GLOBAL */ variables") ||
+      if (mysql_query(mysql,"show global variables") ||
 	  !(res=mysql_store_result(mysql)))
       {
 	my_printf_error(0, "unable to show variables; error: '%s'", error_flags,
@@ -902,7 +902,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       void (*func) (MYSQL_RES*, MYSQL_ROW, uint);
 
       new_line = 1;
-      if (mysql_query(mysql, "show /*!50002 GLOBAL */ status") ||
+      if (mysql_query(mysql, "show global status") ||
 	  !(res = mysql_store_result(mysql)))
       {
 	my_printf_error(0, "unable to show status; error: '%s'", error_flags,

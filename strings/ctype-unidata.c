@@ -40,7 +40,8 @@ MY_CASEFOLD_INFO my_casefold_default=
 {
   0xFFFF,
   my_u300_casefold_index,
-  weight_general_ci_index
+  weight_general_ci_index,
+  FALSE
 };
 
 
@@ -56,7 +57,8 @@ MY_CASEFOLD_INFO my_casefold_turkish=
 {
   0xFFFF,
   my_u300tr_casefold_index,
-  weight_general_ci_index
+  weight_general_ci_index,
+  TRUE
 };
 
 
@@ -68,7 +70,8 @@ MY_CASEFOLD_INFO my_casefold_mysql500=
 {
   0xFFFF,
   my_u300_casefold_index,
-  weight_general_mysql500_ci_index
+  weight_general_mysql500_ci_index,
+  FALSE
 };
 
 
@@ -77,7 +80,8 @@ MY_CASEFOLD_INFO my_casefold_unicode520=
 {
   0x10FFFF,
   my_u520_casefold_index,
-  NULL
+  NULL,
+  FALSE
 };
 
 
@@ -85,7 +89,8 @@ MY_CASEFOLD_INFO my_casefold_unicode1400=
 {
   0x10FFFF,
   my_u1400_casefold_index,
-  NULL
+  NULL,
+  FALSE
 };
 
 
@@ -93,5 +98,6 @@ MY_CASEFOLD_INFO my_casefold_unicode1400tr=
 {
   0x10FFFF,
   my_u1400tr_casefold_index,
-  NULL
+  NULL,
+  TRUE
 };

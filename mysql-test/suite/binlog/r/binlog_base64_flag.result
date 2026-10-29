@@ -1,4 +1,4 @@
-call mtr.add_suppression("BINLOG_BASE64_EVENT: According to the master's version");
+call mtr.add_suppression("BINLOG_BASE64_EVENT: Master's version is earlier than");
 call mtr.add_suppression("BINLOG_BASE64_EVENT: Column 1 of table 'test.char128_utf8' cannot be converted");
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (1), (1);
@@ -39,21 +39,6 @@ a
 SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
 @binlog_fragment_0	NULL	NULL
 NULL	NULL	NULL
-==== Test non-matching FD event and Row event ====
-BINLOG '
-4CdYRw8BAAAAYgAAAGYAAAAAAAQANS4xLjE1LW5kYi02LjEuMjQtZGVidWctbG9nAAAAAAAAAAAA
-AAAAAAAAAAAAAAAAAADgJ1hHEzgNAAgAEgAEBAQEEgAATwAEGggICAg=
-';
-BINLOG '
-Dl1YRxMBAAAAKQAAADQBAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
-Dl1YRxcBAAAAIgAAAFYBAAAQABAAAAAAAAEAAf/+BQAAAA==
-';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
-select * from t1;
-a
-1
-1
-3
 CREATE TABLE char128_utf8 ( 
 i1 INT NOT NULL, 
 c CHAR(128) CHARACTER SET utf8mb3 NOT NULL, 
@@ -94,3 +79,83 @@ BINLOG '-2079193929';
 ERROR HY000: Decoding of base64 string failed
 BINLOG 'xç↓%~∙D╒ƒ╡';
 ERROR HY000: Decoding of base64 string failed
+#
+# MDEV-39074 trans_rollback_stmt(THD *): Assertion `! thd->in_sub_stmt' failed.
+#
+create table t0 (a int);
+create table t1 (a int);
+## Case 1: Trigger (disabled)
+create trigger trig_t0_insert after insert on t0 for each row binlog 'enabled';
+ERROR 0A000: BINLOG is not allowed in stored procedures
+create trigger trig_t0_insert after insert on t0 for each row
+binlog @a, @b;
+ERROR 0A000: BINLOG is not allowed in stored procedures
+## Case 2: SP (disabled)
+create procedure proc_t1_insert() binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp';
+ERROR 0A000: BINLOG is not allowed in stored procedures
+## Case 3: SF (disabled)
+create function func_t1_insert() returns int
+begin
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+return 0;
+end|
+ERROR 0A000: BINLOG is not allowed in stored procedures
+create function func_t1_insert() returns int
+begin
+binlog @a, @b;
+return 0;
+end|
+ERROR 0A000: BINLOG is not allowed in stored procedures
+## Case 4: Event (disabled)
+create event ev_t1_insert on schedule every 1 day do
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+ERROR 0A000: BINLOG is not allowed in stored procedures
+## Case 5: Anonymous block (disabled)
+begin not atomic
+binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==';
+end|
+ERROR 0A000: BINLOG is not allowed in stored procedures
+## Case 6: Dynamic SQL in SP (disabled)
+create procedure proc_t1_insert()
+execute immediate "binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='";
+call proc_t1_insert();
+ERROR 0A000: BINLOG is not allowed in stored procedures
+drop procedure proc_t1_insert;
+prepare stmt from "binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='";
+create procedure proc_t1_insert() execute stmt;
+call proc_t1_insert();
+ERROR 0A000: BINLOG is not allowed in stored procedures
+drop procedure proc_t1_insert;
+deallocate prepare stmt;
+## Case 7: Row event in PS (works)
+binlog 'ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC';
+prepare stmt from "binlog 'TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA=='";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+a
+3
+3
+## Case 8: Statement event in PS (works)
+prepare stmt from "binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+select * from t1;
+a
+3
+3
+99
+99
+## Case 9: Statement event in EXECUTE IMMEDIATE (works)
+execute immediate "binlog 'AAAAAAIBAAAAPwAAAAAAAAAAAAEAAAAAAAAABAAAAAB0ZXN0AGluc2VydCBpbnRvIHQxIHZhbHVlcyAoOTkp'";
+select * from t1;
+a
+3
+3
+99
+99
+99
+drop table t0, t1;
+# End of 10.11 tests

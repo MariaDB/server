@@ -137,8 +137,89 @@ alter table t1 drop column va;
 drop table t1;
 
 --echo #
---echo #  MDEV-39081 InnoDB: tried to purge non-delete-marked record,
---echo #   assertion fails in row_purge_del_mark_error
+--echo # MDEV-36896 Assertion `marked_for_read()' failed in virtual String *Field_varstring::val_str(String *, String *)
+--echo #
+
+set @old_isolation_level= @@session.tx_isolation;
+
+set @@session.tx_isolation= 'READ-UNCOMMITTED';
+create table t (a varchar(10),b int,c char(10) generated always as (a) virtual,key(b,c)) engine=innodb;
+insert into t (a) values ('A');
+select * from t where b is null order by a;
+
+drop table t;
+
+create table t (
+  a varchar(10),
+  b int,
+  c char(10) generated always as (a) virtual,
+  d int generated always as (if(a = c, 1, 0)) virtual,
+  key(b, c)
+) engine=innodb;
+
+insert into t (a) values ('A');
+insert into t (a, b) values ('B', 1);
+select * from t where b is null order by a;
+drop table t;
+
+set @@session.tx_isolation= @old_isolation_level;
+
+--echo #
+--echo # MDEV-41365 Wrong results from filesort over indexed virtual columns during a concurrent uncommitted update
+--echo #
+create table t (
+  pk int primary key,
+  f int,
+  v1 int as (f & 1) virtual,
+  v2 int as (f & 2) virtual,
+  key (v1)
+) engine=innodb;
+insert into t (pk, f) values (1, 0);
+
+explain select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+
+connect con1, localhost, root;
+begin;
+update t set f = 1 where pk = 1;
+
+connection default;
+--echo # No filesort
+select * from t force index (v1) where v1 = 0 and v2 = 0;
+--echo # Filesort: must return pk=1
+select * from t force index (v1) where v1 = 0 and v2 = 0 order by f, pk;
+
+connection con1;
+rollback;
+disconnect con1;
+connection default;
+drop table t;
+
+--echo #
+--echo # MDEV-41667 InnoDB: Failing assertion: buf <= (byte*)
+--echo #		original_upd_buff + buff_len
+--echo #
+let $n= 32;
+let $cols= ;
+let $i= 1;
+while ($i <= $n)
+{
+  let $cols= $cols, v$i BIGINT AS (b+$i) VIRTUAL, KEY(v$i);
+  inc $i;
+}
+eval CREATE TABLE t1 (a INT PRIMARY KEY, b BIGINT NOT NULL $cols) ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,10),(2,20);
+UPDATE t1 SET b=11 WHERE a=1;
+UPDATE t1 SET b=b+100;
+SELECT a, b, v1, v32 FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+
+--echo #
+--echo #  MDEV-39081 InnoDB: tried to purge non-delete-marked record, assertion fails in row_purge_del_mark_error
 --echo #
 CREATE TABLE t1(
   pk INT AUTO_INCREMENT,
@@ -157,3 +238,5 @@ CONNECTION default;
 COMMIT;
 --source ../innodb/include/wait_all_purged.inc
 DROP TABLE t1;
+
+--echo # End of 11.4 tests

@@ -35,7 +35,6 @@ SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --source include/wait_condition.inc
 
 --source include/kill_galera.inc
---sleep 1
 
 --connection node_1
 INSERT INTO t1 VALUES (6);

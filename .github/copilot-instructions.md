@@ -88,6 +88,9 @@ enforces the coding style — flag style violations as well as bugs.
 
 ## PR hygiene
 - Subject line starts with `MDEV-NNNNN`; body wrapped at 72 cols.
+- AI attribution must use the `Assisted-by: NAME:MODEL` line in the commit
+  comment, for example, `Assisted-by: Claude:claude-5.5-opus`. Flag if it's
+  `Co-Authored-By`, flag if an AI-assisted commit has no attribution.
 - Bug fix targets the oldest maintained branch that reproduces (≤3y since GA);
   new feature targets the main branch.
 - Bug fix commit is minimal; cleanups (unrelated and related - prerequisite

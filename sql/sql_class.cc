@@ -1730,7 +1730,6 @@ void THD::cleanup(void)
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
     wsrep_cs().cleanup();
-  wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
   DEBUG_SYNC(this, "THD_cleanup_after_set_killed");
@@ -2626,14 +2625,12 @@ void THD::cleanup_after_query()
     making this reset necessary.
   */
   reset_binlog_local_stmt_filter();
-  if (first_successful_insert_id_in_cur_stmt > 0)
-  {
-    /* set what LAST_INSERT_ID() will return */
-    first_successful_insert_id_in_prev_stmt= 
-      first_successful_insert_id_in_cur_stmt;
-    first_successful_insert_id_in_cur_stmt= 0;
-    substitute_null_with_insert_id= TRUE;
-  }
+  /*
+    Bulk operation sets LAST_INSERT_ID() once, to the first id generated
+    by all its executions, see Prepared_statement::execute_bulk_loop()
+  */
+  if (!is_bulk_op() || in_sub_stmt)
+    set_last_insert_id_from_cur_stmt();
   arg_of_last_insert_id_function= 0;
   /* Free Items that were created during this execution */
   free_items();
@@ -2901,7 +2898,7 @@ THD::make_string_literal(const char *str, size_t length,
   if (!length && (variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
     return new (mem_root) Item_null(this, 0, variables.collation_connection);
   if (!charset_is_collation_connection &&
-      (repertoire != MY_REPERTOIRE_ASCII ||
+      (!my_repertoire_is_subset_of(repertoire, MY_REPERTOIRE_ASCII) ||
        !my_charset_is_ascii_based(variables.collation_connection)))
   {
     LEX_STRING to;
@@ -4950,7 +4947,6 @@ void TMP_TABLE_PARAM::init()
   table_charset= 0;
   precomputed_group_by= 0;
   bit_fields_as_long= 0;
-  materialized_subquery= 0;
   force_not_null_cols= 0;
   skip_create_table= 0;
   tmp_name= "temptable";                        // Name of temp table on disk
@@ -5484,8 +5480,11 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ENTER("open_purge_table");
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  /* Purge already hold the MDL for the table */
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
+  /* Purge already hold the MDL for the table. A kill flag on a purge THD
+  (for example from a Galera BF abort) is never reset, and purge has no
+  statement to abort; it must not make every subsequent open_table() fail. */
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK |
+                                 MYSQL_OPEN_IGNORE_KILLED);
   TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
@@ -8027,13 +8026,17 @@ void binlog_prepare_row_images(TABLE *table, enum_binlog_row_image row_image)
 
   /*
     Do not put virtual column values into the write_set, as they will be
-    re-computed anyway by the slave applier.
+    re-computed anyway by the slave applier. Except for binlog_row_image=FULL
+    to help 3rd-party readers of the binlog where re-computing the virtual
+    column values may not be simple.
   */
   if (unlikely(table->vfield))
   {
+    if (row_image < BINLOG_ROW_IMAGE_FULL
 #ifdef HAVE_REPLICATION
-    if (!table->s->online_alter_binlog)
+        && !table->s->online_alter_binlog
 #endif
+        )
     {
       if (table->read_set != &table->tmp_set)
       {

@@ -5734,16 +5734,26 @@ static bool test_if_create_new_users(THD *thd)
 ****************************************************************************/
 static USER_AUTH auth_no_password;
 
+static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table= false);
+
+static void unlink_role_and_propagate(ACL_ROLE *role);
+
 static int replace_user_table(THD *thd, const User_table &user_table,
                               LEX_USER * const combo, privilege_t rights,
                               const bool revoke_grant,
                               const bool can_create_user,
                               const bool no_auto_create,
-                              bool is_deny)
+                              bool is_deny,
+                              /* Non-NULL only for CREATE OR REPLACE of an existing account: 
+                              its old privileges are removed from these tables */
+                              Grant_tables *cleanup_tables= nullptr)
 {
   int error = -1;
   uint nauth= 0;
   bool old_row_exists=0;
+  bool old_row_is_role= false;
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
@@ -5796,9 +5806,6 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       goto end;
     }
 
-    if (!combo->auth)
-      combo->auth= &auth_no_password;
-
     /* Only rows about to be created, so an older bad row stays droppable */
     if (!valid_host_mask(combo->host.str))
     {
@@ -5808,14 +5815,29 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
 
     old_row_exists = 0;
-    restore_record(table, s->default_values);
-    user_table.set_host(combo->host.str, combo->host.length);
-    user_table.set_user(combo->user.str, combo->user.length);
   }
   else
   {
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
+    old_row_is_role= user_table.get_is_role();
+  }
+
+  /*
+    A new account starts from the default row. So does a replaced one:
+    CREATE OR REPLACE is DROP IF EXISTS + CREATE, so everything the statement
+    doesn't mention (password, resource limits, SSL options, lock status, ...)
+    must not survive from the old row. record[1] keeps the old row for the
+    update.
+  */
+  if (!old_row_exists || cleanup_tables)
+  {
+    if (!combo->auth)
+      combo->auth= &auth_no_password;
+
+    restore_record(table, s->default_values);
+    user_table.set_host(combo->host.str, combo->host.length);
+    user_table.set_user(combo->user.str, combo->user.length);
   }
 
   for (USER_AUTH *auth= combo->auth; auth; auth= auth->next)
@@ -5839,7 +5861,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   if (handle_as_role)
   {
-    if (old_row_exists && !user_table.get_is_role())
+    if (old_row_exists && !old_row_is_role)
     {
       goto end;
     }
@@ -5860,8 +5882,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
-    new_acl_user= old_row_exists ? *old_acl_user :
+    new_acl_user= (old_row_exists && !cleanup_tables) ? *old_acl_user :
                   ACL_USER(thd, *combo, lex->account_options);
+    if (old_acl_user && cleanup_tables)
+    {
+      /*
+        The fresh ACL_USER replaces *old_acl_user in place, so it must keep
+        the old role_grants array (rebuilt by rebuild_role_grants() later)
+        instead of leaking it.
+      */
+      delete_dynamic(&new_acl_user.role_grants);
+      new_acl_user.role_grants= old_acl_user->role_grants;
+    }
     if (acl_user_update(thd, &new_acl_user, nauth,
                         *combo, lex->account_options, access))
       goto end;
@@ -5932,6 +5964,24 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
   }
 
+  if (cleanup_tables)
+  {
+    /*
+      Remove the old privileges from all the grant tables except mysql.user.
+      This is deliberately done after all the checks, but before the
+      mysql.user row is written: mysql.user must never have the new
+      authentication while the other tables still have the old privileges.
+      The price is that an engine error here (or in the row write below)
+      leaves the account with its old mysql.user row but without part or all
+      of its privileges, like a crash right after DROP USER would.
+    */
+    if (handle_grant_data(thd, *cleanup_tables, true, combo, NULL, true) < 0)
+    {
+      error= -1;
+      goto end;
+    }
+  }
+
   if (old_row_exists)
   {
     /*
@@ -5971,7 +6021,25 @@ end:
     if (handle_as_role)
     {
       if (old_row_exists)
+      {
         acl_update_role(combo->user, access);
+        if (cleanup_tables)
+        {
+          /*
+            The delayed drop skipped the ROLE_ACL part of handle_grant_data(),
+            which for DROP ROLE detaches the role from the grant graph and
+            recomputes the privileges of its grantees. Do it here, after the
+            role got its new (empty) privileges, so that roles and users that
+            had this role granted don't keep its old privileges cached.
+          */
+          ACL_ROLE *role= find_acl_role(combo->user, true);
+          if (role)
+          {
+            unlink_role_and_propagate(role);
+            reset_dynamic(&role->parent_grantee);
+          }
+        }
+      }
       else
         acl_insert_role(combo->user, access);
     }
@@ -8020,6 +8088,42 @@ static void propagate_role_grants(ACL_ROLE *role,
   */
   traverse_role_graph_up(role, &data, init_role_for_merging, count_subgraph_nodes);
   traverse_role_graph_up(role, &data, NULL, merge_role_privileges);
+}
+
+
+/**
+  Detach a role from the role grant graph and propagate the loss of its
+  privileges to everything that had it granted.
+
+  The role itself stays in acl_roles, with an empty role_grants array
+  (parent_grantee is kept for the propagation, and cleaned up by the
+  caller: DROP ROLE frees the role, CREATE OR REPLACE ROLE resets it).
+
+  Used by DROP ROLE and by CREATE OR REPLACE ROLE: all the grants of the role
+  have already been revoked when this is called, so what is left to do is to
+  refresh the cached effective privileges of the grantees.
+*/
+static void unlink_role_and_propagate(ACL_ROLE *role)
+{
+  // delete the role from cross-reference arrays
+  for (size_t i=0; i < role->role_grants.elements; i++)
+  {
+    ACL_ROLE *grant= *dynamic_element(&role->role_grants, i, ACL_ROLE**);
+    remove_ptr_from_dynarray(&grant->parent_grantee, role);
+  }
+
+  for (size_t i=0; i < role->parent_grantee.elements; i++)
+  {
+    ACL_USER_BASE *grantee= *dynamic_element(&role->parent_grantee,
+                                             i, ACL_USER_BASE**);
+    remove_ptr_from_dynarray(&grantee->role_grants, role);
+  }
+
+  /* Remove all of the role_grants from this role. */
+  delete_dynamic(&role->role_grants);
+
+  /* all grants must be revoked from this role by now. propagate this */
+  propagate_role_grants(role, PRIVS_TO_MERGE::ALL);
 }
 
 
@@ -12536,26 +12640,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
-      // delete the role from cross-reference arrays
-      for (size_t i=0; i < acl_role->role_grants.elements; i++)
-      {
-        ACL_ROLE *grant= *dynamic_element(&acl_role->role_grants,
-                                          i, ACL_ROLE**);
-        remove_ptr_from_dynarray(&grant->parent_grantee, acl_role);
-      }
-
-      for (size_t i=0; i < acl_role->parent_grantee.elements; i++)
-      {
-        ACL_USER_BASE *grantee= *dynamic_element(&acl_role->parent_grantee,
-                                                 i, ACL_USER_BASE**);
-        remove_ptr_from_dynarray(&grantee->role_grants, acl_role);
-      }
-
-      /* Remove all of the role_grants from this role. */
-      delete_dynamic(&acl_role->role_grants);
-
-      /* all grants must be revoked from this role by now. propagate this */
-      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
+      unlink_role_and_propagate(acl_role);
 
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
@@ -12854,6 +12939,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     user_from                   The the user to be searched/dropped/renamed.
     user_to                     The new name for the user if to be renamed,
                                 NULL otherwise.
+    skip_user_table             Skip the mysql.user row and its in-memory
+                                entry. Used by CREATE OR REPLACE USER, where
+                                replace_user_table() rewrites that row.
 
   DESCRIPTION
     Go through all grant tables and in-memory grant structures and apply
@@ -12869,7 +12957,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 */
 
 static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
-                             LEX_USER *user_from, LEX_USER *user_to)
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table)
 {
   int result= 0;
   int found;
@@ -13038,20 +13127,23 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
       goto end;
   }
 
-  /* Handle user table. */
-  if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
-                                 drop, user_from, user_to)) < 0)
+  if (!skip_user_table)
   {
-    /* Handle of table failed, don't touch the in-memory array. */
-    result= -1;
-  }
-  else
-  {
-    enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
-    if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+    /* Handle user table. */
+    if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
+                                   drop, user_from, user_to)) < 0)
     {
-      result= 1; /* At least one record/element found. */
-      DBUG_ASSERT(! search_only);
+      /* Handle of table failed, don't touch the in-memory array. */
+      result= -1;
+    }
+    else
+    {
+      enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
+      if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+      {
+        result= 1; /* At least one record/element found. */
+        DBUG_ASSERT(! search_only);
+      }
     }
   }
 
@@ -13129,21 +13221,19 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
     */
-    if (handle_grant_data(thd, tables, 0, user_name, NULL))
+    int found= handle_grant_data(thd, tables, 0, user_name, NULL);
+    if (found < 0)
+    {
+      // a grant table could not be read, the error is already reported
+      append_user(thd, &wrong_users, user_name);
+      result= TRUE;
+      continue;
+    }
+    if (found)
     {
       if (thd->lex->create_info.or_replace())
       {
-        // Drop the existing user
-        if (handle_grant_data(thd, tables, 1, user_name, NULL) <= 0)
-        {
-          // DROP failed
-          append_user(thd, &wrong_users, user_name);
-          result= true;
-          continue;
-        }
-        else
-          some_users_dropped= true;
-        // Proceed with the creation
+        some_users_dropped= true;
       }
       else if (thd->lex->create_info.if_not_exists())
       {
@@ -13169,8 +13259,15 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       }
     }
 
+    /*
+      Pass the tables (which makes it a replace) only if the search above
+      found an account or orphan grants; for a new name skip scanning all
+      grant tables a second time.
+    */
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0, false))
+                           NO_ACL, 0, 1, 0, false,
+                           (thd->lex->create_info.or_replace() && found) ?
+                           &tables : nullptr))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -13212,10 +13309,16 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
-  if (result && some_users_dropped && !handle_as_role)
+  if (some_users_dropped)
   {
-    /* Rebuild in-memory structs, since 'acl_users' has been modified */
-    rebuild_check_host();
+    /*
+      The delayed drop in replace_user_table() only removes the old mapping
+      entries from roles_mappings_hash, not from the ACL_ROLE/ACL_USER_BASE
+      cross-reference arrays. Rebuild those arrays so no stale/duplicate
+      entries survive to crash a later DROP ROLE / DROP USER.
+    */
+    if (!handle_as_role)
+      rebuild_check_host();   // 'acl_users' has been modified
     rebuild_role_grants();
   }
 
@@ -16434,6 +16537,18 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     return packet_error;
   }
 
+  /* Deferred host check from thd_set_peer_addr(), raised here instead,
+     now that SSL (if requested) has already been negotiated. */
+  if (net->using_proxy_protocol &
+     (NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED | NET_PROXY_PROTOCOL_HOST_BLOCKED))
+  {
+    myf flag= MYF(global_system_variables.log_warnings > 1 ? ME_ERROR_LOG : 0);
+    uint err= (net->using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED) ?
+      ER_HOST_IS_BLOCKED : ER_HOST_NOT_PRIVILEGED;
+    my_error(err, flag, thd->main_security_ctx.host_or_ip);
+    return packet_error;
+  }
+
   if (client_capabilities & CLIENT_PROTOCOL_41)
   {
     thd->max_client_packet_length= uint4korr(net->read_pos+4);
@@ -16802,6 +16917,76 @@ static void server_mpvio_info(MYSQL_PLUGIN_VIO *vio,
   mpvio_info(mpvio->auth_info.thd->net.vio, info);
 }
 
+#ifdef HAVE_OPENSSL
+/*
+  Whether the linked library's X509_NAME_oneline() backslash-escapes a
+  literal '/' or '+' inside an RDN value. True for OpenSSL >= 3.0.0.
+  False for OpenSSL < 3.0 and WolfSSL, which never escapes (reported
+  upstream: wolfSSL/wolfssl#11392).
+*/
+#if !defined(HAVE_WOLFSSL) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+#define X509_LIB_ESCAPES_SEPARATORS 1
+#else
+#define X509_LIB_ESCAPES_SEPARATORS 0
+#endif
+
+/**
+  Compare two X509_NAME_oneline() strings where only one side may carry
+  a backslash-escape before a literal '/' or '+'.
+
+  @param escaped  name that may contain a backslash before '/' or '+'
+  @param raw      name that never does
+
+  @return same sign convention as strcmp()
+*/
+static int x509_cmp_escaped_raw(const char *escaped, const char *raw)
+{
+  for (;;)
+  {
+    if (*escaped == '\\' && (escaped[1] == '/' || escaped[1] == '+'))
+      escaped++;
+    if (*escaped != *raw)
+      return (unsigned char) *escaped - (unsigned char) *raw;
+    if (*escaped == '\0')
+      return 0;
+    escaped++;
+    raw++;
+  }
+}
+
+/**
+  Compare a REQUIRE ISSUER/SUBJECT value against a certificate's
+  X509_NAME_oneline() rendering.
+
+  strcmp(), unless that fails and lenient is set: then fall back to
+  x509_cmp_escaped_raw(), applied to whichever side the currently-linked
+  library's own escaping puts the backslash on. lenient is opt-in
+  (old_mode=X509_LENIENT_COMPARE), since it reintroduces ambiguity
+  between an escaped literal '/' or '+' and a real separator.
+
+  @param stored   the REQUIRE ISSUER/SUBJECT value from ACL_USER
+  @param cert     X509_NAME_oneline() of the connecting certificate
+  @param lenient  @@old_mode & OLD_MODE_X509_LENIENT_COMPARE
+
+  @return 0 if they match, non-zero otherwise
+*/
+static int my_x509_oneline_cmp(const char *stored, const char *cert,
+                                bool lenient)
+{
+  int c;
+  if (!stored || !cert)
+    return stored != cert;
+  c= strcmp(stored, cert);
+  if (!c || !lenient)
+    return c;
+#if X509_LIB_ESCAPES_SEPARATORS
+  return x509_cmp_escaped_raw(cert, stored);   /* cert is canonically escaped */
+#else
+  return x509_cmp_escaped_raw(stored, cert);   /* cert never escapes */
+#endif
+}
+#endif /* HAVE_OPENSSL */
+
 static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
 {
 #ifdef HAVE_OPENSSL
@@ -16863,13 +17048,15 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
     /* Prepare certificate (if exists) */
     if (!(cert= SSL_get_peer_certificate(ssl)))
       return 1;
+    bool x509_lenient_compare=
+      (thd->variables.old_behavior & OLD_MODE_X509_LENIENT_COMPARE) != 0;
     /* If X509 issuer is specified, we check it... */
     if (acl_user->x509_issuer[0])
     {
       char *ptr= X509_NAME_oneline(X509_get_issuer_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing issuers: '%s' and '%s'",
                          acl_user->x509_issuer, ptr));
-      if (strcmp(acl_user->x509_issuer, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_issuer, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 issuer mismatch: should be '%s' "
@@ -16886,7 +17073,7 @@ static bool acl_check_ssl(THD *thd, const ACL_USER *acl_user)
       char *ptr= X509_NAME_oneline(X509_get_subject_name(cert), 0, 0);
       DBUG_PRINT("info", ("comparing subjects: '%s' and '%s'",
                          acl_user->x509_subject, ptr));
-      if (strcmp(acl_user->x509_subject, ptr))
+      if (my_x509_oneline_cmp(acl_user->x509_subject, ptr, x509_lenient_compare))
       {
         if (global_system_variables.log_warnings)
           sql_print_information("X509 subject mismatch: should be '%s' but is '%s'",
@@ -17135,7 +17322,18 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_auth_plugin= 1;
       break;
     case CR_AUTH_HANDSHAKE:
-      errors.m_handshake= 1;
+      /*
+        A deferred PROXY host-check rejection lands here as a generic
+        handshake failure; attribute it like the check itself would
+        have, not as m_handshake - that feeds max_connect_errors, which
+        host-privilege/host-blocked failures never did.
+      */
+      if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_BLOCKED)
+        errors.m_host_blocked= 1;
+      else if (thd->net.using_proxy_protocol & NET_PROXY_PROTOCOL_HOST_NOT_PRIVILEGED)
+        errors.m_host_acl= 1;
+      else
+        errors.m_handshake= 1;
       break;
     case CR_AUTH_USER_CREDENTIALS:
       errors.m_authentication= 1;

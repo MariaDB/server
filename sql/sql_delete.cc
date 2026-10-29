@@ -312,6 +312,8 @@ int TABLE::delete_row(bool treat_versioned)
   int err= 0;
   bool remembered_pos= false;
   uchar *del_buf= record[replace ? 1 : 0];
+  String *blob_storage= NULL;
+
   bool delete_row= !treat_versioned
                    || in_use->lex->vers_conditions.delete_history
                    || versioned(VERS_TRX_ID)
@@ -333,6 +335,18 @@ int TABLE::delete_row(bool treat_versioned)
     {
       store_record(this, record[1]);
     }
+    /*
+      vers_update_end() computes generated blobs into Field_blob::value,
+      which may hold the generated blobs of the new row in record[2]
+      (REPLACE) or of the old row in record[1] (single-table DELETE computes
+      them with VCOL_UPDATE_FOR_DELETE). Keep them while record[0] is the
+      history row.
+    */
+    if (vfield)
+    {
+      blob_storage= (String *) alloca(sizeof(String) * s->virtual_fields);
+      remember_blob_values(blob_storage, true);
+    }
     vers_update_end();
 
     Field *row_start= vers_start_field();
@@ -342,6 +356,8 @@ int TABLE::delete_row(bool treat_versioned)
 
     if (likely(!delete_row))
       err= file->ha_update_row(record[1], record[0]);
+    if (replace && blob_storage)
+      restore_blob_values(blob_storage, true);
     if (unlikely(err))
     {
       /*
@@ -357,7 +373,7 @@ int TABLE::delete_row(bool treat_versioned)
                   || err == HA_ERR_FOUND_DUPP_UNIQUE
                   || err == HA_ERR_FOREIGN_DUPLICATE_KEY;
       if (!delete_row)
-        return err;
+        goto end;
     }
 
     if (delete_row)
@@ -370,9 +386,18 @@ int TABLE::delete_row(bool treat_versioned)
   if (delete_row)
     err= file->ha_delete_row(del_buf);
 
+end:
   if (remembered_pos)
     (void) file->extra(HA_EXTRA_RESTORE_POS);
 
+  /*
+    DELETE: record[0] is the history row, which AFTER DELETE triggers read as
+    OLD, so its generated blobs stay in Field_blob::value. Free the buffers
+    moved aside by remember_blob_values(), kept for ha_update_row() and
+    ha_delete_row() (the ones of record[1] in single-table DELETE).
+  */
+  if (!replace && blob_storage)
+    free_blob_values(blob_storage, true);
   return err;
 }
 
@@ -849,9 +874,9 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     will_batch= !table->file->start_bulk_delete();
 
   /*
-    thd->get_stmt_da()->is_set() means first iteration of prepared statement
-    with array binding operation execution (non optimized so it is not
-    INSERT)
+    In non-optimized array binding execution
+    thd->get_stmt_da()->is_set() means it is not the first iteration, and
+    metadata was already sent.
   */
   if (returning && !thd->get_stmt_da()->is_set())
   {
@@ -1862,7 +1887,8 @@ void  Sql_cmd_delete::remove_order_by_without_limit(THD *thd)
 bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
 {
   return
-    (thd->lex->has_returning());
+    (thd->lex->has_returning() ||
+     thd->lex->period_conditions.is_set());
 }
 
 

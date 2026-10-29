@@ -34,25 +34,6 @@
 */
 static int check_event_type(int type, Relay_log_info *rli)
 {
-  Format_description_log_event *fd_event=
-    rli->relay_log.description_event_for_sql_thread;
-
-  /*
-    Convert event type id of certain old versions (see comment in
-    Format_description_log_event::Format_description_log_event(char*,...)).
-  */
-  if (fd_event && fd_event->event_type_permutation)
-  {
-#ifdef DBUG_TRACE
-    int new_type= fd_event->event_type_permutation[type];
-    DBUG_PRINT("info",
-               ("converting event type %d to %d (%s)",
-                type, new_type,
-                Log_event::get_type_str((Log_event_type)new_type)));
-#endif
-    type= fd_event->event_type_permutation[type];
-  }
-
   switch (type)
   {
   case START_EVENT_V3:
@@ -217,6 +198,16 @@ void mysql_client_binlog_statement(THD* thd)
                      (int) (thd->lex->comment.length < 2048 ?
                             thd->lex->comment.length : 2048),
                      thd->lex->comment.str));
+
+  /*
+    The parser refuses BINLOG in a routine body; this catches dynamic SQL
+    (EXECUTE IMMEDIATE, EXECUTE) run from a routine.
+  */
+  if (thd->spcont)
+  {
+    my_error(ER_SP_BADSTATEMENT, MYF(0), "BINLOG");
+    DBUG_VOID_RETURN;
+  }
 
   if (check_global_access(thd, PRIV_STMT_BINLOG))
     DBUG_VOID_RETURN;
@@ -409,8 +400,12 @@ void mysql_client_binlog_statement(THD* thd)
           applied in PS mode. So, reset the current lex temporary to point to
           thd->main_lex before running ev->apply_event() and restore its
           original value on return.
+
+          Likewise, point thd->stmt_arena to thd: otherwise a Query event's
+          statement leaks its allocations onto the PS's persistent arena.
         */
         LEX *backup_lex;
+        SCOPE_VALUE(thd->stmt_arena, static_cast<Query_arena *>(thd));
 
         /*
           If we are re-assembling a Rows_log_event from a group of

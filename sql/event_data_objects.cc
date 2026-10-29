@@ -713,7 +713,7 @@ add_interval(MYSQL_TIME *ltime, const Time_zone *time_zone,
 static
 bool get_next_time(const Time_zone *time_zone, my_time_t *next,
                    my_time_t start, my_time_t time_now,
-                   int i_value, interval_type i_type)
+                   longlong i_value, interval_type i_type)
 {
   DBUG_ENTER("get_next_time");
   DBUG_PRINT("enter", ("start: %lu  now: %lu", (long) start, (long) time_now));
@@ -868,6 +868,10 @@ bool get_next_time(const Time_zone *time_zone, my_time_t *next,
   }
   else
   {
+    /* INTERVAL::month is ulong, which is 32-bit on Windows */
+    if (months > (longlong) UINT_MAX32)
+      goto done;
+
     long diff_months= ((long) local_now.year - (long) local_start.year)*12 +
                       ((long) local_now.month - (long) local_start.month);
 
@@ -1024,7 +1028,7 @@ Event_queue_element::compute_next_execution_time()
       my_time_t next_exec;
 
       if (get_next_time(time_zone, &next_exec, starts, time_now,
-                        (int) expression, interval))
+                        expression, interval))
         goto err;
 
       /* There was previous execution */
@@ -1060,7 +1064,7 @@ Event_queue_element::compute_next_execution_time()
     {
       my_time_t next_exec;
       if (get_next_time(time_zone, &next_exec, starts, time_now,
-                        (int) expression, interval))
+                        expression, interval))
         goto err;
       execute_at= next_exec;
       DBUG_PRINT("info",("Next[%lu]", (ulong) next_exec));
@@ -1093,7 +1097,7 @@ Event_queue_element::compute_next_execution_time()
       {
         my_time_t next_exec;
         if (get_next_time(time_zone, &next_exec, starts, time_now,
-                          (int) expression, interval))
+                          expression, interval))
           goto err;
         execute_at= next_exec;
         DBUG_PRINT("info",("Next[%lu]", (ulong) next_exec));
@@ -1118,7 +1122,7 @@ Event_queue_element::compute_next_execution_time()
         my_time_t next_exec;
 
         if (get_next_time(time_zone, &next_exec, starts, time_now,
-                          (int) expression, interval))
+                          expression, interval))
           goto err;
 
         if (ends < next_exec)
@@ -1358,7 +1362,7 @@ Event_job_data::execute(THD *thd, bool drop)
 {
   String sp_sql;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  Security_context event_sctx, *save_sctx= NULL;
+  Security_context *save_sctx= NULL;
 #endif
   List<Item> empty_item_list;
   bool ret= TRUE;

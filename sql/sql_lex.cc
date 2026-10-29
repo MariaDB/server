@@ -1226,6 +1226,38 @@ void lex_start(THD *thd)
 
 
 /*
+  Reset the parser-only part of LEX. Called from LEX::start().
+*/
+
+void LEX_Parser_state::reset_parser_state()
+{
+  /* Undo the effect of the TRASH_FREE() done in parse_sql() */
+  MEM_MAKE_ADDRESSABLE(this, sizeof(*this));
+  lex_options= 0;
+  select_stack_outer_barrier= 0;
+  curr_with_clause= 0;
+  parsing_options.reset();
+  clause_that_disallows_subselect= NULL;
+  selects_allow_procedure= 0;
+  win_ref= NULL;
+  win_frame= NULL;
+  frame_top_bound= NULL;
+  frame_bottom_bound= NULL;
+  win_spec= NULL;
+  ref_list.empty();
+  save_list.empty();
+  last_key= NULL;
+  last_field= NULL;
+  json_table= NULL;
+  option_list= NULL;
+  option_list_last= NULL;
+  fk_match_option= Foreign_key::FK_MATCH_UNDEF;
+  fk_update_opt= FK_OPTION_UNDEF;
+  fk_delete_opt= FK_OPTION_UNDEF;
+}
+
+
+/*
   This is called before every query that is to be parsed.
   Because of this, it's critical to not do too much things here.
   (We already do too much here)
@@ -1242,14 +1274,12 @@ void LEX::start(THD *thd_arg)
   DBUG_ASSERT(!explain);
 
   builtin_select.lex_start(this);
-  lex_options= 0;
+  reset_parser_state();
   context_stack.empty();
   //empty select_stack
   select_stack_top= 0;
-  select_stack_outer_barrier= 0;
   unit.init_query();
   current_select_number= 0;
-  curr_with_clause= 0;
   with_clauses_list= 0;
   with_clauses_list_last_next= &with_clauses_list;
   clone_spec_offset= 0;
@@ -1274,7 +1304,6 @@ void LEX::start(THD *thd_arg)
   derived_tables= 0;
   with_cte_resolution= false;
   only_cte_resolution= false;
-  parsing_options.reset();
   part_info= 0;
   m_sql_cmd= NULL;
   duplicates= DUP_ERROR;
@@ -1284,11 +1313,9 @@ void LEX::start(THD *thd_arg)
   query_tables= 0;
   save_list.empty();
   reset_query_tables_list(FALSE);
-  clause_that_disallows_subselect= NULL;
 
   /* reset bool variables */
   is_shutdown_wait_for_slaves= 0;
-  selects_allow_procedure= 0;
   parse_vcol_expr= 0;
   analyze_stmt= 0;
   explain_json= 0;
@@ -1297,12 +1324,11 @@ void LEX::start(THD *thd_arg)
   verbose= 0;
   safe_to_cache_query= 1;
   ignore= 0;
-  next_is_main= 0;
-  next_is_down= 0;
   empty_field_list_on_rset= 0;
   use_only_table_context= 0;
-  escape_used= 0;
   default_used= 0;
+  subquery_with_placeholder= 0;
+  escape_with_placeholder= 0;
   with_rownum= FALSE;
   is_lex_started= 1;
   without_validation= 0;
@@ -1324,12 +1350,6 @@ void LEX::start(THD *thd_arg)
   var_list.empty();
   stmt_var_list.empty();
   proc_list.elements=0;
-
-  win_ref= NULL;
-  win_frame= NULL;
-  frame_top_bound= NULL;
-  frame_bottom_bound= NULL;
-  win_spec= NULL;
 
   upd_del_where= NULL;
 
@@ -3170,6 +3190,7 @@ void st_select_lex::init_query()
   with_sum_func= with_rownum= 0;
   braces= 0;
   automatic_brackets= 0;
+  with_placeholder= 0;
   having_fix_field= 0;
   having_fix_field_for_pushed_cond= 0;
   subquery_in_having= 0;
@@ -4231,7 +4252,7 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL), result(0), opt_hints_global(NULL), part_info(NULL),
-    arena_for_set_stmt(0), mem_root_for_set_stmt(0), json_table(NULL),
+    arena_for_set_stmt(0), mem_root_for_set_stmt(0),
     analyze_stmt(0), default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
     context_analysis_only(0), sphead(0), sp_mem_root_ptr(nullptr),
@@ -7693,12 +7714,34 @@ bool LEX::sp_for_loop_intrange_declarations(THD *thd, Lex_for_loop_st *loop,
     my_error(ER_SP_UNDECLARED_VAR, MYF(0), item->full_name());
     return true;
   }
+  /*
+    Both bounds were parsed before any instruction was added, so give each
+    bound instruction only the items of its own bound. The left bound was
+    parsed first, so split there; with REVERSE the index is the right bound.
+    Splitting here, not in the grammar, keeps the items on THD::free_list,
+    so a parse error cannot leak them.
+  */
+  Item *rest= thd->free_list;
+  sphead->move_expr_items_to_free_list(thd, &rest, bounds.m_direction > 0 ?
+                                       bounds.m_index->get_item() :
+                                       bounds.m_target_bound->get_item());
+  if (bounds.m_direction < 0)
+  {
+    Item *left= thd->free_list;
+    thd->free_list= NULL;
+    sphead->add_to_free_list(thd, rest);
+    rest= left;
+  }
   if (!(loop->m_index=
         bounds.m_index->sp_add_for_loop_variable(thd, index,
                                                  bounds.m_index->get_item(),
                                                  bounds.m_index->get_expr_str())
                                                  ))
+  {
+    sphead->add_to_free_list(thd, rest);
     return true;
+  }
+  sphead->add_to_free_list(thd, rest);
   if (unlikely(!(loop->m_target_bound=
                  bounds.m_target_bound->
                  sp_add_for_loop_target_bound(thd,
@@ -8169,7 +8212,7 @@ bool LEX::sp_handler_declaration_init(THD *thd, int type)
 {
   sp_handler *h= spcont->add_handler(thd, (sp_handler::enum_type) type);
 
-  spcont= spcont->push_context(thd, sp_pcontext::HANDLER_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::HANDLER_SCOPE);
 
   sp_instr_hpush_jump *i=
     new (thd->mem_root) sp_instr_hpush_jump(sphead->instructions(), spcont, h);
@@ -8221,14 +8264,14 @@ void LEX::sp_block_init_package_body(THD *thd)
 {
   spcont->push_label(thd, &empty_clex_str,
                      sphead->instructions(), sp_label::BEGIN);
-  spcont= spcont->push_context(thd, sp_pcontext::PACKAGE_BODY_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::PACKAGE_BODY_SCOPE);
 }
 
 
 void LEX::sp_block_init(THD *thd, const LEX_CSTRING *label)
 {
   spcont->push_label(thd, label, sphead->instructions(), sp_label::BEGIN);
-  spcont= spcont->push_context(thd, sp_pcontext::REGULAR_SCOPE);
+  spcont= spcont->push_context(thd, sphead, sp_pcontext::REGULAR_SCOPE);
 }
 
 
@@ -9088,6 +9131,8 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     my_error(ER_VIEW_SELECT_VARIABLE, MYF(0));
     return NULL;
   }
+  if (current_select)
+    current_select->with_placeholder= true;
   Query_fragment pos(thd, sphead, start, end);
   Item_param *item;
   /*
@@ -9129,6 +9174,74 @@ Item_param *LEX::add_placeholder(THD *thd, const LEX_CSTRING *name,
     return NULL;
   }
   return item;
+}
+
+
+bool LEX::expr_has_placeholder(Item *expr)
+{
+  List_iterator_fast<Item_param> it(param_list);
+  while (Item_param *param= it++)
+  {
+    if (expr->walk(&Item::find_item_processor, param, WALK_SUBQUERY))
+      return true;
+  }
+  return false;
+}
+
+
+/*
+  Check if the subquery of the select is replaced by its only expression
+  (see Item_singlerow_subselect::select_transformer()), so it is computed
+  for every row as an ordinary expression
+*/
+
+static bool subquery_is_reduced(SELECT_LEX *sl)
+{
+  SELECT_LEX_UNIT *unit= sl->master_unit();
+  if (unit->item->substype() != Item_subselect::SINGLEROW_SUBS ||
+      unit->is_unit_op() || unit->fake_select_lex ||
+      sl->table_list.elements || sl->item_list.elements != 1 ||
+      sl->where || sl->having || sl->group_list.elements ||
+      sl->order_list.elements || sl->limit_params.explicit_limit ||
+      sl->with_sum_func || sl->with_rownum || sl->have_window_funcs())
+    return false;
+  Item::Type type= sl->item_list.head()->type();
+  return type != Item::FIELD_ITEM && type != Item::REF_ITEM;
+}
+
+
+/*
+  Check if a result of a subquery depends on a parameter placeholder:
+  the placeholder is inside the subquery (including derived tables
+  and UNION ORDER BY/LIMIT of the subquery) or in the left part of
+  IN/ALL/ANY subquery predicate.
+
+  @note Should be called right after parsing, before the tree is changed
+  by optimizations.
+*/
+
+bool LEX::subquery_has_placeholder()
+{
+  for (SELECT_LEX *sl= all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    SELECT_LEX_UNIT *unit= sl->master_unit();
+    if (!sl->with_placeholder &&
+        !(unit->fake_select_lex && unit->fake_select_lex->with_placeholder))
+      continue;
+    for (SELECT_LEX *s= sl; s; s= s->outer_select())
+    {
+      if (s->master_unit()->item && !subquery_is_reduced(s))
+        return true;
+    }
+  }
+  for (SELECT_LEX *sl= all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    Item_subselect *subq= sl->master_unit()->item;
+    Item_in_subselect *in_subq= subq ? subq->get_IN_subquery() : NULL;
+    if (in_subq && expr_has_placeholder(in_subq->left_exp()))
+      return true;
+  }
+  return false;
 }
 
 
@@ -12013,22 +12126,61 @@ SELECT_LEX_UNIT *LEX::add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
 
 
 /**
+  Push the select that a non-empty tail of a parenthesized query primary
+  is parsed in.
+
+  If the tail has ORDER BY and the primary already has its own ORDER BY or
+  LIMIT, the primary is wrapped into a derived table here, before the tail
+  is parsed, and the wrapper is pushed.  Window functions, window specs and
+  subqueries in the tail's ORDER BY are attached to the current select
+  while they are parsed, so they must be parsed in the select that will
+  own the ORDER BY.
+
+  @return the pushed select, NULL on error
+*/
+
+SELECT_LEX *
+LEX::push_select_for_ext_parens_tail(SELECT_LEX_UNIT *unit,
+                                     bool tail_has_order)
+{
+  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
+                                                         unit->first_select();
+  if (tail_has_order && sel->is_set_query_expr_tail)
+  {
+    if (!(sel= wrap_unit_into_derived(unit)) || !create_unit(sel))
+      return NULL;
+  }
+  if (push_select(sel))
+    return NULL;
+  return sel;
+}
+
+
+/**
   Add non-empty tail to a parenthesized query primary
+
+  @param tail_sel  the select returned by push_select_for_ext_parens_tail()
 */
 
 SELECT_LEX_UNIT *
 LEX::add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-                                                  Lex_order_limit_lock *l)
+                                                  Lex_order_limit_lock *l,
+                                                  SELECT_LEX *tail_sel)
 {
-  SELECT_LEX *sel= unit->first_select()->next_select() ? unit->fake_select_lex :
-                                                         unit->first_select();
+  SELECT_LEX *sel= tail_sel;
 
   DBUG_ASSERT(l != NULL);
 
   pop_select();
-  if (sel->is_set_query_expr_tail)
+  if (sel->master_unit() != unit)
   {
-    if (!l->order_list && !sel->limit_params.explicit_limit)
+    /* Already wrapped by push_select_for_ext_parens_tail() */
+    DBUG_ASSERT(l->order_list);
+  }
+  else if (sel->is_set_query_expr_tail)
+  {
+    DBUG_ASSERT(!l->order_list);
+    if (!sel->limit_params.explicit_limit)
       l->order_list= &sel->order_list;
     else
     {
@@ -12873,7 +13025,8 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     Extract condition that can be pushed from HAVING into WHERE
 
   @param thd           the thread handle
-  @param having        the HAVING clause of this select
+  @param having_ptr    in: the HAVING clause of this select,
+                       out: the HAVING clause left after the pushdown
   @param having_equal  multiple equalities of HAVING
 
   @details
@@ -12928,15 +13081,16 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
   @retval FALSE  otherwise
 */
 
-Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
+bool st_select_lex::pushdown_from_having_into_where(THD *thd,
+                                                    Item **having_ptr)
 {
+  Item *having= *having_ptr;
   if (!having || !group_list.first)
-    return having;
+    return false;
   if (!cond_pushdown_is_allowed())
-    return having;
+    return false;
 
-  st_select_lex *save_curr_select= thd->lex->current_select;
-  thd->lex->current_select= this;
+  SCOPE_VALUE(thd->lex->current_select, this);
 
   /*
     1. Collect fields used in the GROUP BY grouping fields of this SELECT
@@ -12945,7 +13099,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   */
   if (collect_grouping_fields(thd) ||
       collect_fields_equal_to_grouping(thd))
-    return having;
+    return false;
 
   /*
     3. Extract the most restrictive condition from the HAVING clause of this
@@ -12959,12 +13113,9 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   Item *item;
   check_cond_extraction_for_grouping_fields(thd, having);
   if (build_pushable_cond_for_having_pushdown(thd, having))
-  {
-    attach_to_conds.empty();
-    goto exit;
-  }
+    goto error;
   if (!attach_to_conds.elements)
-    goto exit;
+    return false;
 
   /*
     4. Remove conditions from HAVING clause that can be entirely pushed
@@ -13015,17 +13166,33 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   it.rewind();
   while ((item=it++))
   {
+    /*
+      Unwrapping in place would make the pushed condition share field items
+      with the SELECT list. Those items are later bound to the GROUP BY
+      temporary table, and evaluating the condition (e.g. for "Range checked
+      for each record") would then read the not yet filled temporary table.
+      A clone gets its own field items.
+
+      Some items (e.g. subqueries) cannot be cloned but we don't want
+      to abandon the pushdown, so we unwrap the original item in place.
+      The risk is low: the problem above needs "Range checked for each
+      record", which is unlikely for conditions containing such items.
+    */
+    Item *cloned_item= item->deep_copy_with_checks(thd);
+    if (cloned_item)
+      item= cloned_item;
+    else if (thd->is_error())
+      goto error;
+
     item= item->transform(thd,
                           &Item::field_transformer_for_having_pushdown,
                           (uchar *)this);
-
-    if (item->walk(&Item::cleanup_excluding_immutables_processor,
-                   0, WALK_NO_CACHE_PROCESS)
-        || item->fix_fields(thd, it.ref()))
-    {
-      attach_to_conds.empty();
-      goto exit;
-    }
+    it.replace(item);
+    if (!item ||
+        item->walk(&Item::cleanup_excluding_immutables_processor, 0,
+                   WALK_NO_CACHE_PROCESS) ||
+        item->fix_fields(thd, it.ref()))
+      goto error;
   }
 
   /*
@@ -13034,16 +13201,23 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   it.rewind();
   while ((item=it++))
   {
-    if (item->walk(&Item::remove_immutable_flag_processor,
-                   0, WALK_NO_CACHE_PROCESS))
-    {
-      attach_to_conds.empty();
-      goto exit;
-    }
+    if (item->walk(&Item::remove_immutable_flag_processor, 0,
+                   WALK_NO_CACHE_PROCESS))
+      goto error;
   }
-exit:
-  thd->lex->current_select= save_curr_select;
-  return having;
+  *having_ptr= having;
+  return false;
+
+error:
+  /*
+    HAVING may have been modified already, so the query cannot continue
+    without the pushdown.
+  */
+  DBUG_ASSERT(thd->is_error());
+  if (!thd->is_error())
+    my_error(ER_INTERNAL_ERROR, MYF(0), "HAVING pushdown into WHERE");
+  attach_to_conds.empty();
+  return true;
 }
 
 

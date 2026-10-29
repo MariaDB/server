@@ -48,8 +48,13 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 
 --connection node_1a
 
---let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_master_enter_sync
---source include/galera_wait_sync_point.inc
+#
+# wsrep_debug_sync_waiters holds every waiter of the provider, so waiting for
+# the whole list to equal one string fails as soon as anything else waits.
+# Look for each sync point on its own instead.
+#
+--let $wait_condition = SELECT VARIABLE_VALUE LIKE '%apply_monitor_slave_enter_sync%' AND VARIABLE_VALUE LIKE '%commit_monitor_master_enter_sync%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+--source include/wait_condition.inc
 --source include/galera_clear_sync_point.inc
 
 # Let the conflicting UPDATE proceed and wait until it hits abort_trx_end.
@@ -59,8 +64,8 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 --source include/galera_set_sync_point.inc
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
---let $galera_sync_point = abort_trx_end commit_monitor_master_enter_sync
---source include/galera_wait_sync_point.inc
+--let $wait_condition = SELECT VARIABLE_VALUE LIKE '%abort_trx_end%' AND VARIABLE_VALUE LIKE '%commit_monitor_master_enter_sync%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters';
+--source include/wait_condition.inc
 
 # Let the transactions proceed
 --source include/galera_clear_sync_point.inc

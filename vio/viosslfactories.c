@@ -182,6 +182,17 @@ vio_set_cert_stuff(SSL_CTX *ctx, const char *cert_file, const char *key_file,
   DBUG_RETURN(0);
 }
 
+/* wolfSSL needs explicit initialization before its crypto is used */
+void vio_check_ssl_init()
+{
+  static my_bool ssl_initialized= FALSE;
+  if (!ssl_initialized)
+  {
+    ssl_initialized= TRUE;
+    OPENSSL_init_ssl(0, NULL);
+  }
+}
+
 #ifdef HAVE_WOLFSSL
 static int wolfssl_recv(WOLFSSL* ssl, char* buf, int sz, void* vio)
 {

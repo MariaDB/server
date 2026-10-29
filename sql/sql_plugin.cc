@@ -525,6 +525,13 @@ static void free_plugin_mem(struct st_plugin_dl *p)
 }
 
 
+/* Silence plugin-load errors only on the startup error-log path, never at runtime. */
+static inline bool silent_plugin_startup(myf MyFlags)
+{
+  return opt_silent_startup && (MyFlags & ME_ERROR_LOG);
+}
+
+
 /**
   Reads data from mysql plugin interface
 
@@ -545,7 +552,7 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Determine interface version */
   if (!sym)
   {
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_FIND_DL_ENTRY, MyFlags, plugin_interface_version_sym,
                dlpath);
     DBUG_RETURN(TRUE);
@@ -666,7 +673,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       Actually this branch impossible because in case of absence of maria
       version we try mysql version.
     */
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_FIND_DL_ENTRY, MyFlags,
                maria_plugin_interface_version_sym, dlpath);
     DBUG_RETURN(TRUE);
@@ -782,7 +789,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
   /* Open new dll handle */
   if (!(plugin_dl.handle= dlopen(dlpath, RTLD_NOW)))
   {
-    if (!opt_silent_startup)
+    if (!silent_plugin_startup(MyFlags))
       my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, errno,
                my_dlerror(dlpath));
     goto ret;
@@ -827,7 +834,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_CSTRING *dl, myf MyFlags)
         my_snprintf(buf, sizeof(buf),
                     "service '%s' interface version mismatch",
                     list_of_services[i].name);
-        if (!opt_silent_startup)
+        if (!silent_plugin_startup(MyFlags))
           my_error(ER_CANT_OPEN_LIBRARY, MyFlags, dlpath, ENOEXEC, buf);
         goto ret;
       }
@@ -1141,6 +1148,21 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
   DBUG_RETURN(tmp);
 }
 
+static inline bool plugin_should_be_skipped(const struct st_maria_plugin *p,
+                                      const struct st_plugin_dl *plugin_dl,
+                                      const LEX_CSTRING *name)
+{
+  if (p->type < 0 || p->type >= MYSQL_MAX_PLUGIN_TYPE_NUM)
+    return true;
+  if (p->type == MYSQL_UDF_PLUGIN ||
+      (p->type == MariaDB_PASSWORD_VALIDATION_PLUGIN &&
+       plugin_dl->mariaversion == 0))
+    return true;
+  if (name->str &&
+      !Lex_ident_plugin(*name).streq(LEX_CSTRING{p->name, strlen(p->name)}))
+    return true;
+  return false;
+}
 
 /*
   NOTE
@@ -1167,27 +1189,40 @@ static enum install_status plugin_add(MEM_ROOT *tmp_root, bool if_not_exists,
   fix_dl_name(tmp_root, dl);
   if (! (tmp.plugin_dl= plugin_dl_add(dl, MyFlags)))
     DBUG_RETURN(INSTALL_FAIL_NOT_OK);
+
+  /* Pre-validation: ensure plugin name of all plugins or the plugin to be installed are in pure ASCII */
+  for (plugin= tmp.plugin_dl->plugins; plugin->info; plugin++)
+  {
+    if (plugin_should_be_skipped(plugin, tmp.plugin_dl, name))
+      continue;
+
+    if (MY_REPERTOIRE_EXTENDED &
+        my_string_repertoire(&my_charset_latin1,
+                             plugin->name, strlen(plugin->name)))
+    {
+      my_printf_error(ER_PLUGIN_IS_NOT_LOADED,
+                "Plugin '%s': name must contain only ASCII characters",
+                MyFlags, plugin->name);
+      plugin_dl_del(tmp.plugin_dl);
+      DBUG_RETURN(INSTALL_FAIL_NOT_OK);
+    }
+  }
+
   /* Find plugin by name */
   for (plugin= tmp.plugin_dl->plugins; plugin->info; plugin++)
   {
+
+    if (plugin_should_be_skipped(plugin, tmp.plugin_dl, name))
+      continue;
+
     tmp.name.str= (char *)plugin->name;
     tmp.name.length= strlen(plugin->name);
-
-    if (plugin->type < 0 || plugin->type >= MYSQL_MAX_PLUGIN_TYPE_NUM)
-      continue; // invalid plugin type
-
-    if (plugin->type == MYSQL_UDF_PLUGIN ||
-        (plugin->type == MariaDB_PASSWORD_VALIDATION_PLUGIN &&
-         tmp.plugin_dl->mariaversion == 0))
-      continue; // unsupported plugin type
-
-    if (name->str && !Lex_ident_plugin(*name).streq(tmp.name))
-      continue; // plugin name doesn't match
 
     if (!name->str &&
         (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
     {
-      if (plugin->name != maybe_dupe->plugin->name && !opt_silent_startup)
+      if (plugin->name != maybe_dupe->plugin->name &&
+          !silent_plugin_startup(MyFlags))
       {
         my_error(ER_UDF_EXISTS, MyFlags, plugin->name);
         DBUG_RETURN(INSTALL_FAIL_NOT_OK);
@@ -1701,6 +1736,13 @@ int plugin_init(int *argc, char **argv, int flags)
       bzero(&tmp, sizeof(tmp));
       tmp.plugin= plugin;
       tmp.name= tmp_plugin_name;
+      if (MY_REPERTOIRE_EXTENDED &
+          my_string_repertoire(&my_charset_latin1,
+                               tmp.name.str, tmp.name.length))
+      {
+        print_init_failed_error(&tmp);
+        goto err_unlock;
+      }
       tmp.state= 0;
       tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
       DBUG_ASSERT(!mandatory ||

@@ -670,7 +670,8 @@ public:
   bool cleanup_session_expr();
   bool fix_and_check_expr(THD *thd, TABLE *table);
   bool check_access(THD *thd);
-  inline bool is_equal(const Virtual_column_info* vcol, bool cmp_names) const;
+  inline bool is_equal(const Virtual_column_info* vcol, bool cmp_names,
+                       bool unordered_conditions= false) const;
   inline void print(String*);
 };
 
@@ -997,6 +998,17 @@ public:
   virtual int  store_text(const char *to, size_t length, CHARSET_INFO *cs)
   {
     return store(to, length, cs);
+  }
+  /*
+    Store a number literal as text, possibly with a fraction or exponent,
+    rather than a binary string. Called by store_json_in_field() in JSON_TABLE
+    for JSON numeric values. Types whose string store uses a binary
+    representation can override this without changing string input.
+    As with store(), a nonzero result can indicate a conversion warning.
+  */
+  virtual int store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
+  {
+    return store(from, length, cs);
   }
   virtual int  store_binary(const char *to, size_t length)
   {
@@ -4818,7 +4830,32 @@ public:
 
     return NULL;
   }
-  /* store value for the duration of the current read record */
+  /*
+    Double-buffering of virtual blob columns with 'value' and 'read_value'.
+    'value' is the scratch buffer that store() writes into (and points the
+    record at), while 'read_value' holds the computed value for the read
+    row. The swap only exchanges buffer ownership, so a record pointer
+    already referring to that memory stays valid until a later swap returns
+    the buffer to 'value' and a store() reuses it.
+
+    enum_vcol_update_mode says which buffer each update_virtual_fields()
+    mode stores blob values into: the modes that store into 'read_value'
+    compute into 'value' and then swap, so a later store() into 'value'
+    does not overwrite the value of the read row.
+
+    Code that reads or computes another row into record[0] while a saved
+    record still points into 'value' moves 'value' aside with
+    TABLE::remember_blob_values() and back with
+    TABLE::restore_blob_values() (or drops the moved buffers with
+    TABLE::free_blob_values()). With with_stored this also covers stored
+    generated blobs.
+
+    handler::check_duplicate_long_entry_key() reads rows in between, and
+    each read swaps, so it swaps back after each read: 'read_value' keeps
+    the buffer of the row read before the lookup (the one record[1] points
+    to in UPDATE), and the buffer of the lookup read stays in 'value' for
+    restore_blob_values() to free.
+  */
   inline void swap_value_and_read_value()
   {
     read_value.swap(value);
@@ -4862,8 +4899,10 @@ public:
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 
-  friend void TABLE::remember_blob_values(String *blob_storage);
-  friend void TABLE::restore_blob_values(String *blob_storage);
+  friend void TABLE::remember_blob_values(String *blob_storage,
+                                           bool with_stored);
+  friend void TABLE::restore_blob_values(String *blob_storage,
+                                          bool with_stored);
 };
 
 
@@ -5202,6 +5241,7 @@ public:
   int save_in_field(Field *to) override { return to->store(val_int(), true); }
   bool memcpy_field_possible(const Field *from) const override{ return false; }
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
+  int store_numeric(const char *from, size_t length, CHARSET_INFO *cs) override;
   int store(double nr) override;
   int store(longlong nr, bool unsigned_val) override;
   int store_decimal(const my_decimal *) override;
@@ -5708,7 +5748,12 @@ public:
 
   bool has_default_function() const
   {
-    return unireg_check != Field::NONE;
+    /*
+      TMYSQL_COMPRESSED is not a default function, it is stored in
+      unireg_check only to remember that the column is COMPRESSED.
+    */
+    return unireg_check != Field::NONE &&
+           unireg_check != Field::TMYSQL_COMPRESSED;
   }
 
   Field *make_field(TABLE_SHARE *share, MEM_ROOT *mem_root,

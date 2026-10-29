@@ -1508,12 +1508,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   buffer.length(0);
   buffer.append(STRING_WITH_LEN("CREATE DATABASE "));
   if (options.if_not_exists())
-    buffer.append(STRING_WITH_LEN("/*!32312 IF NOT EXISTS*/ "));
+    buffer.append(STRING_WITH_LEN("IF NOT EXISTS "));
   append_identifier(thd, &buffer, dbname);
 
   if (create.default_table_charset)
   {
-    buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
     buffer.append(create.default_table_charset->cs_name);
     if (Charset(create.default_table_charset).can_have_collate_clause())
@@ -1521,7 +1520,6 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
       buffer.append(STRING_WITH_LEN(" COLLATE "));
       buffer.append(create.default_table_charset->coll_name);
     }
-    buffer.append(STRING_WITH_LEN(" */"));
   }
 
   if (create.schema_comment)
@@ -3487,6 +3485,13 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   const char *val;
   ulonglong max_counter;
   bool got_thd_data;
+
+  /* Test hook: pause after tmp_sctx is captured, before it is read. */
+  DBUG_EXECUTE_IF("processlist_callback_pause_after_sctx_capture",
+                  if (tmp->system_thread == SYSTEM_THREAD_EVENT_WORKER &&
+                      tmp_sctx != &tmp->main_security_ctx)
+                    DEBUG_SYNC(arg->thd,
+                               "processlist_callback_captured_sctx"););
 
   if (!thd_visible_in_processlist(arg->thd->security_ctx, tmp))
     return 0;

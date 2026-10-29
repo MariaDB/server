@@ -4049,7 +4049,7 @@ xb_fil_io_init()
 @param[in] is_remote true if tablespace file is .isl
 @param[in] skip_node_page0 true if we don't need to read node page 0. Otherwise
 node page0 will be read, and it's size and free pages limit
-will be set from page 0, what is neccessary for checking and fixing corrupted
+will be set from page 0, what is necessary for checking and fixing corrupted
 pages.
 @param[in] defer_space_id use the space id to create space object
 when there is deferred tablespace
@@ -5681,13 +5681,14 @@ static bool xtrabackup_backup_func()
 	msg("cd to %s", mysql_real_data_home);
 	encryption_plugin_backup_init(mysql_connection);
 	if (innodb_log_checkpoint_now) {
-		msg("Initiating checkpoint");
-		if (mysql_send_query(mysql_connection,
-		    C_STRING_WITH_LEN("SET GLOBAL "
-				      "innodb_log_checkpoint_now=ON;"))) {
-			msg("initiating checkpoint failed");
-			return(false);
-		}
+		/* This had better finish before recv_sys.find_checkpoint()
+		starts executing below. The command may not be recognised
+		by an old server; we can ignore a failure to execute this
+		performance tweak. */
+		xb_mysql_query(
+			mysql_connection,
+			"SET GLOBAL innodb_log_checkpoint_now=ON;",
+			false, false);
 	}
 
 	msg("open files limit requested %lu, set to %lu",
@@ -5799,13 +5800,6 @@ fail:
 		msg("Error: failed to open the target stream"
 		    " for 'ib_logfile0'.");
 		goto fail;
-	}
-
-	/* try to wait for a log checkpoint, but do not fail if the
-	server does not support this */
-	if (innodb_log_checkpoint_now != false) {
-		mysql_read_query_result(mysql_connection);
-		msg("Finished waiting for checkpoint");
 	}
 
 	if (!select_history()) {
@@ -5936,7 +5930,7 @@ This function handles DDL changes at the end of backup, under protection of
 FTWRL.  This ensures consistent backup in presence of DDL.
 
 - New tables, that were created during backup, are now copied into backup.
-  Also, tablespaces with optimized (no redo loggin DDL) are re-copied into 
+  Also, tablespaces with optimized (no redo logging DDL) are re-copied into
   backup. This tablespaces will get the extension ".new" in the backup
 
 - Tables that were renamed during backup, are marked as renamed

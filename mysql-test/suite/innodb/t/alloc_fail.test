@@ -53,3 +53,26 @@ INSERT INTO t1 VALUES('a');
 set statement DEBUG_DBUG="+d,btr_page_alloc_fail" for
 UPDATE t1 set f1= REPEAT('b', 12000);
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40239 Simulate failure to add page to the undo log
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+# Enough rows that updating all of them needs more than one undo log page.
+INSERT INTO t1 SELECT seq, 0 FROM seq_1_to_2000;
+BEGIN;
+# Simulated failure when adding to undo log (log full).
+--replace_regex /in (system|undo) tablespace/in <type> tablespace/
+--error ER_INNODB_UNDO_LOG_FULL
+SET STATEMENT DEBUG_DBUG='+d,ib_err_ins_undo_page_add_failure' FOR
+UPDATE t1 SET b=1;
+# Modify the same records again. trx_undo_page_report_modify() sanity-checks
+# the DB_ROLL_PTR of every record it modifies. The failed UPDATE must not have
+# left a record with an invalid DB_ROLL_PTR behind.
+UPDATE t1 SET b=2;
+# Exercise undo log records by rolling back the transaction.
+ROLLBACK;
+# Check data consistency after the failure: all rows returned to original
+# values.
+SELECT COUNT(*) FROM t1 WHERE b=0;
+DROP TABLE t1;

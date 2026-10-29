@@ -221,7 +221,8 @@ enum enum_binlog_row_image {
 #define OLD_MODE_OLD_FLUSH_STATUS                       (1 <<  7)
 #define OLD_MODE_SESSION_USER_IS_USER                   (1 <<  8)
 #define OLD_MODE_2_DIGIT_YEAR                           (1 <<  9)
-#define OLD_MODE_UTF8_IS_UTF8MB3                        (1 << 10)
+#define OLD_MODE_X509_LENIENT_COMPARE                   (1 << 10)
+#define OLD_MODE_UTF8_IS_UTF8MB3                        (1 << 11)
 
 #define OLD_MODE_DEFAULT_VALUE 0
 
@@ -4159,6 +4160,17 @@ public:
     if (first_successful_insert_id_in_cur_stmt == 0)
       first_successful_insert_id_in_cur_stmt= id_arg;
   }
+  void set_last_insert_id_from_cur_stmt()
+  {
+    if (first_successful_insert_id_in_cur_stmt > 0)
+    {
+      /* set what LAST_INSERT_ID() will return */
+      first_successful_insert_id_in_prev_stmt=
+        first_successful_insert_id_in_cur_stmt;
+      first_successful_insert_id_in_cur_stmt= 0;
+      substitute_null_with_insert_id= TRUE;
+    }
+  }
   inline ulonglong read_first_successful_insert_id_in_prev_stmt(void)
   {
     if (!stmt_depends_on_first_successful_insert_id_in_prev_stmt)
@@ -5308,6 +5320,14 @@ public:
   /// Returns Diagnostics-area for the current statement.
   const Diagnostics_area *get_stmt_da() const
   { return m_stmt_da; }
+
+  /*
+    Bulk operation sums affected rows and warnings of all executions in
+    the diagnostics area, so statements of triggers and stored functions
+    called by it must not set the status
+  */
+  bool in_bulk_sub_stmt() const
+  { return in_sub_stmt && m_stmt_da->is_bulk_op(); }
 
   /// Sets Diagnostics-area for the current statement.
   void set_stmt_da(Diagnostics_area *da)
@@ -6713,6 +6733,8 @@ my_ok(THD *thd, ulonglong affected_rows_arg= 0, ulonglong id= 0,
 {
   thd->set_row_count_func(affected_rows_arg);
   thd->set_affected_rows(affected_rows_arg);
+  if (thd->in_bulk_sub_stmt())
+    return;
   thd->get_stmt_da()->set_ok_status(affected_rows_arg, id, message);
 }
 
@@ -7090,8 +7112,6 @@ public:
   bool  using_outer_summary_function;
   CHARSET_INFO *table_charset;
   bool schema_table;
-  /* TRUE if the temp table is created for subquery materialization. */
-  bool materialized_subquery;
   /* TRUE if all columns of the table are guaranteed to be non-nullable */
   bool force_not_null_cols;
   /*
@@ -7119,7 +7139,7 @@ public:
     :copy_field(0), group_parts(0),
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
-     schema_table(0), materialized_subquery(0), force_not_null_cols(0),
+     schema_table(0), force_not_null_cols(0),
      precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {

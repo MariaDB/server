@@ -733,7 +733,7 @@ list_fields(MYSQL *mysql,const char *db,const char *table,
   }
 
   len= sizeof(query);
-  len-= my_snprintf(query, len, "show /*!32332 FULL */ columns from %sQ",
+  len-= my_snprintf(query, len, "show FULL columns from %sQ",
                     table);
   if (wild && wild[0] && len)
     strxnmov(query + strlen(query), len - 1, " like '", wild, "'", NullS);
