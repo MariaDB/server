@@ -1,0 +1,101 @@
+--source include/have_aria.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# BACKUP SERVER streams to 4 concurrent targets while two connections
+# write to Aria tables: t1 is safe for online backup, t0 (TRANSACTIONAL=0)
+# and t2 (no page checksums) are not. Each table must hold the rows 1..N
+# with no gap. For t1, N is more than the rows before the backup and not
+# more than the rows after it. This test needs no debug instrumentation,
+# so it also runs on release builds. The writers stop when the user lock
+# "run" is released: a KILL QUERY between two statements of a procedure
+# can be lost, because the statement already sent its OK.
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+CREATE TABLE t0 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t2 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=0;
+DELIMITER //;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  WHILE i <= 1000000 AND IS_USED_LOCK('run') IS NOT NULL DO
+    INSERT INTO t1 VALUES (i, REPEAT('x', 200));
+    SET i= i + 1;
+  END WHILE;
+END//
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  WHILE i <= 1000000 AND IS_USED_LOCK('run') IS NOT NULL DO
+    INSERT INTO t0 VALUES (i, REPEAT('y', 200));
+    INSERT INTO t2 VALUES (i, REPEAT('z', 200));
+    SET i= i + 1;
+  END WHILE;
+END//
+DELIMITER ;//
+
+if ($MARIADB_UPGRADE_EXE)
+{
+--exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+
+SELECT GET_LOCK('run', 0);
+--connect w1,localhost,root
+--send CALL p1()
+--connect w2,localhost,root
+--send CALL p2()
+
+--connection default
+# A debug build under Valgrind needs about 90 seconds for 20000 rows.
+--let $wait_timeout= 300
+--let $wait_condition= SELECT COUNT(*) > 20000 FROM t1
+--source include/wait_condition.inc
+--let $wait_condition= SELECT COUNT(*) > 1000 FROM t2
+--source include/wait_condition.inc
+BACKUP SERVER WITH 4 CONCURRENT 'cat';
+--let $after= `SELECT COUNT(*) FROM t1`
+SELECT RELEASE_LOCK('run');
+
+--connection w1
+--reap
+--disconnect w1
+--connection w2
+--reap
+--disconnect w2
+--connection default
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_stream
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $target_directory
+--mkdir $target_directory
+--exec tar xf $MARIADB_DATADIR/1.tar -C $target_directory
+--exec tar xf $MARIADB_DATADIR/2.tar -C $target_directory
+--exec tar xf $MARIADB_DATADIR/3.tar -C $target_directory
+--exec tar xf $MARIADB_DATADIR/4.tar -C $target_directory
+--exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/restart_mysqld.inc
+CHECK TABLE t0, t1, t2 EXTENDED;
+--replace_result $after AFTER
+--eval SELECT COUNT(*) = MAX(a), COUNT(*) > 20000, COUNT(*) <= $after FROM t1
+SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t0;
+SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t2;
+
+--remove_files_wildcard $MARIADB_DATADIR *.tar
+if ($MARIADB_UPGRADE_EXE)
+{
+--remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t0, t1, t2;
+--rmdir $target_directory

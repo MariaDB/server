@@ -1,0 +1,62 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+CREATE TABLE t0 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t2 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=0;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE i INT DEFAULT 1;
+WHILE i <= 1000000 AND IS_USED_LOCK('run') IS NOT NULL DO
+INSERT INTO t1 VALUES (i, REPEAT('x', 200));
+SET i= i + 1;
+END WHILE;
+END//
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE i INT DEFAULT 1;
+WHILE i <= 1000000 AND IS_USED_LOCK('run') IS NOT NULL DO
+INSERT INTO t0 VALUES (i, REPEAT('y', 200));
+INSERT INTO t2 VALUES (i, REPEAT('z', 200));
+SET i= i + 1;
+END WHILE;
+END//
+SELECT GET_LOCK('run', 0);
+GET_LOCK('run', 0)
+1
+connect w1,localhost,root;
+CALL p1();
+connect w2,localhost,root;
+CALL p2();
+connection default;
+BACKUP SERVER WITH 4 CONCURRENT 'cat';
+SELECT RELEASE_LOCK('run');
+RELEASE_LOCK('run')
+1
+connection w1;
+disconnect w1;
+connection w2;
+disconnect w2;
+connection default;
+# restart: --defaults-file=MYSQLTEST_VARDIR/backup_stream/backup.cnf --datadir=MYSQLTEST_VARDIR/backup_stream
+CHECK TABLE t0, t1, t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t0	check	status	OK
+test.t1	check	status	OK
+test.t2	check	status	OK
+SELECT COUNT(*) = MAX(a), COUNT(*) > 20000, COUNT(*) <= AFTER FROM t1;
+COUNT(*) = MAX(a)	COUNT(*) > 20000	COUNT(*) <= AFTER
+1	1	1
+SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t0;
+COUNT(*) = MAX(a)	COUNT(*) > 1000
+1	1
+SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t2;
+COUNT(*) = MAX(a)	COUNT(*) > 1000
+1	1
+# restart
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t0, t1, t2;
