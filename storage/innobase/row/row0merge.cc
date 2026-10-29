@@ -4083,6 +4083,7 @@ row_merge_drop_indexes(
 	ut_ad(dict_index_get_online_status(index) == ONLINE_INDEX_COMPLETE);
 
 	/* the caller should have an open handle to the table */
+	ut_ad(!table->loading());
 	ut_ad(table->get_ref_count() >= 1);
 
 	/* It is possible that table->n_ref_count > 1 when
