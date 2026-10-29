@@ -1,0 +1,908 @@
+#
+# MDEV-38970: streaming window functions step 1
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT);
+INSERT INTO t1 VALUES (1, 1, 10);
+INSERT INTO t1 VALUES (2, 1, 10);
+INSERT INTO t1 VALUES (3, 1, 20);
+INSERT INTO t1 VALUES (4, 2, 20);
+INSERT INTO t1 VALUES (5, 2, 20);
+INSERT INTO t1 VALUES (6, 2, 30);
+INSERT INTO t1 VALUES (7, 3, 10);
+INSERT INTO t1 VALUES (8, 3, 30);
+INSERT INTO t1 VALUES (9, 3, 30);
+EXPLAIN FORMAT=JSON SELECT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a, t1.b, t1.pk",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 9,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+EXPLAIN EXTENDED SELECT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,row_number() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `rn`,rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `rnk`,dense_rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `drnk` from `test`.`t1`
+EXPLAIN EXTENDED SELECT SQL_BUFFER_RESULT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select sql_buffer_result `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,row_number() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `rn`,rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `rnk`,dense_rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `drnk` from `test`.`t1`
+SELECT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+pk	a	b	rn	rnk	drnk
+1	1	10	1	1	1
+2	1	10	2	2	2
+3	1	20	3	3	3
+4	2	20	1	1	1
+5	2	20	2	2	2
+6	2	30	3	3	3
+7	3	10	1	1	1
+8	3	30	2	2	2
+9	3	30	3	3	3
+SELECT SQL_BUFFER_RESULT pk, a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk);
+pk	a	b	rn	rnk	drnk
+1	1	10	1	1	1
+2	1	10	2	2	2
+3	1	20	3	3	3
+4	2	20	1	1	1
+5	2	20	2	2	2
+6	2	30	3	3	3
+7	3	10	1	1	1
+8	3	30	2	2	2
+9	3	30	3	3	3
+EXPLAIN EXTENDED SELECT pk, a, b, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,rank() over ( order by `test`.`t1`.`a`) AS `rnk`,dense_rank() over ( order by `test`.`t1`.`a`) AS `drnk` from `test`.`t1`
+SELECT pk, a, b, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a);
+pk	a	b	rnk	drnk
+1	1	10	1	1
+2	1	10	1	1
+3	1	20	1	1
+4	2	20	4	2
+5	2	20	4	2
+6	2	30	4	2
+7	3	10	7	3
+8	3	30	7	3
+9	3	30	7	3
+SELECT SQL_BUFFER_RESULT pk, a, b, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a);
+pk	a	b	rnk	drnk
+1	1	10	1	1
+2	1	10	1	1
+3	1	20	1	1
+4	2	20	4	2
+5	2	20	4	2
+6	2	30	4	2
+7	3	10	7	3
+8	3	30	7	3
+9	3	30	7	3
+EXPLAIN EXTENDED SELECT pk, a, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a, pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,row_number() over ( order by `test`.`t1`.`a`,`test`.`t1`.`pk`) AS `rn`,rank() over ( order by `test`.`t1`.`a`,`test`.`t1`.`pk`) AS `rnk`,dense_rank() over ( order by `test`.`t1`.`a`,`test`.`t1`.`pk`) AS `drnk` from `test`.`t1`
+SELECT pk, a, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a, pk);
+pk	a	rn	rnk	drnk
+1	1	1	1	1
+2	1	2	2	2
+3	1	3	3	3
+4	2	4	4	4
+5	2	5	5	5
+6	2	6	6	6
+7	3	7	7	7
+8	3	8	8	8
+9	3	9	9	9
+SELECT SQL_BUFFER_RESULT pk, a, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM t1 WINDOW w AS (ORDER BY a, pk);
+pk	a	rn	rnk	drnk
+1	1	1	1	1
+2	1	2	2	2
+3	1	3	3	3
+4	2	4	4	4
+5	2	5	5	5
+6	2	6	6	6
+7	3	7	7	7
+8	3	8	8	8
+9	3	9	9	9
+EXPLAIN FORMAT=JSON SELECT pk, a, b, rank() OVER (ORDER BY a, b) AS rnk FROM t1 ORDER BY a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 9,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT pk, a, b, rank() OVER (ORDER BY a, b) AS rnk FROM t1 ORDER BY a;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	1
+3	1	20	3
+4	2	20	4
+5	2	20	4
+6	2	30	6
+7	3	10	7
+8	3	30	8
+9	3	30	8
+SELECT SQL_BUFFER_RESULT pk, a, b, rank() OVER (ORDER BY a, b) AS rnk FROM t1 ORDER BY a;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	1
+3	1	20	3
+4	2	20	4
+5	2	20	4
+6	2	30	6
+7	3	10	7
+8	3	30	8
+9	3	30	8
+EXPLAIN FORMAT=JSON SELECT pk, a, b, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a, b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 9,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT pk, a, b, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a, b;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	1
+3	1	20	1
+4	2	20	4
+5	2	20	4
+6	2	30	4
+7	3	10	7
+8	3	30	7
+9	3	30	7
+SELECT SQL_BUFFER_RESULT pk, a, b, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a, b;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	1
+3	1	20	1
+4	2	20	4
+5	2	20	4
+6	2	30	4
+7	3	10	7
+8	3	30	7
+9	3	30	7
+EXPLAIN FORMAT=JSON SELECT pk, a, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "rows": 9,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT pk, a, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a;
+pk	a	rnk
+1	1	1
+2	1	1
+3	1	1
+4	2	4
+5	2	4
+6	2	4
+7	3	7
+8	3	7
+9	3	7
+SELECT SQL_BUFFER_RESULT pk, a, rank() OVER (ORDER BY a) AS rnk FROM t1 ORDER BY a;
+pk	a	rnk
+1	1	1
+2	1	1
+3	1	1
+4	2	4
+5	2	4
+6	2	4
+7	3	7
+8	3	7
+9	3	7
+EXPLAIN EXTENDED SELECT pk, a, rank() OVER w AS r, rank() OVER w + 1 AS r_plus, rank() OVER w - dense_rank() OVER w AS diff FROM t1 WINDOW w AS (ORDER BY a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,rank() over ( order by `test`.`t1`.`a`) AS `r`,rank() over ( order by `test`.`t1`.`a`) + 1 AS `r_plus`,rank() over ( order by `test`.`t1`.`a`) - dense_rank() over ( order by `test`.`t1`.`a`) AS `diff` from `test`.`t1`
+SELECT pk, a, rank() OVER w AS r, rank() OVER w + 1 AS r_plus, rank() OVER w - dense_rank() OVER w AS diff FROM t1 WINDOW w AS (ORDER BY a);
+pk	a	r	r_plus	diff
+1	1	1	2	0
+2	1	1	2	0
+3	1	1	2	0
+4	2	4	5	2
+5	2	4	5	2
+6	2	4	5	2
+7	3	7	8	4
+8	3	7	8	4
+9	3	7	8	4
+SELECT SQL_BUFFER_RESULT pk, a, rank() OVER w AS r, rank() OVER w + 1 AS r_plus, rank() OVER w - dense_rank() OVER w AS diff FROM t1 WINDOW w AS (ORDER BY a);
+pk	a	r	r_plus	diff
+1	1	1	2	0
+2	1	1	2	0
+3	1	1	2	0
+4	2	4	5	2
+5	2	4	5	2
+6	2	4	5	2
+7	3	7	8	4
+8	3	7	8	4
+9	3	7	8	4
+CREATE TABLE t2 (pk INT PRIMARY KEY, c INT);
+INSERT INTO t2 VALUES (1, 300);
+INSERT INTO t2 VALUES (2, 100);
+INSERT INTO t2 VALUES (3, 200);
+INSERT INTO t2 VALUES (4, 400);
+INSERT INTO t2 VALUES (5, 600);
+INSERT INTO t2 VALUES (6, 500);
+INSERT INTO t2 VALUES (7, 700);
+INSERT INTO t2 VALUES (8, 800);
+INSERT INTO t2 VALUES (9, 900);
+EXPLAIN EXTENDED SELECT t1.pk, t1.a, t1.b, rank() OVER (ORDER BY t1.b, t1.pk) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	9	100.00	Using filesort
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,rank() over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk`) AS `rnk` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`pk`
+SELECT t1.pk, t1.a, t1.b, rank() OVER (ORDER BY t1.b, t1.pk) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	2
+3	1	20	4
+4	2	20	5
+5	2	20	6
+6	2	30	7
+7	3	10	3
+8	3	30	8
+9	3	30	9
+SELECT SQL_BUFFER_RESULT t1.pk, t1.a, t1.b, rank() OVER (ORDER BY t1.b, t1.pk) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
+pk	a	b	rnk
+1	1	10	1
+2	1	10	2
+3	1	20	4
+4	2	20	5
+5	2	20	6
+6	2	30	7
+7	3	10	3
+8	3	30	8
+9	3	30	9
+EXPLAIN EXTENDED SELECT t1.pk, t1.a, t2.c, rank() OVER (ORDER BY t1.a, t2.c) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	9	100.00	Using temporary
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c`,rank() over ( order by `test`.`t1`.`a`,`test`.`t2`.`c`) AS `rnk` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`pk`
+SELECT t1.pk, t1.a, t2.c, rank() OVER (ORDER BY t1.a, t2.c) AS rnk FROM t1 JOIN t2 ON t1.pk = t2.pk;
+pk	a	c	rnk
+2	1	100	1
+3	1	200	2
+1	1	300	3
+4	2	400	4
+6	2	500	5
+5	2	600	6
+7	3	700	7
+8	3	800	8
+9	3	900	9
+DROP TABLE t2;
+EXPLAIN EXTENDED SELECT d.pk, d.a, d.b, rank() OVER (PARTITION BY d.a ORDER BY d.b) AS rnk, dense_rank() OVER (PARTITION BY d.a ORDER BY d.b) AS drnk FROM (SELECT pk, a, b FROM t1 WHERE a > 1) AS d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using where; Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`) AS `rnk`,dense_rank() over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`) AS `drnk` from `test`.`t1` where `test`.`t1`.`a` > 1
+SELECT d.pk, d.a, d.b, rank() OVER (PARTITION BY d.a ORDER BY d.b) AS rnk, dense_rank() OVER (PARTITION BY d.a ORDER BY d.b) AS drnk FROM (SELECT pk, a, b FROM t1 WHERE a > 1) AS d;
+pk	a	b	rnk	drnk
+4	2	20	1	1
+5	2	20	1	1
+6	2	30	3	2
+7	3	10	1	1
+8	3	30	2	2
+9	3	30	2	2
+SELECT SQL_BUFFER_RESULT d.pk, d.a, d.b, rank() OVER (PARTITION BY d.a ORDER BY d.b) AS rnk, dense_rank() OVER (PARTITION BY d.a ORDER BY d.b) AS drnk FROM (SELECT pk, a, b FROM t1 WHERE a > 1) AS d;
+pk	a	b	rnk	drnk
+4	2	20	1	1
+5	2	20	1	1
+6	2	30	3	2
+7	3	10	1	1
+8	3	30	2	2
+9	3	30	2	2
+EXPLAIN EXTENDED SELECT d.a, d.rnk FROM (SELECT a, rank() OVER (ORDER BY a) AS rnk FROM t1) AS d;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `d`.`a` AS `a`,`d`.`rnk` AS `rnk` from (/* select#2 */ select `test`.`t1`.`a` AS `a`,rank() over ( order by `test`.`t1`.`a`) AS `rnk` from `test`.`t1`) `d`
+SELECT d.a, d.rnk FROM (SELECT a, rank() OVER (ORDER BY a) AS rnk FROM t1) AS d;
+a	rnk
+1	1
+1	1
+1	1
+2	4
+2	4
+2	4
+3	7
+3	7
+3	7
+ANALYZE FORMAT=JSON SELECT pk, rank() OVER (ORDER BY pk) AS rnk FROM t1 LIMIT 2;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["pk"],
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 9,
+          "r_rows": 2,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100,
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+CREATE TABLE tg (a INT, b INT, KEY(a, b));
+INSERT INTO tg VALUES (1, 1);
+INSERT INTO tg VALUES (1, 2);
+INSERT INTO tg VALUES (2, 1);
+INSERT INTO tg VALUES (2, 2);
+INSERT INTO tg VALUES (2, 3);
+INSERT INTO tg VALUES (3, 1);
+EXPLAIN EXTENDED SELECT a, b, rank() OVER (ORDER BY a) AS rnk, dense_rank() OVER (ORDER BY a) AS drnk FROM tg GROUP BY a, b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tg	range	NULL	a	10	NULL	6	100.00	Using index for group-by
+Warnings:
+Note	1003	select `test`.`tg`.`a` AS `a`,`test`.`tg`.`b` AS `b`,rank() over ( order by `test`.`tg`.`a`) AS `rnk`,dense_rank() over ( order by `test`.`tg`.`a`) AS `drnk` from `test`.`tg` group by `test`.`tg`.`a`,`test`.`tg`.`b`
+SELECT a, b, rank() OVER (ORDER BY a) AS rnk, dense_rank() OVER (ORDER BY a) AS drnk FROM tg GROUP BY a, b;
+a	b	rnk	drnk
+1	1	1	1
+1	2	1	1
+2	1	3	2
+2	2	3	2
+2	3	3	2
+3	1	6	3
+SELECT SQL_BUFFER_RESULT a, b, rank() OVER (ORDER BY a) AS rnk, dense_rank() OVER (ORDER BY a) AS drnk FROM tg GROUP BY a, b;
+a	b	rnk	drnk
+1	1	1	1
+1	2	1	1
+2	1	3	2
+2	2	3	2
+2	3	3	2
+3	1	6	3
+EXPLAIN EXTENDED SELECT a, rank() OVER (ORDER BY a, b) AS rnk, dense_rank() OVER (ORDER BY a, b) AS drnk FROM tg GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tg	range	NULL	a	5	NULL	6	100.00	Using index for group-by
+Warnings:
+Note	1003	select `test`.`tg`.`a` AS `a`,rank() over ( order by `test`.`tg`.`a`,`test`.`tg`.`b`) AS `rnk`,dense_rank() over ( order by `test`.`tg`.`a`,`test`.`tg`.`b`) AS `drnk` from `test`.`tg` group by `test`.`tg`.`a`
+SELECT a, rank() OVER (ORDER BY a, b) AS rnk, dense_rank() OVER (ORDER BY a, b) AS drnk FROM tg GROUP BY a;
+a	rnk	drnk
+1	1	1
+2	2	2
+3	3	3
+SELECT SQL_BUFFER_RESULT a, rank() OVER (ORDER BY a, b) AS rnk, dense_rank() OVER (ORDER BY a, b) AS drnk FROM tg GROUP BY a;
+a	rnk	drnk
+1	1	1
+2	2	2
+3	3	3
+EXPLAIN EXTENDED SELECT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tg	range	NULL	a	10	NULL	6	100.00	Using index for group-by
+Warnings:
+Note	1003	select `test`.`tg`.`a` AS `a`,`test`.`tg`.`b` AS `b`,row_number() over ( partition by `test`.`tg`.`a` order by `test`.`tg`.`b`) AS `rn`,rank() over ( partition by `test`.`tg`.`a` order by `test`.`tg`.`b`) AS `rnk`,dense_rank() over ( partition by `test`.`tg`.`a` order by `test`.`tg`.`b`) AS `drnk` from `test`.`tg` group by `test`.`tg`.`a`,`test`.`tg`.`b`
+SELECT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+a	b	rn	rnk	drnk
+1	1	1	1	1
+1	2	2	2	2
+2	1	1	1	1
+2	2	2	2	2
+2	3	3	3	3
+3	1	1	1	1
+SELECT SQL_BUFFER_RESULT a, b, row_number() OVER w AS rn, rank() OVER w AS rnk, dense_rank() OVER w AS drnk FROM tg GROUP BY a, b WINDOW w AS (PARTITION BY a ORDER BY b);
+a	b	rn	rnk	drnk
+1	1	1	1	1
+1	2	2	2	2
+2	1	1	1	1
+2	2	2	2	2
+2	3	3	3	3
+3	1	1	1	1
+CREATE TABLE th (a INT, b INT, KEY(a, b));
+INSERT INTO th VALUES (1,1);
+INSERT INTO th VALUES (1,2);
+INSERT INTO th VALUES (2,2);
+INSERT INTO th VALUES (2,3);
+INSERT INTO th VALUES (3,3);
+INSERT INTO th VALUES (3,4);
+EXPLAIN EXTENDED SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	th	range	NULL	a	10	NULL	6	100.00	Using where; Using index for group-by
+Warnings:
+Note	1003	select `test`.`th`.`a` AS `a`,`test`.`th`.`b` AS `b`,rank() over ( order by `test`.`th`.`a`) AS `rnk` from `test`.`th` where `test`.`th`.`b` > 1 group by `test`.`th`.`a`,`test`.`th`.`b` having 1
+SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1;
+a	b	rnk
+1	2	1
+2	2	2
+2	3	2
+3	3	4
+3	4	4
+SELECT SQL_BUFFER_RESULT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a, b HAVING b > 1;
+a	b	rnk
+1	2	1
+2	2	2
+2	3	2
+3	3	4
+3	4	4
+EXPLAIN EXTENDED SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	th	range	NULL	a	5	NULL	6	100.00	Using index for group-by
+Warnings:
+Note	1003	select `test`.`th`.`a` AS `a`,`test`.`th`.`b` AS `b`,rank() over ( order by `test`.`th`.`a`) AS `rnk` from `test`.`th` group by `test`.`th`.`a` having `test`.`th`.`b` > 2
+SELECT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
+a	b	rnk
+3	3	1
+SELECT SQL_BUFFER_RESULT a, b, rank() OVER (ORDER BY a) AS rnk FROM th GROUP BY a HAVING b > 2;
+a	b	rnk
+3	3	1
+DROP TABLE th;
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,count(0) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `cnt`,sum(`test`.`t1`.`a` + `test`.`t1`.`b`) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `s`,avg(`test`.`t1`.`b`) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `av`,min(`test`.`t1`.`b`) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `mn`,max(`test`.`t1`.`b`) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `mx` from `test`.`t1`
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	11	10.0000	10	10
+2	1	10	2	22	10.0000	10	10
+3	1	20	4	56	12.5000	10	20
+4	2	20	5	78	14.0000	10	20
+5	2	20	6	100	15.0000	10	20
+6	2	30	7	132	17.1429	10	30
+7	3	10	3	35	10.0000	10	10
+8	3	30	8	165	18.7500	10	30
+9	3	30	9	198	20.0000	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(a + b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	11	10.0000	10	10
+2	1	10	2	22	10.0000	10	10
+3	1	20	4	56	12.5000	10	20
+4	2	20	5	78	14.0000	10	20
+5	2	20	6	100	15.0000	10	20
+6	2	30	7	132	17.1429	10	30
+7	3	10	3	35	10.0000	10	10
+8	3	30	8	165	18.7500	10	30
+9	3	30	9	198	20.0000	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,count(0) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `cnt`,sum(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `s`,avg(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `av`,min(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `mn`,max(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  unbounded  preceding  and  current row ) AS `mx` from `test`.`t1`
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	1	20	20.0000	20	20
+5	2	20	2	40	20.0000	20	20
+6	2	30	3	70	23.3333	20	30
+7	3	10	1	10	10.0000	10	10
+8	3	30	2	40	20.0000	10	30
+9	3	30	3	70	23.3333	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY b, pk ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	1	20	20.0000	20	20
+5	2	20	2	40	20.0000	20	20
+6	2	30	3	70	23.3333	20	30
+7	3	10	1	10	10.0000	10	10
+8	3	30	2	40	20.0000	10	30
+9	3	30	3	70	23.3333	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,count(0) over ( order by `test`.`t1`.`pk`) AS `cnt`,sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `s`,avg(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `av`,min(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `mn`,max(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `mx` from `test`.`t1`
+SELECT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	4	60	15.0000	10	20
+5	2	20	5	80	16.0000	10	20
+6	2	30	6	110	18.3333	10	30
+7	3	10	7	120	17.1429	10	30
+8	3	30	8	150	18.7500	10	30
+9	3	30	9	180	20.0000	10	30
+SELECT SQL_BUFFER_RESULT pk, a, b, count(*) OVER w AS cnt, sum(b) OVER w AS s, avg(b) OVER w AS av, min(b) OVER w AS mn, max(b) OVER w AS mx FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	cnt	s	av	mn	mx
+1	1	10	1	10	10.0000	10	10
+2	1	10	2	20	10.0000	10	10
+3	1	20	3	40	13.3333	10	20
+4	2	20	4	60	15.0000	10	20
+5	2	20	5	80	16.0000	10	20
+6	2	30	6	110	18.3333	10	30
+7	3	10	7	120	17.1429	10	30
+8	3	30	8	150	18.7500	10	30
+9	3	30	9	180	20.0000	10	30
+EXPLAIN EXTENDED SELECT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,sum(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`pk`) AS `s`,max(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a` order by `test`.`t1`.`pk`) AS `mx` from `test`.`t1`
+SELECT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+pk	a	b	s	mx
+1	1	10	10	10
+2	1	10	20	10
+3	1	20	40	20
+4	2	20	20	20
+5	2	20	40	20
+6	2	30	70	30
+7	3	10	10	10
+8	3	30	40	30
+9	3	30	70	30
+SELECT SQL_BUFFER_RESULT pk, a, b, sum(b) OVER w AS s, max(b) OVER w AS mx FROM t1 WINDOW w AS (PARTITION BY a ORDER BY pk);
+pk	a	b	s	mx
+1	1	10	10	10
+2	1	10	20	10
+3	1	20	40	20
+4	2	20	20	20
+5	2	20	40	20
+6	2	30	70	30
+7	3	10	10	10
+8	3	30	40	30
+9	3	30	70	30
+EXPLAIN EXTENDED SELECT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `s`,rank() over ( order by `test`.`t1`.`pk`) AS `rnk` from `test`.`t1`
+SELECT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	s	rnk
+1	1	10	10	1
+2	1	10	20	2
+3	1	20	40	3
+4	2	20	60	4
+5	2	20	80	5
+6	2	30	110	6
+7	3	10	120	7
+8	3	30	150	8
+9	3	30	180	9
+SELECT SQL_BUFFER_RESULT pk, a, b, sum(b) OVER w AS s, rank() OVER w AS rnk FROM t1 WINDOW w AS (ORDER BY pk);
+pk	a	b	s	rnk
+1	1	10	10	1
+2	1	10	20	2
+3	1	20	40	3
+4	2	20	60	4
+5	2	20	80	5
+6	2	30	110	6
+7	3	10	120	7
+8	3	30	150	8
+9	3	30	180	9
+EXPLAIN EXTENDED SELECT pk, sum(b) OVER (ORDER BY a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`a`) AS `sum(b) OVER (ORDER BY a)` from `test`.`t1`
+CREATE TABLE tu (
+id INT PRIMARY KEY,
+u  INT NOT NULL UNIQUE,
+n  INT UNIQUE,
+v  INT
+);
+INSERT INTO tu VALUES (1, 100, 1,    5);
+INSERT INTO tu VALUES (2, 200, NULL, 5);
+INSERT INTO tu VALUES (3, 300, 3,    7);
+INSERT INTO tu VALUES (4, 400, NULL, 7);
+INSERT INTO tu VALUES (5, 500, 5,    9);
+EXPLAIN EXTENDED SELECT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tu	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`tu`.`id` AS `id`,`test`.`tu`.`u` AS `u`,sum(`test`.`tu`.`v`) over ( order by `test`.`tu`.`u`) AS `s`,count(0) over ( order by `test`.`tu`.`u`) AS `cnt` from `test`.`tu`
+SELECT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	u	s	cnt
+1	100	5	1
+2	200	10	2
+3	300	17	3
+4	400	24	4
+5	500	33	5
+SELECT SQL_BUFFER_RESULT id, u, sum(v) OVER w AS s, count(*) OVER w AS cnt FROM tu WINDOW w AS (ORDER BY u);
+id	u	s	cnt
+1	100	5	1
+2	200	10	2
+3	300	17	3
+4	400	24	4
+5	500	33	5
+EXPLAIN EXTENDED SELECT id, sum(v) OVER (ORDER BY n) FROM tu;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tu	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary
+Warnings:
+Note	1003	select `test`.`tu`.`id` AS `id`,sum(`test`.`tu`.`v`) over ( order by `test`.`tu`.`n`) AS `sum(v) OVER (ORDER BY n)` from `test`.`tu`
+DROP TABLE tu;
+CREATE TABLE tc (x INT NOT NULL, y INT NOT NULL, v INT, PRIMARY KEY (x, y));
+INSERT INTO tc VALUES (1, 1, 10);
+INSERT INTO tc VALUES (1, 2, 20);
+INSERT INTO tc VALUES (2, 1, 30);
+INSERT INTO tc VALUES (2, 2, 40);
+INSERT INTO tc VALUES (3, 1, 50);
+EXPLAIN EXTENDED SELECT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`tc`.`x` AS `x`,`test`.`tc`.`y` AS `y`,sum(`test`.`tc`.`v`) over ( order by `test`.`tc`.`x`,`test`.`tc`.`y`) AS `s`,min(`test`.`tc`.`v`) over ( order by `test`.`tc`.`x`,`test`.`tc`.`y`) AS `mn` from `test`.`tc`
+SELECT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+x	y	s	mn
+1	1	10	10
+1	2	30	10
+2	1	60	10
+2	2	100	10
+3	1	150	10
+SELECT SQL_BUFFER_RESULT x, y, sum(v) OVER w AS s, min(v) OVER w AS mn FROM tc WINDOW w AS (ORDER BY x, y);
+x	y	s	mn
+1	1	10	10
+1	2	30	10
+2	1	60	10
+2	2	100	10
+3	1	150	10
+EXPLAIN EXTENDED SELECT x, sum(v) OVER (ORDER BY x) FROM tc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary
+Warnings:
+Note	1003	select `test`.`tc`.`x` AS `x`,sum(`test`.`tc`.`v`) over ( order by `test`.`tc`.`x`) AS `sum(v) OVER (ORDER BY x)` from `test`.`tc`
+EXPLAIN EXTENDED SELECT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tc	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`tc`.`x` AS `x`,`test`.`tc`.`y` AS `y`,sum(`test`.`tc`.`v`) over ( partition by `test`.`tc`.`x` order by `test`.`tc`.`y`) AS `s` from `test`.`tc`
+SELECT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+x	y	s
+1	1	10
+1	2	30
+2	1	30
+2	2	70
+3	1	50
+SELECT SQL_BUFFER_RESULT x, y, sum(v) OVER w AS s FROM tc WINDOW w AS (PARTITION BY x ORDER BY y);
+x	y	s
+1	1	10
+1	2	30
+2	1	30
+2	2	70
+3	1	50
+DROP TABLE tc;
+CREATE TABLE t2 (pk INT PRIMARY KEY, c INT);
+INSERT INTO t2 VALUES (1, 10);
+INSERT INTO t2 VALUES (2, 20);
+INSERT INTO t2 VALUES (3, 30);
+INSERT INTO t2 VALUES (4, 40);
+INSERT INTO t2 VALUES (5, 50);
+INSERT INTO t2 VALUES (6, 60);
+INSERT INTO t2 VALUES (7, 70);
+INSERT INTO t2 VALUES (8, 80);
+INSERT INTO t2 VALUES (9, 90);
+EXPLAIN EXTENDED SELECT t1.pk, sum(t1.b) OVER (ORDER BY t1.pk) FROM t1 JOIN t2 ON t1.pk = t2.pk;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	9	100.00	Using temporary
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk	1	100.00	Using index
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`pk`) AS `sum(t1.b) OVER (ORDER BY t1.pk)` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`pk`
+DROP TABLE t2;
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, c INT, UNIQUE KEY(a, b));
+INSERT INTO t2 VALUES (1, 1, 100);
+INSERT INTO t2 VALUES (1, 2, 200);
+INSERT INTO t2 VALUES (2, 1, 300);
+INSERT INTO t2 VALUES (2, 2, 400);
+EXPLAIN EXTENDED SELECT a, b, c, RANK() OVER(order by a) rnk FROM t2 GROUP BY a, b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,rank() over ( order by `test`.`t2`.`a`) AS `rnk` from `test`.`t2` group by `test`.`t2`.`a`,`test`.`t2`.`b`
+SELECT a, b, c, RANK() OVER(order by a) rnk FROM t2 GROUP BY a, b;
+a	b	c	rnk
+1	1	100	1
+1	2	200	1
+2	1	300	3
+2	2	400	3
+SELECT SQL_BUFFER_RESULT a, b, c, RANK() OVER(order by a) rnk FROM t2 GROUP BY a, b;
+a	b	c	rnk
+1	1	100	1
+1	2	200	1
+2	1	300	3
+2	2	400	3
+DROP TABLE t2;
+EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`b`) AS `sum(b) OVER (ORDER BY b)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select count(0) over ( order by `test`.`t1`.`a` range between  unbounded  preceding  and  current row ) AS `count(*) OVER (ORDER BY a RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT count(*) OVER (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 5 FOLLOWING) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select count(0) over ( order by `test`.`t1`.`a` rows between  unbounded  preceding  and 5 following ) AS `count(*) OVER (ORDER BY a ROWS BETWEEN UNBOUNDED PRECEDING AND 5 FOLLOWING)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT sum(b) OVER (ORDER BY b, pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select sum(`test`.`t1`.`b`) over ( order by `test`.`t1`.`b`,`test`.`t1`.`pk` rows between  current row  and  current row ) AS `sum(b) OVER (ORDER BY b, pk ROWS BETWEEN CURRENT ROW AND CURRENT ROW)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT sum(b) OVER () FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select sum(`test`.`t1`.`b`) over () AS `sum(b) OVER ()` from `test`.`t1`
+EXPLAIN EXTENDED SELECT sum(b) OVER (PARTITION BY a) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select sum(`test`.`t1`.`b`) over ( partition by `test`.`t1`.`a`) AS `sum(b) OVER (PARTITION BY a)` from `test`.`t1`
+SELECT sum(DISTINCT b) OVER (ORDER BY b ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1;
+ERROR 42000: This version of MariaDB doesn't yet support 'SUM(DISTINCT) aggregate as window function'
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a), rank() OVER (ORDER BY b) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select rank() over ( order by `test`.`t1`.`a`) AS `rank() OVER (ORDER BY a)`,rank() over ( order by `test`.`t1`.`b`) AS `rank() OVER (ORDER BY b)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT rank() OVER (PARTITION BY max(a) ORDER BY b) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select rank() over ( partition by max(`test`.`t1`.`a`) order by `test`.`t1`.`b`) AS `rank() OVER (PARTITION BY max(a) ORDER BY b)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT max(a), rank() OVER (ORDER BY b) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary
+Warnings:
+Note	1003	select max(`test`.`t1`.`a`) AS `max(a)`,rank() over ( order by `test`.`t1`.`b`) AS `rank() OVER (ORDER BY b)` from `test`.`t1`
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+Warnings:
+Note	1003	select rank() over ( order by `test`.`t1`.`a`) AS `rank() OVER (ORDER BY a)` from `test`.`t1` group by `test`.`t1`.`a`
+CREATE TABLE t2 (a INT, x INT, KEY(a));
+INSERT INTO t2 VALUES (1,10);
+INSERT INTO t2 VALUES (1,20);
+INSERT INTO t2 VALUES (2,20);
+INSERT INTO t2 VALUES (2,30);
+EXPLAIN SELECT tg.a, rank() OVER (ORDER BY tg.a) FROM tg JOIN t2 ON tg.a=t2.a GROUP BY tg.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	a	a	5	NULL	4	Using where; Using index; Using temporary
+1	SIMPLE	tg	ref	a	a	5	test.t2.a	1	Using index
+EXPLAIN SELECT a, x  FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	a	5	NULL	4	
+EXPLAIN SELECT a, x, rank() OVER (ORDER BY a) FROM t2 FORCE INDEX FOR GROUP BY (a) GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	a	5	NULL	4	Using temporary
+EXPLAIN EXTENDED SELECT rank() OVER (ORDER BY a) FROM tg GROUP BY 1+2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tg	index	NULL	a	10	NULL	6	100.00	Using index; Using temporary
+Warnings:
+Note	1003	select rank() over ( order by `test`.`tg`.`a`) AS `rank() OVER (ORDER BY a)` from `test`.`tg` group by 1 + 2
+EXPLAIN EXTENDED SELECT pk, rank() OVER (ORDER BY a) AS x FROM t1 ORDER BY x;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+Warnings:
+Note	1003	select `test`.`t1`.`pk` AS `pk`,rank() over ( order by `test`.`t1`.`a`) AS `x` from `test`.`t1` order by rank() over ( order by `test`.`t1`.`a`)
+CREATE FUNCTION nd(x INT) RETURNS INT NOT DETERMINISTIC
+BEGIN
+RETURN x;
+END|
+EXPLAIN FORMAT=JSON SELECT rank() OVER (ORDER BY a, nd(b), pk) AS r FROM t1 ORDER BY a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.017171443,
+    "filesort": {
+      "sort_key": "t1.a",
+      "window_functions_computation": {
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.a, nd(t1.b), t1.pk"
+            }
+          }
+        ],
+        "temporary_table": {
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 9,
+                "cost": 0.011443245,
+                "filtered": 100
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
+DROP FUNCTION nd;
+DROP TABLE tg, t2;
+DROP TABLE t1;
