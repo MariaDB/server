@@ -904,6 +904,12 @@ public:
     #keys elements are not empty)
   */
   uint keys;
+  /*
+    Allocated size of SEL_TREE::keys. #keys for B-tree index, MAX_KEY
+    otherwise (#keys grows when get_claimed_key_part() clones key
+    parts). Always keys <= max_keys.
+  */
+  uint max_keys;
 
   /*
     If true, the index descriptions describe real indexes (and it is ok to
