@@ -178,12 +178,15 @@ fts_word_free(
 @param user_arg     user argument
 @param processor    custom processor to filter the word from record
 @param compare_mode comparison mode for record matching
+@param collation    if not NULL, records of words that are equal under
+                    this collation are added to the same fts_word_t
 @return error code or DB_SUCCESS */
 dberr_t fts_index_fetch_nodes(FTSQueryExecutor *executor, dict_index_t *index,
                               const fts_string_t *word,
                               void *user_arg,
 			      FTSRecordProcessor processor,
-                              AuxCompareMode compare_mode) noexcept
+                              AuxCompareMode compare_mode,
+                              CHARSET_INFO *collation= nullptr) noexcept
                               MY_ATTRIBUTE((nonnull));
 
 #define fts_sql_commit(trx) trx_commit_for_mysql(trx)
