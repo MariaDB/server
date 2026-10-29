@@ -1,0 +1,1415 @@
+# TEST_MULTI_KEY is a MEMORY engine whose multi-key read looks up each tuple's
+# key and keeps the rows the pushed condition admits; the MyISAM tables are the
+# local side. Each query runs with join_cache_multi_key_read off, then on.
+CREATE TABLE trades (sym INT NOT NULL, id INT NOT NULL, ts INT NOT NULL,
+price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO trades
+SELECT s.seq, i.seq, i.seq * 10, 100 + (s.seq * 7 + i.seq * 13) % 100
+FROM seq_1_to_20 s, seq_1_to_50 i;
+CREATE TABLE strades (id INT NOT NULL PRIMARY KEY, sym INT NOT NULL,
+ts INT NOT NULL, price INT NOT NULL, KEY k_sym USING BTREE (sym),
+KEY h_sym_ts USING HASH (sym, ts)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO strades SELECT (sym - 1) * 50 + id, sym, ts, price FROM trades;
+CREATE TABLE vtrades (sym VARCHAR(10) NOT NULL, id INT NOT NULL,
+price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO vtrades SELECT CONCAT('s', s.seq), i.seq, 100 + (s.seq * 7 + i.seq * 13) % 100
+FROM seq_1_to_5 s, seq_1_to_10 i;
+CREATE TABLE ntrades (sym INT NOT NULL, id INT NOT NULL, note VARCHAR(10) NOT NULL,
+price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO ntrades SELECT s.seq, i.seq, CONCAT('n', i.seq % 3), 100 + (s.seq * 7 + i.seq * 13) % 100
+FROM seq_1_to_5 s, seq_1_to_10 i;
+CREATE TABLE watch (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO watch VALUES (3, 300, 190), (7, 250, 185), (11, 0, 195), (16, 450, 150);
+CREATE TABLE wp (sym INT NULL, since INT NULL, min_price INT NULL) ENGINE=MyISAM;
+INSERT INTO wp VALUES (3, 300, 190), (7, 250, 185), (7, 250, 185), (7, 300, 150),
+(NULL, 0, 0), (11, NULL, 195), (16, 450, NULL), (99, 0, 0);
+CREATE TABLE wn (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wn VALUES (3, 300, 190), (7, 250, 185);
+CREATE TABLE wu (sym INT UNSIGNED NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wu VALUES (7, 250, 185), (3000000000, 0, 0), (2147483647, 0, 0);
+CREATE TABLE wk (sym INT NOT NULL, id INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wk VALUES (3, 44), (7, 26), (7, 27), (99, 1);
+CREATE TABLE wo (id INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wo VALUES (26), (34), (44), (99);
+CREATE TABLE vw (sym VARCHAR(10) NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO vw VALUES ('s2', 150), ('S2', 160), ('s4', 180);
+CREATE TABLE nw (sym INT NOT NULL, note VARCHAR(10) NOT NULL) ENGINE=MyISAM;
+INSERT INTO nw VALUES (2, 'n1'), (4, 'n0');
+CREATE TABLE wt (sym INT NOT NULL, note TEXT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wt SELECT * FROM nw;
+CREATE TABLE wbit (sym INT NOT NULL, b BIT(3) NOT NULL, b8 BIT(8) NOT NULL) ENGINE=MyISAM;
+INSERT INTO wbit VALUES (3, 5, 5), (7, 6, 6);
+CREATE TABLE sink (sym INT, id INT) ENGINE=MyISAM;
+CREATE TABLE tally (sym INT NOT NULL PRIMARY KEY, since INT NOT NULL, n INT NULL) ENGINE=MyISAM;
+SET @saved_optimizer_switch= @@optimizer_switch;
+SET @saved_join_cache_level= @@join_cache_level;
+SET SESSION join_cache_level= 6;
+SET SESSION optimizer_switch= 'join_cache_multi_key_read=on';
+# The query of MDEV-39927: the 4 watch rows go out as 4 tuples in one
+# call, and the engine returns the 10 rows the whole ON clause admits.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	34	340	191
+7	42	420	195
+7	49	490	186
+7	50	500	199
+11	17	170	198
+11	40	400	197
+16	45	450	197
+16	50	500	162
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	34	340	191
+7	42	420	195
+7	49	490	186
+7	50	500	199
+11	17	170	198
+11	40	400	197
+16	45	450	197
+16	50	500	162
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	10
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+# wp: the NULL key is not sent and the duplicate (7, 250, 185) goes out once,
+# so 8 rows make 6 tuples; key 7's second parameter set takes a second call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id	ts	price
+3	300	190	44	440	193
+7	250	185	26	260	187
+7	250	185	26	260	187
+7	250	185	34	340	191
+7	250	185	34	340	191
+7	250	185	42	420	195
+7	250	185	42	420	195
+7	250	185	49	490	186
+7	250	185	49	490	186
+7	250	185	50	500	199
+7	250	185	50	500	199
+7	300	150	31	310	152
+7	300	150	32	320	165
+7	300	150	33	330	178
+7	300	150	34	340	191
+7	300	150	39	390	156
+7	300	150	40	400	169
+7	300	150	41	410	182
+7	300	150	42	420	195
+7	300	150	47	470	160
+7	300	150	48	480	173
+7	300	150	49	490	186
+7	300	150	50	500	199
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id	ts	price
+3	300	190	44	440	193
+7	250	185	26	260	187
+7	250	185	26	260	187
+7	250	185	34	340	191
+7	250	185	34	340	191
+7	250	185	42	420	195
+7	250	185	42	420	195
+7	250	185	49	490	186
+7	250	185	49	490	186
+7	250	185	50	500	199
+7	250	185	50	500	199
+7	300	150	31	310	152
+7	300	150	32	320	165
+7	300	150	33	330	178
+7	300	150	34	340	191
+7	300	150	39	390	156
+7	300	150	40	400	169
+7	300	150	41	410	182
+7	300	150	42	420	195
+7	300	150	47	470	160
+7	300	150	48	480	173
+7	300	150	49	490	186
+7	300	150	50	500	199
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	6	18
+# LEFT JOIN, trades inner: the same 6 tuples in 2 calls; the tuples that got
+# no row and the NULL key, never sent, are NULL-complemented.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+NULL	0	0	NULL
+3	300	190	44
+7	250	185	26
+7	250	185	26
+7	250	185	34
+7	250	185	34
+7	250	185	42
+7	250	185	42
+7	250	185	49
+7	250	185	49
+7	250	185	50
+7	250	185	50
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+11	NULL	195	NULL
+16	450	NULL	NULL
+99	0	0	NULL
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+NULL	0	0	NULL
+3	300	190	44
+7	250	185	26
+7	250	185	26
+7	250	185	34
+7	250	185	34
+7	250	185	42
+7	250	185	42
+7	250	185	49
+7	250	185	49
+7	250	185	50
+7	250	185	50
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+11	NULL	195	NULL
+16	450	NULL	NULL
+99	0	0	NULL
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	6	18
+# The ON conjunct over wp alone, w.since > 260, is the precondition: the 5 rows
+# that fail it are not sent, the other 3 go out in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price AND w.since > 260 ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+NULL	0	0	NULL
+3	300	190	44
+7	250	185	NULL
+7	250	185	NULL
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+11	NULL	195	NULL
+16	450	NULL	NULL
+99	0	0	NULL
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price AND w.since > 260 ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+NULL	0	0	NULL
+3	300	190	44
+7	250	185	NULL
+7	250	185	NULL
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+11	NULL	195	NULL
+16	450	NULL	NULL
+99	0	0	NULL
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	3	13
+# wn inner of an outer join, joined to watch on since by a hash join: its 2
+# matching rows go out as 2 tuples in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+sym	wsym	since	id
+3	3	300	6
+3	3	300	21
+3	3	300	29
+3	3	300	44
+7	7	250	3
+7	7	250	11
+7	7	250	19
+7	7	250	26
+7	7	250	34
+7	7	250	42
+7	7	250	49
+7	7	250	50
+11	NULL	NULL	NULL
+16	NULL	NULL	NULL
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+sym	wsym	since	id
+3	3	300	6
+3	3	300	21
+3	3	300	29
+3	3	300	44
+7	7	250	3
+7	7	250	11
+7	7	250	19
+7	7	250	26
+7	7	250	34
+7	7	250	42
+7	7	250	49
+7	7	250	50
+11	NULL	NULL	NULL
+16	NULL	NULL	NULL
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	2	12
+EXPLAIN SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w0	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	w	hash_ALL	NULL	#hash#$hj	4	test.w0.since	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (incremental, BKA join); Multi-key read
+# Joined on the key column instead, equality propagation gives trades the
+# equality t.sym = w0.sym, while its ref reads w.sym: the server does not
+# offer the path (prepares 0) and runs plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+sym	since	id
+3	300	6
+3	300	21
+3	300	29
+3	300	44
+7	250	3
+7	250	11
+7	250	19
+7	250	26
+7	250	34
+7	250	42
+7	250	49
+7	250	50
+11	NULL	NULL
+16	NULL	NULL
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+sym	since	id
+3	300	6
+3	300	21
+3	300	29
+3	300	44
+7	250	3
+7	250	11
+7	250	19
+7	250	26
+7	250	34
+7	250	42
+7	250	49
+7	250	50
+11	NULL	NULL
+16	NULL	NULL
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w0	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	w	hash_ALL	NULL	#hash#$hj	4	test.w0.sym	2	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (incremental, BKA join)
+# A correlated subquery: prepared once, one call per execution, 4 for the 4
+# values of w.since. The conjunct on the outer w.since is not pushed: each call
+# returns the 12 rows of keys 3 and 7 that pass the price conjunct.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.ts >= w.since AND t.price > x.min_price) AS c FROM wp w WHERE w.since IS NOT NULL ORDER BY w.sym, w.since, w.min_price;
+sym	since	c
+NULL	0	12
+3	300	5
+7	250	7
+7	250	7
+7	300	5
+16	450	2
+99	0	12
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.ts >= w.since AND t.price > x.min_price) AS c FROM wp w WHERE w.since IS NOT NULL ORDER BY w.sym, w.since, w.min_price;
+sym	since	c
+NULL	0	12
+3	300	5
+7	250	7
+7	250	7
+7	300	5
+16	450	2
+99	0	12
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	4	8	48
+# The second key part's value comes from the outer query: its = is not in the
+# pushed condition, so the server does not offer the path (prepares 0) and the
+# subquery's join runs as plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+id	c
+26	2
+34	2
+44	2
+99	0
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+id	c
+26	2
+34	2
+44	2
+99	0
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	o	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+2	DEPENDENT SUBQUERY	x	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	t	eq_ref	PRIMARY	PRIMARY	8	test.x.sym,test.o.id	1	Using join buffer (flat, BKA join)
+# A two-part key read by eq_ref: 4 tuples bind both parts, and (99, 1) finds
+# no row; then the same key with its first part the constant 7.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id = w.id ORDER BY w.sym, w.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	27	270	100
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id = w.id ORDER BY w.sym, w.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	27	270	100
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	3
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = 7 AND t.id = w.id ORDER BY w.id;
+id	ts	price
+1	10	162
+26	260	187
+27	270	100
+44	440	121
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = 7 AND t.id = w.id ORDER BY w.id;
+id	ts	price
+1	10	162
+26	260	187
+27	270	100
+44	440	121
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	4
+# The secondary BTREE key k_sym: the same 6 tuples in 2 calls as on the
+# primary key.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN strades t FORCE INDEX (k_sym) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id	ts	price
+3	300	190	144	440	193
+7	250	185	326	260	187
+7	250	185	326	260	187
+7	250	185	334	340	191
+7	250	185	334	340	191
+7	250	185	342	420	195
+7	250	185	342	420	195
+7	250	185	349	490	186
+7	250	185	349	490	186
+7	250	185	350	500	199
+7	250	185	350	500	199
+7	300	150	331	310	152
+7	300	150	332	320	165
+7	300	150	333	330	178
+7	300	150	334	340	191
+7	300	150	339	390	156
+7	300	150	340	400	169
+7	300	150	341	410	182
+7	300	150	342	420	195
+7	300	150	347	470	160
+7	300	150	348	480	173
+7	300	150	349	490	186
+7	300	150	350	500	199
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN strades t FORCE INDEX (k_sym) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id	ts	price
+3	300	190	144	440	193
+7	250	185	326	260	187
+7	250	185	326	260	187
+7	250	185	334	340	191
+7	250	185	334	340	191
+7	250	185	342	420	195
+7	250	185	342	420	195
+7	250	185	349	490	186
+7	250	185	349	490	186
+7	250	185	350	500	199
+7	250	185	350	500	199
+7	300	150	331	310	152
+7	300	150	332	320	165
+7	300	150	333	330	178
+7	300	150	334	340	191
+7	300	150	339	390	156
+7	300	150	340	400	169
+7	300	150	341	410	182
+7	300	150	342	420	195
+7	300	150	347	470	160
+7	300	150	348	480	173
+7	300	150	349	490	186
+7	300	150	350	500	199
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	6	18
+# The HASH key h_sym_ts with both parts bound: 4 tuples in one call, and
+# watch's (11, 0) finds no row.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts = w.since ORDER BY w.sym, t.id;
+sym	since	id	price
+3	300	130	111
+7	250	325	174
+16	450	795	197
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts = w.since ORDER BY w.sym, t.id;
+sym	since	id	price
+3	300	130	111
+7	250	325	174
+16	450	795	197
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	3
+# The HASH key's second part compared by <=>: the engine binds sym only, and a
+# HASH key needs every part, so prepare() refuses (prepares 1, calls 0) and the
+# join runs as plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+sym	since	id	price
+3	300	130	111
+7	250	325	174
+16	450	795	197
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+sym	since	id	price
+3	300	130	111
+7	250	325	174
+16	450	795	197
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	0	0	0
+EXPLAIN SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	h_sym_ts	h_sym_ts	8	test.w.sym,test.w.since	2	Using where; Using join buffer (flat, BKA join)
+# <=> on the key over NOT NULL columns: the server offers the path, and the
+# engine, which binds a key part by = only, refuses it: plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	34	340	191
+7	42	420	195
+7	49	490	186
+7	50	500	199
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+3	44	440	193
+7	26	260	187
+7	34	340	191
+7	42	420	195
+7	49	490	186
+7	50	500	199
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	0	0	0
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join)
+# <=> on the key over the nullable wp.sym: the key value may be NULL and <=>
+# matches a NULL key, so the server does not offer the path (prepares 0).
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+3	300	190	44
+7	250	185	26
+7	250	185	26
+7	250	185	34
+7	250	185	34
+7	250	185	42
+7	250	185	42
+7	250	185	49
+7	250	185	49
+7	250	185	50
+7	250	185	50
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+sym	since	min_price	id
+3	300	190	44
+7	250	185	26
+7	250	185	26
+7	250	185	34
+7	250	185	34
+7	250	185	42
+7	250	185	42
+7	250	185	49
+7	250	185	49
+7	250	185	50
+7	250	185	50
+7	300	150	31
+7	300	150	32
+7	300	150	33
+7	300	150	34
+7	300	150	39
+7	300	150	40
+7	300	150	41
+7	300	150	42
+7	300	150	47
+7	300	150	48
+7	300	150	49
+7	300	150	50
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join)
+# A case-insensitive VARCHAR key: 's2' and 'S2' are one key value, so they go
+# to separate calls (2 calls, 3 tuples); they differ bit for bit, so neither is
+# dropped as a duplicate.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.min_price, t.id, t.price FROM vw w STRAIGHT_JOIN vtrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price ORDER BY w.sym, w.min_price, t.id;
+sym	min_price	id	price
+s2	150	3	153
+s2	150	4	166
+s2	150	5	179
+s2	150	6	192
+S2	160	4	166
+S2	160	5	179
+S2	160	6	192
+s4	180	5	193
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.min_price, t.id, t.price FROM vw w STRAIGHT_JOIN vtrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price ORDER BY w.sym, w.min_price, t.id;
+sym	min_price	id	price
+s2	150	3	153
+s2	150	4	166
+s2	150	5	179
+s2	150	6	192
+S2	160	4	166
+S2	160	5	179
+S2	160	6	192
+s4	180	5	193
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	3	8
+# INT UNSIGNED values against the INT key: 3000000000's key image is
+# 2147483647's, so the two go to separate calls (2 calls, 3 tuples). Both find
+# the row of key 2147483647, which the pushed condition keeps for 2147483647
+# only: the engine returns 6 rows, 5 of key 7.
+INSERT INTO trades VALUES (2147483647, 1, 10, 150);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.sym AS tsym, t.id, t.ts, t.price FROM wu w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	tsym	id	ts	price
+7	7	26	260	187
+7	7	34	340	191
+7	7	42	420	195
+7	7	49	490	186
+7	7	50	500	199
+2147483647	2147483647	1	10	150
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.sym AS tsym, t.id, t.ts, t.price FROM wu w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	tsym	id	ts	price
+7	7	26	260	187
+7	7	34	340	191
+7	7	42	420	195
+7	7	49	490	186
+7	7	50	500	199
+2147483647	2147483647	1	10	150
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	3	6
+DELETE FROM trades WHERE sym = 2147483647;
+# A VARCHAR parameter takes the path; the same over a TEXT column does not:
+# the server refuses a BLOB parameter (prepares 0) and runs plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.note FROM nw w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+sym	id	note
+2	1	n1
+2	4	n1
+2	7	n1
+2	10	n1
+4	3	n0
+4	6	n0
+4	9	n0
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.note FROM nw w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+sym	id	note
+2	1	n1
+2	4	n1
+2	7	n1
+2	10	n1
+4	3	n0
+4	6	n0
+4	9	n0
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	2	7
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+sym	id	note
+2	1	n1
+2	4	n1
+2	7	n1
+2	10	n1
+4	3	n0
+4	6	n0
+4	9	n0
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+sym	id	note
+2	1	n1
+2	4	n1
+2	7	n1
+2	10	n1
+4	3	n0
+4	6	n0
+4	9	n0
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	6	Using where; Using join buffer (flat, BKA join)
+# A BIT(8) parameter, which MyISAM keeps in a byte of its own, takes the path.
+# MyISAM keeps the 3 bits of a BIT(3) among the null bits, which the server
+# refuses (prepares 0): plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b8 ORDER BY w.sym, t.id;
+sym	id	price
+3	1	134
+3	2	147
+3	3	160
+3	4	173
+3	5	186
+7	1	162
+7	2	175
+7	3	188
+7	4	101
+7	5	114
+7	6	127
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b8 ORDER BY w.sym, t.id;
+sym	id	price
+3	1	134
+3	2	147
+3	3	160
+3	4	173
+3	5	186
+7	1	162
+7	2	175
+7	3	188
+7	4	101
+7	5	114
+7	6	127
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	2	11
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+sym	id	price
+3	1	134
+3	2	147
+3	3	160
+3	4	173
+3	5	186
+7	1	162
+7	2	175
+7	3	188
+7	4	101
+7	5	114
+7	6	127
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+sym	id	price
+3	1	134
+3	2	147
+3	3	160
+3	4	173
+3	5	186
+7	1	162
+7	2	175
+7	3	188
+7	4	101
+7	5	114
+7	6	127
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join)
+# A ? in the pushed condition of a prepared statement: a bound ? has a copy
+# (MDEV-41238), so each execution pushes the condition with its own value and
+# takes the path (prepares 2, calls 2).
+SET @min_price= 185;
+PREPARE stmt FROM 'SELECT w.sym, t.id, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > ? ORDER BY w.sym, t.id';
+PREPARE explain_stmt FROM 'EXPLAIN SELECT w.sym, t.id, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > ? ORDER BY w.sym, t.id';
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR EXECUTE stmt USING @min_price;
+sym	id	price
+3	5	186
+3	6	199
+3	13	190
+3	21	194
+3	29	198
+3	36	189
+3	44	193
+7	3	188
+7	11	192
+7	19	196
+7	26	187
+7	34	191
+7	42	195
+7	49	186
+7	50	199
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+EXECUTE stmt USING @min_price;
+sym	id	price
+3	5	186
+3	6	199
+3	13	190
+3	21	194
+3	29	198
+3	36	189
+3	44	193
+7	3	188
+7	11	192
+7	19	196
+7	26	187
+7	34	191
+7	42	195
+7	49	186
+7	50	199
+EXECUTE stmt USING @min_price;
+sym	id	price
+3	5	186
+3	6	199
+3	13	190
+3	21	194
+3	29	198
+3	36	189
+3	44	193
+7	3	188
+7	11	192
+7	19	196
+7	26	187
+7	34	191
+7	42	195
+7	49	186
+7	50	199
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+2	2	4	30
+EXECUTE explain_stmt USING @min_price;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+DEALLOCATE PREPARE stmt;
+DEALLOCATE PREPARE explain_stmt;
+# Two multi-key reads in a chain: strades's key comes from trades and its
+# residual from watch. trades makes 1 call of 4 tuples; strades gets keys 1
+# and 2 with 4 parameter sets each, 4 calls of 2 tuples. Its join buffer is
+# incremental at join_cache_level 6 and flat at 5: the same rows and counters.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+sym	id	sid
+3	1	30
+3	1	45
+3	2	87
+3	2	95
+7	1	30
+7	1	37
+7	1	45
+7	2	79
+7	2	87
+7	2	94
+7	2	95
+11	1	7
+11	1	30
+11	2	64
+11	2	95
+16	1	45
+16	1	50
+16	2	95
+16	2	99
+16	2	100
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+sym	id	sid
+3	1	30
+3	1	45
+3	2	87
+3	2	95
+7	1	30
+7	1	37
+7	1	45
+7	2	79
+7	2	87
+7	2	94
+7	2	95
+11	1	7
+11	1	30
+11	2	64
+11	2	95
+16	1	45
+16	1	50
+16	2	95
+16	2	99
+16	2	100
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+2	5	12	28
+EXPLAIN SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+1	SIMPLE	s	ref	k_sym	k_sym	4	test.t.id	16	Using where; Using join buffer (incremental, BKA join); Multi-key read
+SET SESSION join_cache_level= 5;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+sym	id	sid
+3	1	30
+3	1	45
+3	2	87
+3	2	95
+7	1	30
+7	1	37
+7	1	45
+7	2	79
+7	2	87
+7	2	94
+7	2	95
+11	1	7
+11	1	30
+11	2	64
+11	2	95
+16	1	45
+16	1	50
+16	2	95
+16	2	99
+16	2	100
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+sym	id	sid
+3	1	30
+3	1	45
+3	2	87
+3	2	95
+7	1	30
+7	1	37
+7	1	45
+7	2	79
+7	2	87
+7	2	94
+7	2	95
+11	1	7
+11	1	30
+11	2	64
+11	2	95
+16	1	45
+16	1	50
+16	2	95
+16	2	99
+16	2	100
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+2	5	12	28
+EXPLAIN SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+1	SIMPLE	s	ref	k_sym	k_sym	4	test.t.id	16	Using where; Using join buffer (flat, BKA join); Multi-key read
+SET SESSION join_cache_level= 6;
+# lw is watch with sym + 1, in the engine of trades. When every parameter comes
+# from a table of trades's engine, the server does not offer the path
+# (prepares 0) and the join runs as plain BKA.
+CREATE TABLE lw (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=TEST_MULTI_KEY;
+INSERT INTO lw SELECT sym + 1, since, min_price FROM watch;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join)
+# The same with lw partitioned: a partition's engine counts, so prepares 0.
+CREATE TABLE plw (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=TEST_MULTI_KEY
+PARTITION BY HASH (sym) PARTITIONS 2;
+INSERT INTO plw SELECT * FROM lw;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join)
+# watch and lw in the join buffer, trades's key from lw. With the residual
+# from watch, one parameter comes from MyISAM: 4 tuples in one call. With the
+# residual from lw, watch supplies no parameter: prepares 0.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	xsym	id	price
+3	4	5	193
+3	4	13	197
+3	4	28	192
+3	4	36	196
+7	8	3	195
+7	8	10	186
+7	8	11	199
+7	8	18	190
+7	8	26	194
+7	8	34	198
+7	8	41	189
+7	8	49	193
+11	12	1	197
+11	12	24	196
+16	17	3	158
+16	17	4	171
+16	17	5	184
+16	17	6	197
+16	17	11	162
+16	17	12	175
+16	17	13	188
+16	17	18	153
+16	17	19	166
+16	17	20	179
+16	17	21	192
+16	17	26	157
+16	17	27	170
+16	17	28	183
+16	17	29	196
+16	17	34	161
+16	17	35	174
+16	17	36	187
+16	17	41	152
+16	17	42	165
+16	17	43	178
+16	17	44	191
+16	17	49	156
+16	17	50	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	xsym	id	price
+3	4	5	193
+3	4	13	197
+3	4	28	192
+3	4	36	196
+7	8	3	195
+7	8	10	186
+7	8	11	199
+7	8	18	190
+7	8	26	194
+7	8	34	198
+7	8	41	189
+7	8	49	193
+11	12	1	197
+11	12	24	196
+16	17	3	158
+16	17	4	171
+16	17	5	184
+16	17	6	197
+16	17	11	162
+16	17	12	175
+16	17	13	188
+16	17	18	153
+16	17	19	166
+16	17	20	179
+16	17	21	192
+16	17	26	157
+16	17	27	170
+16	17	28	183
+16	17	29	196
+16	17	34	161
+16	17	35	174
+16	17	36	187
+16	17	41	152
+16	17	42	165
+16	17	43	178
+16	17	44	191
+16	17	49	156
+16	17	50	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	38
+EXPLAIN SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	x	hash_ALL	NULL	#hash#$hj	4	test.w.since	4	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.x.sym	11	Using where; Using join buffer (incremental, BKA join); Multi-key read
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+sym	xsym	id	price
+3	4	5	193
+3	4	13	197
+3	4	28	192
+3	4	36	196
+7	8	3	195
+7	8	10	186
+7	8	11	199
+7	8	18	190
+7	8	26	194
+7	8	34	198
+7	8	41	189
+7	8	49	193
+11	12	1	197
+11	12	24	196
+16	17	3	158
+16	17	4	171
+16	17	5	184
+16	17	6	197
+16	17	11	162
+16	17	12	175
+16	17	13	188
+16	17	18	153
+16	17	19	166
+16	17	20	179
+16	17	21	192
+16	17	26	157
+16	17	27	170
+16	17	28	183
+16	17	29	196
+16	17	34	161
+16	17	35	174
+16	17	36	187
+16	17	41	152
+16	17	42	165
+16	17	43	178
+16	17	44	191
+16	17	49	156
+16	17	50	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+sym	xsym	id	price
+3	4	5	193
+3	4	13	197
+3	4	28	192
+3	4	36	196
+7	8	3	195
+7	8	10	186
+7	8	11	199
+7	8	18	190
+7	8	26	194
+7	8	34	198
+7	8	41	189
+7	8	49	193
+11	12	1	197
+11	12	24	196
+16	17	3	158
+16	17	4	171
+16	17	5	184
+16	17	6	197
+16	17	11	162
+16	17	12	175
+16	17	13	188
+16	17	18	153
+16	17	19	166
+16	17	20	179
+16	17	21	192
+16	17	26	157
+16	17	27	170
+16	17	28	183
+16	17	29	196
+16	17	34	161
+16	17	35	174
+16	17	36	187
+16	17	41	152
+16	17	42	165
+16	17	43	178
+16	17	44	191
+16	17	49	156
+16	17	50	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	x	hash_ALL	NULL	#hash#$hj	4	test.w.since	4	Using where; Using join buffer (flat, BNLH join)
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.x.sym	11	Using where; Using join buffer (incremental, BKA join)
+# lw's rows through a materialized derived table, and a TEMPORARY Aria copy
+# of lw: the parameters come from those tables, so both take the path, 4
+# tuples in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	9
+EXPLAIN SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	PRIMARY	t	ref	PRIMARY	PRIMARY	4	d.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+2	DERIVED	lw	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+CREATE TEMPORARY TABLE tlw ENGINE=Aria SELECT * FROM lw;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+sym	id	ts	price
+4	36	360	196
+8	26	260	194
+8	34	340	198
+8	41	410	189
+8	49	490	193
+12	1	10	197
+12	24	240	196
+17	49	490	156
+17	50	500	169
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	4	9
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	w	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t	ref	PRIMARY	PRIMARY	4	test.w.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+DROP TEMPORARY TABLE tlw;
+DROP TABLE lw, plw;
+# A materialized semi-join: the join buffer inside its nest holds wp alone, and
+# the 7 wp rows with a key make 6 tuples in 2 calls.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+sym	since
+3	300
+7	250
+16	450
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+sym	since
+3	300
+7	250
+16	450
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	2	6	138
+EXPLAIN SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	w	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	x	ALL	NULL	NULL	NULL	NULL	8	Using where
+2	MATERIALIZED	t	ref	PRIMARY	PRIMARY	4	test.x.sym	11	Using where; Using join buffer (flat, BKA join); Multi-key read
+# INSERT ... SELECT and CREATE ... SELECT: one call, 2 tuples.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR INSERT INTO sink SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM sink ORDER BY sym, id;
+sym	id
+3	44
+7	26
+7	34
+7	42
+7	49
+7	50
+DELETE FROM sink;
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+INSERT INTO sink SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM sink ORDER BY sym, id;
+sym	id
+3	44
+7	26
+7	34
+7	42
+7	49
+7	50
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	2	6
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR CREATE TABLE made ENGINE=MyISAM SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM made ORDER BY sym, id;
+sym	id
+3	44
+7	26
+7	34
+7	42
+7	49
+7	50
+DROP TABLE made;
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+CREATE TABLE made ENGINE=MyISAM SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM made ORDER BY sym, id;
+sym	id
+3	44
+7	26
+7	34
+7	42
+7	49
+7	50
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	1	2	6
+DROP TABLE made;
+# UPDATE and DELETE with a correlated scalar subquery: the subquery keeps its
+# join and join cache, one call per tally row. With an IN subquery that becomes
+# a semi-join, the statement runs as a multi-table one, without join caches
+# (prepares 0).
+REPLACE INTO tally VALUES (3, 0, NULL), (7, 300, NULL), (11, 450, NULL);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR UPDATE tally SET n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+3	0	12
+7	300	5
+11	450	2
+REPLACE INTO tally VALUES (3, 0, NULL), (7, 300, NULL), (11, 450, NULL);
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+UPDATE tally SET n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+3	0	12
+7	300	5
+11	450	2
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	3	6	36
+REPLACE INTO tally VALUES (3, 0, NULL), (7, 300, NULL), (11, 450, NULL);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+3	0	-1
+7	300	-1
+11	450	NULL
+REPLACE INTO tally VALUES (3, 0, NULL), (7, 300, NULL), (11, 450, NULL);
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+3	0	-1
+7	300	-1
+11	450	NULL
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+EXPLAIN UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	tally	ALL	PRIMARY	NULL	NULL	NULL	3	
+1	PRIMARY	w	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t	ref	PRIMARY	PRIMARY	4	test.tally.sym	11	Using where; FirstMatch(tally)
+REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR DELETE FROM tally WHERE n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+7	300	4
+REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2);
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+DELETE FROM tally WHERE n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+7	300	4
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+1	3	6	36
+REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+11	450	2
+REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2);
+SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0;
+DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+sym	since	n
+11	450	2
+SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`;
+prepares	calls	tuples	rows
+0	0	0	0
+REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2);
+EXPLAIN DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	tally	ALL	PRIMARY	NULL	NULL	NULL	3	
+1	PRIMARY	w	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t	ref	PRIMARY	PRIMARY	4	test.tally.sym	11	Using where; FirstMatch(tally)
+SET SESSION optimizer_switch= @saved_optimizer_switch;
+SET SESSION join_cache_level= @saved_join_cache_level;
+DROP TABLE trades, strades, vtrades, ntrades;
+DROP TABLE watch, wp, wn, wu, wk, wo, vw, nw, wt, wbit, sink, tally;
