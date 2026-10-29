@@ -36,6 +36,7 @@ Completed 2011/7/10 Sunny and Jimmy Yang
 #include "fts0plugin.h"
 #include "fts0vlc.h"
 
+#include <algorithm>
 #include <iomanip>
 #include <vector>
 
@@ -4388,7 +4389,32 @@ fts_phrase_or_proximity_search(
 	ibool		matched = FALSE;
 	ulint		num_token = ib_vector_size(tokens);
 	fts_match_t*	match[MAX_PROXIMITY_ITEM];
+	ulint		start[MAX_PROXIMITY_ITEM] = {};
 	ibool		end_list = FALSE;
+
+	/* Each ilist is ordered, but cache nodes and overlapping disk
+	nodes need not be. Sort unordered match lists before walking
+	them with per-word cursors. */
+	for (ulint j = 0; j < num_token; j++) {
+		ib_vector_t*	list = query->match_array[j];
+		doc_id_t	last_doc_id = 0;
+
+		for (ulint k = 0; k < ib_vector_size(list); k++) {
+			const fts_match_t* m = static_cast<const fts_match_t*>(
+				ib_vector_get_const(list, k));
+
+			if (m->doc_id < last_doc_id) {
+				fts_match_t* data = static_cast<
+					fts_match_t*>(list->data);
+				std::sort(data, data + ib_vector_size(list),
+					  [](const fts_match_t& a,
+					     const fts_match_t& b)
+					  { return a.doc_id < b.doc_id; });
+				break;
+			}
+			last_doc_id = m->doc_id;
+		}
+	}
 
 	/* Number of matched documents for the first token */
 	n_matched = ib_vector_size(query->match_array[0]);
@@ -4398,7 +4424,6 @@ fts_phrase_or_proximity_search(
 	contain all the matching words. */
 	for (i = 0; i < n_matched; i++) {
 		ulint		j;
-		ulint		k = 0;
 		fts_proximity_t	qualified_pos;
 
 		match[0] = static_cast<fts_match_t*>(
@@ -4408,8 +4433,12 @@ fts_phrase_or_proximity_search(
 		try to see if there is a document with the same
 		doc id */
 		for (j = 1; j < num_token; j++) {
-			match[j] = static_cast<fts_match_t*>(
-				ib_vector_get(query->match_array[j], k));
+			ulint	k = start[j];
+
+			if (k == 0) {
+				match[j] = static_cast<fts_match_t*>(
+					ib_vector_get(query->match_array[j], 0));
+			}
 
 			while (match[j]->doc_id < match[0]->doc_id
 			       && k < ib_vector_size(query->match_array[j])) {
@@ -4418,6 +4447,9 @@ fts_phrase_or_proximity_search(
 						query->match_array[j], k));
 				k++;
 			}
+
+			/* Keep the last match and the next index to examine. */
+			start[j] = k;
 
 			if (match[j]->doc_id > match[0]->doc_id) {
 				/* no match */
@@ -4454,11 +4486,6 @@ fts_phrase_or_proximity_search(
 					goto func_exit;
 				}
 			}
-
-			/* FIXME: A better solution will be a counter array
-			remember each run's last position. So we don't
-			reset it here very time */
-			k = 0;
 		}
 
 		if (j != num_token) {
