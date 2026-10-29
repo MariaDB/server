@@ -648,7 +648,12 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
     condition of the select that specifies this table.
   */
   THD *thd= in_use;
-  Item *left_item= spl_field->producing_item->deep_copy_with_checks(thd);
+  /*
+    left_item is the item of the select list of the select that specifies
+    this table, used in the WHERE condition of the same select. The copy is
+    fixed when the condition is injected, see inject_best_splitting_cond().
+  */
+  Item *left_item= spl_field->producing_item->same_select_copy_with_checks(thd);
   Item *right_item= key_field->val->deep_copy_with_checks(thd);
   Item_bool_func *eq_item= 0;
   if (left_item && right_item)
