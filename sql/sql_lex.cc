@@ -9446,6 +9446,7 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
                                                           MDL_SHARED_WRITE))))
     return NULL;
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  table->updating= true;
   return new (thd->mem_root) Item_func_nextval(thd, table);
 }
 
@@ -9521,6 +9522,7 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
                                                           TL_WRITE_ALLOW_WRITE,
                                                           MDL_SHARED_WRITE))))
     return NULL;
+  table->updating= true;
   return new (thd->mem_root) Item_func_setval(thd, table, nextval, round,
                                               is_used);
 }
@@ -9819,10 +9821,8 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     return splocal;
   }
 
-  if (fields_are_impossible() ||
-      ( cmd == SQLCOM_SET_OPTION &&
-      is_trigger_new_or_old_reference(&new_or_old)))
-  {
+  if ((fields_are_impossible() &&  is_trigger_new_or_old_reference(&new_or_old)) ||
+  (cmd == SQLCOM_SET_OPTION && is_trigger_new_or_old_reference(&new_or_old))){
     bool new_row= (new_or_old.str[0] == 'N' || new_or_old.str[0] == 'n');
     return create_and_link_Item_trigger_field_or_row(thd, &new_or_old,
                                                      new_row, true);
