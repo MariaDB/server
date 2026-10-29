@@ -1487,6 +1487,16 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
 extern transaction_participant binlog_tp;
 extern LOGGER logger;
+/* Number of messages written to the error log, indexed by loglevel */
+class Log_counters
+{
+public:
+  ulong count[INFORMATION_LEVEL + 1];
+  void inc(enum loglevel level) { count[level]++; }
+  void reset() { bzero(count, sizeof(count)); }
+};
+extern Log_counters log_counters;
+extern SHOW_VAR log_statistics[];
 
 extern const char *log_bin_index;
 extern const char *log_bin_basename;

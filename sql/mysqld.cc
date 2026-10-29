@@ -8076,6 +8076,7 @@ SHOW_VAR status_vars[]= {
   SHOW_FUNC_ENTRY("Key",       &show_default_keycache),
   {"optimizer_join_prefixes_check_calls",     (char*) offsetof(STATUS_VAR, optimizer_join_prefixes_check_calls), SHOW_LONG_STATUS},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
+  {"Log",                      (char*) log_statistics,          SHOW_ARRAY},
 #ifndef DBUG_OFF
   {"malloc_calls",             (char*) &malloc_calls, SHOW_LONG},
 #endif
@@ -8417,6 +8418,7 @@ static int mysql_init_variables(void)
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
   grant_option= 0;
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
+  log_counters.reset();
   malloc_calls= 0;
   subquery_cache_miss= subquery_cache_hit= 0;
   delayed_insert_threads= delayed_insert_writes= delayed_rows_in_use= 0;
@@ -9778,6 +9780,7 @@ void refresh_global_status()
     'all_status_vars' (includes all variables in 'status_vars[])
   */
   reset_status_vars();
+  log_counters.reset();
   /*
     Reset accumulated thread's status variables.
     These are the variables in 'status_vars[]' with the prefix _STATUS.
