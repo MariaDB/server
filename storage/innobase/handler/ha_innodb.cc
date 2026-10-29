@@ -1166,6 +1166,10 @@ static SHOW_VAR innodb_status_variables[]= {
    (void*) &show_atomic_counter_u64<
      &mtr_t::n_index_x_lock_calls>,
    SHOW_SIMPLE_FUNC},
+  {"row_search_callback_records",
+   (void*) &show_atomic_counter_u64<
+     &row_search_callback_records>,
+   SHOW_SIMPLE_FUNC},
 #endif /* UNIV_DEBUG */
 
   {NullS, NullS, SHOW_LONG}
