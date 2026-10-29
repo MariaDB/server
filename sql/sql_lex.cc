@@ -3947,6 +3947,12 @@ void st_select_lex::print_limit(THD *thd,
       limit_params.select_limit->print(str, query_type);
     }
   }
+  else if (limit_params.explicit_limit && limit_params.offset_limit)
+  {
+    str->append(STRING_WITH_LEN(" offset "));
+    limit_params.offset_limit->print(str, query_type);
+    str->append(STRING_WITH_LEN(" rows"));
+  }
 }
 
 
