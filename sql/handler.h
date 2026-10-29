@@ -199,6 +199,9 @@ enum chf_create_flags {
 #define HA_NO_AUTO_INCREMENT   (1ULL << 23)
 /* Has automatic checksums and uses the old checksum format */
 #define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
+/* Implements the index_multi_key_read*() calls, which the server makes only
+   when a parameter comes from a table of another engine */
+#define HA_CAN_MULTI_KEY_READ  (1ULL << 25)
 /* Table data are stored in separate files (for lower_case_table_names) */
 #define HA_FILE_BASED	       (1ULL << 26)
 #define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
@@ -4546,6 +4549,30 @@ public:
   virtual int multi_range_read_explain_info(uint mrr_mode, char *str, 
                                             size_t size)
   { return 0; }
+
+  /* pushdown has one top-level = or <=> per key part the ref uses, the ref's;
+     a parameter is an Item_field on param[]. HA_ERR_UNSUPPORTED refuses; 0
+     accepts until the next call or reset(), and ha_index_init() succeeds. */
+  virtual int index_multi_key_read_with_pushdown_prepare(uint index,
+                                                         Field **param,
+                                                         uint params,
+                                                         Item *pushdown)
+  {
+    /* check_join_cache_usage() gives JOIN_CACHE_MULTI_KEY, the one caller of
+       the three calls, only to a handler with HA_CAN_MULTI_KEY_READ */
+    DBUG_ASSERT(FALSE);
+    return HA_ERR_WRONG_COMMAND;
+  }
+  /* row_data: nullptr-terminated compact records, read before the call
+     returns; every param[] points into row_data[0] on entry and on return.
+     An error here or in read() fails the statement, reported by the caller. */
+  virtual int index_multi_key_read_params(uchar **row_data)
+  { DBUG_ASSERT(FALSE); return HA_ERR_WRONG_COMMAND; }
+  /* offset: row_data position of the tuple answered. The row meets the ref's =
+     exactly, as the recheck may leave it out; it tests the rest of pushdown.
+     HA_ERR_END_OF_FILE ends the call; HA_ERR_KEY_NOT_FOUND is an error. */
+  virtual int index_multi_key_read(uchar *record, uint32 *offset)
+  { DBUG_ASSERT(FALSE); return HA_ERR_WRONG_COMMAND; }
 
   virtual int read_range_first(const key_range *start_key,
                                const key_range *end_key,
