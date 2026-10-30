@@ -121,9 +121,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('full text');
 
 # Phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -163,9 +160,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('full text');
 
 # Phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -211,9 +205,6 @@ SELECT * FROM articles WHERE
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"for mysql"' IN BOOLEAN MODE);
 
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result for the next 3 queries
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"mysql database"' IN BOOLEAN MODE);
 
@@ -274,9 +265,6 @@ SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('+数据库 -计算机');
 
 # Test phrase search
---echo # simple parser st_mysql_ftparser_boolean_info doesn't
---echo # store position of every word in boolean metadata.
---echo # This leads to empty result
 SELECT * FROM articles WHERE
 	MATCH(title, body) AGAINST('"计算机 数据库"' IN BOOLEAN MODE);
 
