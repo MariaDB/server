@@ -319,19 +319,19 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     Item *order_item= *order->item;
     if (order_item->is_order_clause_position())
     {
-      uint count= 0;
+      longlong count= 0;
       if (order->counter_used)
         count= order->counter; // counter was once resolved
       else
-        count= (uint) order_item->val_int();
-      if (!count || count > first_elem->elements)
+        count= order_item->val_int();
+      if (count <= 0 || count > (longlong) first_elem->elements)
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
                  order_item->full_name(), thd_where(thd));
         DBUG_RETURN(true);
       }
       order->in_field_list= 1;
-      order->counter= count;
+      order->counter= (int) count;
       order->counter_used= 1;
     }
   }
