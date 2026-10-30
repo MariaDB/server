@@ -25258,32 +25258,47 @@ bool test_if_ref(Item *root_cond, Item_field *left_item,Item *right_item)
 
     Item *ref_item=part_of_refkey(field->table,field);
     if (ref_item && (ref_item->eq(right_item,1) || 
-		     ref_item->real_item()->eq(right_item,1)))
+                     ref_item->real_item()->eq(right_item,1)))
     {
       right_item= right_item->real_item();
       if (right_item->type() == Item::FIELD_ITEM)
-	return (field->eq_def(((Item_field *) right_item)->field));
+        return (field->eq_def(((Item_field *) right_item)->field));
       /* remove equalities injected by IN->EXISTS transformation */
       else if (right_item->type() == Item::CACHE_ITEM)
         return ((Item_cache *)right_item)->eq_def (field);
       if (right_item->const_item() && !(right_item->is_null()))
       {
-	/*
-	  We can remove binary fields and numerical fields except float,
-	  as float comparison isn't 100 % safe
-	  We have to keep normal strings to be able to check for end spaces
-	*/
-	if (field->binary() &&
-	    field->real_type() != MYSQL_TYPE_STRING &&
-	    field->real_type() != MYSQL_TYPE_VARCHAR &&
-	    (field->type() != MYSQL_TYPE_FLOAT || field->decimals() == 0))
-	{
-	  return !right_item->save_in_field_no_warnings(field, 1);
-	}
+        /*
+          We can remove binary fields and numerical fields except float,
+          as float comparison isn't 100 % safe
+          We have to keep normal strings to be able to check for end spaces
+        */
+        if (field->binary() &&
+            field->real_type() != MYSQL_TYPE_STRING &&
+            field->real_type() != MYSQL_TYPE_VARCHAR &&
+            (field->type() != MYSQL_TYPE_FLOAT || field->decimals() == 0))
+        {
+          if (right_item->save_in_field_no_warnings(field, 1))
+            return 0;                           // keep test
+          /*
+            Some Field::store() methods round or truncate the value without
+            reporting it, e.g. 46.5 stored into an INT column becomes 47.
+            The ref access then finds rows that do not match the original
+            condition, so remove the test only if the stored value is equal
+            to the constant. An integer constant stored into an integer
+            field without an error is always exact.
+          */
+          if (field->cmp_type() == INT_RESULT &&
+              right_item->cmp_type() == INT_RESULT)
+            return 1;
+          THD *thd= field->table->in_use;
+          int cmp= stored_field_cmp_to_item_no_warnings(thd, field, right_item);
+          return !cmp;
+        }
       }
     }
   }
-  return 0;					// keep test
+  return 0;                                     // keep test
 }
 
 
