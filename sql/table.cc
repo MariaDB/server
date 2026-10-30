@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -633,7 +633,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
-  char	path[FN_REFLEN];
+  char	path[FN_REFLEN + 1];
   size_t frmlen, read_length;
   uint length;
   DBUG_ENTER("open_table_def");
@@ -642,21 +642,30 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
-                 path);
-  if (flags & GTS_FORCE_DISCOVERY)
+  if (share->normalized_path.length + reg_ext_length > FN_REFLEN)
   {
-    const char *path2= share->normalized_path.str;
-    DBUG_ASSERT(flags & GTS_TABLE);
-    DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    /* Delete .frm and .par files */
-    mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
-    mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2, PAR_EXT,
-                                   MYF(0));
+    /* CREATE TABLE refuses such paths, the frm cannot exist */
+    my_errno= ENOENT;
     file= -1;
   }
   else
-    file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  {
+    length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
+                   path);
+    if (flags & GTS_FORCE_DISCOVERY)
+    {
+      const char *path2= share->normalized_path.str;
+      DBUG_ASSERT(flags & GTS_TABLE);
+      DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
+      /* Delete .frm and .par files */
+      mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
+      mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2,
+                                     PAR_EXT, MYF(0));
+      file= -1;
+    }
+    else
+      file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  }
 
   if (file < 0)
   {
@@ -4882,7 +4891,7 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
 {
-  char buff[FN_REFLEN];
+  char buff[FN_REFLEN + 1];
   const myf errortype= ME_ERROR_LOG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
   DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
@@ -4897,7 +4906,8 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
       my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
     else
     {
-      strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+      strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+               NullS);
       my_error((db_errno == EMFILE) ? ER_CANT_OPEN_FILE : ER_FILE_NOT_FOUND,
                errortype, buff, db_errno);
     }
@@ -4919,11 +4929,13 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
   case OPEN_FRM_CORRUPTED:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_NOT_FORM_FILE, errortype, buff);
     break;
   case OPEN_FRM_READ_ERROR:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
     break;
   case OPEN_FRM_NEEDS_REBUILD:
