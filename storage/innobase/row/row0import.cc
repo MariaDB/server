@@ -675,7 +675,7 @@ AbstractCallback::init(
 	/* Clear the DATA_DIR flag, which is basically garbage. */
 	m_space_flags &= ~(1U << FSP_FLAGS_POS_RESERVED);
 	m_zip_ssize = fil_space_t::full_crc32(m_space_flags)
-		? 0 : FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags);
+		? 0 : uint16_t(FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags));
 	const ulint logical_size = fil_space_t::logical_size(m_space_flags);
 	const ulint physical_size = fil_space_t::physical_size(m_space_flags);
 
