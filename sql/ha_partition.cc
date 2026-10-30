@@ -8040,7 +8040,10 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
       i= bitmap_get_first_set(&m_part_info->read_partitions);
   }
 
-  while (i >= m_part_spec.start_part && i <= m_part_spec.end_part)
+  for (; i >= m_part_spec.start_part && i <= m_part_spec.end_part;
+       i= reverse_order ?
+         bitmap_get_prev_set(&m_part_info->read_partitions, i) :
+         bitmap_get_next_set(&m_part_info->read_partitions, i))
   {
     int error;
     handler *file= m_file[i];
@@ -8095,10 +8098,6 @@ int ha_partition::handle_unordered_scan_next_partition(uchar * buf,
     if (saved_error != HA_ERR_KEY_NOT_FOUND)
       saved_error= error;
     DBUG_PRINT("info", ("END_OF_FILE/KEY_NOT_FOUND on partition %u", i));
-    if (reverse_order)
-      i= bitmap_get_prev_set(&m_part_info->read_partitions, i);
-    else
-      i= bitmap_get_next_set(&m_part_info->read_partitions, i);
   }
   if (saved_error == HA_ERR_END_OF_FILE)
     m_part_spec.start_part= NO_CURRENT_PART_ID;

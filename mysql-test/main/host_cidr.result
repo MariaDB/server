@@ -240,7 +240,7 @@ RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/255.0.255.0';
 ERROR HY000: Operation RENAME USER failed for 'r1'@'10.0.0.0/255.0.255.0'
 SHOW WARNINGS;
 Level	Code	Message
-Warning	4274	Invalid masked host '10.0.0.0/255.0.255.0' for user 'r1'
+Warning	4279	Invalid masked host '10.0.0.0/255.0.255.0' for user 'r1'
 Error	1396	Operation RENAME USER failed for 'r1'@'10.0.0.0/255.0.255.0'
 RENAME USER r1@'127.0.0.0/8' TO r1@'10.0.0.0/16';
 SELECT User, Host FROM mysql.global_priv WHERE User='r1';

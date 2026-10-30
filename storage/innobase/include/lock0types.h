@@ -46,7 +46,12 @@ enum lock_mode {
 			in an exclusive mode */
 	LOCK_NONE,	/* this is used elsewhere to note consistent read */
 	LOCK_NUM = LOCK_NONE, /* number of lock modes */
-	LOCK_NONE_UNSET = 7
+	LOCK_NONE_UNSET = 7,
+	/* Only in row_prebuilt_t::select_lock_type: a LOCK_X read whose
+	record locks are made redundant by a table-level LOCK_X
+	(innodb_table_lock_on_full_scan), so a covering index may be used.
+	Masking with LOCK_MODE_MASK yields LOCK_X. */
+	LOCK_X_BY_TABLE = LOCK_X | 8
 };
 
 /** A table lock */

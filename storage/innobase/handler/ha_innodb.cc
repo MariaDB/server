@@ -2792,9 +2792,6 @@ static int innobase_savepoint(THD *thd, void *savepoint) noexcept
     trx->last_stmt_start= savept;
     trx->end_bulk_insert();
 
-    if (trx->fts_trx)
-      fts_savepoint_take(trx->fts_trx, savepoint);
-
     DBUG_RETURN(0);
   }
 }
@@ -2807,13 +2804,10 @@ static int innobase_savepoint(THD *thd, void *savepoint) noexcept
 
   @return 0 always
 */
-static int innobase_release_savepoint(THD *thd, void *savepoint) noexcept
+static int innobase_release_savepoint(THD *thd, void*) noexcept
 {
   DBUG_ENTER("innobase_release_savepoint");
-  trx_t *trx= check_trx_exists(thd);
-  ut_ad(trx->mysql_thd == thd);
-  if (trx->fts_trx)
-    fts_savepoint_release(trx, savepoint);
+  ut_ad(check_trx_exists(thd)->mysql_thd == thd);
   DBUG_RETURN(0);
 }
 
@@ -4712,8 +4706,6 @@ static bool end_of_statement(trx_t *trx) noexcept
   ut_d(const trx_state_t trx_state{trx->state});
   ut_ad(trx_state == TRX_STATE_ACTIVE || trx_state == TRX_STATE_NOT_STARTED);
 
-  if (trx->fts_trx)
-    fts_savepoint_laststmt_refresh(trx);
   if (trx->is_bulk_insert())
   {
     /* Allow a subsequent INSERT into an empty table
@@ -4911,11 +4903,6 @@ innobase_rollback(
       ut_a(trx_state == TRX_STATE_ACTIVE);
       ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
       error= trx->rollback(&trx->last_stmt_start);
-      if (trx->fts_trx)
-      {
-        fts_savepoint_rollback_last_stmt(trx);
-        fts_savepoint_laststmt_refresh(trx);
-      }
       trx->last_stmt_start= trx->undo_no;
       trx->end_bulk_insert();
     }
@@ -5087,11 +5074,6 @@ innobase_rollback_to_savepoint(
 
   dberr_t error= trx->rollback(savept);
   /* Store the position for rolling back the next SQL statement */
-  if (trx->fts_trx)
-  {
-    fts_savepoint_laststmt_refresh(trx);
-    fts_savepoint_rollback(trx, savept);
-  }
   trx->last_stmt_start= trx->undo_no;
   trx->end_bulk_insert();
   DBUG_RETURN(convert_error_code_to_mysql(error, 0, nullptr));
@@ -6404,7 +6386,7 @@ ha_innobase::clone(
 		DBUG_ASSERT(new_handler->m_prebuilt != NULL);
 
 		new_handler->m_prebuilt->select_lock_type
-			= m_prebuilt->select_lock_type;
+			= m_prebuilt->real_lock_mode();
 	}
 
 	DBUG_RETURN(new_handler);
@@ -7668,7 +7650,8 @@ ha_innobase::build_template(
 		/* We always retrieve the whole clustered index record if we
 		use exclusive row level locks, for example, if the read is
 		done in an UPDATE statement or if we are using a no rollback
-                table */
+		table. LOCK_X_BY_TABLE (see	extra_opt()) is deliberately not
+		matched here */
 
 		whole_row = true;
 	} else if (!whole_row) {
@@ -16793,9 +16776,32 @@ int ha_innobase::extra_opt(enum ha_extra_function operation, ulong arg)
   switch (operation)
   {
     case HA_EXTRA_FULL_SCAN:
-      if (THDVAR(ha_thd(), table_lock_on_full_scan) &&
-          !m_prebuilt->skip_locked && arg == ULONG_MAX)
-        m_prebuilt->full_table_scan = true;
+      if (arg == ULONG_MAX && !m_prebuilt->skip_locked &&
+          THDVAR(m_user_thd, table_lock_on_full_scan))
+      {
+        m_prebuilt->full_table_scan= true;
+        /* Allow a covering index scan to be considered for a LOCK_X
+        read in a SELECT statement. Otherwise a LOCK_X read always
+        reads the whole clustered index record (see
+        ha_innobase::build_template()): UPDATE and DELETE need it to
+        write the row, and a locking read through a secondary index
+        must lock the clustered index record to lock the row against
+        access through any other index.
+
+        With innodb_snapshot_isolation and a read view already open
+        (e.g. inside a START TRANSACTION WITH CONSISTENT SNAPSHOT, or
+        an earlier consistent read in a REPEATABLE READ transaction),
+        it needs to check if there is a committed change the
+        transaction never saw. To that end it needs the record's
+        trx_id which is only available from clustered records, see
+        lock_clust_rec_read_check_and_lock. In such a case we need to
+        disable the optimization. */
+        if (m_prebuilt->select_lock_type == LOCK_X &&
+            thd_sql_command(ha_thd()) == SQLCOM_SELECT &&
+            !(m_prebuilt->trx->snapshot_isolation &&
+              m_prebuilt->trx->read_view.is_open()))
+          m_prebuilt->select_lock_type= LOCK_X_BY_TABLE;
+      }
       return 0;
     default:/* Do nothing */
       ;
@@ -16824,6 +16830,7 @@ ha_innobase::reset()
 
 	m_prebuilt->skip_locked = false;
 	m_prebuilt->full_table_scan = false;
+	m_prebuilt->select_lock_type = m_prebuilt->real_lock_mode();
 	return(0);
 }
 

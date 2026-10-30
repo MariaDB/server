@@ -12413,9 +12413,25 @@ ER_PARTITION_INTERVAL_MAXVALUE
 ER_RANGE_INTERVAL_PART_FAILED
         eng "Range partition table %`s.%`s: adding INTERVAL partition(s) failed"
 ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED
-        eng "Failed to parse saved optimizer context: %s at offset %d."
-ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED
-        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in %s"
+        eng "Failed to parse saved optimizer context: %s at offset %lld."
+ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in the list of table contexts"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: %s no existe en la lista de contextos de tabla"
+ER_JSON_OPTIMIZER_REPLAY_INDEX_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in the list of index contexts"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: %s no existe en la lista de contextos de índice"
+ER_JSON_OPTIMIZER_REPLAY_RANGE_CONTEXT_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s doesn't exist in the list of range contexts"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: %s no existe en la lista de contextos de rango"
+ER_JSON_OPTIMIZER_REPLAY_COST_INDEX_READ_CALLS_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s with key_number %u, records %llu, eq_ref %d doesn't exist in cost_for_index_read_calls"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: %s con key_number %u, records %llu, eq_ref %d no existe en cost_for_index_read_calls"
+ER_JSON_OPTIMIZER_REPLAY_REC_RANGE_CALLS_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: %s with key_number %u, min_key %s, max_key %s doesn't exist in records_in_range_calls"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: %s con key_number %u, min_key %s, max_key %s no existe en records_in_range_calls"
+ER_JSON_OPTIMIZER_REPLAY_RANGES_MATCH_FAILED
+        eng "Failed to match the stats from replay context with the optimizer stats: given ranges %s doesn't exist in the list of ranges for table name %s, and index name %s"
+        spa "No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: Los rangos especificados %s no existen en la lista de rangos para el nombre de tabla %s y el nombre de índice %s"
 ER_DDL_ILLEGAL_FK 42000
         eng "Cannot %s a table referenced in a foreign key constraint (%.192s)"
         spa "No puedo %s una tabla referenciada en una restricción de clave foránea (%.192s)"

@@ -1871,6 +1871,8 @@ size_t SWAP::MoffJson(PJSON jsp) {
   return res;
 } // end of MoffJson
 
+static inline void ResetVptr(PJSON jp) { *(void**)jp= 0; }
+
 /***********************************************************************/
 /* Replace all array pointers by offsets.                              */
 /***********************************************************************/
@@ -1885,6 +1887,7 @@ size_t SWAP::MoffArray(PJAR jarp)
     jarp->Last = (PJVAL)MakeOff(Base, jarp->Last);
   } // endif First
 
+  ResetVptr(jarp);
   return MakeOff(Base, jarp);
 } // end of MoffArray
 
@@ -1897,6 +1900,7 @@ size_t SWAP::MoffObject(PJOB jobp) {
     jobp->Last = (PJPR)MakeOff(Base, jobp->Last);
   } // endif First
 
+  ResetVptr(jobp);
   return MakeOff(Base, jobp);
 } // end of MoffObject
 
@@ -1933,6 +1937,7 @@ size_t SWAP::MoffJValue(PJVAL jvp) {
   if (jvp->Next)
     jvp->Next = (PJVAL)MoffJValue(jvp->Next);
 
+  ResetVptr(jvp);
   return MakeOff(Base, jvp);
 } // end of MoffJValue
 
