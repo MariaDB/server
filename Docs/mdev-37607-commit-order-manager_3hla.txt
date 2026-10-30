@@ -1,0 +1,655 @@
+MDEV-37607: WSREP Binlog Transaction Coordinator
+================================================
+
+5. HIGH-LEVEL ARCHITECTURE
+==========================
+
+This section shows the new design in one diagram and then walks through it. Nothing here needs
+knowledge of the code: read the diagram, then the numbered steps under it.
+
+5.1 Architecture diagram
+------------------------
+
+There are two programs involved. The Galera library knows the order of the write sets (it certifies
+them). The server executes the commits. In the new design the library only tells the server the
+order, and the server does all the waiting. The new part in the server is the Commit_order_manager.
+
+  GALERA LIBRARY (knows the order)                    SERVER (does the commits)
+ +-------------------------------+                  +----------------------------------------+
+ |                               |                  |                                        |
+ |  (1) certification            |   (2) register   |  COMMIT_ORDER_MANAGER                  |
+ |      gives every write set    |   ticket(seqno)  |   +----------------------------------+ |
+ |      a number, the seqno,     |----------------->|   | list of tickets in seqno order   | |
+ |      one after the other      |                  |   |   T8 -> T9 -> T10 -> T11         | |
+ |                               |   (3) wait(T)    |   |   (who is next, who has gone)    | |
+ |  (4) commit_order_enter       |----------------->|   +----------------------------------+ |
+ |      "may I commit now?"      |                  |   +----------------------------------+ |
+ |                               |<-----------------|   | TRACKER: "everything up to N     | |
+ |  (5) apply monitor            |  (6) answer: go  |   |   has finished" (derived from    | |
+ |      lets independent write   |                  |   |   the oldest ticket in the list) | |
+ |      sets RUN in parallel     |                  |   +----------------------------------+ |
+ |                               |                  |            ^                 ^         |
+ +-------------------------------+                  |            | release         | release |
+                                                    |   (7) binlog group commit    |         |
+                                                    |       (log.cc): writes the   |         |
+                                                    |       binlog for many commits|         |
+                                                    |   (8) engine commit stage ---+         |
+                                                    |       (no binlog case)                 |
+                                                    +----------------------------------------+
+
+5.2 How to read it
+------------------
+
++-------------------------+-----------------------------------+------------------------------------+
+| Mark                    | What it is                        | Why it is there                    |
++=========================+===================================+====================================+
+| (1) certification       | The library gives each write set  | This is the one thing only the     |
+|                         | its place in the total order (the | library knows                      |
+|                         | seqno)                            |                                    |
++-------------------------+-----------------------------------+------------------------------------+
+| (2) register ticket     | The library tells the server      | The server needs to know the order |
+|                         | "write set N exists, it comes     | before the commit starts, and in   |
+|                         | after N-1". The server creates a  | the right sequence                 |
+|                         | ticket for it                     |                                    |
++-------------------------+-----------------------------------+------------------------------------+
+| (3) wait                | When a transaction wants to       | This replaces the old waiting      |
+|                         | commit, it asks the server "may I | inside the library's commit        |
+|                         | go?". The server makes it sleep   | monitor                            |
+|                         | until the ticket before it is     |                                    |
+|                         | ordered                           |                                    |
++-------------------------+-----------------------------------+------------------------------------+
+| (4) commit_order_enter  | The library function that the     | It is the place where the library  |
+|                         | server calls just before a commit | forwards the question to (3)       |
++-------------------------+-----------------------------------+------------------------------------+
+| (5) apply monitor       | Part of the library that runs     | Speed: only the commit is ordered, |
+|                         | independent write sets in         | the apply is not                   |
+|                         | parallel                          |                                    |
++-------------------------+-----------------------------------+------------------------------------+
+| (6) answer: go          | The server wakes the transaction  |                                    |
+|                         | when its turn has come            |                                    |
++-------------------------+-----------------------------------+------------------------------------+
+| (7) binlog group commit | The server writes the binlog for  | Releasing the turn here, and not   |
+|                         | several commits at once           | later, lets later commits join the |
+|                         |                                   | same write                         |
++-------------------------+-----------------------------------+------------------------------------+
+| (8) engine commit stage | The place where the turn is       | There is no group commit to do it, |
+|                         | released if there is no binlog    | so the engine commit does it       |
++-------------------------+-----------------------------------+------------------------------------+
+| Tracker                 | A number: "everything up to seqno | DDL, views and state transfer must |
+|                         | N has finished"                   | wait for exactly that              |
++-------------------------+-----------------------------------+------------------------------------+
+
+5.3 One commit through the diagram
+----------------------------------
+
+1. The library certifies the write set and numbers it, say 10 (1).
+2. It registers ticket T10 with the server. T9 and T11 are registered by the same rule, one after
+   the other (2).
+3. The transaction commits. The library function (4) asks the server to wait (3).
+4. T9 is not ordered yet, so T10 sleeps. Meanwhile other write sets may still be applying in
+   parallel (5).
+5. T9 reaches the binlog group commit queue (7) and is released. The server wakes T10 (6).
+6. T10 enters the queue, is released in the same way, and wakes T11.
+7. After the commit has finished, T10 is removed from the list. The tracker moves up: everything up
+   to 10 has finished.
+
+5.4 Ticket life cycle
+---------------------
+
+A ticket is the server's note for one seqno. It goes through a fixed number of states.
+
+ REGISTERED ------> WAITING ------> BOUND ------> ORDERED ------> REMOVED
+   created           the commit      the thread     the commit has    the commit has
+   by the library    waits until     owns the       reached its       finished; the
+   at certification  the ticket      ticket         place in the      ticket is
+   in seqno order    before is                      group commit      deleted and the
+                     ordered                        queue             tracker moves up
+
++------------+---------------------------+----------------------------+----------------------------+
+| State      | Entered by                | What it means              | What the other tickets see |
++============+===========================+============================+============================+
+| REGISTERED | the library, at           | The write set has a place  | It is in the list, not yet |
+|            | certification             | in the order               | ordered                    |
++------------+---------------------------+----------------------------+----------------------------+
+| WAITING    | the committing thread     | The thread sleeps until    | Nothing yet                |
+|            |                           | the ticket before is       |                            |
+|            |                           | ordered                    |                            |
++------------+---------------------------+----------------------------+----------------------------+
+| BOUND      | bind, after the wait      | The thread now owns the    | Nothing yet                |
+|            |                           | ticket                     |                            |
++------------+---------------------------+----------------------------+----------------------------+
+| ORDERED    | the release point (queue  | The commit's place in the  | The next ticket may stop   |
+|            | entry, or the ordered     | queue is fixed             | waiting                    |
+|            | commit stage)             |                            |                            |
++------------+---------------------------+----------------------------+----------------------------+
+| REMOVED    | after the commit finishes | The commit is done         | The tracker may move up    |
++------------+---------------------------+----------------------------+----------------------------+
+
+Why the difference between ordered and removed matters:
+- If the next commit had to wait until this one had fully finished, commits could not share a binlog
+  write. Handing the turn on at queue entry (ordered) keeps group commit batching. In the code this
+  step is release() / mark_ordered (or release_after_commit without a binlog).
+- A DDL statement (and a view, and a state transfer) cannot start when the earlier commit is only
+  ordered, because that commit may still be writing. It has to wait until the commit is removed
+  (unregister_ticket). That is why the tracker follows "removed", not "ordered".
+
+Example: two commits, a DDL statement and a commit. T8 and T9 are commits, T10 is a DDL (isolated
+statement), T11 is a commit:
+
+ time ->      t1        t2          t3         t4         t5            t6        t7
+ T8 (commit)  ORDERED   (writing)   REMOVED
+ T9 (commit)  WAITING   ORDERED     (writing)  REMOVED
+ T10 (DDL)    WAITING   WAITING     WAITING    STARTS     runs the      REMOVED
+              for pos 9                        (pos 9)    statement
+ T11 (commit) WAITING   WAITING     WAITING    WAITING    WAITING       ORDERED   (writing)
+ tracker      7         7           8          9          9             10        10
+
+- t1 to t3, ordinary commits. Each commit waits only for the ticket before it, so a commit never
+  waits for tickets behind it, and one step wakes exactly one thread. T9 goes at t2, as soon as T8
+  is ordered, long before T8 is removed (t3). That is what lets T8 and T9 share one binlog write.
+- t2, ordered is not enough for the DDL. T9 is ordered, so an ordinary commit behind it would be
+  allowed to go. T10 is not, because it waits for the tracker (everything up to seqno 9 finished),
+  and T9 is still writing.
+- t4, removed lets the DDL start. T9 is removed, the tracker moves to 9 and the DDL starts.
+- t5, the DDL holds its ticket. While the statement runs its ticket stays, because the statement is
+  not finished, so T11 keeps waiting behind it.
+- t6, the DDL ends. Its ticket is removed, the tracker moves to 10 and T11 may go. This is the same
+  "removed" step as for T8 and T9, now for a statement that took a long time.
+
+Special paths, because not every write set commits
+
+The list of tickets must have one entry for every seqno, in order, with no gap. But a seqno does not
+always end in a commit: the write set may fail certification, the transaction may be rolled back, it
+may be a DDL that runs for minutes, or it may never be applied at all. Each of these still has a
+ticket (or a counted place), because the tickets after it are waiting in line behind it. If such a
+ticket stayed in the list, every later commit would wait for ever. So each case needs its own way
+out.
+
+ normal commit:      REGISTERED -> WAITING -> BOUND -> ORDERED -> REMOVED
+ rollback / failed certification (never waits):
+                     REGISTERED -----------------------------------> release_ticket
+ isolated statement (DDL):
+                     REGISTERED -> (no wait) -> statement runs -> release_ticket at its end
+ never applied:      SKIPPED (no ticket object)
+
+Path A: a write set that does not commit (rollback, failed certification)
+
+Why it has a ticket. Its seqno is part of the order. Certification gives a failed write set a seqno
+too, and the transactions after it are already in line. Its ticket has the kind DUMMY: it never
+writes anything, but it holds the place until it leaves.
+
+How it leaves. It never goes through WAITING, BOUND or ORDERED. It is removed by release_ticket, and
+that call first waits for the earlier commits to finish, then removes the ticket.
+
+Why it waits first. If the ticket were removed at once, the tickets behind it would see "the one
+before me is gone" and start while an earlier commit (before the dummy) is still unfinished. The
+order would break. Waiting first keeps the dummy in its place until everything before it has
+finished.
+
+ time ->        t1                  t2                  t3
+ T9 (commit)    commit              ORDERED             REMOVED
+ T10 (rolled    release_ticket      still waiting       REMOVED      <- only after T9 finished
+   back)        called, waits for   (T9 not finished)
+                T9 to finish
+ T11 (commit)   WAITING             WAITING             ORDERED      <- T10 is gone, T9 is done
+
+Path B: an isolated statement (DDL, non-blocking operation)
+
+Why it is different. It does not commit like a transaction. It runs a statement that must be alone:
+nothing before it may still be committing, and nothing after it may commit until it ends.
+
+How it works. Its ticket (kind ISOLATED, or NBO) is registered at certification like any other. It
+does not go through the group commit wait. Instead it waits for the tracker: "everything up to
+seqno-1 has finished". Then the statement runs, and the ticket stays in the list the whole time.
+This is what holds back the tickets behind it. At the end of the statement the ticket is removed
+(release_ticket), and the next commit may go (the example in 5.4 above shows the timeline).
+
+Path C: a write set that is never applied (SKIPPED)
+
+A fragment of a streaming transaction can be aborted before it was certified. It is queued and
+certified later, in its correct place in the order, but it is never applied. The order still has to
+count its seqno, or the tracker would stop at the gap.
+
+What happens. The server records "this seqno is covered" and moves the highest registered seqno
+forward. It creates no ticket object, so there is nothing to wait for and nothing to remove.
+
+Why no ticket object is needed. A ticket exists so that something can wait on a seqno or hold its
+place: a thread sleeps on it, a commit follows it, or a statement keeps it for a long time. A
+SKIPPED write set has none of these. It is never applied, no thread commits it, and no thread will
+ever wait for it. The only thing the server must know is that the seqno is covered, and that is a
+number: the highest registered seqno moves forward. The tracker needs no entry either. Its position
+is the oldest live ticket minus one, so while earlier tickets are still live the position stays
+below the skipped seqno, and when they are removed it passes the skipped seqno on its own. An object
+would also have no natural owner: no commit path ever runs for this write set, so nothing would
+remove it.
+
+Path D: aborted and replayed
+
+A transaction that is already certified can be aborted by a higher priority transaction (a brute
+force abort) while its commit is waiting. If it was a committing transaction it is replayed, and it
+must keep its place in the order.
+
+What happens. The wait is interrupted and returns an error, but the ticket is not removed. It stays
+registered and unbound. The replay waits again on the same ticket, binds it, commits, and the ticket
+is removed as in a normal commit. This is why the wait leaves the ticket unbound.
+
+ T10 WAITING --(abort)--> wait fails, ticket T10 stays in the list
+   replay:  WAITING (same ticket) -> BOUND -> ORDERED -> REMOVED
+
+Path E: node failure
+
+What "node failure" means here. The library decides this node can no longer be trusted to commit in
+the cluster order. It happens when:
+- an apply error is voted inconsistent with the group, or the group reports an inconsistency;
+- applying write sets during IST fails;
+- a commit has been stuck for max_commit_order_wait_time and the library marks the node
+  inconsistent.
+
+The library then marks the node corrupt and starts to shut it down.
+
+The problem. Commits are in a line, and each one waits for the one before. If a commit in the middle
+can never finish (its thread failed, or the node is closing), every ticket behind it sleeps for
+ever, and the shutdown itself hangs, because the threads never wake up.
+
+What happens. The library calls interrupt_all(error) on the server. The manager records a sticky
+error and wakes every sleeper (commits waiting for their turn, statements waiting for the position),
+and each of them gets the error instead of "go". From then on a wait that would have to sleep fails
+at once, while a wait that is already satisfied still succeeds. Each thread then leaves through its
+normal exit and removes its own ticket, with a safety net for any that are left. The node closes,
+and the next connection starts clean.
+
+ before the failure:   T9 stuck ... T10 waiting ... T11 waiting ... DDL waiting
+ library:              mark node corrupt -> interrupt_all(error)
+ manager:              sticky error set; every sleeper is woken with the error
+ after:                T10, T11, DDL return the error and remove their tickets
+                       later arrivals that would sleep fail at once
+                       a wait that was already satisfied still succeeds
+                       the node closes; the next connection resets the error
+
+What is not interrupted. A commit that is already ordered is not aborted: it finishes, or ends
+together with the node. Only waits are interrupted.
+
+Why a normal shutdown does not do this. On a normal shutdown the commits ahead of the waiters do
+finish, so the waits end on their own. Failing them would turn a clean shutdown into errors. The
+interrupt is used only on the paths that already end in a failure.
+
+Rule. Every ticket must leave by one of these paths, exactly once. A ticket that stays blocks every
+later commit. The requirements for each path are FR-2, FR-5, FR-7, FR-9, FR-11, FR-13, FR-14 and
+FR-15.
+
+6. DETAILED DESIGN
+==================
+
+6.1 Interfaces
+--------------
+
+Purpose. Library and server are two programs that must agree on a small set of calls, and the server
+must not know which provider it talks to.
+
+ Galera library --(service v1 callbacks)--> Commit_order_manager --(adapter)--> wsrep hooks
+                                                   ^
+                                    binlog group commit, engine commit stage
+
+Service (callbacks the library gets; the header is identical in both repositories):
+
++--------------------------------------+-------------------+---------------------------------------+
+| Call                                 | Direction         | Purpose                               |
++======================================+===================+=======================================+
+| register_ticket(seqno, kind)         | library to server | One ticket per certified seqno, in    |
+|                                      |                   | order, does not block                 |
++--------------------------------------+-------------------+---------------------------------------+
+| wait(ticket, seqno)                  | library to server | Wait until the ticket before is       |
+|                                      |                   | ordered; the ticket stays unbound     |
++--------------------------------------+-------------------+---------------------------------------+
+| bind(ticket, seqno)                  | library to server | The committing thread takes the       |
+|                                      |                   | ticket                                |
++--------------------------------------+-------------------+---------------------------------------+
+| wait_committed(seqno)                | library to server | Wait until everything up to seqno has |
+|                                      |                   | finished                              |
++--------------------------------------+-------------------+---------------------------------------+
+| abort_waiter(seqno),                 | library to server | BF abort of a waiter; node failure    |
+| interrupt_all(error)                 |                   |                                       |
++--------------------------------------+-------------------+---------------------------------------+
+| claim(ticket),                       | library to server | A thread takes over a ticket; release |
+| release_ticket(ticket)               |                   | a ticket that never waited            |
++--------------------------------------+-------------------+---------------------------------------+
+| stuck(seqno)                         | server to library | The order is stuck behind this seqno  |
++--------------------------------------+-------------------+---------------------------------------+
+
+Adapter (Commit_order_provider, one implementation): applies(thd, all) (is this commit ordered by
+the provider), leave(thd, all) (the provider's own release step, non-zero on failure),
+registers_tickets() (does the provider register, or the server).
+
+Manager API by job: register (register_ticket, register_provider_ticket, bind_ticket, claim_ticket);
+wait (wait_ordered, wait_committed); release (release, mark_ordered, release_after_commit,
+unregister_ticket, release_provider_ticket); position (committed_position, set_initial_position,
+reset); abort and failure (abort_ticket_waiter, abort_waiter, interrupt_all, set_stuck_handler).
+
+The service is mandatory. At start the server offers it to the library
+(wsrep_commit_order_service_init), and if the library does not provide it the server does not start.
+The library's connect (galera_connect) fails when the service is not available
+(CommitOrderService::get() returns NULL). The debug hook wsrep_no_commit_order_service makes the
+initialization fail, so a test can check this.
+
+6.2 The ticket
+--------------
+
+Purpose. The server's chain (wait_for_commit) orders the group commit and the engine commit, but it
+cannot tell whether the previous commit has reached the queue, and it does not know seqnos. The
+ticket adds that.
+
+ (1) wait_for_commit chain                    (2) seqno list
+     orders the ENGINE commit                     orders the QUEUE ENTRY, gives the bound
+
+   T5 <- T6 <- T7 <- T8                    ticket_head -> T5 <-> T6 <-> T7 <-> T8 <- ticket_tail
+   m_tail points to T8                     ordered:         yes    no     no     no
+   woken by wakeup_subsequent_commits      woken by the ticket's own condition
+
+ Provider_ticket
+ +-------------------------------------------------------------+
+ | wait_for_commit (base)    the chain link                    |
+ | seqno, prev, next         the list link                     |
+ | ordered                   queue position fixed              |
+ | error                     set by a BF abort of the waiter   |
+ | kind                      COMMIT DUMMY ISOLATED NBO VIEW    |
+ | cond                      only the successor sleeps here    |
+ | owner, bound, times       diagnostics for the blocker report|
+ +-------------------------------------------------------------+
+
+The flag Provider_ticket::ordered marks the queue position of the commit as fixed. The next ticket
+waits for it.
+
+Ticket kinds: the kind of a ticket says what the ticket is for and when it is released.
+
++----------+-------------------------------------------+-------------------------------------------+
+| Kind     | For                                       | Released                                  |
++==========+===========================================+===========================================+
+| COMMIT   | a commit, a fragment, a replay            | after the commit                          |
++----------+-------------------------------------------+-------------------------------------------+
+| DUMMY    | a write set that is not committed (failed | on its own exit path                      |
+|          | certification, rollback fragment)         |                                           |
++----------+-------------------------------------------+-------------------------------------------+
+| ISOLATED | an isolated statement (DDL)               | when the statement ends                   |
++----------+-------------------------------------------+-------------------------------------------+
+| NBO      | start or end of a non-blocking operation  | when it ends                              |
++----------+-------------------------------------------+-------------------------------------------+
+| VIEW     | a membership change that takes a seqno    | after the view is submitted               |
++----------+-------------------------------------------+-------------------------------------------+
+| SKIPPED  | a write set never applied (a queued       | no ticket object: only registered_max     |
+|          | aborted fragment)                         | moves                                     |
++----------+-------------------------------------------+-------------------------------------------+
+
+6.3 Registration in seqno order
+-------------------------------
+
+Purpose. The chain orders commits correctly only if its tickets are in seqno order. The old commit
+monitor guaranteed this. Without it, the library registers each ticket itself, in seqno order, right
+after certification.
+
+Where tickets are registered. Every certified seqno is registered by the library function that
+certifies it:
+
++--------------------------------+--------------------------------+--------------------------------+
+| Case                           | Registered in                  | Kind                           |
++================================+================================+================================+
+| Local transaction at commit    | certify → finish_cert          | COMMIT, or DUMMY if            |
+|                                |                                | certification fails            |
++--------------------------------+--------------------------------+--------------------------------+
+| Replay of a local transaction  | replay_trx → finish_cert       | COMMIT, or DUMMY               |
++--------------------------------+--------------------------------+--------------------------------+
+| Local DDL or non-blocking      | to_isolation_begin →           | ISOLATED, NBO, or DUMMY        |
+| operation                      | finish_cert                    |                                |
++--------------------------------+--------------------------------+--------------------------------+
+| Remote write set (applier)     | process_trx → finish_cert      | COMMIT, ISOLATED, NBO, or      |
+|                                |                                | DUMMY                          |
++--------------------------------+--------------------------------+--------------------------------+
+| Aborted fragment queued before | process_pending_queue          | SKIPPED (no ticket object)     |
+| certification                  |                                |                                |
++--------------------------------+--------------------------------+--------------------------------+
+| IST write set                  | handle_ist_trx                 | COMMIT, or DUMMY               |
++--------------------------------+--------------------------------+--------------------------------+
+| IST non-blocking operation     | handle_ist_nbo                 | NBO, or DUMMY                  |
++--------------------------------+--------------------------------+--------------------------------+
+| IST view                       | process_ist_conf_change        | VIEW                           |
++--------------------------------+--------------------------------+--------------------------------+
+| Live view                      | finish_local_prim_conf_change  | VIEW                           |
++--------------------------------+--------------------------------+--------------------------------+
+
+- The first four rows all run finish_cert under the local monitor, which certifies in seqno order.
+  The helper register_commit_order_ticket picks the kind from the write set.
+- The IST rows run on the IST receiver, which is one thread, so the stream order is kept.
+- A view takes its ticket after the drain of the apply monitor.
+
+Rules (requirement: FR-20):
+- Every certified seqno has a ticket or a SKIPPED entry, with no gap.
+- A write set that fails certification gets a DUMMY ticket.
+- A queued aborted fragment gets a SKIPPED entry, not a ticket: it is never applied, so no thread
+  would wait for it or remove it.
+- All kinds register together. Registering only some early would put the chain out of seqno order.
+
+6.4 Waiting and binding
+-----------------------
+
+Purpose. A commit must not enter the group commit queue before the one before it. The old monitor
+held the thread inside the library. Now the library only forwards the call, and the waiting, the
+ticket and the wake-up are all server code in the Commit_order_manager.
+
+ wsrep-lib               GALERA LIBRARY (thin)        SERVER (Commit_order_manager)
+ ---------               ---------------------        -----------------------------
+ commit_order_enter ---> commit_order_enter_local
+                           wait(ticket) ------------>  wait_ordered:
+                                                         ticket.prev ordered?  no -> sleep on ticket.cond
+                                                                               yes -> return
+                           <------------------------- (woken by mark_ordered of the ticket before)
+                           bind(ticket) ------------>  bind_ticket:
+                                                         thd->wsrep_ticket = ticket
+                                                         thd->wait_for_commit_ptr = ticket
+ <-- returns, commit goes on
+
+The library part is a forward only: it decides nothing and holds no lock. The order, the wait and
+the ticket state are all in the server.
+
+- wait leaves the ticket unbound on purpose: a transaction that is aborted and replayed keeps its
+  ticket and its place.
+- A satisfied wait succeeds, also after a node failure. A wait that would block fails once the
+  sticky error is set.
+- Each ticket has its own condition, so a release wakes one thread.
+
+6.5 Release points
+------------------
+
+Purpose. "Release" means: the next commit may go. Where that happens decides whether group commit
+can still batch. The release stays at the same place as before: with a binlog, right after the
+commit is added to the group commit queue; without a binlog, right after the engine's ordered commit
+step. Only the call changes: instead of leaving the library commit monitor, the server marks the
+ticket ordered and wakes the next ticket (without a binlog, also the waiters in the server's commit
+chain).
+
+ BINLOG ON                                      BINLOG OFF
+ queue_for_group_commit                         engine commit stage
+   LOCK_prepare_ordered held                      wsrep_commit_ordered:
+   queue position fixed                             ordered_commit()  (provider leave)
+   release(): provider leave                        release_after_commit(): ticket ordered,
+              mark_ordered -> wake successor                                wake successor
+ leader: wait_for_prior_commit                  one-phase commit: wait_for_prior_commit
+         (group leaders ordered)                engine commit
+ leader writes the group, engine commit
+ wsrep_after_commit: unregister_ticket          wsrep_after_commit: unregister_ticket
+
+The entry of one commit in binlog group commit (group_commit_entry) carries two fields, set when the
+commit is added to the queue. The terms are in Terminology (section 4):
+
+ group commit entry:  ordered       the order was released in the queue
+                      order_failed  the release failed (successors are woken with the error)
+
+- Releasing at queue entry keeps batching: the successor can join the queue while the leader writes.
+- Without a binlog the ticket is released at the ordered commit stage, so the successor does not
+  wait for the rest of the commit hooks.
+- mark_ordered runs even if leave failed, so successors are never stalled.
+
+6.6 The tracker (committed position)
+------------------------------------
+
+Purpose. Several jobs need to know that everything up to seqno N has finished: DDL (it must not
+start earlier), views, state transfer and resync. The old monitor knew it through last_left. The
+server can derive it from the tickets.
+
+ bound = oldest live ticket - 1        (registered_max if the list is empty)
+ committed_bound = max(bound, initial_position)       published as an atomic
+
+ list:  T11  T12  T13        registered_max = 13
+ bound = 10                  everything up to 10 has finished
+ T11 unregisters -> list T12 T13 -> bound 11 -> wait_committed(<= 11) wakes
+
+- wait_committed(seqno): if seqno <= committed_published it returns after one atomic read, with no
+  lock. Otherwise it sleeps on one shared condition in one second slices, broadcast only if a waiter
+  exists. It returns 0, the sticky error, or a timeout.
+- Because the bound comes from the list, every seqno must have a ticket or a SKIPPED entry. A
+  wait_committed on a seqno above registered_max is "not reached".
+- The position is reset at the start of each connection and moves up only when a ticket is removed;
+  a debug assertion checks it never goes down.
+
+6.7 Isolated statements, non-blocking operations, views, state transfer
+-----------------------------------------------------------------------
+
+Purpose. These were the monitor's other jobs: it made DDL wait for all earlier commits, made views
+fall between two commits, and let a joining node drain. Each needs its replacement in the server.
+
+ DDL (isolated statement)
+   certify -> ticket ISOLATED
+   wait_committed(seqno - 1)        everything before has finished (tracker)
+   apply monitor enter              (server_waits_: the monitor does not wait again)
+   statement runs                   ticket is NOT released: later commits wait behind it
+   release_ticket                   at the end of the statement
+
++---------------------------------+----------------------------------------------------------------+
+| Case                            | Ordering                                                       |
++=================================+================================================================+
+| Local and remote DDL            | As above. A failed certification (dummy) still takes its turn  |
++---------------------------------+----------------------------------------------------------------+
+| Non-blocking operation          | The start is an isolated statement. The end write set has an   |
+|                                 | NBO ticket and the same wait                                   |
++---------------------------------+----------------------------------------------------------------+
+| Live view                       | Drain the apply monitor (apply_monitor_.drain), register a     |
+|                                 | VIEW ticket, submit the view, cancel the seqno in the apply    |
+|                                 | monitor, release the ticket (ViewTicket::release, on every     |
+|                                 | exit)                                                          |
++---------------------------------+----------------------------------------------------------------+
+| IST write set                   | The receiver registers the ticket in stream order; the         |
+|                                 | appliers use the normal path                                   |
++---------------------------------+----------------------------------------------------------------+
+| IST view                        | The receiver enters the apply monitor and registers a VIEW     |
+|                                 | ticket; the applier claims it, submits the view, releases it,  |
+|                                 | leaves the monitor                                             |
++---------------------------------+----------------------------------------------------------------+
+| SST, donor, join, resync, pause | Use the apply monitor and last_committed(); the apply monitor  |
+|                                 | is held until the commit ends                                  |
++---------------------------------+----------------------------------------------------------------+
+
+Why these jobs do not need Galera's commit monitor, which this design removes: they only need to
+know that everything up to a seqno has finished. Galera's apply monitor, which stays, already tells
+this. A thread leaves it only after its commit is over, so its last_left (the highest seqno that has
+left it), read as last_committed(), means "finished".
+
+6.8 Abort, failure and stuck commits
+------------------------------------
+
+Purpose. A waiting commit can be aborted by a higher priority transaction, the node can fail, or a
+commit can simply never end. All three must wake the waiters, and the last one must be noticed.
+
+ BF abort of a waiting commit            node failure                          stuck commit
+ ----------------------------            ------------                          ------------
+ abort_waiter(seqno)                     interrupt_all(error)                  waiter's 1 s slices:
+   ticket blocked?                         sticky_error = error                  report timeout, then again:
+     yes: ticket.error, signal               broadcast shared condition             report the blocker
+          wait returns error                 signal every ticket                 idle >= max_commit_order_wait_time:
+   no: NOT_ALLOWED for a commit,             wake chain waiters through            log error, escalate once
+       abort for a non-final fragment          their waitee                          library handler: node inconsistent
+                                           later waits that would block fail       no handler: interrupt_all + abort
+ (the report repeats every max_commit_order_report_time seconds; 0 turns the reports off)
+
+- A failed wait is handled like a BF abort: replay for a commit fragment, rollback otherwise; the
+  ticket stays with the write set.
+- Waking through the waitee is required: waking a ticket directly leaves a dangling entry in the
+  waitee's list once the ticket is deleted.
+- Escalation never skips a ticket: a later commit passing a ticket that neither ended nor failed
+  could write the engine position out of order.
+- The blocker report names seqno, kind, state, owner thread and age. Isolated statements, views and
+  non-blocking operations are expected to be long: they are reported at info level and never
+  escalated.
+- A commit that is already marked ordered (Provider_ticket::ordered) cannot be aborted: the abort is
+  refused (WSREP_NOT_ALLOWED). A non-final fragment can be aborted at any time (the transaction
+  state S_MUST_ABORT).
+- The blocker report is written by report_blocker. A blocker that is long by design (long_by_design:
+  ISOLATED, NBO or VIEW) is not escalated while a thread runs it. The latch stuck_escalated makes
+  the escalation happen once per connection.
+- The library calls interrupt_all through its function interrupt_commit_order() wherever it marks
+  the node corrupt (mark_corrupt_and_close). A normal shutdown does not.
+
+6.9 Paths that do not run the normal commit hooks
+-------------------------------------------------
+
+Purpose. A normal commit removes its ticket in the last of three hooks (wsrep_after_commit, which
+calls unregister_ticket). Three kinds of write sets have a ticket but do not go through those hooks,
+so each removes its ticket itself. Otherwise the ticket stays registered and every later commit
+waits behind it.
+
+ normal commit:  wsrep_before_commit -> wsrep_ordered_commit -> wsrep_after_commit [ticket removed]
+ special paths:  wait for the earlier commits, write the checkpoint, then unregister_ticket
+
+a. Empty CREATE TABLE ... AS SELECT on an applier. The write set is ordered but nothing is written,
+so the commit does not take the normal path. Wsrep_high_priority_service::commit runs the wsrep-lib
+commit steps by hand, which skips the server hook that removes the ticket, so it calls
+unregister_ticket itself.
+
+b. A dummy write set (log_dummy_write_set). An applier whose apply failed, or that receives a
+rollback fragment, still has a place in the order. It waits for the earlier commits, writes the
+checkpoint, removes the ticket and leaves the order.
+
+c. An ordered write set that is rolled back (set_position). A transaction that was certified and
+then rolled back still has a place in the order. The server waits until everything before it has
+finished, writes the checkpoint and removes the ticket.
+
+As a safety net, a ticket that is still registered when its session (~THD) or its write set handle
+(~TrxHandleSlave) is destroyed is removed there.
+
+The requirements for these paths are FR-15 and FR-21.
+
+6.10 Locks and threads
+----------------------
+
+Purpose. The manager is called from many threads and from inside group commit, so the lock order
+matters.
+
+ LOCK_prepare_ordered  ->  LOCK_wsrep_group_commit (manager)  ->  wait_for_commit lock
+
+- One manager mutex protects the list, the chain tail, the position and the error state. The library
+  is never called with it held (escalate_stuck runs unlocked).
+- A ticket's own condition wakes its waiter only. The shared condition wakes wait_committed waiters
+  and is broadcast only if there are any.
+- The release on the group commit path happens under LOCK_prepare_ordered, which is why the manager
+  mutex is never taken before the queue lock.
+- Threads that register, wait or release: client threads, applier threads, the IST receiver and the
+  replayer. No thread is added.
+
+7. USER INTERFACE
+=================
+
+- New global, dynamic variable max_commit_order_wait_time (seconds, 0 to LONG_TIMEOUT, default 0).
+  If the commit that other commits are waiting for makes no progress for this many seconds, the
+  commit order is treated as stuck and the node is marked inconsistent. 0 means no limit.
+- New global, dynamic variable max_commit_order_report_time (seconds, 0 to LONG_TIMEOUT, default
+  10). A blocked commit is reported after this many seconds and again every this many seconds. 0
+  turns the blocked commit report off.
+- With both set to 0 the commit order is neither limited nor reported.
+- The idle transaction timeouts and max_statement_time are not used: they
+  measure client idleness and statement run time, not whether the commit that is waited for is
+  stuck.
+- commit_oooe, commit_oool, commit_window are fixed values; replicator.commit_order is deprecated
+  and ignored.
+
+8. OBSERVABILITY
+================
+
+- The blocker report (info or warning) names seqno, kind, state, owner thread and age; a waiting
+  applier shows "Waiting for the earlier commits to finish" in the process list.
