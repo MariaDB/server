@@ -67,9 +67,40 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
 
   rli->executed_entries++;
 #ifdef WITH_WSREP
-  if (wsrep_after_statement(thd))
+  /* The hook itself rolls back a cert-failed/must-abort transaction as a
+     side effect (wsrep::transaction::after_statement() -> bf_rollback()),
+     bypassing the unmark_start_commit() that retry_event_group() does
+     first. A concurrent BF abort or certification failure can flip the
+     wsrep transaction state at any time, independently of whether the
+     apply itself (err) already reflects it, so check the wsrep state
+     directly instead of relying on err alone: skip the call entirely
+     whenever a retry is already needed, and let the retry path call the
+     hook instead. Only an otherwise-clean apply is turned into an error
+     here. */
+  enum wsrep::transaction::state wsrep_trx_state= thd->wsrep_trx().state();
+  bool wsrep_needs_retry= (wsrep_trx_state == wsrep::transaction::s_must_abort ||
+                           wsrep_trx_state == wsrep::transaction::s_cert_failed);
+  WSREP_DEBUG("rpt_handle_event: thd %lld query_id %lld err %s "
+              "wsrep_trx_state %s wsrep_needs_retry %d wsrep_err %s",
+              thd->thread_id, thd->query_id, err ? "error" : "success",
+              wsrep::to_c_string(wsrep_trx_state), wsrep_needs_retry,
+              wsrep::to_c_string(wsrep_current_error(thd)));
+  if (!err && !wsrep_needs_retry && wsrep_after_statement(thd))
   {
-    WSREP_WARN("Parallel slave failed at wsrep_after_statement() hook");
+    WSREP_INFO("Parallel slave failed at wsrep_after_statement() hook");
+    err= 1;
+  }
+  else if (!thd->is_error() &&
+          (wsrep_needs_retry ||
+           wsrep_current_error(thd) == wsrep::e_deadlock_error))
+  {
+    /* The apply/commit already failed, or is about to on the wsrep side,
+       but no MariaDB error was raised, so has_temporary_error() cannot
+       recognise this as retryable. Raise it here without calling
+       wsrep_after_statement(), which would roll back the transaction
+       itself and so run ahead of retry_event_group()'s
+       unmark_start_commit(). */
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
     err= 1;
   }
 #endif /* WITH_WSREP */
@@ -1026,13 +1057,10 @@ do_retry:
   if (WSREP(thd))
   {
     /* Exec after statement hook to make sure that the failed transaction
-     * gets cleared and reset error state. */
-    if (wsrep_after_statement(thd))
-    {
-      WSREP_WARN("Parallel slave worker failed at wsrep_after_statement() hook");
-      err= 1;
-      goto err;
-    }
+     * gets cleared and reset error state. The hook returns an error when the
+     * transaction was aborted by a deadlock, which is the reason for this
+     * retry, so the return value is ignored and the error is reset below. */
+    (void) wsrep_after_statement(thd);
     thd->wsrep_cs().reset_error();
     wsrep_start_trx_if_not_started(thd);
     WSREP_DEBUG("parallel slave retry, after trx start");

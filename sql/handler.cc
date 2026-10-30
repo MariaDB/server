@@ -2046,7 +2046,27 @@ wsrep_err:
   {
     WSREP_DEBUG("BF abort has happened after prepare & certify");
     mysql_mutex_unlock(&thd->LOCK_thd_data);
-    ha_rollback_trans(thd, TRUE);
+    /*
+      As below at err:, rollback is delayed for a parallel-replication
+      worker, since there is extra replication book-keeping to be done
+      before rolling back and allowing a conflicting transaction to
+      continue (MDEV-7458). Without this guard, a worker's commit failing
+      on this path rolls back here, ahead of that book-keeping, and hits
+      the ha_rollback_trans() assertion on mark_start_commit()/worker_error
+      (MDEV-41658).
+    */
+    bool is_parallel_worker= thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
+    WSREP_DEBUG("ha_commit_trans: wsrep_err thd %lld query_id %lld "
+                "wsrep_trx_state %s wsrep_err %s parallel_worker %d "
+                "mariadb_error %s rollback_delayed %d",
+                thd->thread_id, thd->query_id,
+                wsrep::to_c_string(thd->wsrep_trx().state()),
+                wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                is_parallel_worker,
+                thd->is_error() ? thd->get_stmt_da()->message() : "none",
+                is_parallel_worker);
+    if (!is_parallel_worker)
+      ha_rollback_trans(thd, TRUE);
   }
   else
     mysql_mutex_unlock(&thd->LOCK_thd_data);

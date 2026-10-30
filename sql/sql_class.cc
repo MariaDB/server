@@ -1976,6 +1976,22 @@ void THD::awake_no_mutex(killed_state state_to_set)
   mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
+  /*
+    A parallel-replication worker can be killed here by any of several wsrep
+    BF-abort / MDL-conflict paths (storage-engine lock-wait callbacks,
+    wsrep_abort_thd(), wsrep_handle_mdl_conflict()), none of which go through
+    slave_background_kill_request() and so never set killed_for_retry. Without
+    it, has_temporary_error()/convert_kill_to_deadlock_error() cannot
+    recognise the resulting ER_QUERY_INTERRUPTED/ER_CONNECTION_KILLED as
+    retryable, and the worker aborts the SQL thread instead of retrying the
+    event group (MDEV-41658). Mark it here, once, for every kill delivery
+    path instead of at each wsrep call site.
+  */
+  if (rgi_slave && rgi_slave->is_parallel_exec &&
+      (state_to_set == KILL_QUERY || state_to_set == KILL_QUERY_HARD ||
+       state_to_set == KILL_CONNECTION || state_to_set == KILL_CONNECTION_HARD))
+    rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
+
   print_aborted_warning(3, "KILLED");
 
   /*
