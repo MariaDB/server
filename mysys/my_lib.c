@@ -47,6 +47,10 @@
 #define READDIR(A,B,C) (!(C=readdir(A)))
 #endif
 
+#ifdef __APPLE__
+#include <sys/attr.h>
+#endif
+
 /*
   We are assuming that directory we are reading is either has less than 
   100 files and so can be read in one initial chunk or has more than 1000
@@ -381,3 +385,79 @@ error:
   }
   DBUG_RETURN((MY_STAT *) NULL);
 } /* my_stat */
+
+
+/*
+  Get the last component of a path in the letter case it is stored on a
+  case insensitive file system.
+
+  @param path     path to an existing file or directory,
+                  must not end with a directory separator
+  @param to       buffer for the result
+  @param to_size  size of the buffer
+
+  @return length of the name in 'to', or 0 if it cannot be determined
+          (e.g. the path does not exist, or the file system is case
+          sensitive)
+*/
+
+size_t my_canonical_case_name(const char *path, char *to, size_t to_size)
+{
+#ifdef _WIN32
+  struct _finddata_t find;
+  intptr_t handle;
+  if ((handle= _findfirst(path, &find)) == -1L)
+    return 0;
+  _findclose(handle);
+  return (size_t) (strmake(to, find.name, to_size - 1) - to);
+#elif defined(__APPLE__)
+  struct attrlist attr;
+  struct
+  {
+    u_int32_t size;
+    attrreference_t name;
+    /* a file name is at most NAME_MAX UTF-16 units, 3 UTF-8 bytes each */
+    char buf[NAME_MAX * 3 + 1];
+  } info;
+  bzero((char*) &attr, sizeof(attr));
+  attr.bitmapcount= ATTR_BIT_MAP_COUNT;
+  attr.commonattr= ATTR_CMN_NAME;
+  if (getattrlist(path, &attr, &info, sizeof(info), 0))
+    return 0;
+  return (size_t) (strmake(to, (char*) &info.name + info.name.attr_dataoffset,
+                           to_size - 1) - to);
+#else
+  /*
+    No known API to query the name. readlink() on /proc/self/fd/N does not
+    work either - a dentry keeps the letter case that was used in the
+    lookup, not the on-disk one. Scan the parent directory for the entry
+    of the file.
+  */
+  size_t dirlen= dirname_length(path), res= 0;
+  const char *base= path + dirlen;
+  char buf[FN_REFLEN];
+  struct stat st;
+  DIR *dirp;
+  struct dirent *dp;
+
+  if (dirlen >= sizeof(buf))
+    return 0;
+  if (lstat(path, &st))
+    return 0;                                   /* no such path */
+
+  memcpy(buf, path, dirlen);
+  buf[dirlen]= 0;
+  if (!(dirp= opendir(dirlen ? buf : ".")))
+    return 0;
+  while ((dp= readdir(dirp)))
+  {
+    if (!strcasecmp(dp->d_name, base))
+    {
+      res= (size_t) (strmake(to, dp->d_name, to_size - 1) - to);
+      break;
+    }
+  }
+  closedir(dirp);
+  return res;
+#endif
+}
