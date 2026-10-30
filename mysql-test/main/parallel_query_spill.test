@@ -128,7 +128,36 @@ SET SESSION parallel_worker_threads=4;
 --eval SELECT $ser = $par AS same_answer
 --enable_query_log
 
+# MDEV-40012: a GROUP BY too wide for an on-disk key, pre-aggregated in heap and rebuilt on disk
+CREATE TABLE t4 (a INT PRIMARY KEY, w VARCHAR(4000), n INT, d DECIMAL(10,2))
+  ENGINE=InnoDB;
+INSERT INTO t4 SELECT seq, CONCAT(REPEAT('x',600), seq % 3000), seq % 13, seq/4
+  FROM seq_1_to_20000;
+SET SESSION tmp_memory_table_size=16777216;
+SET SESSION max_heap_table_size=16777216;
+FLUSH STATUS;
+--disable_ps_protocol
+--disable_result_log
+SELECT w, COUNT(*), SUM(n), AVG(d), MIN(n), MAX(n) FROM t4 GROUP BY w;
+--enable_result_log
+--let $rs= query_get_value(SHOW SESSION STATUS LIKE 'Rows_sent', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--enable_ps_protocol
+--echo # ran in the workers, a row per group, rebuilt on disk (expect 1 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $rs = 3000 AS every_group_arrived, $dt > 0 AS rebuilt_on_disk
+--enable_query_log
+SET SESSION parallel_worker_threads=0;
+--let $ser= `SELECT SUM(CRC32(CONCAT_WS('/',w,c,s,av,mn,mx))) FROM (SELECT w, COUNT(*) c, SUM(n) s, AVG(d) av, MIN(n) mn, MAX(n) mx FROM t4 GROUP BY w) d`
+SET SESSION parallel_worker_threads=4;
+--let $par= `SELECT SUM(CRC32(CONCAT_WS('/',w,c,s,av,mn,mx))) FROM (SELECT w, COUNT(*) c, SUM(n) s, AVG(d) av, MIN(n) mn, MAX(n) mx FROM t4 GROUP BY w) d`
+--echo # the parallel answer matches the serial one (expect 1)
+--disable_query_log
+--eval SELECT $ser = $par AS same_answer
+--enable_query_log
+
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 SET SESSION parallel_worker_threads=default;
-DROP TABLE t1, t2, t3;
+DROP TABLE t1, t2, t3, t4;
