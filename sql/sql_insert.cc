@@ -2381,6 +2381,7 @@ int Write_record::write_record()
 {
   ha_rows inserted= 0, updated= 0;
   prev_insert_id= table->file->next_insert_id;
+  insert_id_for_cur_row= 0;
   info->records++;
   ignored_error= false;
   int res= 0;
