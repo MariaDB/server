@@ -38,11 +38,13 @@ SELECT a, b FROM tb WHERE a > 3;
 --source include/parallel_query_why.inc
 DROP TABLE tb;
 
---echo # a GROUP BY column too wide to be a key part
+--echo # a GROUP BY column too wide to be a key part, in a table that starts on disk
+SET SESSION tmp_memory_table_size=0;
 --disable_result_log
 SELECT w, SUM(n) FROM t1 GROUP BY w ORDER BY NULL;
 --enable_result_log
 --source include/parallel_query_why.inc
+SET SESSION tmp_memory_table_size=default;
 
 --echo # an aggregate whose partial cannot be merged
 --disable_result_log

@@ -12,9 +12,9 @@ SET SESSION parallel_worker_threads=4;
 # a driving table that cannot be scanned in parallel at all
 why
 ["tb cannot be scanned in parallel: a blob-backed column, a fulltext search, a partitioned table, a temporary table, or an engine that does not do this", "no table this plan reads can be divided"]
-# a GROUP BY column too wide to be a key part
+# a GROUP BY column too wide to be a key part, in a table that starts on disk
 why
-["grouped: the aggregation table is keyed by a unique constraint rather than by the group -- create_tmp_table() does that for a GROUP BY element too wide for a key part, and a hash of the row is not something a group can be looked up in", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
+["grouped: the aggregation table is keyed by a unique constraint rather than by the group -- create_tmp_table() does that on disk for a GROUP BY key too wide for the engine, and a hash of the row is not something a group can be looked up in", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
 # an aggregate whose partial cannot be merged
 why
 ["grouped: an aggregate whose partial cannot be merged -- only COUNT, SUM, MIN, MAX and AVG can be", "the plan needs a temporary table and the workers cannot pre-aggregate into it"]
