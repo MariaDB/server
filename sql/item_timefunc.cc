@@ -4750,9 +4750,7 @@ bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
   else
     locale= 0;
 
-  if (collation.collation->mbminlen > 1 || !locale || !locale->is_ascii ||
-      arg_count >= 3)
-    internal_charset= &my_charset_utf8mb4_general_ci;
+  internal_charset= &my_charset_utf8mb4_general_ci;
 
   set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
