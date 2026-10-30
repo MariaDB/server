@@ -13,6 +13,13 @@ call mtr.add_suppression("mariadbd.*: Can't create file .*mysql/");
 
 --disable_query_log
 call mtr.add_suppression("mariadbd.*: IO Write error:");
+if (`SELECT @@GLOBAL.innodb_encrypt_tables='ON'`) {
+# The tests encryption.backup_encrypted and encryption.backup_encrypted_debug
+# enable innodb_encrypt_tables, which causes the test to produce log records
+# several times of innodb_log_file_size=10M. The warning is to be expected;
+# it is an unfixable design issue of the innodb_log_archive=OFF format.
+call mtr.add_suppression("InnoDB: Crash recovery is broken due to insufficient innodb_log_file_size");
+}
 --enable_query_log
 
 CREATE TABLE at1(i INTEGER) ENGINE=Aria TRANSACTIONAL=1;
