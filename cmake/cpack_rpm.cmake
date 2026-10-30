@@ -333,6 +333,16 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-${MAJOR_VERSION}${MINOR_VERSION} = %{version}-%{release}"
     "mariadb-server = %{version}-%{release}"
   )
+  IF(RPM MATCHES "sles1507" AND URING_LIBRARIES)
+  # Distro packages liburing 2.9 however inlining of an ABI break
+  # results in only 2.1 being picked up as the dependency.
+  # As there was at one stage a liburing 2.1 we need this to force
+  # the bump on installation.
+    SETA(CPACK_RPM_server_PACKAGE_REQUIRES "liburing.so.2(LIBURING_2.9)(64bit)")
+    IF(WITH_MARIABACKUP)
+      SETA(CPACK_RPM_Backup_PACKAGE_REQUIRES "liburing.so.2(LIBURING_2.9)(64bit)")
+    ENDIF()
+  ENDIF()
 ENDIF()
 
 # MDEV-24629, we need it outside of ELSIFs
