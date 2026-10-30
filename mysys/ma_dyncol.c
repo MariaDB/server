@@ -2562,7 +2562,11 @@ mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count, LEX_STRING **names)
     {
       LEX_STRING tmp;
       if (read_name(&header, read, &tmp))
+      {
+        my_free(*names);
+        *names= NULL;
         return ER_DYNCOL_FORMAT;
+      }
       (*names)[i].length= tmp.length;
       (*names)[i].str= pool;
       pool+= tmp.length + 1;
