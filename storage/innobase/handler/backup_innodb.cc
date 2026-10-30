@@ -2208,7 +2208,7 @@ public:
     {
       /* Copy the necessary part of the first log file. */
       ut_ad(lsn == ctx.first_lsn);
-      c= ctx.checkpoint_end_lsn - lsn;
+      c= ctx.checkpoint_end_lsn - lsn + log_sys.START_OFFSET;
       chunk[-1]= {0, 512};
       const lsn_t end=
         std::min(ctx.last_lsn, lsn + ctx.first_size - log_sys.START_OFFSET);
@@ -2265,7 +2265,7 @@ public:
       if (!err && cp_size)
       {
         uint64_t cp_buf[8]{};
-        write_checkpoint_buf(cp_buf, c + log_sys.START_OFFSET);
+        write_checkpoint_buf(cp_buf, c);
         err= backup_stream_write(dst, cp_buf, sizeof cp_buf) ||
           backup_stream_write(dst, field_ref_zero, cp_size - sizeof cp_buf);
       }
@@ -2286,7 +2286,7 @@ public:
       err= extend(dst, chunk->offset) ||
         backup::copy(src, dst, chunk[-1].offset, chunk[-1].offset +
                      chunk[-1].length) ||
-        (c && write_checkpoint(dst, c));
+        (c && write_checkpoint(dst, c - log_sys.START_OFFSET));
 # ifdef POSIX_FADV_NORMAL
       std::ignore= posix_fadvise(src, 0, 0, POSIX_FADV_NORMAL);
 # endif
