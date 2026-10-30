@@ -4232,7 +4232,7 @@ explain delete from t0 where t0.a<3	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "delete  from t0 using dual where t0.a < 3"
+            "expanded_query": "delete  from t0 using t0 where t0.a < 3"
           }
         ]
       }
