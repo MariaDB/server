@@ -817,6 +817,47 @@ static void test_decimal_precision_overflow()
   mariadb_dyncol_free(&str);
 }
 
+static void test_mdev_41651()
+{
+  DYNAMIC_COLUMN str;
+  DYNAMIC_COLUMN bad;
+  LEX_STRING keys[2]= {{(char *) "a", 1}, {(char *) "bb", 2}};
+  DYNAMIC_COLUMN_VALUE vals[2];
+  LEX_STRING *names= NULL;
+  uint count= 0;
+  int rc;
+
+  vals[0].type= DYN_COL_INT;
+  vals[0].x.long_value= 1;
+  vals[1].type= DYN_COL_INT;
+  vals[1].x.long_value= 2;
+
+  rc= mariadb_dyncol_create_many_named(&str, 2, keys, vals, 1);
+  if (rc != ER_DYNCOL_OK || str.length < 7)
+    BAIL_OUT("could not create the named dynamic column");
+  /* entry 0's name offset is the 2 bytes after the 5-byte header */
+  ok((str.str[0] & 0x04) && str.str[5] == 0 && str.str[6] == 0,
+     "%s", "named record layout");
+
+  bad.length= str.length;
+  bad.max_length= bad.length;
+  bad.alloc_increment= 0;
+  bad.str= (char *) malloc(bad.length);
+  if (!bad.str)
+    BAIL_OUT("malloc failed (out of memory)");
+  memcpy(bad.str, str.str, str.length);
+  bad.str[5]= (char) 0xFF;              /* entry 0: name offset 0xFFFF */
+  bad.str[6]= (char) 0xFF;
+
+  rc= mariadb_dyncol_list_named(&bad, &count, &names);
+  ok(rc == ER_DYNCOL_FORMAT, "%s", "bad name offset rejected");
+  ok(names == NULL && count == 0, "%s", "names reset after an error");
+
+  my_free(names);
+  free(bad.str);
+  mariadb_dyncol_free(&str);
+}
+
 
 #define BIG_STRING_SIZE (1024*1024)
 int main(int argc __attribute__((unused)), char **argv)
@@ -825,7 +866,7 @@ int main(int argc __attribute__((unused)), char **argv)
   char *big_string= (char *)malloc(BIG_STRING_SIZE);
 
   MY_INIT(argv[0]);
-  plan(74);
+  plan(77);
 
   if (!big_string)
     exit(1);
@@ -962,6 +1003,7 @@ int main(int argc __attribute__((unused)), char **argv)
   test_overlong_int(DYN_COL_UINT, "uint");
   test_overlong_int(DYN_COL_INT, "sint");
   test_decimal_precision_overflow();
+  test_mdev_41651();
 
   my_end(0);
   return exit_status();
