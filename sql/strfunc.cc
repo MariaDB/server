@@ -246,7 +246,9 @@ void unhex_type2(TYPELIB *interval)
     works for multi-byte characters
   - matches the longest prefix, whether it's letters, digits or punctuation
     (e.g. see month names for Japanese and Vietnamese)
-  - cs is utf8mb4_general_ci, because that's the charset of strings in sql_locale.cc
+  - cs is utf8mb4_general_ci, the charset of the strings in sql_locale.cc,
+    or the collation of 'val' when the names are ASCII. If that collation
+    tells 'a' from 'A', the names are compared as latin1, which does not.
     If multiple entries match as prefixes of the same length, the result is
     considered ambiguous (returns 0) unless one of them is an exact match.
 
@@ -260,6 +262,9 @@ uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
                 const char *end, const char **end_of_word)
 {
   uint prefix_match= 0, prefix_len= 0, exact= 0;
+  CHARSET_INFO *cmp_cs= cs;
+  if (cs->strnncoll("a", 1, "A", 1))
+    cmp_cs= &my_charset_latin1;
   for (uint i=0; i < lib->count; i++)
   {
     const char *s= lib->type_names[i], *e= s + lib->type_lengths[i], *v= val;
@@ -272,7 +277,7 @@ uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
       if ((ls= cs->mb_wc(&wcs, (const uchar*) s, (const uchar*) e)) <= 0 ||
           (lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end)) <= 0)
         return 0; // invalid character
-      if (cs->strnncoll(s, ls, v, lv))
+      if (cmp_cs->strnncoll(s, ls, v, lv))
         break;
       lv_prev= lv;
       wcv_prev= wcv;
