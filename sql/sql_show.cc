@@ -1970,6 +1970,8 @@ void append_create_options(THD *thd, String *packet, engine_option_value *opt,
   bool in_comment= false;
   for(; opt; opt= opt->next)
   {
+    if (!opt->value.str) // =DEFAULT, not written to frm either
+      continue;
     if (check_options)
     {
       if (is_engine_option_known(opt, rules))
@@ -1986,7 +1988,6 @@ void append_create_options(THD *thd, String *packet, engine_option_value *opt,
       }
     }
 
-    DBUG_ASSERT(opt->value.str);
     packet->append(' ');
     append_identifier(thd, packet, &opt->name);
     packet->append('=');
