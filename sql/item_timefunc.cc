@@ -5074,7 +5074,7 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   String *val;
 
   val= args[0]->val_str(&val_string, &subject_converter, internal_charset);
-  if (args[1]->null_value)
+  if (const_item && args[1]->null_value)
     goto error;
   if (args[0]->null_value)
   {
