@@ -394,6 +394,16 @@ inline int hexchar_to_int(char c)
 
 bool db_name_is_in_ignore_db_dirs_list(const char *dbase);
 
+/**
+  Check if a directory name is in the hash of ignored directories.
+
+  @return search result
+  @retval TRUE  found
+  @retval FALSE not found
+*/
+
+bool is_in_ignore_db_dirs_list(const char *directory) noexcept;
+
 #endif /* MYSQL_SERVER */
 
 #endif /* MYSQL_CLIENT */

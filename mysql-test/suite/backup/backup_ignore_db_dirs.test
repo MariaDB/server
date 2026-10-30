@@ -1,0 +1,16 @@
+--source include/not_windows.inc
+
+--exec mkdir -m 000 $MARIADB_DATADIR/lost+found
+evalp BACKUP SERVER TO '$MYSQL_TMP_DIR/backup';
+--file_exists $MYSQL_TMP_DIR/backup
+--error 1
+--file_exists $MYSQL_TMP_DIR/backup/lost+found
+--rmdir $MYSQL_TMP_DIR/backup
+--exec chmod 755 $MARIADB_DATADIR/lost+found
+evalp BACKUP SERVER TO '$MYSQL_TMP_DIR/backup';
+--file_exists $MYSQL_TMP_DIR/backup
+--error 1
+--file_exists $MYSQL_TMP_DIR/backup/lost+found
+--rmdir $MYSQL_TMP_DIR/backup
+
+--rmdir $MARIADB_DATADIR/lost+found

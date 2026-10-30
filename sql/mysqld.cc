@@ -1309,7 +1309,9 @@ static PSI_cond_info all_server_conds[]=
 PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
+  key_thread_slave_deadlock_handler, key_rpl_parallel_thread,
+  key_thread_backup_worker;
+
 PSI_thread_key key_thread_ack_receiver;
 
 static PSI_thread_info all_server_threads[]=
@@ -1321,7 +1323,8 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_deadlock_handler, "slave_deadlock_handler", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
-  { &key_rpl_parallel_thread, "rpl_parallel", 0}
+  { &key_rpl_parallel_thread, "rpl_parallel", 0},
+  { &key_thread_backup_worker, "backup_worker", 0}
 };
 
 #ifdef HAVE_MMAP
@@ -3689,6 +3692,7 @@ SHOW_VAR com_status_vars[]= {
   {"assign_to_keycache",   STMT_STATUS(SQLCOM_ASSIGN_TO_KEYCACHE)},
   {"backup",               STMT_STATUS(SQLCOM_BACKUP)},
   {"backup_lock",          STMT_STATUS(SQLCOM_BACKUP_LOCK)},
+  {"backup_server",        STMT_STATUS(SQLCOM_BACKUP_SERVER)},
   {"begin",                STMT_STATUS(SQLCOM_BEGIN)},
   {"binlog",               STMT_STATUS(SQLCOM_BINLOG_BASE64_EVENT)},
   {"call_procedure",       STMT_STATUS(SQLCOM_CALL)},

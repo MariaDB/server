@@ -1,0 +1,10 @@
+#
+# The creation of a new Aria log file fails
+#
+call mtr.add_suppression("Aria engine: checkpoint failed");
+CREATE TABLE t1 (c VARCHAR(255)) ENGINE=Aria;
+INSERT INTO t1 VALUES ('a');
+INSERT INTO t1 SELECT REPEAT('b', 250) FROM seq_1_to_50000;
+ERROR HY000: Can't create/write to file 'aria_log.#' (Errcode)
+# restart
+DROP TABLE t1;
