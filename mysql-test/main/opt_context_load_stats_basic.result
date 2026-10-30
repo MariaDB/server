@@ -283,8 +283,8 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].ddl');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_a
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+Warning	4275	Failed to match the stats from replay context with the optimizer stats: given ranges [(10) < (a), ] doesn't exist in the list of ranges for table name db1.t1, and index name t1_idx_a
+Warning	4275	Failed to match the stats from replay context with the optimizer stats: given ranges [(10) < (a), ] doesn't exist in the list of ranges for table name db1.t1, and index name t1_idx_ab
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].file_stat_records');
 select * from t1 where a > 10;
 a	b
@@ -339,27 +339,27 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].indexes[0]');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_a
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in the list of index contexts
+Warning	4275	Failed to match the stats from replay context with the optimizer stats: given ranges [(10) < (a), ] doesn't exist in the list of ranges for table name db1.t1, and index name t1_idx_a
+Warning	4275	Failed to match the stats from replay context with the optimizer stats: given ranges [(10) < (a), ] doesn't exist in the list of ranges for table name db1.t1, and index name t1_idx_ab
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].multi_range_read_info_const_calls[0]');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: the given list of ranges i.e. [(10) < (a), ] doesn't exist in the list of ranges for table_name db1.t1 and index_name t1_idx_ab
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in the list of range contexts
+Warning	4275	Failed to match the stats from replay context with the optimizer stats: given ranges [(10) < (a), ] doesn't exist in the list of ranges for table name db1.t1, and index name t1_idx_ab
 set @opt_context=json_replace(@saved_opt_context_1, '$.tables[0].name', 'db2.t1');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_b doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in list of index contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in list of range contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in list of range contexts
-Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in list of table contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in the list of table contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_b doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in the list of index contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in the list of table contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_a doesn't exist in the list of range contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: db1.t1.t1_idx_ab doesn't exist in the list of range contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: db1.t1 doesn't exist in the list of table contexts
 set optimizer_replay_context="";
 explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -424,3 +424,162 @@ Warnings:
 Warning	4269	Failed to parse saved optimizer context: "copy_cost" element not present at offset 631.
 drop table t1;
 drop database db1;
+set optimizer_replay_context="";
+#
+# MDEV-41564: context replay warnings/errors are non-translatable
+#
+use test;
+create table t1
+(
+a int, b int,
+index t1_idx_a (a),
+index t1_idx_b (b),
+index t1_idx_ab (a, b)
+) ENGINE=MyISAM;
+insert into t1 select seq%5, seq%8 from seq_1_to_20;
+set session use_stat_tables='COMPLEMENTARY';
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+set optimizer_record_context=ON;
+select * from t1 where a > 10;
+a	b
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @saved_opt_context_1=@opt_context;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+select * from t1 where a < 3 and b > 6;
+a	b
+0	7
+2	7
+Warnings:
+Warning	4275	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: Los rangos especificados [(NULL) < (a) < (3), ] no existen en la lista de rangos para el nombre de tabla test.t1 y el nombre de índice t1_idx_a
+Warning	4272	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_b no existe en la lista de contextos de rango
+Warning	4275	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: Los rangos especificados [(NULL) < (a) < (3), ] no existen en la lista de rangos para el nombre de tabla test.t1 y el nombre de índice t1_idx_ab
+set @opt_context=json_replace(@saved_opt_context_1, '$.tables[0].name', 'db2.t1');
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4270	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 no existe en la lista de contextos de tabla
+Warning	4271	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_a no existe en la lista de contextos de índice
+Warning	4271	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_b no existe en la lista de contextos de índice
+Warning	4271	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_ab no existe en la lista de contextos de índice
+Warning	4270	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 no existe en la lista de contextos de tabla
+Warning	4272	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_a no existe en la lista de contextos de rango
+Warning	4272	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_ab no existe en la lista de contextos de rango
+Warning	4270	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 no existe en la lista de contextos de tabla
+set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].indexes[0]');
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4271	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1.t1_idx_a no existe en la lista de contextos de índice
+set optimizer_replay_context="";
+set lc_messages=default;
+set character_set_results=default;
+explain select tt1.a, tt2.b from t1 tt1, t1 tt2 where tt1.a = tt2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt1	index	t1_idx_a,t1_idx_ab	t1_idx_a	5	NULL	20	Using where; Using index
+1	SIMPLE	tt2	ref	t1_idx_a,t1_idx_ab	t1_idx_ab	5	test.tt1.a	4	Using index
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @saved_opt_context_1= @opt_context;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].cost_for_index_read_calls[0].index_name');
+select * from t1 where a > 10;
+a	b
+Warnings:
+Warning	4269	Failed to parse saved optimizer context: "index_name" element not present at offset 622.
+set lc_messages=default;
+set character_set_results=default;
+set optimizer_replay_context="";
+# cost_for_index_read_calls mismatch
+set optimizer_record_context=ON;
+select * from t1 tt1, t1 tt2 where tt1.a=tt2.a and tt2.b in (1,2);
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @saved_opt_context_2=@opt_context;
+set @opt_context=json_replace(@saved_opt_context_2,
+'$.tables[0].cost_for_index_read_calls[0].num_records', 999999,
+'$.tables[0].cost_for_index_read_calls[1].num_records', 999999,
+'$.tables[0].cost_for_index_read_calls[2].num_records', 999999,
+'$.tables[0].cost_for_index_read_calls[3].num_records', 999999);
+set optimizer_record_context=OFF;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+explain select * from t1 tt1, t1 tt2 where tt1.a=tt2.a and tt2.b in (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt2	index	t1_idx_a,t1_idx_b,t1_idx_ab	t1_idx_ab	10	NULL	20	Using where; Using index
+1	SIMPLE	tt1	ref	t1_idx_a,t1_idx_ab	t1_idx_ab	5	test.tt2.a	4	Using index
+Warnings:
+Warning	4273	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 con key_number 0, records 4, eq_ref 0 no existe en cost_for_index_read_calls
+Warning	4273	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 con key_number 2, records 4, eq_ref 0 no existe en cost_for_index_read_calls
+Warning	4273	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 con key_number 0, records 4, eq_ref 0 no existe en cost_for_index_read_calls
+Warning	4273	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t1 con key_number 2, records 4, eq_ref 0 no existe en cost_for_index_read_calls
+set lc_messages=default;
+set character_set_results=default;
+set optimizer_replay_context="";
+# records_in_range_calls mismatch
+create table t2
+(
+a int, b int, c int, d int,
+key k1 (a,b), key k2 (b,c), key k3 (c), key k4 (a), key k5 (b)
+) engine=MyISAM;
+insert into t2 select seq%10, (seq div 7)%10, (seq div 3)%10, seq
+from seq_1_to_300;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+set optimizer_switch='index_merge=on,index_merge_intersection=on';
+set optimizer_record_context=ON;
+select * from t2 where a=1 and b=2 and c=3;
+set @opt_context=
+(select REGEXP_SUBSTR(
+context,
+'(?<=set @opt_context=\')([\n\r].*)*(?=\'\;#opt_context_ends)')
+from information_schema.optimizer_context);
+set @saved_opt_context_3=@opt_context;
+select json_detailed(json_extract(@saved_opt_context_3,
+'$.tables[0].records_in_range_calls')) as records_in_range_calls;
+records_in_range_calls
+[
+    {
+        "key_number": 1,
+        "min_key": "(2)",
+        "max_key": "(2)",
+        "num_records": 33
+    }
+]
+set @opt_context=json_replace(@saved_opt_context_3,
+'$.tables[0].records_in_range_calls[0].min_key', 'nonexistent');
+set optimizer_record_context=OFF;
+set character_set_results=utf8mb4;
+set lc_messages=es_ES;
+set optimizer_replay_context='opt_context';
+select * from t2 where a=1 and b=2 and c=3;
+a	b	c	d
+Warnings:
+Warning	4274	No se pudieron hacer coincidir las estadísticas del contexto de la repetición con las estadísticas del optimizador: test.t2 con key_number 1, min_key (2), max_key (2) no existe en records_in_range_calls
+set lc_messages=default;
+set character_set_results=default;
+set optimizer_replay_context="";
+drop table t2;
+drop table t1;
+#
+# End of 13.1 tests
+#
