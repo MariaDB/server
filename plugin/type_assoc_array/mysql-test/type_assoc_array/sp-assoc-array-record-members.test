@@ -279,4 +279,42 @@ CALL pk1.p1();
 CALL pk1.p2();
 DROP PACKAGE pk1;
 
+--echo #
+--echo # MDEV-41966 Associative-array record member assignment is lost after
+--echo # assigning the record NULL
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(v OUT INT) AS
+BEGIN
+  v:= 11;
+END;
+$$
+DECLARE
+  TYPE rec_t IS RECORD (x INT, y INT);
+  TYPE arr_t IS TABLE OF rec_t INDEX BY INT;
+  a arr_t;
+BEGIN
+  a(1):= NULL;
+  a(1).x:= 7;
+  SELECT a(1).x AS x, a(1).y AS y;
+  a(2):= NULL;
+  SELECT 9 INTO a(2).x;
+  SELECT a(2).x AS x, a(2).y AS y;
+  a(3):= rec_t(NULL, NULL);
+  a(3).y:= 5;
+  SELECT a(3).x AS x, a(3).y AS y;
+  a(1):= NULL;
+  SELECT a(1).x AS x, a(1).y AS y;
+  a(4):= NULL;
+  a(4).x:= 1;
+  a(4).y:= 2;
+  SELECT a(4).x AS x, a(4).y AS y;
+  a(5):= NULL;
+  p1(a(5).x);
+  SELECT a(5).x AS x, a(5).y AS y;
+END;
+$$
+DELIMITER ;$$
+DROP PROCEDURE p1;
+
 --echo # End of 12.3 tests
