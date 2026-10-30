@@ -1090,6 +1090,7 @@ dict_table_open_on_name(
   if (!dict_locked)
     dict_sys.unlock();
 
+  fil_crypt_threads_signal();
   DBUG_RETURN(table);
 }
 

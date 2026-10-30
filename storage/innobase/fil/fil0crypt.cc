@@ -42,7 +42,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "fil0pagecompress.h"
 #include <my_crypt.h>
 
-static bool fil_crypt_threads_inited = false;
+static Atomic_relaxed<bool> fil_crypt_threads_inited{};
 
 /** Is encryption enabled/disabled */
 ulong srv_encrypt_tables;
@@ -105,6 +105,8 @@ static mysql_mutex_t crypt_stat_mutex;
 /** Wake up the encryption threads */
 void fil_crypt_threads_signal(bool broadcast)
 {
+  if (!fil_crypt_threads_inited)
+    return;
   mysql_mutex_lock(&fil_crypt_threads_mutex);
   if (broadcast)
     pthread_cond_broadcast(&fil_crypt_threads_cond);
@@ -188,9 +190,7 @@ fil_crypt_get_latest_key_version(
 				crypt_data->min_key_version,
 				key_version,
 				srv_fil_crypt_rotate_key_age)) {
-			if (fil_crypt_threads_inited) {
-				fil_crypt_threads_signal();
-			}
+			fil_crypt_threads_signal();
 		}
 	}
 
@@ -1470,8 +1470,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
 
     if (space->is_in_default_encrypt)
     {
-      while (++it != end &&
-             (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()));
+      while (++it != end && it->is_stopping());
 
       /* If one of the encryption threads already started
       the encryption of the table then don't remove the
@@ -1488,8 +1487,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
       }
     }
   }
-  else while (it != end &&
-	      (!UT_LIST_GET_LEN(it->chain) || it->is_stopping()))
+  else while (it != end && it->is_stopping())
   {
     /* Find the next suitable default encrypt table if
     beginning of default_encrypt_tables list has been scheduled
@@ -1508,7 +1506,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
     if (++it == end)
       return nullptr;
   }
-  while (!UT_LIST_GET_LEN(it->chain) || it->is_stopping());
+  while (it->is_stopping());
 
   return nullptr;
 }
@@ -2388,7 +2386,6 @@ static void fil_crypt_default_encrypt_tables_fill()
 
 	for (fil_space_t& space : fil_system.space_list) {
 		if (space.is_in_default_encrypt
-		    || UT_LIST_GET_LEN(space.chain) == 0
 		    || space.is_temporary() || space.is_being_imported()
 		    || !space.acquire_if_not_stopped()) {
 			continue;

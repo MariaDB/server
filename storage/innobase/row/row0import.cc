@@ -2299,6 +2299,7 @@ row_import_cleanup(row_prebuilt_t* prebuilt,
 	prebuilt->trx->op_info = "";
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
+	fil_crypt_threads_signal();
 
 	if (err != DB_SUCCESS
 	    || !dict_table_get_first_index(table)->is_gen_clust()) {
