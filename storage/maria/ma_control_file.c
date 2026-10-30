@@ -604,6 +604,11 @@ uint ma_control_file_image(uchar *buffer, LSN last_checkpoint_lsn_arg,
                MYF(MY_FNABP | MY_WME)))
     DBUG_RETURN(0);
 
+  if (cf_create_time_size != uint2korr(buffer + CF_CREATE_TIME_SIZE_OFFSET) ||
+      my_checksum(0, buffer, cf_create_time_size - CF_CHECKSUM_SIZE) !=
+      uint4korr(buffer + cf_create_time_size - CF_CHECKSUM_SIZE))
+    DBUG_RETURN(0);
+
   /* ma_control_file_open() checks the changeable part up to this size */
   changeable_size= uint2korr(buffer + CF_CHANGEABLE_SIZE_OFFSET);
   set_if_bigger(changeable_size, CF_CHANGEABLE_TOTAL_SIZE);

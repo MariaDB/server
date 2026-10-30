@@ -1,4 +1,4 @@
-/* Copyright (C) 2018,2020 MariaDB Corporation Ab
+/* Copyright (C) 2018,2026 MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,8 +15,7 @@
 
 /* Interfaces for doing backups of Aria tables */
 
-#ifndef ARIA_BACKUP_INCLUDED
-#define ARIA_BACKUP_INCLUDED
+#pragma once
 
 C_MODE_START
 
@@ -75,14 +74,13 @@ typedef struct st_aria_backup_context
   char index_name[FN_REFLEN];
 } ARIA_BACKUP_CONTEXT;
 
-/*
-  Open the index and data file of an Aria table and initialize the
-  context. A symbolic link that maria_open() would refuse is refused.
+/**
+   Open the index and data file of an Aria table and initialize the
+   context. A symbolic link that maria_open() would refuse is refused.
 
-  @param path  table file name without extension
-  @return error number
-  @retval 0  success
-  @retval >0 error. The error has been reported.
+   @param path  table file name without extension
+   @return error number; errors will have been reported
+   @retval 0  success
 */
 
 int aria_open_files_for_backup(const char *path,
@@ -90,19 +88,35 @@ int aria_open_files_for_backup(const char *path,
 /* Close the files after a successful aria_open_files_for_backup() */
 void aria_close_files_for_backup(ARIA_BACKUP_CONTEXT *context);
 
-/*
-  Read the next part of the index or the data file.
-  buff_length must be a multiple of capabilities.block_size.
+/**
+   @brief Read the next part of the index file
 
-  @return number of bytes read
-  @retval 0             end of file
-  @retval < 0           error. The error has been printed.
+   @param context     Backup context with the open files and the
+                      position in them
+   @param buffer      read data to this buffer
+   @param buff_length Size of buffer. Must be a multiple of block_size
+
+   @return            number of bytes read, or negated error code
+   @retval 0          End of file
 */
 
 longlong aria_read_index_file(ARIA_BACKUP_CONTEXT *context,
                               uchar *buffer, size_t buff_length);
+
+/**
+   Read a set of pages from a TRANSACTIONAL=1 data file (using checksums)
+   that may be written to concurrently.
+
+   @param context     Backup context with the open files and the
+                      position in them
+   @param buffer      read data to this buffer
+   @param buff_length Size of buffer. Must be a multiple of block_size
+
+   @return            number of bytes read, or negated error code
+   @retval 0          End of file
+*/
+
 longlong aria_read_data_file(ARIA_BACKUP_CONTEXT *context,
                              uchar *buffer, size_t buff_length);
 
 C_MODE_END
-#endif /* ARIA_BACKUP_INCLUDED */

@@ -197,24 +197,6 @@ uchar *_ma_base_info_read(uchar *ptr, MARIA_BASE_INFO *base)
 }
 
 
-/**
-   @brief Copy an index block with re-read if checksum doesn't match
-
-   @param kfile       index file (.MAI)
-   @param cap         aria capabilities from aria_get_capabilities
-   @param block       block number to read (0, 1, 2, 3...)
-   @param buffer      read data to this buffer
-   @param buffer_size Size of buffer
-   @param bytes_read  How many bytes was read. Undefined in case of erro
-
-   @return 0 ok
-   @return HA_ERR_END_OF_FILE  ; End of file
-   @return # error number
-
-   Notes: A file which size is not a multiple of block_size is threated as
-   an error.
-*/
-
 #define MAX_RETRY 10
 
 #ifndef DBUG_OFF
@@ -243,6 +225,24 @@ static void aria_backup_debug_tear(uchar *page, uint block_size,
 #else
 # define aria_backup_debug_tear(page, block_size, torn) ((void) 0)
 #endif
+
+/**
+   Read an index block, re-reading on checksum mismatch.
+
+   @param kfile       index file (.MAI)
+   @param cap         aria capabilities from aria_get_capabilities
+   @param block       block number to read (0, 1, 2, 3...)
+   @param buffer      read data to this buffer
+   @param buffer_size Size of buffer
+   @param bytes_read  How many bytes was read. Undefined in case of erro
+
+   @return error code
+   @retval 0                      on success
+   @retval HA_ERR_END_OF_FILE     on end of file
+   @retval HA_ERR_FILE_TOO_SHORT  if block is not a multiple of block_size
+   @retval HA_ERR_CRASHED         on page header corruption
+   @retval HA_ERR_WRONG_CRC       on mismatch after exceeding MAX_RETRIES
+*/
 
 int aria_read_index(File kfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
                     uchar *buffer, size_t buffer_size, size_t *bytes_read)
@@ -395,14 +395,13 @@ end:
                       for tables with checksums
    @param bytes_read  How many bytes was read. Undefined in case of error
 
-   @return 0 ok
-   @return HA_ERR_END_OF_FILE  ; End of file
-   @return # error number
-
-   Notes: For a table with checksums, a file which size is not a
-   multiple of block_size is threated as an error. Tables without
-   checksums are not page based, which is why the last read can be
-   shorter than block_size.
+   @return error code
+   @retval 0                      on success
+   @retval HA_ERR_END_OF_FILE     on end of file
+   @retval HA_ERR_FILE_TOO_SHORT  if block is not a multiple of block_size
+   (not possible for non-page-based TRANSACTIONAL=0 files)
+   @retval HA_ERR_CRASHED         on page header corruption
+   @retval HA_ERR_WRONG_CRC       on mismatch after exceeding MAX_RETRIES
 */
 
 int aria_read_data(File dfile, ARIA_TABLE_CAPABILITIES *cap, ulonglong block,
@@ -651,8 +650,7 @@ void aria_close_files_for_backup(ARIA_BACKUP_CONTEXT *context)
    @param buffer      read data to this buffer
    @param buff_length Size of buffer. Must be a multiple of block_size
 
-   @return > 0  number of bytes read into buffer
-   @return < 0  error number
+   @return number of bytes read into buffer, or negated error code
 */
 
 static longlong aria_read_header(ARIA_BACKUP_CONTEXT *context,
@@ -695,9 +693,8 @@ static longlong aria_read_header(ARIA_BACKUP_CONTEXT *context,
    @param buffer      read data to this buffer
    @param buff_length Size of buffer. Must be a multiple of block_size
 
-   @return            number of bytes read
+   @return            number of bytes read, or negated error code
    @retval 0          End of file
-   @retval < 0        Error code
 */
 
 longlong aria_read_index_file(ARIA_BACKUP_CONTEXT *context,
@@ -721,28 +718,17 @@ longlong aria_read_index_file(ARIA_BACKUP_CONTEXT *context,
 }
 
 
-/*
-  Read a set of pages from data file
+/**
+   Read a set of pages from a TRANSACTIONAL=1 data file (using checksums)
+   that may be written to concurrently.
 
-  @brief Read the next part of the index file
+   @param context     Backup context with the open files and the
+                      position in them
+   @param buffer      read data to this buffer
+   @param buff_length Size of buffer. Must be a multiple of block_size
 
-  @param context     Backup context with the open files and the
-                     position in them
-  @param buffer      read data to this buffer
-  @param buff_length Size of buffer. Must be a multiple of block_size
-
-  @return            number of bytes read
-  @retval 0          End of file
-  @retval < 0        Error code
-
-  Note that this function should only be used with transactional
-  tables with checksums.  Non transactional tables can be in a not
-  block format and/or not have checksums and aria_read_data_file() will
-  give errors for these. Use my_copy() on non transactional files while
-  ensuring data is flushed and there is no writes to them.
-
-  @return > 0   number of bytes read into buffer
-  @return < -1  error number
+   @return            number of bytes read, or negated error code
+   @retval 0          End of file
 */
 
 longlong aria_read_data_file(ARIA_BACKUP_CONTEXT *context,

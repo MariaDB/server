@@ -51,7 +51,9 @@ TYPELIB backup_stage_names= CREATE_TYPELIB_FOR(stage_names);
 static MDL_ticket *backup_flush_ticket;
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
+#ifndef DBUG_OFF
 static backup_stages backup_stage;
+#endif
 
 static bool backup_start(THD *thd);
 static bool backup_flush(THD *thd);
@@ -69,7 +71,9 @@ void backup_init()
   backup_flush_ticket= 0;
   backup_log= -1;
   backup_log_error= 0;
+#ifndef DBUG_OFF
   backup_stage= BACKUP_FINISHED;
+#endif
 }
 
 bool run_backup_stage(THD *thd, backup_stages stage)
@@ -148,7 +152,9 @@ bool run_backup_stage(THD *thd, backup_stages stage)
       my_error(ER_BACKUP_STAGE_FAILED, MYF(0), stage_names[(uint) stage]);
       DBUG_RETURN(1);
     }
+#ifndef DBUG_OFF
     backup_stage= next_stage;
+#endif
     next_stage= (backup_stages) ((uint) next_stage + 1);
   } while ((uint) next_stage <= (uint) stage);
 
@@ -182,7 +188,9 @@ static bool backup_start(THD *thd)
 
   /* this will be reset if this stage fails */
   thd->current_backup_stage= BACKUP_START;
+#ifndef DBUG_OFF
   backup_stage= BACKUP_START;
+#endif
 
   /*
     Wait for old backup to finish and block ddl's so that we can start the
@@ -498,7 +506,9 @@ bool backup_end(THD *thd)
     // This is needed as we may call backup_end without backup_block_commit
     stop_ddl_logging();
     backup_flush_ticket= 0;
+#ifndef DBUG_OFF
     backup_stage= BACKUP_FINISHED;
+#endif
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP

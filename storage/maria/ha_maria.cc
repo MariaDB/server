@@ -4132,17 +4132,29 @@ static bool maria_backup_control_file(const backup_target &target,
                                       LSN checkpoint_lsn, uint32 last_logno)
   noexcept
 {
-  static constexpr const char *name= "aria_log_control";
+  static constexpr const char *name= CONTROL_FILE_BASE_NAME;
   uchar buf[512];
+  /*
+    max_trid_in_control_file is constant between startup and shutdown.
+
+    On shutdown, maria_end() updates it as well as the contents of the
+    "aria_log_control" to trnman_get_max_trid().
+
+    On startup, maria_apply_log() may update the file as well as
+    max_trid_in_control_file based on the aria_log.* records.
+  */
   const uint size= ma_control_file_image(buf, checkpoint_lsn, last_logno,
                                          max_trid_in_control_file);
+  int err;
   if (!size)
   {
-    my_error(ER_ERROR_ON_READ, MYF(0), name, my_errno);
+    err= ER_ERROR_ON_READ;
+  fail:
+    my_error(err, MYF(0), name, my_errno);
     return true;
   }
   backup_fd dst;
-  int err= maria_backup_create(target, sink, name, size, &dst);
+  err= maria_backup_create(target, sink, name, size, &dst);
   if (err > 0)
     return true;
   if (sink.stream != backup_sink::NO_STREAM)
@@ -4152,11 +4164,14 @@ static bool maria_backup_control_file(const backup_target &target,
     err= err || backup_stream_write(dst, buf, sizeof buf);
   }
   else
-    err= backup_stream_write(dst, buf, size) |
-      IF_WIN(!CloseHandle(dst), close(dst));
-  if (err)
-    my_error(ER_ERROR_ON_WRITE, MYF(0), name, errno);
-  return err;
+  {
+    err= backup_stream_write(dst, buf, size);
+    err|= IF_WIN(!CloseHandle(dst), close(dst));
+  }
+  if (!err)
+    return false;
+  err= ER_ERROR_ON_WRITE;
+  goto fail;
 }
 
 /* A C++ function pointer compatible wrapper of a C function */
