@@ -6,7 +6,7 @@ ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
 INSERT INTO t1 VALUES (0, 'a');
 connect bk,localhost,root;
 SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL copied WAIT_FOR go';
-BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+BACKUP SERVER TO 'BACKUP_DIR';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR copied';
 INSERT INTO t1 SELECT seq, REPEAT('b', 250) FROM seq_1_to_50000;

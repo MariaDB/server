@@ -6,7 +6,7 @@ INSERT INTO t1 SELECT REPEAT('a', 200) FROM seq_1_to_1000;
 connect bk,localhost,root;
 SET DEBUG_SYNC='maria_backup_log_end SIGNAL ended WAIT_FOR go';
 SET DEBUG_SYNC='maria_backup_log_copy SIGNAL copying WAIT_FOR copy';
-BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+BACKUP SERVER TO 'BACKUP_DIR';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ended';
 connect dml,localhost,root;

@@ -1,7 +1,7 @@
---source include/have_innodb.inc
+--source include/have_aria.inc
 --source include/have_sequence.inc
 
-SELECT @@aria_log_dir_path = @@datadir AS log_dir_is_datadir;
+let $logdir=`SELECT @@aria_log_dir_path`;
 
 CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
 ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
@@ -12,9 +12,10 @@ INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_1000;
 --rmdir $target_directory
 evalp BACKUP SERVER TO '$target_directory';
 
---let $datadir= `SELECT @@datadir`
---exec echo "--- files in datadir:"; ls $datadir | grep '^aria_log'
---exec echo "--- aria files in backup:"; ls $target_directory/ | grep -i aria || echo "NONE"
+--echo # logdir
+--list_files $logdir aria_log*
+--echo # backup
+--list_files $target_directory aria_log*
 
 DROP TABLE at1;
 --rmdir $target_directory

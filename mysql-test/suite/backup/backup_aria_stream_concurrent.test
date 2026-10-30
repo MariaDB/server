@@ -77,13 +77,12 @@ SELECT RELEASE_LOCK('run');
 --exec tar xf $MARIADB_DATADIR/2.tar -C $target_directory
 --exec tar xf $MARIADB_DATADIR/3.tar -C $target_directory
 --exec tar xf $MARIADB_DATADIR/4.tar -C $target_directory
---exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
 
---let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--let $restart_parameters=--datadir=$target_directory
 --source include/restart_mysqld.inc
 CHECK TABLE t0, t1, t2 EXTENDED;
 --replace_result $after AFTER
---eval SELECT COUNT(*) = MAX(a), COUNT(*) > 20000, COUNT(*) <= $after FROM t1
+eval SELECT COUNT(*) = MAX(a), COUNT(*) > 20000, COUNT(*) <= $after FROM t1;
 SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t0;
 SELECT COUNT(*) = MAX(a), COUNT(*) > 1000 FROM t2;
 

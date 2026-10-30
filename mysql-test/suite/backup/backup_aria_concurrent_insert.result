@@ -17,7 +17,7 @@ GET_LOCK('run', 0)
 connect w,localhost,root;
 CALL p();
 connection default;
-BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+BACKUP SERVER TO '$target';
 SELECT RELEASE_LOCK('run');
 RELEASE_LOCK('run')
 1

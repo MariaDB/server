@@ -26,9 +26,11 @@ BEGIN
 END//
 DELIMITER ;//
 
+--let $target=$MYSQLTEST_VARDIR/bk
+
 # Clean up after a previous failed test, in case we are retrying.
 --error 0,1
---rmdir $MYSQLTEST_VARDIR/bk
+--rmdir $target
 
 SELECT GET_LOCK('run', 0);
 --connect w,localhost,root
@@ -39,8 +41,7 @@ SELECT GET_LOCK('run', 0);
 --let $wait_timeout= 300
 --let $wait_condition= SELECT COUNT(*) > 20000 FROM t1
 --source include/wait_condition.inc
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+--evalp BACKUP SERVER TO '$target'
 --let $after= `SELECT COUNT(*) FROM t1`
 SELECT RELEASE_LOCK('run');
 
@@ -49,7 +50,7 @@ SELECT RELEASE_LOCK('run');
 --disconnect w
 --connection default
 
---let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--let $restart_parameters= --datadir=$target
 --source include/restart_mysqld.inc
 CHECK TABLE t1 EXTENDED;
 --replace_result $after AFTER
@@ -59,4 +60,4 @@ CHECK TABLE t1 EXTENDED;
 --source include/restart_mysqld.inc
 DROP PROCEDURE p;
 DROP TABLE t1;
---rmdir $MYSQLTEST_VARDIR/bk
+--rmdir $target

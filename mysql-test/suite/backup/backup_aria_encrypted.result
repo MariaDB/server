@@ -30,7 +30,7 @@ at0.MAI has clear text: no
 #
 # Start the server on the backup and check that the tables are intact
 #
-# restart: --defaults-file=MYSQLTEST_VARDIR/backup_aria_encrypted/backup.cnf --datadir=MYSQLTEST_VARDIR/backup_aria_encrypted
+# restart: --datadir=MYSQLTEST_VARDIR/backup_aria_encrypted
 CHECK TABLE at1, at0 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.at1	check	status	OK

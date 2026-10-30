@@ -1,5 +1,5 @@
+--source include/have_aria.inc
 --source include/have_file_key_management.inc
---source include/have_innodb.inc
 --source include/have_sequence.inc
 
 --echo #
@@ -22,7 +22,7 @@ INSERT INTO at0 SELECT seq, MD5(seq) FROM seq_1_to_10000;
 SELECT COUNT(*), SUM(id) FROM at1;
 SELECT COUNT(*), SUM(id) FROM at0;
 
---let $target_directory=$MYSQLTEST_VARDIR/backup_aria_encrypted
+--let target_directory=$MYSQLTEST_VARDIR/backup_aria_encrypted
 
 # Clean up after a previous failed test, in case we are retrying.
 --error 0,1
@@ -41,7 +41,6 @@ evalp BACKUP SERVER TO '$target_directory' 4 CONCURRENT;
 --echo # The copied files should not contain any clear text
 --echo #
 
-let target_directory=$target_directory;
 perl;
   my $row= "c4ca4238a0b923820dcc509a6f75849b";        # MD5('1')
   foreach my $name ("at1.MAD", "at1.MAI", "at0.MAD", "at0.MAI")
@@ -61,20 +60,7 @@ EOF
 --echo # Start the server on the backup and check that the tables are intact
 --echo #
 
-if ($MARIADB_UPGRADE_EXE) {
-let target_directory=$target_directory;
-perl;
-open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
-open OUT, ">>", "$ENV{target_directory}/backup.cnf";
-print OUT while (<IN>);
-close(IN);
-close(OUT);
-EOF
-}
-if (!$MARIADB_UPGRADE_EXE) {
-  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
-}
---let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--let $restart_parameters=--datadir=$target_directory
 --source include/restart_mysqld.inc
 
 CHECK TABLE at1, at0 EXTENDED;

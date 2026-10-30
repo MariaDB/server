@@ -41,7 +41,7 @@ disconnect w1;
 connection w2;
 disconnect w2;
 connection default;
-# restart: --defaults-file=MYSQLTEST_VARDIR/backup_stream/backup.cnf --datadir=MYSQLTEST_VARDIR/backup_stream
+# restart: --datadir=MYSQLTEST_VARDIR/backup_stream
 CHECK TABLE t0, t1, t2 EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t0	check	status	OK

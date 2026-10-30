@@ -1,5 +1,6 @@
 --source include/have_aria.inc
 --source include/have_sequence.inc
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 --echo #
@@ -30,11 +31,13 @@ UPDATE t1 SET c= REPEAT('b', 250);
 # Wait for a checkpoint after the UPDATE. Each checkpoint rewrites
 # aria_log_control. Background checkpoints stop when the log stops
 # growing, so wait for one only.
---let MYSQLD_DATADIR= `SELECT @@datadir`
 perl;
-my $file= "$ENV{MYSQLD_DATADIR}/aria_log_control";
-sub control { open my $f, '<', $file or die "$file: $!"; binmode $f;
-  local $/; my $c= <$f>; close $f; $c }
+my $file= "$ENV{MARIADB_DATADIR}/aria_log_control";
+sub control
+{
+  open my $f, '<', $file or die "$file: $!";
+  binmode $f; local $/; my $c= <$f>; close $f; $c
+}
 my $old= control();
 for (my $tries= 0; control() eq $old; $tries++)
 {
