@@ -6772,6 +6772,8 @@ class TMP_TABLE_PARAM :public Sql_alloc
 {
 public:
   List<Item> copy_funcs;
+  /** Expressions copied after a group is complete, before HAVING/output. */
+  List<Item> copy_group_funcs;
   Copy_field *copy_field, *copy_field_end;
   uchar	    *group_buff;
   const char *tmp_name;
@@ -6825,6 +6827,8 @@ public:
   bool  using_outer_summary_function;
   CHARSET_INFO *table_charset;
   bool schema_table;
+  /** Store aggregate expressions as well as their component aggregates. */
+  bool materialize_group_expr;
   /* TRUE if all columns of the table are guaranteed to be non-nullable */
   bool force_not_null_cols;
   /*

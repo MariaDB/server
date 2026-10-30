@@ -557,6 +557,8 @@ typedef struct st_join_table {
 
   /** HAVING condition for checking prior saving a record into tmp table*/
   Item *having;
+  /** HAVING reads the materialized group values and is checked by the writer. */
+  bool having_on_tmp_table;
 
   /** TRUE <=> remove duplicates on this table. */
   bool distinct;
@@ -1838,7 +1840,7 @@ public:
   bool rollup_make_fields(List<Item> &all_fields, List<Item> &fields,
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
-  int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
+  int rollup_write_data(uint idx, JOIN_TAB *join_tab);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);
@@ -1979,7 +1981,8 @@ private:
                                   ORDER *tmp_table_group,
                                   bool save_sum_fields,
                                   bool distinct,
-                                  bool keep_row_ordermake);
+                                  bool keep_row_ordermake,
+                                  bool materialize_group_expr= false);
   /**
     Optimize distinct when used on a subset of the tables.
 
@@ -2025,9 +2028,11 @@ void count_field_types(SELECT_LEX *select_lex, TMP_TABLE_PARAM *param,
 bool setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
 		       Ref_ptr_array ref_pointer_array,
 		       List<Item> &new_list1, List<Item> &new_list2,
-		       uint elements, List<Item> &fields);
+		       uint elements, List<Item> &fields,
+                               bool copy_group_expr);
 void copy_fields(TMP_TABLE_PARAM *param);
-bool copy_funcs(Item **func_ptr, const THD *thd);
+bool copy_funcs(Item **func_ptr, const THD *thd,
+                bool skip_group_expr= false);
 uint find_shortest_key(TABLE *table, const key_map *usable_keys);
 bool is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args);
 
