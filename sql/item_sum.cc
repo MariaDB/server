@@ -3092,6 +3092,7 @@ void Item_sum_min_max::reset_field()
   if (unlikely(direct_added))
   {
     direct_added= FALSE;
+    direct_reseted_field= TRUE;
     value->store(tmp_item);
   }
   DBUG_VOID_RETURN;
@@ -3160,7 +3161,10 @@ void Item_sum_avg::reset_field()
   /*
     A directly added partial stands for the rows behind it, not for one row, so
     it opens the group with its own count. Consumed here in the same way
-    Item_sum_sum::reset_field() consumes its half of it.
+    Item_sum_sum::reset_field() consumes its half of it, and like that half the
+    count is kept: end_unique_update() resets the fields for every row before
+    it finds out that the group exists, and then folds the same partial in with
+    update_field(), which reads the count again.
   */
   const bool merging= direct_added;
   const longlong add_count= merging ? (longlong) direct_count : 1;
@@ -3168,7 +3172,6 @@ void Item_sum_avg::reset_field()
   {
     direct_added= FALSE;
     direct_reseted_field= TRUE;
-    direct_count= 0;
   }
 
   if (result_type() == DECIMAL_RESULT)
@@ -3435,12 +3438,19 @@ Item *Item_sum_avg::result_item(THD *thd, Field *field)
 void Item_sum_min_max::update_field()
 {
   DBUG_ENTER("Item_sum_min_max::update_field");
-  if (!filter_passed())
+  /*
+    end_unique_update() calls reset_field() for every row before it finds out
+    that the group exists, so a directly added item may already have been
+    consumed there. It still has to be folded in here, as in
+    Item_sum_sum::update_field().
+  */
+  const bool direct= direct_added || direct_reseted_field;
+  if (!direct && !filter_passed())
   {
     DBUG_VOID_RETURN;
   }
   Item *UNINIT_VAR(tmp_item);
-  if (unlikely(direct_added))
+  if (unlikely(direct))
   {
     tmp_item= args[0];
     args[0]= direct_item;
@@ -3472,9 +3482,9 @@ void Item_sum_min_max::update_field()
       min_max_update_real_field();
     }
   }
-  if (unlikely(direct_added))
+  if (unlikely(direct))
   {
-    direct_added= FALSE;
+    direct_added= direct_reseted_field= FALSE;
     args[0]= tmp_item;
   }
   DBUG_VOID_RETURN;
