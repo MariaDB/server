@@ -1,0 +1,21 @@
+create table t3 (
+pk int primary key,
+js json,
+index i1(cast(js as unsigned array))
+);
+insert into t3 select seq,
+concat('["value-', seq, '", "value-', seq + 1,
+'", "value-', seq + 2, '", "value-', seq + 3, '"]') from seq_1_to_200;
+explain select * from t3 where json_contains(js, '["value-100", "value-101", "value-102"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	i1	i1	19	NULL	4	Using where
+select * from t3 where json_contains(js, '["value-100", "value-101", "value-102"]');
+pk	js
+99	["value-99", "value-100", "value-101", "value-102"]
+100	["value-100", "value-101", "value-102", "value-103"]
+explain select * from t3 where json_contains('["value-100", "value-101", "value-102"]', js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	200	Using where
+select * from t3 where json_contains('["value-100", "value-101", "value-102"]', js);
+pk	js
+DROP TABLE t3;

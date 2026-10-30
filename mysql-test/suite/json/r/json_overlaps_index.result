@@ -1,0 +1,23 @@
+create table t3 (
+pk int primary key,
+js json,
+index i1(cast(js as unsigned array))
+);
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+explain select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index_merge	i1	i1,i1,i1	19,19,19	NULL	3	Using sort_union(i1,i1,i1); Using where
+select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+pk	js
+100	["value-100"]
+101	["value-101"]
+108	["value-108"]
+explain select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	index_merge	i1	i1,i1,i1	19,19,19	NULL	3	Using sort_union(i1,i1,i1); Using where
+select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+pk	js
+100	["value-100"]
+101	["value-101"]
+108	["value-108"]
+DROP TABLE t3;

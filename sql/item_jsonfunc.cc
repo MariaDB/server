@@ -1662,6 +1662,61 @@ bool Item_func_json_extract::val_bool()
   return i != 0;
 }
 
+Json_range_elements json_get_range_elements(THD *thd, Item *value,
+                                            CHARSET_INFO *cs,
+                                            List<Item> *elements)
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+  String conv, *js;
+  uint errors;
+  json_engine_t je;
+  bool is_array;
+
+  if (!(js= value->val_json(&buf)) || value->null_value)
+    return Json_range_elements::IS_NULL;
+  if (!my_charset_same(js->charset(), cs))
+  {
+    if (conv.copy(js, cs, &errors) || errors)
+      return Json_range_elements::NO_RANGE;
+    js= &conv;
+  }
+
+  mem_root_dynamic_array_init(thd->mem_root, PSI_INSTRUMENT_MEM, &je.stack,
+                              sizeof(int), NULL, JSON_DEPTH_DEFAULT,
+                              JSON_DEPTH_INC, MYF(0));
+  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->end());
+  if (json_read_value(&je) || je.value_type == JSON_VALUE_OBJECT)
+    return Json_range_elements::NO_RANGE;
+
+  is_array= je.value_type == JSON_VALUE_ARRAY;
+  for (;;)
+  {
+    if (is_array)
+    {
+      if (json_scan_next(&je))
+        return Json_range_elements::NO_RANGE;
+      if (je.state == JST_ARRAY_END)
+        break;
+      if (je.state != JST_VALUE || json_read_value(&je))
+        return Json_range_elements::NO_RANGE;
+    }
+    if (!json_value_scalar(&je))
+      return Json_range_elements::NO_RANGE;
+
+    size_t len= (size_t) (je.value_end - je.value_begin);
+    char *str= thd->strmake((const char *) je.value_begin, len);
+    Item *elem;
+    if (!str ||
+        !(elem= new (thd->mem_root) Item_string(thd, str, len, cs)) ||
+        elements->push_back(elem, thd->mem_root))
+      return Json_range_elements::NO_RANGE;
+
+    if (!is_array)
+      break;
+  }
+  return Json_range_elements::OK;
+}
 
 bool Item_func_json_contains::fix_length_and_dec(THD *thd)
 {
@@ -6996,40 +7051,28 @@ SEL_TREE *Item_func_member_of::get_func_mm_tree(RANGE_OPT_PARAM *param,
   DBUG_RETURN(get_mm_parts(param, field, functype(), value));
 }
 
-
 static SEL_ARG sel_arg_impossible_member_of(SEL_ARG::IMPOSSIBLE);
 
-SEL_ARG *
-Item_func_member_of::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
-                                 KEY_PART *key_part,
-                                 Item_func::Functype type, Item *value)
+static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
+                                      KEY_PART *key_part, Item *json_value)
 {
-  DBUG_ENTER("Item_func_member_of::get_mm_leaf");
   if (key_part->image_type != Field::itMVI)
-    DBUG_RETURN(0);
+    return 0;
 
   uint keynr= param->real_keynr[key_part->key];
   if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
-    DBUG_RETURN(0);
+    return 0;
 
   uchar *key_buf= (uchar*) alloc_root(param->mem_root, JSON_INDEX_KEY_MAX_LEN);
   if (!key_buf)
-    DBUG_RETURN(0); // out of memory
+    return 0; // out of memory
 
-  /*
-    json_quote_item (built once in fix_length_and_dec(), for the same
-    args[0]) already renders the candidate as JSON text -- the same
-    rendering val_bool()'s JSON_CONTAINS(array, JSON_QUOTE(value)) uses.
-    Reuse it instead of building another Item_func_json_quote here.
-  */
-  DBUG_ASSERT(value == args[0]);
-  Item *json_value= json_quote_item ? (Item *) json_quote_item : value;
   if (param->table->hli->make_key(param->thd, json_value, key_buf))
-    DBUG_RETURN(&sel_arg_impossible_member_of); // NULL, or a JSON object/array
+    return &sel_arg_impossible_member_of; // NULL, or a JSON object/array
 
   SEL_ARG *tree;
   if (!(tree= new (param->mem_root) SEL_ARG(field, key_buf, key_buf)))
-    DBUG_RETURN(0); // out of memory
+    return 0; // out of memory
 
   /*
     This constructor sets maybe_null from field->real_maybe_null(), i.e.
@@ -7059,7 +7102,52 @@ Item_func_member_of::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
   */
   tree->min_flag= GEOM_FLAG;
   tree->max_flag= NO_MAX_RANGE;
-  DBUG_RETURN(tree);
+  return tree;
 }
 
+SEL_ARG *
+Item_func_member_of::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                                 KEY_PART *key_part, Item_func::Functype,
+                                 Item *value)
+{
+  DBUG_ENTER("Item_func_member_of::get_mm_leaf");
+  /*
+    json_quote_item (built once in fix_length_and_dec(), for the same
+    args[0]) already renders the candidate as JSON text -- the same
+    rendering val_bool()'s JSON_CONTAINS(array, JSON_QUOTE(value)) uses.
+    Reuse it instead of building another Item_func_json_quote here.
+  */
+  DBUG_ASSERT(value == args[0]);
+  Item *json_value= json_quote_item ? (Item *) json_quote_item : value;
+  DBUG_RETURN(json_array_point_leaf(param, field, key_part, json_value));
+}
 
+SEL_ARG *
+Item_func_json_overlaps::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                                     KEY_PART *key_part, Item_func::Functype,
+                                     Item *value)
+{
+  return json_array_point_leaf(param, field, key_part, value);
+}
+
+SEL_TREE *Item_func_json_contains::get_mm_tree(RANGE_OPT_PARAM *param,
+                                               Item **)
+{
+  if (arg_count != 2)
+    return NULL;
+  return get_full_func_mm_tree_for_args(param, args[0], args[1]);
+}
+
+SEL_ARG *
+Item_func_json_contains::get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                                     KEY_PART *key_part, Item_func::Functype,
+                                     Item *value)
+{
+  return json_array_point_leaf(param, field, key_part, value);
+}
+
+bool Item_func_json_contains::count_sargable_conds(void *arg)
+{
+  ((SELECT_LEX*) arg)->cond_count++;
+  return 0;
+}
