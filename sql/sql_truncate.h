@@ -69,6 +69,6 @@ protected:
 };
 
 extern bool fk_truncate_illegal_if_parent(THD *thd, TABLE *table,
-                                          const char *ddl);
+                                          const char *ddl, int err_code);
 
 #endif
