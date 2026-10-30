@@ -224,6 +224,7 @@ then
   LOGWARNING="WARNING: Using a routine that could cause binary log events, but disabling of binary logging has been removed"
   sed -i '' -e "s/^[ \s]*SET sql_log_bin = 0/SELECT \"$LOGWARNING\"/g" $GENDIR/$OUTPUTFILE
   sed -i '' -e "s/\sSET sql_log_bin = @log_bin;/SET @log_bin = NULL;/g" $GENDIR/$OUTPUTFILE
+  sed -i '' -e "s/\sSET sql_log_bin = v_log_bin;/SET v_log_bin = NULL;/g" $GENDIR/$OUTPUTFILE
   SKIPBINLOG="disabled"
 else
   SKIPBINLOG="enabled"
