@@ -1,0 +1,82 @@
+--source ../include/have_duckdb.inc
+--source include/have_binlog_format_row.inc
+--disable_warnings
+--disable_ps_protocol
+--disable_cursor_protocol
+
+--echo #
+--echo # MDEV-40831 UPDATE/DELETE on ENGINE=DuckDB fail with binlog_format=ROW
+--echo #
+--echo # The whole statement runs in DuckDB and the statement itself is written
+--echo # to the binary log.
+--echo #
+
+create database mytest;
+use mytest;
+create table t1 (id int primary key, v varchar(40)) engine=DuckDB;
+insert into t1 values (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+select @@binlog_format;
+
+update t1 set v='x' where id=1;
+update t1 set v='y' where id<=2;
+update t1 set v='z' where v='c';
+delete from t1 where id=4;
+select * from t1 order by id;
+
+--echo # A non-deterministic statement is not run as a statement, it is logged
+--echo # as row events
+update t1 set v=uuid() where id=5;
+select id, length(v) from t1 where id=5;
+
+--echo # Statements that cannot be forwarded as they are take the row by row path
+create table t2 (id int primary key, v varchar(40)) engine=DuckDB;
+insert into t2 values (1,'a'),(2,'b'),(3,'c');
+create trigger trg before update on t2 for each row set @n= @n + 1;
+set @n= 0;
+update t2 set v='t' where id=1;
+select @n;
+drop trigger trg;
+select id, length(v) from t1 order by id;
+select * from t2 order by id;
+
+--echo # User variables cannot be evaluated by DuckDB, so the statement is not forwarded
+set @v= 'uv', @i= 2;
+update t2 set v=@v where id=2;
+update t2 set v='w' where id=@i;
+delete from t2 where id=@i;
+select * from t2 order by id;
+
+--echo # Expressions DuckDB reads differently are not forwarded: a double quoted
+--echo # string is a column name for DuckDB, now() is its own clock
+create table t3 (id int primary key, v varchar(40), a varchar(40), d datetime) engine=DuckDB;
+insert into t3 values (1,'o','colA',null);
+update t3 set v="a" where id=1;
+update t3 set d=now() where id=1;
+update t3 set v=concat(v,'z'), id=id+10 where id=1;
+select id, v, d is not null as has_d from t3;
+
+--echo # A statement run by a trigger on another table is not forwarded
+create table i1 (id int primary key, x int) engine=InnoDB;
+insert into i1 values (1,0);
+create trigger tr after update on i1 for each row update t3 set v='trg' where id=11;
+update i1 set x=1 where id=1;
+select id, v from t3;
+drop trigger tr;
+
+--echo # Rollback and a prepared statement
+begin;
+update t3 set v='rb' where id=11;
+rollback;
+prepare s from 'update t3 set a=? where id=11';
+set @p= 'p1';
+execute s using @p;
+set @p= 'p2';
+execute s using @p;
+select id, v, a from t3;
+
+delete from t1;
+select * from t1;
+
+--source include/show_binlog_events.inc
+
+drop database mytest;
