@@ -869,7 +869,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   {
     String ddl;
     StringBuffer<256> full_tbl_name;
-    LEX_CSTRING *tbl_name_key;
+    LEX_CSTRING *tbl_name_key= nullptr;
     append_table_or_view_name(tbl, &full_tbl_name);
 
     /*
