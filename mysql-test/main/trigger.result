@@ -2499,3 +2499,11 @@ Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
 drop trigger t1_trg_2;
 drop table t1;
 # End of 10.6 tests
+#
+# MDEV-38860 Assertion `null_ptr < ptr' failed in virtual void Field::move_field_offset(my_ptrdiff_t)
+#
+create table t1 (a int not null default 0);
+create trigger trg before insert on t1 for each row rollback to savepoint s;
+update t1 set a=((select max(a) from t1));
+drop table t1;
+# End of 10.11 tests
