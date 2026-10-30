@@ -124,8 +124,8 @@ ulong total_ha_2pc= 0;
 */
 ulong failed_ha_2pc= 0;
 #endif
-/* size of savepoint storage area (see ha_init) */
-ulong savepoint_alloc_size= 0;
+/* size of SAVEPOINT plus all engines' savepoint storage areas */
+ulong savepoint_alloc_size= sizeof(SAVEPOINT);
 
 static const LEX_CSTRING sys_table_aliases[]=
 {
@@ -806,7 +806,6 @@ int ha_init()
     counting total_ha)
   */
   opt_using_transactions= total_ha > (ulong) opt_bin_log;
-  savepoint_alloc_size+= sizeof(SAVEPOINT);
   DBUG_RETURN(error);
 }
 
@@ -3075,7 +3074,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     DBUG_ASSERT(ht);
     DBUG_ASSERT(ht->savepoint_set != 0);
     if ((err= ht->savepoint_rollback(ht, thd,
-                                     (uchar *)(sv+1)+ht->savepoint_offset)))
+                                     (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
@@ -3159,7 +3158,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
       break;
     }
-    if ((err= ht->savepoint_set(ht, thd, (uchar *)(sv+1)+ht->savepoint_offset)))
+    if ((err= ht->savepoint_set(ht, thd, (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
@@ -3193,7 +3192,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
     if (!ht->savepoint_release)
       continue;
     if ((err= ht->savepoint_release(ht, thd,
-                                    (uchar *)(sv+1) + ht->savepoint_offset)))
+                                    (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
