@@ -99,6 +99,7 @@ update t set a='after';
 select * from t;
 --connection master
 drop table t;
+--sync_slave_with_master
 
 --echo #
 --echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
@@ -131,6 +132,7 @@ select id, a, v, ws = id + unix_timestamp(rs) as ok
 from t for system_time all force index (v) order by v, id;
 --connection master
 drop table t;
+--sync_slave_with_master
 
 --echo #
 --echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB

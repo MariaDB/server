@@ -8016,6 +8016,7 @@ static void usage(void)
     puts("\nTo see what variables a running server is using, type"
          "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.");
   }
+  fflush(stdout);
   DBUG_VOID_RETURN;
 }
 #endif /*!EMBEDDED_LIBRARY*/

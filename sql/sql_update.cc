@@ -1284,7 +1284,7 @@ update_end:
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
-    if (thd->get_stmt_da()->is_bulk_op())
+    if (thd->get_stmt_da()->is_bulk_op() && !thd->in_bulk_sub_stmt())
     {
       /*
         Update the diagnostics message sent to a client with number of actual
@@ -2689,10 +2689,12 @@ int multi_update::do_updates()
 
       /* Copy data from temporary table to current table */
       for (copy_field_ptr=copy_field;
-	   copy_field_ptr != copy_field_end;
-	   copy_field_ptr++)
+	         copy_field_ptr != copy_field_end;
+	         copy_field_ptr++)
       {
-	(*copy_field_ptr->do_copy)(copy_field_ptr);
+      	(*copy_field_ptr->do_copy)(copy_field_ptr);
+        if (thd->is_error())
+          goto err2;
         copy_field_ptr->to_field->set_has_explicit_value();
       }
 
@@ -2948,8 +2950,9 @@ bool Sql_cmd_update::processing_as_multitable_update_prohibited(THD *thd)
 {
   SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   return
-    (select_lex->order_list.elements &&
-     select_lex->limit_params.select_limit);
+    ((select_lex->order_list.elements &&
+      select_lex->limit_params.select_limit) ||
+     thd->lex->period_conditions.is_set());
 }
 
 

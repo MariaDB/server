@@ -188,7 +188,7 @@ enum innobackupex_options
 	OPT_DATABASES,
 	OPT_DECOMPRESS,
 
-	/* options wich are passed directly to xtrabackup */
+	/* options which are passed directly to xtrabackup */
 	OPT_CLOSE_FILES,
 	OPT_COMPACT,
 	OPT_COMPRESS,

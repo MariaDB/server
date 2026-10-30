@@ -1,4 +1,7 @@
 source include/not_embedded.inc;
+if ($CLIENT_TLS_LIBRARY == "GnuTLS") {
+  skip Test requires Connector/C without GnuTLS;
+}
 
 create function have_ssl() returns char(3)
   return (select if(variable_value > '','yes','no') as 'have_ssl'
