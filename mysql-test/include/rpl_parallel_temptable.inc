@@ -188,6 +188,7 @@ if (!$binlog_in_engine) {
 --source include/wait_until_connected_again.inc
 }
 if ($binlog_in_engine) {
+  --remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
   # Drop the temporary tables manually, as we did not crash the server.
   --connection default
   DROP TEMPORARY TABLE t3;
