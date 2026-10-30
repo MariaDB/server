@@ -1228,3 +1228,61 @@ select 1 from (select 1 as v1) as v2
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-41585 Multi-table UPDATE with ORDER BY using a temporary table
+--echo #            assigns values computed from the last row read
+--echo #
+
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, v INT DEFAULT 7, w INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 (id,v) VALUES (1,10),(2,20),(3,30);
+EXPLAIN UPDATE t1, t2 SET t2.v = t2.v + 1 ORDER BY t1.id;
+UPDATE t1, t2 SET t2.v = t2.v + 1 ORDER BY t1.id;
+SELECT * FROM t2;
+UPDATE t1, t2 SET t2.w = t2.v, t2.v = t2.id * 100 + t1.id ORDER BY t1.id;
+SELECT * FROM t2;
+UPDATE t1, t2 SET t2.v = DEFAULT, t2.w = t2.id ORDER BY t1.id;
+SELECT * FROM t2;
+UPDATE t1, t2 SET t2.v = (SELECT MAX(id) FROM t1) + t2.id ORDER BY t1.id;
+SELECT * FROM t2;
+UPDATE t1, t2 SET t2.v = t2.id, t1.id = t1.id + 10 ORDER BY t2.id DESC LIMIT 2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+PREPARE s FROM 'UPDATE t1, t2 SET t2.v = t2.v + t1.id ORDER BY t1.id';
+EXECUTE s;
+SELECT * FROM t2;
+EXECUTE s;
+SELECT * FROM t2;
+DEALLOCATE PREPARE s;
+CREATE VIEW v2 AS SELECT id, v*2 AS vv, v FROM t2;
+UPDATE t1, v2 SET v2.v = v2.vv ORDER BY t1.id;
+SELECT * FROM t2;
+CREATE TABLE t3 (id INT, old_v INT, new_v INT);
+CREATE TRIGGER tr BEFORE UPDATE ON t2 FOR EACH ROW
+  INSERT INTO t3 VALUES (OLD.id, OLD.v, NEW.v);
+UPDATE t1, t2 SET t2.v = t2.id - 1 ORDER BY t1.id;
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP VIEW v2;
+DROP TABLE t1, t2, t3;
+# The SET values are evaluated once per join row written to the temp table
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, v INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1,0),(2,0),(3,0);
+CREATE SEQUENCE s;
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) LIMIT 1;
+SELECT * FROM t2;
+SELECT LASTVAL(s);
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) ORDER BY t1.id, t2.id LIMIT 1;
+SELECT * FROM t2;
+SELECT LASTVAL(s);
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) ORDER BY t1.id, t2.id DESC LIMIT 1;
+SELECT * FROM t2;
+SELECT LASTVAL(s);
+DROP SEQUENCE s;
+DROP TABLE t1, t2;
+
+--echo # End of 10.11 tests

@@ -3691,6 +3691,15 @@ uint st_select_lex::get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg)
           order_group_num * 2 * winfunc_factor +
           hidden_bit_fields +
           fields_in_window_functions;
+  /*
+    Multi-table UPDATE adds the SET values to the hidden fields, see
+    multi_update::initialize_tables().  A single-table UPDATE may become
+    multi-table on a later execution of a prepared statement.
+  */
+  if (this == parent_lex->first_select_lex() &&
+      (parent_lex->sql_command == SQLCOM_UPDATE ||
+       parent_lex->sql_command == SQLCOM_UPDATE_MULTI))
+    n+= item_list.elements;
   return n;
 }
 
