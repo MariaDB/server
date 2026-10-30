@@ -1224,6 +1224,11 @@ class Item_sum_min_max :public Item_sum_hybrid
 {
 protected:
   bool direct_added;
+  /*
+    reset_field() consumed a direct_add(), whose item update_field() may still
+    have to fold in. See Item_sum_sum::direct_reseted_field.
+  */
+  bool direct_reseted_field;
   Item *direct_item;
   Item_cache *value, *arg_cache;
   Arg_comparator *cmp;
@@ -1234,12 +1239,14 @@ protected:
 public:
   Item_sum_min_max(THD *thd, Item *item_par,int sign):
     Item_sum_hybrid(thd, item_par),
-    direct_added(FALSE), value(0), arg_cache(0), cmp(0),
+    direct_added(FALSE), direct_reseted_field(FALSE), value(0),
+    arg_cache(0), cmp(0),
     cmp_sign(sign), was_values(TRUE)
   { collation.set(&my_charset_bin); }
   Item_sum_min_max(THD *thd, Item_sum_min_max *item)
     :Item_sum_hybrid(thd, item),
-    direct_added(FALSE), value(item->value), arg_cache(0),
+    direct_added(FALSE), direct_reseted_field(FALSE), value(item->value),
+    arg_cache(0),
     cmp_sign(item->cmp_sign), was_values(item->was_values)
   { }
   bool fix_fields(THD *, Item **) override;
