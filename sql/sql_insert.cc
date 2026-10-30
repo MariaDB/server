@@ -379,7 +379,6 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
 {
   TABLE *table= insert_table_list->table;
   my_bool UNINIT_VAR(autoinc_mark);
-  enum_sql_command sql_command_save= thd->lex->sql_command;
 
   table->next_number_field_updated= FALSE;
 
@@ -394,18 +393,17 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                         field_index);
   }
 
-  thd->lex->sql_command= SQLCOM_UPDATE;
-
   /* Check the fields we are going to modify */
-  if (setup_fields(thd, Ref_ptr_array(),
-                   update_fields, MARK_COLUMNS_WRITE, 0, NULL, 0,
-                   THD_WHERE::UPDATE_CLAUSE))
   {
-    thd->lex->sql_command= sql_command_save;
-    return -1;
-  }
+    SCOPE_VALUE(thd->lex->sql_command, SQLCOM_UPDATE);
+    SCOPE_VALUE(table->grant.want_privilege,
+                UPDATE_ACL & ~table->grant.privilege);
 
-  thd->lex->sql_command= sql_command_save;
+    if (setup_fields(thd, Ref_ptr_array(),
+                     update_fields, MARK_COLUMNS_WRITE, 0, NULL, 0,
+                     THD_WHERE::UPDATE_CLAUSE))
+      return -1;
+  }
 
   if (insert_table_list->is_view() &&
       insert_table_list->is_merged_derived() &&
