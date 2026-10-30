@@ -129,10 +129,10 @@ DROP TABLE t2;
 --echo # check -- the workers ship their rows and the manager groups them, which
 --echo # is the same grouping done a row at a time instead of a group at a time.
 --echo #
---echo # Nothing this tree can express reaches it: the gate already refuses the
---echo # two shapes that make create_tmp_table() fall back for a heap container,
---echo # and its engine-limit test is only in the on-disk branch. So it is asked
---echo # for here, or it would never be run.
+--echo # Nothing this tree can express reaches it: a container gets the engine
+--echo # and the key the plan's own aggregation table got, and the gate has seen
+--echo # that table keyed by the group. So it is asked for here, or it would
+--echo # never be run.
 --echo #
 set @save_dbug= @@global.debug_dbug;
 set global debug_dbug="+d,pwt_no_group_index";
@@ -247,6 +247,37 @@ SELECT JSON_EXTRACT(trace,'$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
   FROM information_schema.optimizer_trace;
 --enable_query_log
 SET optimizer_trace= @st;
+
+--echo #
+--echo # A GROUP BY column too wide to be a key part of an on-disk table. A heap
+--echo # table indexes it, so the workers pre-aggregate on it.
+--echo #
+CREATE TABLE t9 (a INT PRIMARY KEY, w VARCHAR(4000), n INT,
+                 d DECIMAL(10,2)) ENGINE=InnoDB;
+INSERT INTO t9 SELECT seq, CONCAT(REPEAT('x',600), seq % 50), seq % 13, seq/4
+  FROM seq_1_to_20000;
+--disable_ps_protocol
+FLUSH STATUS;
+--disable_result_log
+SELECT w, COUNT(*), SUM(n), AVG(d), MIN(n), MAX(n) FROM t9 GROUP BY w;
+--enable_result_log
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--let $tw= query_get_value(SHOW SESSION STATUS LIKE 'Handler_tmp_write', Value, 1)
+--let $dt= query_get_value(SHOW SESSION STATUS LIKE 'Created_tmp_disk_tables', Value, 1)
+--enable_ps_protocol
+--echo # in the workers, by partials rather than rows, all in heap (expect 1 1 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers, $tw < 1000 AS shipped_partials, $dt = 0 AS stayed_in_heap
+--enable_query_log
+SET SESSION parallel_worker_threads=0;
+--let $ser= `SELECT SUM(CRC32(CONCAT_WS('/',w,c,s,av,mn,mx))) FROM (SELECT w, COUNT(*) c, SUM(n) s, AVG(d) av, MIN(n) mn, MAX(n) mx FROM t9 GROUP BY w) d`
+SET SESSION parallel_worker_threads=4;
+--let $par= `SELECT SUM(CRC32(CONCAT_WS('/',w,c,s,av,mn,mx))) FROM (SELECT w, COUNT(*) c, SUM(n) s, AVG(d) av, MIN(n) mn, MAX(n) mx FROM t9 GROUP BY w) d`
+--echo # the parallel answer matches the serial one (expect 1)
+--disable_query_log
+--eval SELECT $ser = $par AS same_answer
+--enable_query_log
+DROP TABLE t9;
 
 SET SESSION parallel_worker_threads=default;
 DROP TABLE t1;

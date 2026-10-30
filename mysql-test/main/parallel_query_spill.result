@@ -445,7 +445,23 @@ SET SESSION parallel_worker_threads=4;
 # the parallel answer matches the serial one (expect 1)
 same_answer
 1
+CREATE TABLE t4 (a INT PRIMARY KEY, w VARCHAR(4000), n INT, d DECIMAL(10,2))
+ENGINE=InnoDB;
+INSERT INTO t4 SELECT seq, CONCAT(REPEAT('x',600), seq % 3000), seq % 13, seq/4
+FROM seq_1_to_20000;
+SET SESSION tmp_memory_table_size=16777216;
+SET SESSION max_heap_table_size=16777216;
+FLUSH STATUS;
+SELECT w, COUNT(*), SUM(n), AVG(d), MIN(n), MAX(n) FROM t4 GROUP BY w;
+# ran in the workers, a row per group, rebuilt on disk (expect 1 1 1)
+ran_in_the_workers	every_group_arrived	rebuilt_on_disk
+1	1	1
+SET SESSION parallel_worker_threads=0;
+SET SESSION parallel_worker_threads=4;
+# the parallel answer matches the serial one (expect 1)
+same_answer
+1
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 SET SESSION parallel_worker_threads=default;
-DROP TABLE t1, t2, t3;
+DROP TABLE t1, t2, t3, t4;

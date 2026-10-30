@@ -214,10 +214,10 @@ DROP TABLE t2;
 # check -- the workers ship their rows and the manager groups them, which
 # is the same grouping done a row at a time instead of a group at a time.
 #
-# Nothing this tree can express reaches it: the gate already refuses the
-# two shapes that make create_tmp_table() fall back for a heap container,
-# and its engine-limit test is only in the on-disk branch. So it is asked
-# for here, or it would never be run.
+# Nothing this tree can express reaches it: a container gets the engine
+# and the key the plan's own aggregation table got, and the gate has seen
+# that table keyed by the group. So it is asked for here, or it would
+# never be run.
 #
 set @save_dbug= @@global.debug_dbug;
 set global debug_dbug="+d,pwt_no_group_index";
@@ -347,5 +347,24 @@ chosen
 chosen
 1
 SET optimizer_trace= @st;
+#
+# A GROUP BY column too wide to be a key part of an on-disk table. A heap
+# table indexes it, so the workers pre-aggregate on it.
+#
+CREATE TABLE t9 (a INT PRIMARY KEY, w VARCHAR(4000), n INT,
+d DECIMAL(10,2)) ENGINE=InnoDB;
+INSERT INTO t9 SELECT seq, CONCAT(REPEAT('x',600), seq % 50), seq % 13, seq/4
+FROM seq_1_to_20000;
+FLUSH STATUS;
+SELECT w, COUNT(*), SUM(n), AVG(d), MIN(n), MAX(n) FROM t9 GROUP BY w;
+# in the workers, by partials rather than rows, all in heap (expect 1 1 1)
+ran_in_the_workers	shipped_partials	stayed_in_heap
+1	1	1
+SET SESSION parallel_worker_threads=0;
+SET SESSION parallel_worker_threads=4;
+# the parallel answer matches the serial one (expect 1)
+same_answer
+1
+DROP TABLE t9;
 SET SESSION parallel_worker_threads=default;
 DROP TABLE t1;
