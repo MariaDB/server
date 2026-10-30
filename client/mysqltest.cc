@@ -1694,13 +1694,6 @@ void check_command_args(struct st_command *command,
       /* Skip leading spaces */
       while (*ptr && *ptr == ' ')
         ptr++;
-      /* An optional argument is missing if a comment starts here */
-      if (*ptr == '#' && !arg->required)
-      {
-        init_dynamic_string(arg->ds, "", 0, 0);
-        command->last_argument= (char*) ptr;
-        break;
-      }
       start= ptr;
       delimiter = delimiter_arg;
       /* If start of arg is ' ` or " search to matching quote end instead */
@@ -8681,6 +8674,27 @@ static void abort_connection(MYSQL *mysql)
 #endif
 
 
+/*
+  Whether something other than a comment follows the connection name, which is
+  the first argument of disconnect and dirty_close.
+*/
+static bool close_connection_has_option(const char *p)
+{
+  while (*p == ' ')
+    p++;
+  char delimiter= ' ';
+  if (*p && strchr("'`\"", *p))
+    delimiter= *p++;
+  while (*p && *p != delimiter)
+    p++;
+  if (*p)
+    p++;
+  while (*p == ' ')
+    p++;
+  return *p && *p != '#';
+}
+
+
 void do_close_connection(struct st_command *command)
 {
   DBUG_ENTER("do_close_connection");
@@ -8694,13 +8708,14 @@ void do_close_connection(struct st_command *command)
       "dirty_close only: linger, the default, or nolinger, which resets "
       "the TCP connection" }
   };
-  /* Only dirty_close takes the second argument */
-  const bool dirty= command->type == Q_DIRTY_CLOSE;
+  /* Only dirty_close takes the second argument, and not in a comment */
+  const bool has_linger= command->type == Q_DIRTY_CLOSE &&
+                         close_connection_has_option(command->first_argument);
   check_command_args(command, command->first_argument,
-                     close_connection_args, dirty ? 2 : 1, ' ');
+                     close_connection_args, has_linger ? 2 : 1, ' ');
 
   bool nolinger __attribute__((unused))= false;
-  if (dirty && ds_linger.length)
+  if (has_linger && ds_linger.length)
   {
     if (!strcmp(ds_linger.str, "nolinger"))
       nolinger= true;

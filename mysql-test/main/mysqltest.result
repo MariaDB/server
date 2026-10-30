@@ -960,6 +960,7 @@ file1.txt
 file2.txt
 file11.txt
 dir-list.txt
+#sql-test
 SELECT 'c:\\a.txt' AS col;
 col
 z
