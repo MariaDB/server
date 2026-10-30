@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5021,7 +5021,7 @@ bool handler::check_old_types() const
 
 static bool update_frm_version(TABLE *table)
 {
-  char path[FN_REFLEN];
+  char path[FN_REFLEN + 1];
   File file;
   int result= 1;
   DBUG_ENTER("update_frm_version");
