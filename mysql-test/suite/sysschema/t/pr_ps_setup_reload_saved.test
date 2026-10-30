@@ -1,0 +1,33 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-41940 sys.ps_setup_reload_saved() leaves session sql_log_bin disabled after an error
+--echo #
+
+# Without a saved configuration the procedure empties setup_actors
+# before it fails, so keep a copy to put back.
+create temporary table saved_actors as select * from performance_schema.setup_actors;
+
+select @@sql_log_bin;
+--error ER_SIGNAL_EXCEPTION
+call sys.ps_setup_reload_saved();
+select @@sql_log_bin;
+
+insert into performance_schema.setup_actors select * from saved_actors;
+drop temporary table saved_actors;
+
+# The saved configuration belongs to another connection.
+connect (con1,localhost,root,,);
+call sys.ps_setup_save(0);
+
+connection default;
+--error ER_SIGNAL_EXCEPTION
+call sys.ps_setup_reload_saved();
+select @@sql_log_bin;
+
+connection con1;
+call sys.ps_setup_reload_saved();
+disconnect con1;
+connection default;
+
+--echo # End of 11.4 tests
