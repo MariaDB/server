@@ -779,7 +779,14 @@ static int search_default_file_with_ext(struct handle_option_ctx *ctx,
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
       end= value;
-    for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
+    for ( ; end > ptr && my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
+    if (end == ptr)
+    {
+      fprintf(stderr,
+              "error: Wrong option definition in config file: %s at line %d\n",
+              name, line);
+      goto err;
+    }
     ptr= strmake(strmov(option,"--"), ptr, (size_t) (end-ptr));
     if (value)
     {
