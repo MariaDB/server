@@ -6401,7 +6401,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (void*) &result;      // Big stack
+    p->thd->set_thread_stack();
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();

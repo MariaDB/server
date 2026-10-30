@@ -4017,6 +4017,7 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void set_thread_stack(void **stack_end= NULL);
   void reset_stack()
   {
     thread_stack= 0;

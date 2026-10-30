@@ -2417,7 +2417,6 @@ void *spider_bg_conn_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
   thd->store_globals();
   if (!(trx = spider_get_trx(thd, FALSE, &error_num)))
   {
@@ -2857,7 +2856,6 @@ void *spider_bg_sts_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
   thd->store_globals();
   if (!(trx = spider_get_trx(thd, FALSE, &error_num)))
   {
@@ -3120,7 +3118,6 @@ void *spider_bg_crd_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
   thd->store_globals();
   if (!(trx = spider_get_trx(thd, FALSE, &error_num)))
   {
@@ -3525,7 +3522,6 @@ void *spider_bg_mon_action(
 #ifdef HAVE_PSI_INTERFACE
   mysql_thread_set_psi_id(thd->thread_id);
 #endif
-  thd->thread_stack = (char*) &thd;
   thd->store_globals();
   if (!(trx = spider_get_trx(thd, FALSE, &error_num)))
   {

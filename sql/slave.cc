@@ -5043,12 +5043,6 @@ pthread_handler_t handle_slave_io(void *arg)
   thd->set_psi(PSI_CALL_get_thread());
 
   pthread_detach_this_thread();
-  /*
-    Remember where our stack is. This is needed for this function as
-    there are a lot of stack variables. It will be fixed in store_globals()
-    called by init_slave_thread().
-  */
-  thd->thread_stack= (void*) &thd; // remember where our stack is
   mi->clear_error();
   if (init_slave_thread(thd, mi, SLAVE_THD_IO))
   {
@@ -5702,7 +5696,6 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
-  thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
 
   DBUG_ASSERT(rli->inited);

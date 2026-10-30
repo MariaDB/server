@@ -1436,7 +1436,6 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     DBUG_RETURN(1);
   }
 
-  thd->thread_stack= (orig_thd ? orig_thd->thread_stack : (char *) &thd);
   wsrep_init_thd_variables(thd);
   wsrep_assign_from_threadvars(thd);
 
@@ -1696,7 +1695,6 @@ void Wsrep_schema::clear_allowlist()
     return;
   }
 
-  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
   TABLE_LIST allowlist_table_l;
@@ -1744,7 +1742,6 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
     return;
   }
 
-  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
   TABLE_LIST allowlist_table_l;
@@ -1796,7 +1793,6 @@ static void *allowlist_check_thread(void *param)
 
   my_thread_init();
   THD *thd= new THD(0);
-  thd->thread_stack= (char *) thd;
   wsrep_init_thd_for_schema(thd);
 
   int error;
