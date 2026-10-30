@@ -38,6 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "m_string.h"
 #include "mysqld_error.h"
 #include "sql_servers.h"
+#include <errmsg.h>
 
 #define SAVEPOINT_REALIZED  1
 #define SAVEPOINT_RESTRICT  2
@@ -64,8 +65,11 @@ class federatedx_io_mysql :public federatedx_io
   bool requested_autocommit;
   bool actual_autocommit;
 
-  int actual_query(const char *buffer, size_t length);
+  int actual_query(const char *buffer, size_t length,
+                   bool ending_transaction= false);
   bool test_all_restrict() const;
+  bool wants_autocommit() const;
+  void connection_lost(bool ending_transaction);
 public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql() override;
@@ -78,6 +82,7 @@ public:
   size_t max_query_size() const override;
 
   my_ulonglong affected_rows() const override;
+  my_ulonglong matched_rows() const override;
   my_ulonglong last_insert_id() const override;
 
   int error_code() override;
@@ -169,7 +174,7 @@ int federatedx_io_mysql::commit()
   int error= 0;
   DBUG_ENTER("federatedx_io_mysql::commit");
   
-  if (!actual_autocommit && (error= actual_query("COMMIT", 6)))
+  if (!actual_autocommit && (error= actual_query("COMMIT", 6, true)))
     rollback();
   
   reset();
@@ -183,7 +188,7 @@ int federatedx_io_mysql::rollback()
   DBUG_ENTER("federatedx_io_mysql::rollback");
   
   if (!actual_autocommit)
-    error= actual_query("ROLLBACK", 8);
+    error= actual_query("ROLLBACK", 8, true);
   else
     error= ER_WARNING_NOT_COMPLETE_ROLLBACK;
 
@@ -375,22 +380,26 @@ bool federatedx_io_mysql::test_all_restrict() const
 }
 
 
+/* Whether the remote session should be in autocommit mode right now */
+bool federatedx_io_mysql::wants_autocommit() const
+{
+  return requested_autocommit || is_readonly() || test_all_restrict();
+}
+
+
 int federatedx_io_mysql::query(const char *buffer, size_t length)
 {
   int error;
-  bool wants_autocommit= requested_autocommit | is_readonly();
+  const bool autocommit= wants_autocommit();
   DBUG_ENTER("federatedx_io_mysql::query");
 
-  if (!wants_autocommit && test_all_restrict())
-    wants_autocommit= TRUE;
-
-  if (wants_autocommit != actual_autocommit)
+  if (autocommit != actual_autocommit)
   {
-    if ((error= actual_query(wants_autocommit ? "SET AUTOCOMMIT=1"
-                                            : "SET AUTOCOMMIT=0", 16)))
+    if ((error= actual_query(autocommit ? "SET AUTOCOMMIT=1"
+                                        : "SET AUTOCOMMIT=0", 16)))
     DBUG_RETURN(error);                         
-    mysql.reconnect= wants_autocommit ? 1 : 0;
-    actual_autocommit= wants_autocommit;
+    mysql.reconnect= autocommit ? 1 : 0;
+    actual_autocommit= autocommit;
   }
   
   if (!actual_autocommit && last_savepoint() != actual_savepoint())
@@ -417,7 +426,84 @@ int federatedx_io_mysql::query(const char *buffer, size_t length)
 }
 
 
-int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
+/*
+  Called after a failed query or a failed read of its result. If the
+  connection is gone, forget the state of its session. The next query opens
+  a new session in autocommit mode, so query() has to send SET AUTOCOMMIT=0
+  to it again, or the rest of the transaction would be committed on the
+  remote server statement by statement.
+
+  The client library compiled into the server returns from a timeout of
+  reading the remote reply (net_read_timeout) without closing the connection,
+  so the reply to the query is still to arrive. Close it, so that the next
+  query does not read a stale reply. mysql_close() rather than end_server()
+  is needed, because the next query initializes the MYSQL structure from
+  scratch (see actual_query()), which would lose everything the closed
+  connection has allocated. The timeout is already reported to the user by
+  the network layer (ER_NET_READ_INTERRUPTED); CR_SERVER_LOST is only what
+  the error of this io object says.
+
+  @param ending_transaction  the failed query is the COMMIT or ROLLBACK of the
+                             transaction. Its error is returned to the
+                             caller, so the transaction is not marked for
+                             rollback here.
+*/
+
+void federatedx_io_mysql::connection_lost(bool ending_transaction)
+{
+  void *thd= mysql.net.thd;
+  DBUG_ASSERT(thd);
+  /*
+    The remote session is in a transaction, or was about to enter one when
+    the failed statement was SET AUTOCOMMIT=0 itself.
+  */
+  const bool in_transaction= !actual_autocommit || !wants_autocommit();
+
+  /*
+    A real read timeout: net.error == 2 means our own read failed. A remote
+    error packet that merely carries ER_NET_READ_INTERRUPTED (e.g. via SIGNAL)
+    leaves net.error at 0, so it isn't mistaken for a lost connection.
+  */
+  const bool timeout= mysql.net.vio && mysql.net.error == 2 &&
+                      mysql.net.last_errno == ER_NET_READ_INTERRUPTED;
+  if (mysql.net.vio && !timeout)
+    return;
+
+  /* The library closed the connection by end_server(), which the next
+     mysql_init() of the structure would leak. Keep its error. */
+  uint last_errno= timeout ? CR_SERVER_LOST : mysql.net.last_errno;
+  char sqlstate[SQLSTATE_LENGTH + 1];
+  char last_error[MYSQL_ERRMSG_SIZE];
+  strmake_buf(sqlstate, timeout ? "HY000" : mysql.net.sqlstate);
+  strmake_buf(last_error, timeout ? "Lost connection to server during query"
+                                  : mysql.net.last_error);
+  mysql_close(&mysql);
+  /* set_mysql_error() is not exported to plugins on Windows */
+  mysql.net.last_errno= last_errno;
+  strmov(mysql.net.sqlstate, sqlstate);
+  strmov(mysql.net.last_error, last_error);
+
+  reset();
+  actual_autocommit= TRUE;
+  if (!ending_transaction)
+  {
+    if (in_transaction)
+      static_cast<THD *>(thd)->mark_transaction_to_rollback(true);
+    /*
+      A failed read is reported by the network layer. A failed write is not
+      reported if the network layer has already seen EOF on the socket (it
+      looks at the socket before sending a command in a non-debug build), so
+      the client would get ER_GET_ERRMSG for the HA_FEDERATEDX_ERROR_WITH_
+      REMOTE_SYSTEM that the handler returns.
+    */
+    if (!static_cast<THD *>(thd)->is_error())
+      my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), last_error);
+  }
+}
+
+
+int federatedx_io_mysql::actual_query(const char *buffer, size_t length,
+                                      bool ending_transaction)
 {
   int error;
   DBUG_ENTER("federatedx_io_mysql::actual_query");
@@ -446,13 +532,19 @@ int federatedx_io_mysql::actual_query(const char *buffer, size_t length)
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
 
     if ((error= mysql_real_query(&mysql, STRING_WITH_LEN("set time_zone='+00:00'"))))
+    {
+      connection_lost(false);
       DBUG_RETURN(error);
+    }
 
     mysql.reconnect= 1;
   }
 
   error= mysql_real_query(&mysql, buffer, (ulong)length);
-  
+
+  if (error)
+    connection_lost(ending_transaction);
+
   DBUG_RETURN(error);
 }
 
@@ -464,6 +556,32 @@ size_t federatedx_io_mysql::max_query_size() const
 
 my_ulonglong federatedx_io_mysql::affected_rows() const
 {
+  return mysql.affected_rows;
+}
+
+
+my_ulonglong federatedx_io_mysql::matched_rows() const
+{
+  /*
+    For an UPDATE the server returns an info string of the form
+      "Rows matched: N  Changed: M  Warnings: W"
+    where N is the matched count. The text around the numbers varies depending
+    on the remote server's locale, but the order of the numbers is fixed, so
+    read the first number rather than search for an English label. For
+    statements that do not report matched rows (e.g. DELETE) mysql_info() is
+    NULL, fall back to the number of affected rows.
+  */
+  if (mysql.info)
+  {
+    const char *p= mysql.info;
+    while (*p && (*p < '0' || *p > '9'))
+      p++;
+    if (*p)
+    {
+      int error= 0;
+      return (my_ulonglong) my_strtoll10(p, NULL, &error);
+    }
+  }
   return mysql.affected_rows;
 }
 
@@ -490,7 +608,8 @@ FEDERATEDX_IO_RESULT *federatedx_io_mysql::store_result()
   FEDERATEDX_IO_RESULT *result;
   DBUG_ENTER("federatedx_io_mysql::store_result");
 
-  result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql);
+  if (!(result= (FEDERATEDX_IO_RESULT *) mysql_store_result(&mysql)))
+    connection_lost(false);
 
   DBUG_RETURN(result);
 }

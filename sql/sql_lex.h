@@ -289,6 +289,7 @@ class Item_window_func;
 struct sql_digest_state;
 class With_clause;
 class my_var;
+class pushdown_handler;
 class select_handler;
 class Pushdown_select;
 class Opt_hints_global;
@@ -1206,7 +1207,7 @@ public:
   table_value_constr *tvc;
 
   /* The object used to organize execution of the query by a foreign engine */
-  select_handler *pushdown_select;
+  pushdown_handler *pushdown_select;
   List<TABLE_LIST> *join_list;    /* list for the currently parsed join  */
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
@@ -3605,6 +3606,23 @@ public:
   */
   bool autocommit;          // Often used, better as bool
   bool sp_lex_in_use;       // Keep track on lex usage in SPs for error handling
+  /*
+    Set by the pushdown_handler and derived_handler constructors when the
+    statement is pushed down to an engine, which skips the once-per-statement
+    optimization. Such a statement must not freeze its mem_root.
+    Prepared_statement::execute_loop() clears it after each execution.
+    A stored routine instruction's LEX keeps it.
+  */
+#ifdef PROTECT_STATEMENT_MEMROOT
+  bool dont_freeze_mem_root= false;
+#endif
+  /* To be called by the pushdown_handler and derived_handler constructors */
+  void mark_pushed_down()
+  {
+#ifdef PROTECT_STATEMENT_MEMROOT
+    dont_freeze_mem_root= true;
+#endif
+  }
 
   /* Bit fields, reset for every query */
   bool is_shutdown_wait_for_slaves:1;

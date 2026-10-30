@@ -11190,19 +11190,31 @@ void Item_cache::store(Item *item)
 
 void Item_cache::print(String *str, enum_query_type query_type)
 {
-  if (example &&                                 // There is a cached item
-      (query_type & QT_NO_DATA_EXPANSION))       // Caller is show-create-table
-  {
-    // Instead of "cache" or the cached value, print the cached item name
-    example->print(str, query_type);
-    return;
-  }
-
-  if (value_cached)
+  /*
+    A cache that already holds a value prints it as a literal, except for
+    show-create-table, which prints the cached item instead of data.
+  */
+  if (value_cached && (!(query_type & QT_NO_DATA_EXPANSION) || !example))
   {
     print_value(str);
     return;
   }
+
+  if (example &&                                 // There is a cached item
+      (query_type & (QT_NO_DATA_EXPANSION |      // Caller is show-create-table
+                     QT_PARSABLE)))              // or needs parsable output
+  {
+    /*
+      Instead of "cache" or the cached value, print the cached item name.
+      For QT_PARSABLE the receiver evaluates the item itself, so the caller
+      must not push down non-deterministic or session-dependent items.
+    */
+    example->print(str, query_type);
+    return;
+  }
+
+  /* A parsable string must not get here: "<cache>(" is not valid SQL */
+  DBUG_ASSERT(!(query_type & QT_PARSABLE));
   str->append(STRING_WITH_LEN("<cache>("));
   if (example)
     example->print(str, query_type);

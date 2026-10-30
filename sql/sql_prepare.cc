@@ -4920,7 +4920,10 @@ start_with_reprepare:
 #ifdef PROTECT_STATEMENT_MEMROOT
   if (!error)
   {
-    mem_root->flags |= ROOT_FLAG_READ_ONLY;
+    if (!lex->dont_freeze_mem_root)
+      mem_root->flags |= ROOT_FLAG_READ_ONLY;
+    else
+      DBUG_PRINT("info", ("mem_root is not frozen: statement was pushed down"));
     ++executed_counter;
 
     DBUG_PRINT("info", ("execute counter: %lu", executed_counter));
@@ -4931,6 +4934,7 @@ start_with_reprepare:
     executed_counter= 0;
     mem_root->flags &= ~ROOT_FLAG_READ_ONLY;
   }
+  lex->dont_freeze_mem_root= false;
 #endif
 
   return error;
