@@ -235,60 +235,76 @@ void disconnect_watcher_remove(void **handle, Vio *vio)
 
 #else  /* _WIN32 */
 
-#include <new>
-
 /*
-  One manual reset event per connection, signaled by FD_CLOSE (reset, abort
-  or orderly close of the peer), and a wait on it in the system thread pool.
-  A named pipe has no such notification, so the exit of its client process is
-  awaited instead, which is the same wait on the process handle.
+  A socket is watched with an event set by WSAEventSelect(FD_CLOSE), a named
+  pipe by its client process handle. A thread pool waits for them. It is a
+  pool of its own, with a single thread, which runs all the callbacks one by one,
+  like the main loop handles epoll events. The callback gets the connection id
+  by value: it may run after the connection is gone, and handle_socket_event()
+  ignores ids it does not find.
+
+  Polling the socket with the AFD driver and one completion port for all of them
+  would need no handle per connection. It cannot be used though: while such
+  a poll is pending, select(), which the vio layer waits with, loses
+  the incoming data notification of the same socket.
 */
+
+static PTP_POOL pool;
+static TP_CALLBACK_ENVIRON env;
+static std::atomic<bool> stopping;
+
 struct Watch
 {
-  SOCKET s;                     // INVALID_SOCKET for a named pipe
-  HANDLE event;                 // the event, or the client process of a pipe
   PTP_WAIT wait;
+  HANDLE handle;                        // event, or client process
 };
 
-static void free_watch(Watch *w)
-{
-  if (w->wait)
-    CloseThreadpoolWait(w->wait);
-  if (w->event)
-    CloseHandle(w->event);
-  delete w;
-}
 
-static std::atomic<bool> stopping;
-static std::atomic<int> running;
-
-/*
-  The callback only has the thread id, and uses neither the socket nor the
-  Watch, so remove() does not wait for it. A late callback is harmless, but
-  not after the server structures are gone, see disconnect_watcher_stop().
-*/
-static VOID CALLBACK on_close(PTP_CALLBACK_INSTANCE, PVOID context, PTP_WAIT,
-                              TP_WAIT_RESULT result)
+/* The pool thread is a mysys thread, until it exits when the pool is closed */
+struct Mysys_thread_scope
 {
-  running++;
-  if (!stopping && result == WAIT_OBJECT_0)
-    handle_socket_event((my_thread_id) (ULONG_PTR) context);
-  running--;
+  Mysys_thread_scope() { my_thread_init(); }
+  ~Mysys_thread_scope() { my_thread_end(); }
+};
+
+static VOID CALLBACK on_signaled(PTP_CALLBACK_INSTANCE, PVOID context,
+                                 PTP_WAIT, TP_WAIT_RESULT result)
+{
+  if (result != WAIT_OBJECT_0 || stopping)
+    return;
+  static thread_local Mysys_thread_scope scope;
+  handle_socket_event((my_thread_id) (ULONG_PTR) context);
 }
 
 
 bool disconnect_watcher_start()
 {
-  return false;
+  if ((pool= CreateThreadpool(nullptr)) &&
+      SetThreadpoolThreadMinimum(pool, 1) &&
+      (SetThreadpoolThreadMaximum(pool, 1), true))
+  {
+    InitializeThreadpoolEnvironment(&env);
+    SetThreadpoolCallbackPool(&env, pool);
+    return false;
+  }
+  sql_print_warning("Can't start the client disconnect watcher (error: %lu)",
+                    GetLastError());
+  if (pool)
+    CloseThreadpool(pool);
+  pool= nullptr;
+  return true;
 }
 
 
-/* Make late callbacks do nothing, and wait for the one that is running */
+/*
+  Callbacks from now on do nothing. The pool, and its thread, go away when
+  the connections have removed their waits, and my_thread_global_end() waits
+  for the thread.
+*/
 void disconnect_watcher_stop()
 {
-  stopping= true;
-  while (running)
-    Sleep(1);
+  if (pool && !stopping.exchange(true))
+    CloseThreadpool(pool);
 }
 
 
@@ -319,26 +335,35 @@ static HANDLE open_pipe_client(HANDLE pipe)
 
 void *disconnect_watcher_add(ulonglong thread_id, Vio *vio)
 {
-  if (!vio)
+  if (!vio || !pool || stopping)
     return nullptr;
-  const bool pipe= vio_type(vio) == VIO_TYPE_NAMEDPIPE;
-  if (!pipe && !is_socket_vio(vio))
+  bool is_event= is_socket_vio(vio);
+  HANDLE h;
+  if (is_event)
+    h= CreateEvent(nullptr, TRUE, FALSE, nullptr);
+  else if (vio_type(vio) == VIO_TYPE_NAMEDPIPE)
+    h= open_pipe_client(vio->hPipe);
+  else
     return nullptr;
+  if (!h)
+    return nullptr;
+
   Watch *w= new (std::nothrow) Watch();
-  if (!w)
-    return nullptr;
-  w->s= pipe ? INVALID_SOCKET : vio_fd(vio);
-  w->event= pipe ? open_pipe_client(vio->hPipe)
-                 : CreateEvent(nullptr, TRUE, FALSE, nullptr);
-  if (w->event &&
-      (w->wait= CreateThreadpoolWait(on_close, (PVOID) (ULONG_PTR) thread_id,
-                                     nullptr)) &&
-      (pipe || !WSAEventSelect(w->s, w->event, FD_CLOSE)))
+  if (w)
   {
-    SetThreadpoolWait(w->wait, w->event, nullptr);
-    return w;
+    w->handle= h;
+    if ((w->wait= CreateThreadpoolWait(on_signaled, (PVOID) thread_id, &env)))
+    {
+      if (!is_event || !WSAEventSelect(vio_fd(vio), h, FD_CLOSE))
+      {
+        SetThreadpoolWait(w->wait, h, nullptr);
+        return w;
+      }
+      CloseThreadpoolWait(w->wait);
+    }
+    delete w;
   }
-  free_watch(w);
+  CloseHandle(h);
   return nullptr;
 }
 
@@ -349,11 +374,14 @@ void disconnect_watcher_remove(void **handle, Vio *)
   if (!w)
     return;
   *handle= nullptr;
-  /* Before the socket is closed: stop the events */
-  if (w->s != INVALID_SOCKET)
-    WSAEventSelect(w->s, nullptr, 0);
-  SetThreadpoolWait(w->wait, nullptr, nullptr);
-  free_watch(w);
+  /*
+    Closing the wait cancels it, and only then the handle can be closed. A
+    callback already queued may still run, it does no harm. The socket is
+    closed next, which ends its event selection.
+  */
+  CloseThreadpoolWait(w->wait);
+  CloseHandle(w->handle);
+  delete w;
 }
 
 #endif /* _WIN32 */
