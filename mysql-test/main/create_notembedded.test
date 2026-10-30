@@ -1,0 +1,12 @@
+--source include/not_windows.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # CREATE VIEW with too long path
+--echo #
+CREATE DATABASE `d..................................................aaaa`;
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaaaa` AS SELECT 1 AS id;
+DROP DATABASE `d..................................................aaaa`;
+
+--echo # End of 10.11 tests
