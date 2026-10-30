@@ -810,13 +810,28 @@ bool Json_schema_multiple_of::handle_keyword(THD *thd, json_engine_t *je,
 }
 
 
-bool Json_schema_max_len::validate(const json_engine_t *je,
-                                   const uchar *k_start,
-                                   const uchar* k_end)
+/* Number of characters in a JSON string value. Returns true if malformed. */
+static bool json_string_chars(const json_engine_t *je, size_t *len)
 {
+  const uchar *b= je->value, *e= je->value + je->value_len;
+  if (!je->value_escaped)   /* common case: nothing to decode, no cursor */
+  {
+    *len= je->s.cs->numchars((const char *) b, (const char *) e);
+    return false;
+  }
+  return json_count_unescaped_chars(je->s.cs, b, e, len);
+}
+
+
+bool Json_schema_max_len::validate(const json_engine_t *je,
+                                   const uchar *k_start, const uchar* k_end)
+{
+  size_t n;
   if (je->value_type != JSON_VALUE_STRING)
     return false;
-  return (uint)(je->value_len) <= value ? false : true;
+  if (json_string_chars(je, &n))
+    return true;
+  return n > (size_t) value;
 }
 
 bool Json_schema_max_len::handle_keyword(THD *thd, json_engine_t *je,
@@ -849,9 +864,12 @@ bool Json_schema_min_len::validate(const json_engine_t *je,
                                    const uchar *k_start,
                                    const uchar* k_end)
 {
+  size_t n;
   if (je->value_type != JSON_VALUE_STRING)
     return false;
-  return (uint)(je->value_len) >= value ? false : true;
+  if (json_string_chars(je, &n))
+    return true;
+  return n < (size_t) value;
 }
 
 bool Json_schema_min_len::handle_keyword(THD *thd, json_engine_t *je,
