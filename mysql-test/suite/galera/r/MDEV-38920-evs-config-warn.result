@@ -1,3 +1,4 @@
+# Correct Galera library found
 connection node_2;
 connection node_1;
 include/assert_grep.inc [provider must warn that evs.install_timeout is below evs.suspect_timeout]

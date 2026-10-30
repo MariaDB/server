@@ -33,6 +33,7 @@
 #define MY_XML_PROCESSING_INSTRUCTION  '?'
 #define MY_XML_CDATA    'A'
 #define MY_XML_DTD      'D'
+#define MY_XML_CDATA_UNTERMINATED 256
 
 typedef struct xml_attr_st
 {
@@ -89,6 +90,7 @@ static const char *lex2str(int lex)
     case MY_XML_STRING:   return "STRING";
     case MY_XML_IDENT:    return "IDENT";
     case MY_XML_CDATA:    return "CDATA";
+    case MY_XML_CDATA_UNTERMINATED: return "unterminated CDATA";
     case MY_XML_EQ:       return "'='";
     case MY_XML_LT:       return "'<'";
     case MY_XML_GT:       return "'>'";
@@ -194,7 +196,12 @@ static int my_xml_scan(MY_XML_PARSER *p,MY_XML_ATTR *a)
         break;
       }
     }
-    lex= MY_XML_CDATA;
+    if (a->end == a->beg) {
+      p->cur = p->end;
+      a->end = p->cur;
+      lex = MY_XML_CDATA_UNTERMINATED;
+    } else
+      lex= MY_XML_CDATA;
   }
   else if (!my_xml_parser_prefix_cmp(p, C_STRING_WITH_LEN("<!DOCTYPE")))
   {
@@ -441,6 +448,11 @@ int my_xml_parse(MY_XML_PARSER *p,const char *str, size_t len)
               a.end, (size_t) (p->cur - a.end - 2)))
           return MY_XML_ERROR;
         continue;
+      }
+
+      if (lex == MY_XML_CDATA_UNTERMINATED) {
+        sprintf(p->errstr, "unexpected END-OF-INPUT");
+        return MY_XML_ERROR;
       }
 
       if (lex == MY_XML_CDATA)

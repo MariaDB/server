@@ -3168,7 +3168,6 @@ THD *spider_create_tmp_thd()
     DBUG_RETURN(NULL);
   thd->killed = NOT_KILLED;
   thd->proc_info = "";
-  thd->thread_stack = (char*) &thd;
   thd->store_globals();
   lex_start(thd);
   DBUG_RETURN(thd);

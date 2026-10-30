@@ -4482,7 +4482,6 @@ set analyze_sample_percentage=@save_analyze_sample_percentage;
 set histogram_size=@save_histogram_size;
 set use_stat_tables=@save_use_stat_tables;
 set @@global.histogram_size=@save_histogram_size;
-drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 call mtr.add_suppression("Failed to parse histogram for table .*");
@@ -8749,4 +8748,15 @@ analyze select * from t1 where col1 < '"😺';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	50.00	50.00	Using where
 drop table t1;
+#
+# MDEV-41603 DECODE_HISTOGRAM crashes when decoding JSON_HB
+#
+SELECT DECODE_HISTOGRAM('JSON_HB', REPEAT('A',80));
+DECODE_HISTOGRAM('JSON_HB', REPEAT('A',80))
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+# Item_func_decode_histogram::val_str shouldn't modify its arguments
+SELECT DECODE_HISTOGRAM('DOUBLE_PREC_HB',x), x from (select '123' x from seq_1_to_2) y;
+DECODE_HISTOGRAM('DOUBLE_PREC_HB',x)	x
+0.19606,0.80394	123
+0.19606,0.80394	123
 # End of 10.11 tests

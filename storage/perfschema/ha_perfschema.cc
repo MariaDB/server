@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -52,9 +53,7 @@ static handler* pfs_create_handler(handlerton *hton,
 
 static int compare_database_names(const char *name1, const char *name2)
 {
-  if (lower_case_table_names)
-    return strcasecmp(name1, name2);
-  return strcmp(name1, name2);
+  return strcasecmp(name1, name2);
 }
 
 static const PFS_engine_table_share*
