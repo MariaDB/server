@@ -1,0 +1,41 @@
+include/master-slave.inc
+[connection master]
+# Connected master-position commands still replicate successfully.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+connection slave;
+SELECT * FROM t1;
+a
+1
+connection master;
+connect  con1,localhost,root,,;
+disconnect con1;
+# MDEV-13718: report a closed connection without switching to a slave.
+ERROR 000000: MariaDB server has gone away
+2006
+connection="-closed_connection-"
+ERROR 000000: MariaDB server has gone away
+2006
+connection="-closed_connection-"
+ERROR 000000: MariaDB server has gone away
+2006
+connection="-closed_connection-"
+# The errors are consumed, and both sync forms still work.
+connection master;
+INSERT INTO t1 VALUES (2);
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+connection master;
+INSERT INTO t1 VALUES (3);
+connection slave1;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc
