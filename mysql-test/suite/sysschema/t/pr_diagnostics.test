@@ -33,3 +33,18 @@ CALL sys.diagnostics(0, 0, 'full');
 CALL sys.diagnostics(2, 0, 'full');
 -- error S45000
 CALL sys.diagnostics(1, 2, 'full');
+
+--echo #
+--echo # MDEV-42005 sys.diagnostics(), sys.ps_trace_thread() and sys.ps_trace_statement_digest() leave session sql_log_bin disabled
+--echo #
+
+connect (con1,localhost,root,,);
+select @@sql_log_bin;
+--disable_result_log
+call sys.diagnostics(1, 1, 'current');
+--enable_result_log
+select @@sql_log_bin;
+disconnect con1;
+connection default;
+
+--echo # End of 10.11 tests
