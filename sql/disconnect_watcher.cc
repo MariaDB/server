@@ -240,11 +240,13 @@ void disconnect_watcher_remove(void **handle, Vio *vio)
 /*
   One manual reset event per connection, signaled by FD_CLOSE (reset, abort
   or orderly close of the peer), and a wait on it in the system thread pool.
+  A named pipe has no such notification, so the exit of its client process is
+  awaited instead, which is the same wait on the process handle.
 */
 struct Watch
 {
-  SOCKET s;
-  HANDLE event;
+  SOCKET s;                     // INVALID_SOCKET for a named pipe
+  HANDLE event;                 // the event, or the client process of a pipe
   PTP_WAIT wait;
 };
 
@@ -290,18 +292,48 @@ void disconnect_watcher_stop()
 }
 
 
+/*
+  The client process of a local named pipe, opened for waiting. Not opened
+  directly, the client is impersonated: the server may not be allowed to
+  open it. The handle also keeps the process id from being reused.
+  Remote clients are not watched, their process id is not valid here.
+*/
+static HANDLE open_pipe_client(HANDLE pipe)
+{
+  char host[256];
+  ULONG pid;
+  if (GetNamedPipeClientComputerNameA(pipe, host, sizeof(host)) ||
+      GetLastError() != ERROR_PIPE_LOCAL ||
+      !GetNamedPipeClientProcessId(pipe, &pid))
+    return nullptr;
+  HANDLE process= OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (!process && GetLastError() == ERROR_ACCESS_DENIED &&
+      ImpersonateNamedPipeClient(pipe))
+  {
+    process= OpenProcess(SYNCHRONIZE, FALSE, pid);
+    RevertToSelf();
+  }
+  return process;
+}
+
+
 void *disconnect_watcher_add(ulonglong thread_id, Vio *vio)
 {
-  if (!vio || !is_socket_vio(vio))
+  if (!vio)
+    return nullptr;
+  const bool pipe= vio_type(vio) == VIO_TYPE_NAMEDPIPE;
+  if (!pipe && !is_socket_vio(vio))
     return nullptr;
   Watch *w= new (std::nothrow) Watch();
   if (!w)
     return nullptr;
-  w->s= vio_fd(vio);
-  if ((w->event= CreateEvent(nullptr, TRUE, FALSE, nullptr)) &&
+  w->s= pipe ? INVALID_SOCKET : vio_fd(vio);
+  w->event= pipe ? open_pipe_client(vio->hPipe)
+                 : CreateEvent(nullptr, TRUE, FALSE, nullptr);
+  if (w->event &&
       (w->wait= CreateThreadpoolWait(on_close, (PVOID) (ULONG_PTR) thread_id,
                                      nullptr)) &&
-      !WSAEventSelect(w->s, w->event, FD_CLOSE))
+      (pipe || !WSAEventSelect(w->s, w->event, FD_CLOSE)))
   {
     SetThreadpoolWait(w->wait, w->event, nullptr);
     return w;
@@ -318,7 +350,8 @@ void disconnect_watcher_remove(void **handle, Vio *)
     return;
   *handle= nullptr;
   /* Before the socket is closed: stop the events */
-  WSAEventSelect(w->s, nullptr, 0);
+  if (w->s != INVALID_SOCKET)
+    WSAEventSelect(w->s, nullptr, 0);
   SetThreadpoolWait(w->wait, nullptr, nullptr);
   free_watch(w);
 }

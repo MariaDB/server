@@ -1,0 +1,68 @@
+--source include/windows.inc
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-38741 Client disconnect fails to abort a lock wait, named pipe
+--echo #
+
+call mtr.add_suppression("Aborted connection .*Client disconnected");
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+connection default;
+--echo # A client on the named pipe waits for the lock
+--perl
+  # The client must not inherit the pipe mysqltest reads the output from
+  open(STDIN, "<", "NUL") or die $!;
+  open(STDOUT, ">", "$ENV{MYSQLTEST_VARDIR}/log/disconnect_lock_wait_pipe.out")
+    or die $!;
+  open(STDERR, ">&STDOUT") or die $!;
+  my $pid= system(1, $ENV{EXE_MYSQL}, "--no-defaults", "--protocol=pipe",
+                  "--socket=$ENV{MASTER_MYSOCK}", "--user=root",
+                  "--database=test", "-e",
+                  "SET innodb_lock_wait_timeout=3600; SELECT * FROM t1 FOR UPDATE");
+  open(F, ">", "$ENV{MYSQLTEST_VARDIR}/tmp/disconnect_lock_wait_pipe.pid")
+    or die $!;
+  print F $pid;
+  close F;
+EOF
+
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+--source include/wait_condition.inc
+let $waiter_id=
+  `SELECT trx_mysql_thread_id FROM information_schema.innodb_trx
+   WHERE trx_state = 'LOCK WAIT'`;
+
+--echo # The client process dies, the server is not reading from the pipe
+--perl
+  my $file= "$ENV{MYSQLTEST_VARDIR}/tmp/disconnect_lock_wait_pipe.pid";
+  open(F, "<", $file) or die $!;
+  my $pid= <F>;
+  close F;
+  kill 9, $pid;
+  unlink $file;
+EOF
+
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $waiter_id;
+--source include/wait_condition.inc
+
+--echo # The reason is logged
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted connection .*Client disconnected;
+let SEARCH_WAIT= FOUND;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+disconnect blocker;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

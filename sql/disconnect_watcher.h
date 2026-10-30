@@ -25,6 +25,8 @@
   Only the events the OS reports on its own are used: EPOLLERR and EPOLLHUP
   on Linux, and EPOLLRDHUP for TCP, FD_CLOSE on Windows, EV_EOF of kqueue on
   BSD and macOS. Incoming data is not reported.
+  A Windows named pipe is watched through its local client process, the
+  statement is aborted when the process exits.
 
   A connection is watched from the end of login until THD::disconnect().
 */
