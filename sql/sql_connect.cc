@@ -1327,8 +1327,7 @@ void end_connection(THD *thd)
     status_var_increment(thd->status_var.lost_connections);
   }
 
-  if (likely(!thd->killed) && (net->error && net->vio != 0) &&
-      !thd->client_disconnect_logged)
+  if (likely(!thd->killed) && (net->error && net->vio != 0))
     thd->print_aborted_warning(1, thd->get_stmt_da()->is_error()
              ? thd->get_stmt_da()->message() : ER_THD(thd, ER_UNKNOWN_ERROR));
 

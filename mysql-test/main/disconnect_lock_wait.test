@@ -11,8 +11,32 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1);
 
 connect (blocker,localhost,root);
+let $blocker_id= `SELECT CONNECTION_ID()`;
 BEGIN;
 SELECT * FROM t1 FOR UPDATE;
+
+--echo # Orderly disconnects log nothing, also if the thread is still finishing
+let $i= 20;
+while ($i)
+{
+  --disable_query_log
+  --disable_result_log
+  connect (con2,localhost,root);
+  SELECT 1;
+  disconnect con2;
+  --enable_result_log
+  --enable_query_log
+  dec $i;
+}
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id > $blocker_id AND id <> CONNECTION_ID();
+--source include/wait_condition.inc
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted connection;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
 
 --echo # The default connection, a unix socket where there are any, then TCP
 --echo # closed with a FIN, and TCP closed with a reset
@@ -39,8 +63,11 @@ while ($round <= 3)
   send SELECT * FROM t1 FOR UPDATE;
 
   connection default;
+  # This connection waits, not a leftover of the previous round
   let $wait_condition=
-    SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+    SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits w
+    JOIN information_schema.innodb_trx t ON t.trx_id = w.requesting_trx_id
+    WHERE t.trx_mysql_thread_id = $con1_id;
   --source include/wait_condition.inc
 
   --echo # Disconnect abruptly, the server is not reading from the socket
@@ -53,11 +80,14 @@ while ($round <= 3)
     WHERE id = $con1_id;
   --source include/wait_condition.inc
 
-  --echo # The reason is logged, once
+  --echo # The connection is logged once, with the reason
   let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
   let SEARCH_PATTERN= Aborted connection $con1_id to db.*Client disconnected;
   let SEARCH_WAIT= FOUND;
   let SEARCH_OUTPUT= count;
+  --source include/search_pattern_in_file.inc
+  let SEARCH_PATTERN= Aborted connection $con1_id to db;
+  let SEARCH_WAIT=;
   --source include/search_pattern_in_file.inc
   inc $round;
 }

@@ -437,11 +437,14 @@ bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
     The statement was aborted because the client disconnected. The error is
     still sent, a client that only closed its sending side reads it, and the
     responses stay in step. A failure to write it is not reported.
+    The connection ends after this, so that commands the client pipelined
+    behind the aborted statement do not run.
   */
   if (thd->client_disconnected && !thd->client_disconnect_logged)
   {
     thd->client_disconnect_logged= true;
     thd->print_aborted_warning(1, "Client disconnected");
+    thd->set_killed(KILL_CONNECTION);
   }
 
   int2store(buff,sql_errno);

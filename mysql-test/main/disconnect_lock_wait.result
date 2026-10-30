@@ -9,6 +9,9 @@ BEGIN;
 SELECT * FROM t1 FOR UPDATE;
 a
 1
+# Orderly disconnects log nothing, also if the thread is still finishing
+connection default;
+NOT FOUND matches in mysqld.1.err
 # The default connection, a unix socket where there are any, then TCP
 # closed with a FIN, and TCP closed with a reset
 SET innodb_lock_wait_timeout=3600;
@@ -18,7 +21,8 @@ connection default;
 connection con1;
 disconnect con1;
 connection default;
-# The reason is logged, once
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
 FOUND 1 matches in mysqld.1.err
 SET innodb_lock_wait_timeout=3600;
 SELECT * FROM t1 FOR UPDATE;
@@ -27,7 +31,8 @@ connection default;
 connection con1;
 disconnect con1;
 connection default;
-# The reason is logged, once
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
 FOUND 1 matches in mysqld.1.err
 SET innodb_lock_wait_timeout=3600;
 SELECT * FROM t1 FOR UPDATE;
@@ -36,7 +41,8 @@ connection default;
 connection con1;
 disconnect con1;
 connection default;
-# The reason is logged, once
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
 FOUND 1 matches in mysqld.1.err
 disconnect blocker;
 DROP TABLE t1;

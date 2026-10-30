@@ -689,8 +689,9 @@ enum killed_state : uint32_t
   KILL_SLAVE_SAME_ID= 10,
   /*
     The client socket failed while the statement was running, see
-    disconnect_watcher.h. Aborts the statement only, the connection then
-    reads the next command like after KILL QUERY.
+    disconnect_watcher.h. Statement-level, like KILL QUERY: if it does not
+    abort a statement, the connection reads the next command as usual. If it
+    does, the connection ends, see Protocol::net_send_error_packet().
   */
   KILL_DISCONNECT= 12,
   KILL_DISCONNECT_HARD= 13,
@@ -4547,7 +4548,7 @@ public:
     before the error of the aborted statement is sent.
   */
   std::atomic<bool> client_disconnected{false};
-  /* The disconnect was logged, by the thread that owns the connection */
+  /* The disconnect was logged, and the connection is ending because of it */
   bool       client_disconnect_logged= false;
 
   /**  

@@ -20,8 +20,10 @@
   Notices client sockets that failed (reset etc), while the server is busy
   executing a statement and does not read from or write to the socket.
   The statement is then aborted with KILL_DISCONNECT, like KILL QUERY, unless
-  the connection is idle. The connection itself carries on and finds out about
-  the disconnect when it reads the next command.
+  the connection is idle. If a statement is aborted, the connection ends too.
+  If the kill comes when nothing is aborted, for example the statement has
+  finished and the client already sent COM_QUIT, nothing happens: the
+  connection reads the next command, or the end of the stream, as usual.
   Only the events the OS reports on its own are used: EPOLLERR and EPOLLHUP
   on Linux, and EPOLLRDHUP for TCP, FD_CLOSE on Windows, EV_EOF of kqueue on
   BSD and macOS. Incoming data is not reported.
