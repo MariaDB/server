@@ -35,6 +35,7 @@
 #include "log.h"                                // flush_error_log
 #include "sql_view.h"         // mysql_create_view, mysql_drop_view
 #include "sql_insert.h"       // mysql_insert
+#include "disconnect_watcher.h"
 #include "sql_partition.h"    // struct partition_info
 #include "sql_db.h"           // mysql_change_db, mysql_create_db,
                               // mysql_rm_db, mysql_upgrade_db,
@@ -2123,6 +2124,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
 #endif
   case COM_QUIT:
     /* Note: We don't calculate statistics for this command */
+
+    /* The client is expected to close the socket now, it is not a failure */
+    disconnect_watcher_remove(&thd->disconnect_watch, net->vio);
 
     /* Ensure that quit works even if max_mem_used is set */
     thd->variables.max_mem_used= LONGLONG_MAX;

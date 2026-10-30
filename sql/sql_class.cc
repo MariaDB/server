@@ -2140,9 +2140,10 @@ void THD::awake_no_mutex(killed_state state_to_set,
 
   /*
     An idle connection finds out about a disconnect when it reads from the
-    socket, there is no statement to abort.
+    socket, there is no statement to abort. Neither is there in a quitting one.
   */
-  if (state_to_set == KILL_DISCONNECT && get_command() == COM_SLEEP)
+  if (state_to_set == KILL_DISCONNECT &&
+      (get_command() == COM_SLEEP || get_command() == COM_QUIT))
     DBUG_VOID_RETURN;
 
   /* A disconnect is logged if it aborts a statement, see protocol.cc */
