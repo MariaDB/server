@@ -433,7 +433,19 @@ SET SESSION parallel_worker_threads=4;
 # the parallel answer matches the serial one (expect 1)
 same_answer
 1
+CREATE TABLE t3 (a INT PRIMARY KEY, g INT, n INT, d DECIMAL(10,2)) ENGINE=InnoDB;
+INSERT INTO t3 SELECT seq, seq % 3000, seq % 13, seq/4 FROM seq_1_to_20000;
+FLUSH STATUS;
+SELECT g, COUNT(*), SUM(n), AVG(d), MIN(n), MAX(n) FROM t3 GROUP BY g;
+# ran in the workers, a row per group, rebuilt on disk (expect 1 1 1)
+ran_in_the_workers	every_group_arrived	rebuilt_on_disk
+1	1	1
+SET SESSION parallel_worker_threads=0;
+SET SESSION parallel_worker_threads=4;
+# the parallel answer matches the serial one (expect 1)
+same_answer
+1
 SET SESSION tmp_memory_table_size=default;
 SET SESSION max_heap_table_size=default;
 SET SESSION parallel_worker_threads=default;
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3;
