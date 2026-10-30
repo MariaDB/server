@@ -26,4 +26,24 @@ connection master;
 CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
 MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+#
+# MDEV-41498: CHANGE MASTER should reject null and line-break bytes
+#
+STOP SLAVE;
+Warnings:
+Note	1255	Slave already has been stopped
+# Test 1: Normal valid string (No error expected)
+CHANGE MASTER TO MASTER_HOST='127.0.0.1';
+# Test 2: String with null byte (\0) in the middle
+CHANGE MASTER TO MASTER_HOST='127.0\0.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value
+# Test 3: String with line-break (\n) in the middle
+CHANGE MASTER TO MASTER_HOST='127.0\n.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value
+# Test 4: String with carriage return (\r) in the middle
+CHANGE MASTER TO MASTER_HOST='127.0\r.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value
+Master_Host = '127.0.0.1'
+RESET SLAVE ALL;
+# End of 11.4 tests
 include/rpl_end.inc

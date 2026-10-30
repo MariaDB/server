@@ -108,5 +108,33 @@ CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_
   MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
 
+--echo #
+--echo # MDEV-41498: CHANGE MASTER should reject null and line-break bytes
+--echo #
+
+STOP SLAVE;
+
+--echo # Test 1: Normal valid string (No error expected)
+CHANGE MASTER TO MASTER_HOST='127.0.0.1';
+
+--echo # Test 2: String with null byte (\0) in the middle
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\0.0.1';
+
+--echo # Test 3: String with line-break (\n) in the middle
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\n.0.1';
+
+--echo # Test 4: String with carriage return (\r) in the middle
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\r.0.1';
+
+--let $status_items= Master_Host
+--source include/show_slave_status.inc
+
+RESET SLAVE ALL; # Cleanup
+
+--echo # End of 11.4 tests
+
 
 --source include/rpl_end.inc
