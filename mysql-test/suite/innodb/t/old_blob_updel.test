@@ -24,6 +24,8 @@ INSERT INTO t VALUES (1, CONCAT('x', REPEAT('x', @@innodb_page_size)));
 INSERT INTO t
 SELECT 100 + seq, CONCAT('y~', LPAD(seq, 3, '0'), REPEAT('-', 800))
 FROM seq_60_to_1;
+# Purge the history of the above, so that the batch held below is T1's.
+--source include/wait_all_purged.inc
 
 # The counters are cumulative over the lifetime of the server.
 SET GLOBAL innodb_monitor_reset_all='purge_del_mark_records';
