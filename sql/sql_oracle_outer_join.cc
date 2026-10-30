@@ -1054,8 +1054,8 @@ bool setup_oracle_join(THD *thd, Item **conds,
   // parts of WHERE moved to ON (original ONs will be fixed later)
   for (i= 0; i < n_tables; i++)
   {
-    // we have to count becaust this lists are included in other lists
-    List_iterator<Item> it(*all_fields);
+    // we have to count because these lists are included in other lists
+    List_iterator<Item> it(tab[i].on_conds);
     Item *item;
     for (uint j= 0; j < tab[i].on_conds.elements && (item= it++); j++)
     {
