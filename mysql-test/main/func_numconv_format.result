@@ -98,3 +98,86 @@ DROP VIEW v4;
 DROP TABLE t4;
 DROP FUNCTION bad;
 SET debug_dbug= @saved_debug_dbug;
+#
+# MDEV-41823: TO_NUMBER() with format element PR rejects positive values
+#
+SELECT TO_NUMBER('<1234.50>', '9999.99PR');
+TO_NUMBER('<1234.50>', '9999.99PR')
+-1234.5
+SELECT TO_NUMBER('1234.50', '9999.99PR');
+TO_NUMBER('1234.50', '9999.99PR')
+1234.5
+SELECT TO_NUMBER(' 1234.50', '9999.99PR');
+TO_NUMBER(' 1234.50', '9999.99PR')
+1234.5
+SELECT TO_NUMBER('  1234.50', '9999.99PR');
+TO_NUMBER('  1234.50', '9999.99PR')
+1234.5
+SELECT TO_NUMBER(' 1234.50 ', '9999.99PR');
+TO_NUMBER(' 1234.50 ', '9999.99PR')
+1234.5
+SELECT TO_NUMBER('   12.34 ', '9999.99PR');
+TO_NUMBER('   12.34 ', '9999.99PR')
+12.34
+# Malformed signs: NULL + warning 1411
+SELECT TO_NUMBER('1234.50 ', '9999.99PR');
+TO_NUMBER('1234.50 ', '9999.99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9999.99PR' value: '1234.50 ' for function to_number
+SELECT TO_NUMBER('1234.50>', '9999.99PR');
+TO_NUMBER('1234.50>', '9999.99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9999.99PR' value: '1234.50>' for function to_number
+SELECT TO_NUMBER('<1234.50', '9999.99PR');
+TO_NUMBER('<1234.50', '9999.99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9999.99PR' value: '<1234.50' for function to_number
+SELECT TO_NUMBER('<', '9999.99PR');
+TO_NUMBER('<', '9999.99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='9999.99PR' value: '<' for function to_number
+SELECT TO_NUMBER('', '99PR');
+TO_NUMBER('', '99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99PR' value: '' for function to_number
+SELECT TO_NUMBER(' ', '99PR');
+TO_NUMBER(' ', '99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99PR' value: ' ' for function to_number
+SELECT TO_NUMBER('<>', '99PR');
+TO_NUMBER('<>', '99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99PR' value: '<>' for function to_number
+SELECT TO_NUMBER('  ', '99PR');
+TO_NUMBER('  ', '99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99PR' value: '  ' for function to_number
+SELECT TO_NUMBER('   ', '99PR');
+TO_NUMBER('   ', '99PR')
+NULL
+Warnings:
+Warning	1411	Incorrect <number format>='99PR' value: '   ' for function to_number
+# Single digit values
+SELECT TO_NUMBER('<5>', '9PR');
+TO_NUMBER('<5>', '9PR')
+-5
+SELECT TO_NUMBER('5', '9PR');
+TO_NUMBER('5', '9PR')
+5
+SELECT TO_NUMBER(' 5', '9PR');
+TO_NUMBER(' 5', '9PR')
+5
+SELECT TO_NUMBER(' 5 ', '9PR');
+TO_NUMBER(' 5 ', '9PR')
+5
+#
+# End of 12.3 tests
+#
