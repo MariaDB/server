@@ -1694,6 +1694,13 @@ void check_command_args(struct st_command *command,
       /* Skip leading spaces */
       while (*ptr && *ptr == ' ')
         ptr++;
+      /* An optional argument is missing if a comment starts here */
+      if (*ptr == '#' && !arg->required)
+      {
+        init_dynamic_string(arg->ds, "", 0, 0);
+        command->last_argument= (char*) ptr;
+        break;
+      }
       start= ptr;
       delimiter = delimiter_arg;
       /* If start of arg is ' ` or " search to matching quote end instead */
@@ -8687,16 +8694,14 @@ void do_close_connection(struct st_command *command)
       "dirty_close only: linger, the default, or nolinger, which resets "
       "the TCP connection" }
   };
+  /* Only dirty_close takes the second argument */
+  const bool dirty= command->type == Q_DIRTY_CLOSE;
   check_command_args(command, command->first_argument,
-                     close_connection_args,
-                     sizeof(close_connection_args)/sizeof(struct command_arg),
-                     ' ');
+                     close_connection_args, dirty ? 2 : 1, ' ');
 
-  bool nolinger= false;
-  if (ds_linger.length)
+  bool nolinger __attribute__((unused))= false;
+  if (dirty && ds_linger.length)
   {
-    if (command->type != Q_DIRTY_CLOSE)
-      die("Only dirty_close takes the argument '%s'", ds_linger.str);
     if (!strcmp(ds_linger.str, "nolinger"))
       nolinger= true;
     else if (strcmp(ds_linger.str, "linger"))
