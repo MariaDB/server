@@ -1,6 +1,7 @@
 /****************** jsonudf C++ Program Source Code File (.CPP) ******************/
 /*  PROGRAM NAME: jsonudf     Version 1.8                                        */
 /*  (C) Copyright to the author Olivier BERTRAND          2015-2019              */
+/*  (C) Copyright MariaDB plc                             2026                   */
 /*  This program are the JSON User Defined Functions     .                       */
 /*********************************************************************************/
 
@@ -1229,13 +1230,11 @@ PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 	PBSON bsp = (PBSON)PlgDBSubAlloc(g, NULL, sizeof(BSON));
 
 	if (bsp) {
+		memset(bsp, 0, sizeof(*bsp)); // this is UDF's result as a blob. must be fully initialized
 		strcpy(bsp->Msg, "Binary Json");
-		bsp->Msg[BMX] = 0;
-		bsp->Filename = NULL;
 		bsp->G = g;
 		bsp->Pretty = 2;
 		bsp->Reslen = len;
-		bsp->Changed = false;
 		bsp->Top = bsp->Jsp = jsp;
 		bsp->Bsp = (args && IsJson(args, 0) == 3) ? (PBSON)args->args[0] : NULL;
 	} else
@@ -1430,6 +1429,7 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 	if (IsJson(args, 0) == 2) {
 		// Make the change in the json file
 		int pretty = 2;
+		PSZ fn = MakePSZ(g, args, 0);
 
 		for (uint i = n; i < args->arg_count; i++)
 			if (args->arg_type[i] == INT_RESULT) {
@@ -1437,7 +1437,9 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 				break;
 			} // endif type
 
-		if (!Serialize(g, top, MakePSZ(g, args, 0), pretty))
+		if (fn && !connect_can_access_file(fn))
+			PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		else if (!Serialize(g, top, fn, pretty))
 			PUSH_WARNING(g->Message);
 
 		str = NULL;
@@ -1446,7 +1448,9 @@ static char *MakeResult(PGLOBAL g, UDF_ARGS *args, PJSON top, uint n = 2)
 
 		if (bsp->Filename) {
 			// Make the change in the json file
-			if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
+			if (!connect_can_access_file(bsp->Filename))
+				PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+			else if (!Serialize(g, top, bsp->Filename, bsp->Pretty))
 				PUSH_WARNING(g->Message);
 
 			str = bsp->Filename;
@@ -1482,8 +1486,10 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 		bsnp->Pretty = pretty;
 
 		if ((bsnp->Filename = (char*)args->args[0])) {
-			bsnp->Filename = MakePSZ(g, args, 0);
-			strmake(bsnp->Msg, bsnp->Filename, BMX-1);
+			if ((bsnp->Filename = MakePSZ(g, args, 0)))
+				strmake(bsnp->Msg, bsnp->Filename, BMX-1);
+			else
+				strmake(bsnp->Msg, g->Message, BMX-1);
 		} else
 			strmake(bsnp->Msg, "null filename", BMX-1);
 
@@ -1589,6 +1595,9 @@ static long GetFileLength(char *fn)
 {
 	int  h;
 	long len;
+
+	if (!connect_can_access_file(fn))
+		return 0;
 
 	h= open(fn, _O_RDONLY);
 
@@ -1906,6 +1915,11 @@ char *GetJsonFile(PGLOBAL g, char *fn)
 {
 	char   *str;
 	int     h, n, len;
+
+	if (!connect_can_access_file(fn)) {
+		snprintf(g->Message, sizeof(g->Message), "Access denied: FILE privilege or secure_file_priv violation");
+		return NULL;
+	} // endif fn
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 	h= open(fn, O_RDONLY);
@@ -3443,13 +3457,7 @@ my_bool json_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more = fl * 3;
+		more = GetFileLength(args->args[0]) * 3;
 	} else if (n != 3) {
 		more = args->lengths[0] * 3;
 	} else
@@ -3552,13 +3560,7 @@ my_bool jsonget_string_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 //memlen += more;
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
@@ -4422,13 +4424,7 @@ my_bool json_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		CalcLen(args, false, reslen, memlen);
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more += fl * 3;
+		more += GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more += args->lengths[0] * 3;
 
@@ -5699,20 +5695,16 @@ my_bool jbin_set_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 	if (!(args->arg_count % 2)) {
 		strcpy(message, "This function must have an odd number of arguments");
 		return true;
-	} else if (!n && args->arg_type[0] != STRING_RESULT) {
+	}
+	if (!n && args->arg_type[0] != STRING_RESULT) {
 		strcpy(message, "First argument must be a json item");
 		return true;
-	} else
-		CalcLen(args, false, reslen, memlen);
+	}
+	CalcLen(args, false, reslen, memlen);
+	reslen= MY_MAX(reslen, 80); // must fit the error message
 
 	if (n == 2 && args->args[0]) {
-		char fn[_MAX_PATH];
-		long fl;
-
-		memcpy(fn, args->args[0], args->lengths[0]);
-		fn[args->lengths[0]] = 0;
-		fl = GetFileLength(fn);
-		more = fl * 3;
+		more = GetFileLength(args->args[0]) * 3;
 	} else if (n != 3)
 		more = args->lengths[0] * 3;
 
@@ -5974,12 +5966,32 @@ my_bool jfile_convert_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 	                  unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *str, *fn, *ofn;
-	int     lrecl = (int)*(longlong*)args->args[2];
+	int     lrecl;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
 
 	PlugSubSet(g->Sarea, g->Sarea_Size);
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
+
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (!args->args[2]) {
+		PUSH_WARNING("Missing LRECL");
+		*is_null = 1;
+		return NULL;
+	} else if (*(longlong*)args->args[2] <= 0 || *(longlong*)args->args[2] > INT_MAX32) {
+		PUSH_WARNING("Invalid LRECL");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*is_null = 1;
+		return NULL;
+	}
+
+	lrecl = (int)*(longlong*)args->args[2];
 
 	if (!g->Xchk) {
 		JUP* jup = new(g) JUP(g);
@@ -6026,12 +6038,16 @@ my_bool jfile_bjson_init(UDF_INIT* initid, UDF_ARGS* args, char* message) {
 
 	CalcLen(args, false, reslen, memlen);
 	memlen = memlen * M;
-	memlen += (args->arg_count == 3) ? (ulong)*(longlong*)args->args[2] : 1024;
-	return JsonInit(initid, args, message, false, reslen, memlen);
+	memlen += (args->arg_count == 3 && args->args[2]) ? (ulong)*(longlong*)args->args[2] : 1024;
+	if (JsonInit(initid, args, message, true, reslen, memlen))
+		return true;
+
+	PlugCleanSarea((PGLOBAL)initid->ptr);
+	return false;
 } // end of jfile_bjson_init
 
 char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
-	unsigned long *res_length, uchar *, uchar *error) {
+	unsigned long *res_length, uchar *is_null, uchar *error) {
 	char   *fn, *ofn, *buf, *str = NULL;
 	bool    loop;
 	ssize_t len, newloc;
@@ -6044,10 +6060,24 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	fn = MakePSZ(g, args, 0);
 	ofn = MakePSZ(g, args, 1);
 
-	if (args->arg_count == 3)
+	if (args->arg_count == 3 && args->args[2])
 		lrecl = (size_t)*(longlong*)args->args[2];
 	else
 		lrecl = 1024;
+
+	if (!fn || !ofn) {
+		PUSH_WARNING("Missing file name");
+		*is_null = 1;
+		return NULL;
+	} else if (args->arg_count == 3 && !args->args[2]) {
+		PUSH_WARNING("Missing LRECL");
+		*is_null = 1;
+		return NULL;
+	} else if (!connect_can_access_file(fn) || !connect_can_access_file(ofn)) {
+		PUSH_WARNING("Access denied: FILE privilege or secure_file_priv violation");
+		*is_null = 1;
+		return NULL;
+	}
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
@@ -6226,9 +6256,15 @@ bool JUP::unPretty(PGLOBAL g, int lrecl) {
 		snprintf(g->Message, sizeof(g->Message), "Void JSON file");
 		return true;
 	} else if (*s != '[') {
-		// strcpy(g->Message, "JSON file is not an array");
-		s = strchr(s, '[');
-		// return true;
+		char *p = (char*)memchr(s, '[', len);
+
+		if (!p) {
+			snprintf(g->Message, sizeof(g->Message), "JSON file is not an array");
+			return true;
+		} // endif p
+
+		len -= p - s;
+		s = p;
 	}	// endif s
 
 	i = 1;

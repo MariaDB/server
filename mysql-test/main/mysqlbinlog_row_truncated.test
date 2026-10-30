@@ -1,0 +1,11 @@
+--echo #
+--echo # MDEV-41822 mariadb-binlog ASAN crash on corrupted binlog
+--echo #
+# mdev41822.000001 is a crafted binlog that whose Write_rows event is cut off
+# exactly at a LONGBLOB's 4-byte length prefix (and rounded to the 8-byte
+# offset to survive ALIGN_SIZE() in String)
+
+--error 1
+--exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MYSQL_TEST_DIR/std_data/mdev41822.000001 >/dev/null
+
+--echo # End of 10.11 tests

@@ -1,5 +1,6 @@
 /* Copyright (c) 2006, 2013, Oracle and/or its affiliates.
    Copyright (c) 2011, 2013, Monty Program Ab
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,7 +29,8 @@
   This function returns the field size in raw bytes based on the type
   and the encoded field data from the master's raw data.
 */
-uint32 table_def::calc_field_size(uint col, uchar *master_data) const
+uint32 table_def::calc_field_size(uint col, uchar *master_data,
+                                  size_t available) const
 {
   uint32 length= 0;
 
@@ -61,6 +63,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
         because this field has the actual lengh stored in the first
         byte.
       */
+      if (unlikely(available < 1))
+        return (uint32) (available + 1);
       length= (uint) *master_data + 1;
       DBUG_ASSERT(length != 0);
     }
@@ -128,6 +132,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
   {
     length= m_field_metadata[col] > 255 ? 2 : 1; // c&p of Field_varstring::data_length()
+    if (unlikely(available < length))
+      return (uint32) (available + 1);
     length+= length == 1 ? (uint32) *master_data : uint2korr(master_data);
     break;
   }
@@ -144,6 +150,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
       packlength using the internal 'table' pointer) and replication
       is using a fixed format for storing data in the binlog.
     */
+    if (unlikely(available < m_field_metadata[col]))
+      return (uint32) (available + 1);
     switch (m_field_metadata[col]) {
     case 1:
       length= *master_data;
