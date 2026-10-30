@@ -22520,8 +22520,15 @@ TABLE *Create_tmp_table::start(THD *thd,
     copy_func_count+= param->sum_func_count;
   param->copy_func_count= copy_func_count;
   
+  /*
+    A table one thread writes and another reads and frees is not thread
+    specific memory: whichever thread grows its root, the thread that frees it
+    is not the one that would have been charged. Its engines are told the same
+    through HA_OPEN_GLOBAL_TMP_TABLE, see open_tmp_table().
+  */
   init_sql_alloc(key_memory_TABLE, &own_root, TMP_TABLE_BLOCK_SIZE,
-                 TMP_TABLE_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
+                 TMP_TABLE_PREALLOC_SIZE,
+                 MYF(param->cross_thread ? 0 : MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),

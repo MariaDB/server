@@ -319,14 +319,13 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
       A group key create_tmp_table() could not build as an index is not one a
       worker can look a group up in: it falls back to a unique constraint, which
       is a hash of the row in a hidden column, enforced on write, with nothing
-      to read a group back out of. accumulate_group() needs the index.
+      to read a group back out of. end_update() needs the index.
 
       Whether it managed one can only be asked here, of the finished table.
-      can_run_query_in_workers() asks what it can of the SQL -- the key parts
-      are plain columns, none wider than a varchar, the whole no wider than a
-      blob -- but whether that becomes an index depends on the engine
-      create_tmp_table() picked and that engine's own key limits, and it picks
-      the engine from the row it is building.
+      can_run_query_in_workers() asks what it can of the SQL -- the plan's own
+      aggregation table is keyed by the group, and the key parts are plain
+      columns -- but whether a container becomes indexed depends on the engine
+      create_tmp_table() picks for it and that engine's own key limits.
 
       So give up pre-aggregating and build the layout the query would have had
       without it. The query still runs in the workers; they ship their rows and
@@ -336,10 +335,10 @@ bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
     bool no_group_index= !(recv.table->group && recv.table->s->keys == 1 &&
                            !recv.table->s->have_unique_constraint());
     /*
-      Nothing this tree can express reaches the real thing: the gate already
-      refuses the two shapes that make create_tmp_table() fall back for a heap
-      container, and its engine-limit test is only in the on-disk branch. So
-      the fall-back is reached on demand instead, or it would never be run.
+      A container is built with the engine and key the plan's own aggregation
+      table got, and the gate has seen that table keyed by the group, so
+      nothing this tree can express reaches the real thing. The fall-back is
+      reached on demand instead, or it would never be run.
     */
     DBUG_EXECUTE_IF("pwt_no_group_index", no_group_index= true;);
 
@@ -851,10 +850,10 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
         makes the thread questions live: the conversion re-opens the table, and
         Aria binds an open handle to the opening thread's my_thread_var, freed
         when this worker's THD is destroyed. The manager reads this container
-        afterwards. Being worked through.
+        afterwards, and frees it: what the rebuild allocates is therefore not
+        thread-specific memory, see Create_tmp_table::start().
       */
       THD *worker_thd= current_thd;
-      const int64 before= worker_thd->status_var.local_memory_used;
       bool is_duplicate;
 
       if (create_internal_tmp_table_from_heap(worker_thd, table,
@@ -863,18 +862,6 @@ int pwt_tmp_table_sink::emit_row(const uchar *rec)
                                               err, 0, &is_duplicate, NULL,
                                               /*cross_thread=*/ true))
         return PWT_EMIT_ERROR;              // already reported
-
-      /*
-        What the rebuild allocated into the container is thread-specific memory
-        charged to this thread, and the manager is the thread that will free it.
-        Move the charge with the thing it accounts for: take it off our books,
-        so ~THD finds them square, and hand it to the manager in cleanup(),
-        which runs with every worker joined and before free_containers().
-        Adding to the manager's counter from here would race with the manager,
-        which is draining at the same time.
-      */
-      spilled_memory+= worker_thd->status_var.local_memory_used - before;
-      worker_thd->status_var.local_memory_used= before;
     }
     else
     {
@@ -936,16 +923,6 @@ void pwt_tmp_table_sink::cleanup()
       container->table->file->rebind_to_thread();
     }
     container= nullptr;
-  }
-  /*
-    The memory the worker allocated into the container and the manager is about
-    to free. Safe to touch the manager's counter here: every worker has been
-    joined, so this runs on the manager's own thread.
-  */
-  if (spilled_memory && manager->thd)
-  {
-    manager->thd->status_var.local_memory_used+= spilled_memory;
-    spilled_memory= 0;
   }
 }
 

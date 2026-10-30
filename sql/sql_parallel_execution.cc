@@ -461,7 +461,7 @@ static bool pwt_aggregates_can_be_merged(JOIN *join, const char *what,
       - WITH ROLLUP, which needs the groups in order.
       - A plan whose terminal is not end_update(), so there is no group key a
         partial can be merged through.
-      - A key part that is not a plain column, or one too wide to key on.
+      - A key part that is not a plain column.
       - A select-list item that is not an aggregate and not functionally
         dependent on the group, because the manager evaluates it once per group
         from base-table columns that hold only one of that group's rows.
@@ -486,11 +486,12 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   {
     /*
       A partial is merged by looking its group up in the aggregation table,
-      so the table has to be keyed by the group and create_tmp_table() keys
-      it by a unique constraint instead, a hash of the whole row with nothing
-      to look a group up in, whenever a GROUP BY element is too wide to be
-      a key part (Create_tmp_table::start(), via Item::too_big_for_varchar)
-      or the key as a whole is too long.
+      so the table has to be keyed by the group. create_tmp_table() keys an
+      on-disk table by a unique constraint instead, a hash of the whole row
+      with nothing to look a group up in, when a GROUP BY element is too wide
+      to be a key part or the key as a whole is too long for the engine
+      (Create_tmp_table::start() and choose_engine()). The plan then writes
+      through end_unique_update().
     */
     JOIN_TAB *aggr= join->aggr_tables
                     ? join->join_tab + join->top_join_tab_count : nullptr;
@@ -498,9 +499,9 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
         !(aggr->table->s->keys && !aggr->table->s->have_unique_constraint()))
       return pwt_decline(join, trace,
                "grouped: the aggregation table is keyed by a unique constraint "
-               "rather than by the group -- create_tmp_table() does that for a "
-               "GROUP BY element too wide for a key part, and a hash of the row "
-               "is not something a group can be looked up in");
+               "rather than by the group -- create_tmp_table() does that on "
+               "disk for a GROUP BY key too wide for the engine, and a hash of "
+               "the row is not something a group can be looked up in");
     return pwt_decline(join, trace,
              "grouped: the plan's terminal is not end_update(), so there is no "
              "group key a partial can be merged through (see "
@@ -510,7 +511,15 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   if (!pwt_aggregates_can_be_merged(join, "grouped", trace))
     return false;
 
-  uint key_length= 0;
+  /*
+    How wide a key part may be is not asked here. A wide GROUP BY column or a
+    long key only keys the aggregation table by a unique constraint when the
+    table starts on disk: a HEAP table indexes it, blob or not
+    (Create_tmp_table::start(), m_heap_expected). A plan with such a table has
+    no end_update() terminal and is refused above. Otherwise the containers are
+    built the way the plan's own table was, and pwt_row_layout::build() checks
+    the finished one for a group index, shipping plain rows if it has none.
+  */
   for (ORDER *k= g; k; k= k->next)
   {
     Item *item= (*k->item)->real_item();
@@ -518,31 +527,7 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
       return pwt_decline(join, trace,
                          "grouped: a GROUP BY element that is not a plain "
                          "column");
-    /*
-      Create_tmp_table::start() answers the same question with
-      m_using_unique_constraint: a key part this wide cannot be a group key, so
-      the table it builds would be keyed by a hash of the whole row, which
-      there is no way to look a group up in. Asked here so the plan is refused
-      rather than built and then found unusable.
-    */
-    if ((*k->item)->too_big_for_varchar())
-      return pwt_decline(join, trace, "grouped: a GROUP BY column too wide for a key "
-                               "part, so create_tmp_table() would key the "
-                               "container by a unique constraint rather than "
-                               "by the group");
-    Field *f= ((Item_field *) item)->field;
-    key_length+= f->type() == MYSQL_TYPE_VARCHAR ||
-                 f->type() == MYSQL_TYPE_VAR_STRING
-                 ? f->field_length + HA_KEY_BLOB_LENGTH : f->pack_length();
-    if ((*k->item)->maybe_null())
-      key_length++;
   }
-  if (key_length >= MAX_BLOB_WIDTH)
-    return pwt_decline(join, trace,
-                       "grouped: the GROUP BY key is too long for a key "
-                       "part, so create_tmp_table() would key the "
-                       "container by a unique constraint rather than by "
-                       "the group");
 
   List_iterator_fast<Item> li(join->fields_list);
   Item *it;
@@ -2202,22 +2187,7 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
     the enum this function returns.
   */
   if (pwt_self->manager->row_layout().grouped)
-  {
-    THD *thd= pwt_self->thd;
-    /*
-      record local memory used so that if a we allocate another block, or
-      HEAP->Aria conversion happens, then owed gets transferred to the manager
-    */
-    const int64 before= thd->status_var.local_memory_used;
-    const enum_nested_loop_state rc= pwt_self->exec.aggr_tab->aggr->put_record();
-    const int64 owed= thd->status_var.local_memory_used - before;
-    if (owed)
-    {
-      thd->status_var.local_memory_used= before;
-      pwt_self->sink->account_spilled_memory(owed);
-    }
-    DBUG_RETURN(rc);
-  }
+    DBUG_RETURN(pwt_self->exec.aggr_tab->aggr->put_record());
 
   switch (pwt_self->emit_joined_row()) {
   case PWT_EMIT_OK:   DBUG_RETURN(NESTED_LOOP_OK);
