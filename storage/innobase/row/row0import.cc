@@ -2299,6 +2299,7 @@ row_import_cleanup(row_prebuilt_t* prebuilt,
 	prebuilt->trx->op_info = "";
 
 	DBUG_EXECUTE_IF("ib_import_before_checkpoint_crash", DBUG_SUICIDE(););
+	fil_crypt_threads_signal();
 
 	if (err != DB_SUCCESS
 	    || !dict_table_get_first_index(table)->is_gen_clust()) {
@@ -5055,6 +5056,9 @@ import_error:
 	}
 
 	ib::info() << "Phase IV - Flush complete";
+	log_sys.latch.wr_lock();
+	table->space->create_lsn = log_sys.get_lsn();
+	log_sys.latch.wr_unlock();
 	table->space->set_imported();
 
 	err = lock_sys_tables(trx);

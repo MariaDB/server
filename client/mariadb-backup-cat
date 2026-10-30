@@ -1,0 +1,3 @@
+#!/bin/sh
+exec cat > "$MARIADB_DATADIR/$1.tar"
+# This is for use by mysql-test/mtr backup.backup_stream

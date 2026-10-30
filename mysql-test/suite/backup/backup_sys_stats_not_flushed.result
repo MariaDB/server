@@ -1,0 +1,34 @@
+CREATE TABLE t1 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2), (3);
+CREATE PROCEDURE fill_stats(IN rows_wanted INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < rows_wanted DO
+INSERT INTO mysql.table_stats (db_name, table_name, cardinality)
+VALUES ('test', CONCAT('tbl', i), i);
+SET i = i + 1;
+END WHILE;
+END|
+CALL fill_stats(600);
+connect  backup,localhost,root,,;
+SET DEBUG_SYNC='after_purge_tables SIGNAL purged WAIT_FOR go';
+BACKUP SERVER TO 'target_directory';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR purged';
+connect  writer,localhost,root,,;
+DELETE FROM mysql.table_stats WHERE SLEEP(0.005) = 0;
+connection default;
+SET DEBUG_SYNC='now SIGNAL go';
+connection writer;
+connection backup;
+connection default;
+disconnect backup;
+disconnect writer;
+SET DEBUG_SYNC='RESET';
+# restart: --datadir=MYSQLTEST_VARDIR/backup_sys_stats_not_flushed
+CHECK TABLE mysql.table_stats;
+Table	Op	Msg_type	Msg_text
+mysql.table_stats	check	status	OK
+# restart
+DROP PROCEDURE fill_stats;
+DROP TABLE t1;

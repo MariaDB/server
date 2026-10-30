@@ -90,9 +90,6 @@ bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
     of fil_system.space_list, so that they would be less likely to be
     closed here. */
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
-    if (!node)
-      /* fil_ibd_create() did not invoke fil_space_t::add() yet */
-      continue;
     ut_ad(!UT_LIST_GET_NEXT(chain, node));
 
     if (!node->is_open())
@@ -696,8 +693,8 @@ ATTRIBUTE_COLD bool fil_space_t::prepare_acquired() noexcept
   fil_node_t *node= UT_LIST_GET_LAST(chain);
   ut_ad(!id || is_temporary() || node == UT_LIST_GET_FIRST(chain));
 
-  const bool is_open= node &&
-    (node->is_open() || fil_node_open_file(node, nullptr, false));
+  const bool is_open=
+    node->is_open() || fil_node_open_file(node, nullptr, false);
 
   if (!is_open)
     release();
@@ -869,7 +866,7 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
     }
 
   ut_ad(!detach_handle || space->id);
-  ut_ad(!detach_handle || UT_LIST_GET_LEN(space->chain) <= 1);
+  ut_ad(!detach_handle || UT_LIST_GET_LEN(space->chain) == 1);
 
   pfs_os_file_t handle= OS_FILE_CLOSED;
 
@@ -879,6 +876,13 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
 
   ut_ad(!space->referenced());
   return handle;
+}
+
+fil_node_t::~fil_node_t()
+{
+  ut_free(name);
+  if (backup_name != name)
+    ut_free(backup_name);
 }
 
 /** Free a tablespace object on which fil_system_t::detach() was invoked.
@@ -894,9 +898,9 @@ static void fil_space_free_low(fil_space_t *space) noexcept
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 	     node != NULL; ) {
 		ut_d(space->size -= node->size);
-		ut_free(node->name);
 		fil_node_t* old_node = node;
 		node = UT_LIST_GET_NEXT(chain, node);
+		old_node->~fil_node_t();
 		ut_free(old_node);
 	}
 
@@ -1022,13 +1026,6 @@ fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
   {
     fil_system.default_encrypt_tables.push_back(*space);
     space->is_in_default_encrypt= true;
-
-    if (srv_n_fil_crypt_threads_started)
-    {
-      mysql_mutex_unlock(&fil_system.mutex);
-      fil_crypt_threads_signal();
-      mysql_mutex_lock(&fil_system.mutex);
-    }
   }
 
   return space;
@@ -1091,8 +1088,6 @@ bool fil_space_t::read_page0(const byte *dpage, bool no_lsn) noexcept
     return true;
 
   fil_node_t *node= UT_LIST_GET_FIRST(chain);
-  if (!node)
-    return false;
   ut_ad(!UT_LIST_GET_NEXT(chain, node));
 
   if (UNIV_UNLIKELY(acquire_low() & STOPPING))
@@ -1892,6 +1887,14 @@ static inline char *fil_make_dirpath(const char *path) noexcept
   return fil_make_filepath_low(path, fil_space_t::name_type{}, NO_EXT, true);
 }
 
+void fil_node_t::rename(char *path) noexcept
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  if (backup_name != name)
+    ut_free(name);
+  name= path;
+}
+
 dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
 {
   ut_ad(UT_LIST_GET_LEN(chain) == 1);
@@ -1914,9 +1917,9 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
     ut_ad(!exists);
     if (!os_file_rename(innodb_data_file_key, old_path, path))
       return DB_ERROR;
+    char *name= mem_strdup(path);
     mysql_mutex_lock(&fil_system.mutex);
-    ut_free(chain.start->name);
-    chain.start->name= mem_strdup(path);
+    chain.start->rename(name);
     mysql_mutex_unlock(&fil_system.mutex);
     return DB_SUCCESS;
   }
@@ -2042,7 +2045,9 @@ fil_ibd_create(
 	fil_node_t* node = space->add(path, OS_FILE_CLOSED, size, false, true);
 	space->set_stopped();
 	mysql_mutex_unlock(&fil_system.mutex);
+	fil_crypt_threads_signal();
 
+	lsn_t create_lsn;
 	buf_block_t *header[2];
 	{
 		mtr_t mtr{nullptr};
@@ -2060,9 +2065,10 @@ fil_ibd_create(
 		header[0]->page.lock.x_lock();
 		header[1]->page.lock.x_lock();
 		mtr.commit();
+		create_lsn = mtr.commit_lsn();
 		/* Durably write the FILE_CREATE record (as well as records for
 		the fsp_header_init() above before creating the file. */
-		log_write_up_to(mtr.commit_lsn(), true);
+		log_write_up_to(create_lsn, true);
 	}
 
 	DEBUG_SYNC_C("fil_ibd_create_logged");
@@ -2143,6 +2149,7 @@ func_exit:
 
 	mysql_mutex_lock(&fil_system.mutex);
 	space->clear_stopped();
+	space->create_lsn = create_lsn;
 	node->handle = file;
 	node->find_metadata(IF_WIN(,true));
 	if (++fil_system.n_open >= srv_max_n_open_files) {
@@ -3292,7 +3299,7 @@ fil_space_t::name_type fil_space_t::name() const noexcept
     return name_type{"innodb_temporary", 16};
   }
 
-  if (!UT_LIST_GET_FIRST(chain) || srv_is_undo_tablespace(id))
+  if (srv_is_undo_tablespace(id))
     return name_type{};
 
   ut_ad(!is_temporary());
