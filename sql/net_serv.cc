@@ -705,6 +705,11 @@ net_real_write(NET *net,const uchar *packet, size_t len)
                           my_progname, (int) net->vio->type);
       net->error= 2;				/* Close socket */
 
+#ifdef MYSQL_SERVER
+      /* The client is gone, and the disconnect is logged already */
+      if (thd && thd->client_disconnected)
+        break;
+#endif
       if (net->vio->state != VIO_STATE_SHUTDOWN || net->last_errno == 0)
       {
         net->last_errno= (interrupted ? ER_NET_WRITE_INTERRUPTED :

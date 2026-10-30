@@ -28,6 +28,7 @@
 #endif
 #include "sql_audit.h"
 #include "sql_connect.h"
+#include "disconnect_watcher.h"
 #include "thread_cache.h"
 #include "probes_mysql.h"
 #include "sql_parse.h"                          // sql_command_flags,
@@ -1291,6 +1292,9 @@ void end_connection(THD *thd)
 {
   NET *net= &thd->net;
 
+  /* The connection ends anyway (COM_QUIT, read error, kill), stop watching */
+  disconnect_watcher_remove(&thd->disconnect_watch, net->vio);
+
 #ifdef WITH_WSREP
   if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
   {
@@ -1323,7 +1327,8 @@ void end_connection(THD *thd)
     status_var_increment(thd->status_var.lost_connections);
   }
 
-  if (likely(!thd->killed) && (net->error && net->vio != 0))
+  if (likely(!thd->killed) && (net->error && net->vio != 0) &&
+      !thd->client_disconnect_logged)
     thd->print_aborted_warning(1, thd->get_stmt_da()->is_error()
              ? thd->get_stmt_da()->message() : ER_THD(thd, ER_UNKNOWN_ERROR));
 
@@ -1445,6 +1450,7 @@ bool thd_prepare_connection(THD *thd)
                          (char *) thd->security_ctx->host_or_ip);
 
   prepare_new_connection_state(thd);
+  thd->disconnect_watch= disconnect_watcher_add(thd->thread_id, thd->net.vio);
 #ifdef WITH_WSREP
   thd->wsrep_client_thread= true;
   wsrep_open(thd);

@@ -688,21 +688,28 @@ enum killed_state : uint32_t
   */
   KILL_SLAVE_SAME_ID= 10,
   /*
+    The client socket failed while the statement was running, see
+    disconnect_watcher.h. Aborts the statement only, the connection then
+    reads the next command like after KILL QUERY.
+  */
+  KILL_DISCONNECT= 12,
+  KILL_DISCONNECT_HARD= 13,
+  /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 12,
-  KILL_CONNECTION_HARD= 13,
-  KILL_SYSTEM_THREAD= 14,
-  KILL_SYSTEM_THREAD_HARD= 15,
-  KILL_SERVER= 16,
-  KILL_SERVER_HARD= 17,
+  KILL_CONNECTION= 14,
+  KILL_CONNECTION_HARD= 15,
+  KILL_SYSTEM_THREAD= 16,
+  KILL_SYSTEM_THREAD_HARD= 17,
+  KILL_SERVER= 18,
+  KILL_SERVER_HARD= 19,
   /*
     Used in threadpool to signal wait timeout.
   */
-  KILL_WAIT_TIMEOUT= 18,
-  KILL_WAIT_TIMEOUT_HARD= 19
+  KILL_WAIT_TIMEOUT= 20,
+  KILL_WAIT_TIMEOUT_HARD= 21
 
 };
 
@@ -4532,6 +4539,16 @@ public:
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
+  /* Not NULL if the socket is registered in the client disconnect watcher */
+  void       *disconnect_watch= nullptr;
+  /*
+    The client disconnected while a statement was running, set by the watcher
+    and cleared when the next command starts. KILL_DISCONNECT itself is reset
+    before the error of the aborted statement is sent.
+  */
+  std::atomic<bool> client_disconnected{false};
+  /* The disconnect was logged, by the thread that owns the connection */
+  bool       client_disconnect_logged= false;
 
   /**  
     is set if a statement accesses a temporary table created through

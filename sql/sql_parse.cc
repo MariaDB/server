@@ -1659,6 +1659,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->reset_kill_query();
+  thd->client_disconnected= false;
+  thd->client_disconnect_logged= false;
 
   DEBUG_SYNC(thd,"dispatch_command_before_set_time");
 
