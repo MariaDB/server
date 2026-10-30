@@ -1895,6 +1895,11 @@ dberr_t fil_space_t::rename(const char *path, bool log, bool replace) noexcept
 
   if (!log)
   {
+    ut_ad(!replace);
+    ut_d(os_file_type_t type);
+    ut_d(bool exists);
+    ut_ad(os_file_status(path, &exists, &type));
+    ut_ad(!exists);
     if (!os_file_rename(innodb_data_file_key, old_path, path))
       return DB_ERROR;
     mysql_mutex_lock(&fil_system.mutex);
@@ -2027,7 +2032,6 @@ fil_ibd_create(
 	mysql_mutex_unlock(&fil_system.mutex);
 	fil_crypt_threads_signal();
 
-	lsn_t create_lsn;
 	buf_block_t *header[2];
 	{
 		mtr_t mtr{nullptr};
