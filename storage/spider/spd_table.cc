@@ -61,7 +61,6 @@ MYSQL_THD create_thd()
   THD *thd = SPIDER_new_THD(next_thread_id());
   if (thd)
   {
-    thd->thread_stack = (char*) &thd;
     thd->store_globals();
     thd->set_command(COM_DAEMON);
     thd->security_ctx->host_or_ip = "";
@@ -104,7 +103,6 @@ inline MYSQL_THD spider_create_thd()
 #ifdef HAVE_PSI_INTERFACE
     mysql_thread_set_psi_id(thd->thread_id);
 #endif
-    thd->thread_stack = (char *) &thd;
     thd->store_globals();
   }
   return thd;

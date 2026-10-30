@@ -12303,7 +12303,7 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
 
   int i=0;
   char *c;
-  long *l;
+  longlong *l;
   double *d;
 
   char *p= strtok((char*)command->first_argument, " ");
@@ -12312,19 +12312,19 @@ void run_bind_stmt(struct st_connection *cn, struct st_command *command,
     (void)strtol(p, &c, 10);
     if (!long_data && !*c)
     {
-      ps_params[i].buffer_type= MYSQL_TYPE_LONG;
-      l= (long*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(long),
-                          MYF(MY_WME|MY_FAE));
-      *l= strtol(p, &c, 10);
+      ps_params[i].buffer_type= MYSQL_TYPE_LONGLONG;
+      l= (longlong*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(longlong),
+                              MYF(MY_WME|MY_FAE));
+      *l= strtoll(p, &c, 10);
       ps_params[i].buffer= (void*)l;
-      ps_params[i].buffer_length= 8;
+      ps_params[i].buffer_length= sizeof(longlong);
     }
     else
     {
       (void)strtod(p, &c);
       if (!long_data && !*c)
       {
-        ps_params[i].buffer_type= MYSQL_TYPE_DECIMAL;
+        ps_params[i].buffer_type= MYSQL_TYPE_DOUBLE;
         d= (double*)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(double),
                               MYF(MY_WME|MY_FAE));
         *d= strtod(p, &c);

@@ -2274,16 +2274,17 @@ binlog_chunk_reader::find_offset_in_page(uint32_t off)
   s.chunk_type= FSP_BINLOG_TYPE_FILLER;
   s.skip_current= 0;
   s.in_record= 0;
-  while (s.in_page_offset < off &&
-         s.in_page_offset < cur_end_offset &&
-         s.in_page_offset < ibb_page_size)
+  uint32_t page_end_offset= (uint32_t)ibb_page_size - BINLOG_PAGE_DATA_END;
+  if (cur_end_offset >> ibb_page_size_shift == s.page_no)
+    page_end_offset= (uint32_t)(cur_end_offset & (ibb_page_size - 1));
+  while (s.in_page_offset < off && s.in_page_offset < page_end_offset)
   {
     byte type= page_ptr[s.in_page_offset];
     if (type == 0 || type == FSP_BINLOG_TYPE_FILLER)
       break;
     uint32_t chunk_len= page_ptr[s.in_page_offset + 1] |
       ((uint32_t)page_ptr[s.in_page_offset + 2] << 8);
-    s.in_page_offset+= std::min(3 + chunk_len, (uint32_t)ibb_page_size);
+    s.in_page_offset+= std::min(3 + chunk_len, page_end_offset);
   }
   return 0;
 }

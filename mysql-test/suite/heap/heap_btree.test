@@ -330,3 +330,46 @@ select * from t1 where a=3;
 
 drop table t1;
 --enable_ps2_protocol
+
+--echo #
+--echo # MDEV-41738 MEMORY BTREE index: DELETE by key prefix skips a row
+--echo # after a previous lookup
+--echo #
+
+create table t1 (a int not null, b varchar(10) not null,
+                 primary key (a, b) using btree) engine=memory;
+insert t1 values (2,'v'),(1,'in'),(1,'mid'),(1,'out');
+select * from t1 where a = 2 and b = 'v';
+--disable_ps2_protocol
+delete from t1 where a = 1;
+select row_count();
+--enable_ps2_protocol
+select * from t1;
+
+drop table t1;
+
+create table t1 (a int not null, c int, primary key (a) using btree) engine=memory;
+insert t1 select seq, seq % 2 from seq_1_to_10;
+select * from t1 where a = 8;
+--disable_ps2_protocol
+flush status;
+delete from t1 where c = 0 order by a limit 5;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+--enable_ps2_protocol
+select * from t1;
+drop table t1;
+
+create table t1 (a int not null, b int not null, c int,
+                 primary key (a, b) using btree) engine=memory;
+insert t1 select 1, seq, seq % 2 from seq_1_to_10;
+insert t1 values (2,1,0);
+select * from t1 where a = 2 and b = 1;
+--disable_ps2_protocol
+flush status;
+delete from t1 where a = 1 and c = 0 order by a desc, b desc;
+select * from information_schema.session_status where variable_name like 'handler_r%' and variable_value>0;
+--enable_ps2_protocol
+select * from t1;
+drop table t1;
+
+--echo # End of 10.11 tests

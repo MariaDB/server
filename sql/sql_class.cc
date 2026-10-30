@@ -2490,9 +2490,7 @@ void THD::store_globals()
 #endif
   real_id= pthread_self();                      // For debugging
 
-  /* Set stack start and stack end */
-  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
-                      thread_stack, my_thread_stack_size);
+  set_thread_stack(&mysys_var->stack_ends_here);
 
   if (net.vio)
   {
@@ -2503,6 +2501,22 @@ void THD::store_globals()
     created in another thread
   */
   thr_lock_info_init(&lock_info, mysys_var);
+}
+
+
+/**
+  Set thread_stack (and optionally stack_end) from the stack of the
+  current OS thread.
+
+  Never assign the address of a local variable to thread_stack: with ASAN
+  use-after-return detection it may be on a fake (heap) stack.
+*/
+
+void THD::set_thread_stack(void **stack_end)
+{
+  void *end;
+  my_get_stack_bounds(&thread_stack, stack_end ? stack_end : &end, NULL,
+                      my_thread_stack_size);
 }
 
 

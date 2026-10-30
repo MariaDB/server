@@ -3807,12 +3807,6 @@ public:
 
   bool ora_join_add_table_ref(ora_join_processor_param *arg,
                               TABLE_LIST *table);
-
-  friend bool insert_fields(THD *thd, Name_resolution_context *context,
-                            const LEX_CSTRING &db_name,
-                            const LEX_CSTRING &table_name,
-                            List_iterator<Item> *it,
-                            bool any_privileges, bool returning_field);
 };
 
 

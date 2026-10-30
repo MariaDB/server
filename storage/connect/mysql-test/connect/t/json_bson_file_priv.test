@@ -6,6 +6,10 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 
 --copy_file $MTR_SUITE_DIR/std_data/bib0.json $MYSQL_TMP_DIR/bib0.json
 --copy_file $MTR_SUITE_DIR/std_data/biblio.json $MYSQL_TMP_DIR/biblio.json
+--write_file $MYSQL_TMP_DIR/secret.json
+["secret"]
+EOF
+--copy_file $MYSQL_TMP_DIR/secret.json $MYSQLD_DATADIR/secret.json
 
 --echo #
 --echo # Test FILE privilege and secure_file_priv enforcement for JSON/BSON file UDFs
@@ -27,6 +31,34 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NOT NULL AS ok
 
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jsonget_string('$MYSQL_TMP_DIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bsonget_string('$MYSQL_TMP_DIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json', 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_make('$MYSQL_TMP_DIR/secret.json', '$MYSQL_TMP_DIR/out.json')
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_test('["test"]', '$MYSQL_TMP_DIR/out.json')
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+
 --echo # Privileged user: path outside secure_file_priv
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval select json_file('$MYSQLD_DATADIR/bib0.json') IS NULL AS denied
@@ -41,6 +73,40 @@ let $MYSQLD_DATADIR = `select @@datadir`;
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval select bbin_file('$MYSQLD_DATADIR/biblio.json') IS NULL AS denied
 
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQLD_DATADIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQLD_DATADIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQLD_DATADIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQLD_DATADIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQLD_DATADIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQLD_DATADIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQLD_DATADIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQLD_DATADIR/out.json', 1024) IS NULL AS denied
+
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select jsonget_string('$MYSQLD_DATADIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bsonget_string('$MYSQLD_DATADIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_array_add('$MYSQLD_DATADIR/secret.json', 1)
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select json_array_add('$MYSQLD_DATADIR/secret.json' as jfile_x, 1)
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_array_add('$MYSQLD_DATADIR/secret.json' as bfile_x, 1)
+--cat_file $MYSQLD_DATADIR/secret.json
+--replace_result $MYSQLD_DATADIR DATADIR $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_make('$MYSQLD_DATADIR/secret.json', '$MYSQL_TMP_DIR/out.json')
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval select bson_test('["test"]', '$MYSQLD_DATADIR/out.json')
+
 --echo # NULL argument: no "access denied", UDF reports its own error
 select json_file(NULL) IS NULL AS ok;
 select bson_file(NULL) IS NULL AS ok;
@@ -48,6 +114,56 @@ select jfile_make('{"test":1}', NULL, 0) IS NULL AS ok;
 select bfile_make('{"test":1}', NULL, 0) IS NULL AS ok;
 select jbin_file(NULL) IS NULL AS ok;
 select bbin_file(NULL) IS NULL AS ok;
+select jfile_bjson(NULL, 'out.json', 0) IS NULL AS ok;
+select jfile_bjson('bib0.json', NULL, 0) IS NULL AS ok;
+select jfile_convert(NULL, 'out.json', 1024) IS NULL AS ok;
+select jfile_convert('biblio.json', NULL, 1024) IS NULL AS ok;
+select bfile_bjson(NULL, 'out.json', 0) IS NULL AS ok;
+select bfile_bjson('bib0.json', NULL, 0) IS NULL AS ok;
+select bfile_convert(NULL, 'out.json', 1024) IS NULL AS ok;
+select bfile_convert('biblio.json', NULL, 1024) IS NULL AS ok;
+select jfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select jfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select bfile_bjson('bib0.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select bfile_convert('biblio.json', 'out.json', cast(NULL as signed)) IS NULL AS ok;
+select jfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select jfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select bfile_bjson('bib0.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+select bfile_convert('biblio.json', 'out.json', if(rand() > 1, 1, NULL)) IS NULL AS ok;
+
+--echo # Non-constant LRECL (args->args[2] is NULL at init time)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', if(rand() > 1, NULL, 1024)) IS NOT NULL AS ok
+--remove_file $MYSQL_TMP_DIR/out.json
+
+--echo # Input file is not a JSON array
+--copy_file $MTR_SUITE_DIR/std_data/people.csv $MYSQL_TMP_DIR/people.csv
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/people.csv', '$MYSQL_TMP_DIR/out.json', 256)
+--remove_file $MYSQL_TMP_DIR/out.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/people.csv', '$MYSQL_TMP_DIR/out.json', 256)
+--remove_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/people.csv
+
+--echo # JSON array does not start the file
+--write_file $MYSQL_TMP_DIR/array.json
+x[{"a":1}]
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/array.json', '$MYSQL_TMP_DIR/out.json', 256)
+--cat_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/out.json
+--remove_file $MYSQL_TMP_DIR/array.json
+
+--echo # Non-positive LRECL
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', -3)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 0)
 
 --echo # Privileged user: relative path resolving outside secure_file_priv
 select json_file('../../bib0.json') IS NULL AS denied;
@@ -58,6 +174,26 @@ select bson_file('../../biblio.json') IS NULL AS denied;
 --eval select json_file(concat('$MYSQL_TMP_DIR/', repeat('x', 512))) IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
 --eval select bson_file(concat('$MYSQL_TMP_DIR/', repeat('x', 512))) IS NULL AS denied
+
+--echo # File name argument that does not fit in the work area
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jbin_set_item(repeat('x', 4000) as jfile_x, '$.a', 1);
+
+--echo # Overlong file name argument in *_init
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select json_get_item(repeat('x', 10000) as jfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jsonget_string(repeat('x', 10000) as jfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select json_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select jbin_set_item(repeat('x', 10000) as jfile_x, '$.a', 1);
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bson_get_item(repeat('x', 10000) as bfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bsonget_string(repeat('x', 10000) as bfile_x, '$');
+--replace_regex /x{10,}/xxx/ /used=[0-9]+ free=[0-9]+/used=# free=#/
+select bson_set_item(repeat('x', 10000) as bfile_x, '$.a', 1);
 
 --echo # Non-constant filename expression (args->args[0] is NULL at init time)
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
@@ -71,28 +207,52 @@ select bbin_file(@fname) IS NOT NULL AS ok;
 create user unprivileged@localhost;
 grant select ON *.* TO unprivileged@localhost;
 
---connect(unprivileged,localhost,unprivileged,,)
---connection unprivileged
+--connect unprivileged,localhost,unprivileged
 
 --echo # inside secure_file_priv: denied without FILE privilege
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select json_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;
+--eval select json_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bson_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;
+--eval select bson_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select jfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;
+--eval select jfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied;
+--eval select bfile_make('{"test":1}', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select jbin_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied;
+--eval select jbin_file('$MYSQL_TMP_DIR/bib0.json') IS NULL AS denied
 --replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
---eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied;
+--eval select bbin_file('$MYSQL_TMP_DIR/biblio.json') IS NULL AS denied
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_bjson('$MYSQL_TMP_DIR/bib0.json', '$MYSQL_TMP_DIR/out.json', 0) IS NULL AS denied
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bfile_convert('$MYSQL_TMP_DIR/biblio.json', '$MYSQL_TMP_DIR/out.json', 1024) IS NULL AS denied
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select jsonget_string('$MYSQL_TMP_DIR/secret.json' as jfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bsonget_string('$MYSQL_TMP_DIR/secret.json' as bfile_x, '\$[0]')
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json', 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select json_array_add('$MYSQL_TMP_DIR/secret.json' as jfile_x, 1)
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_array_add('$MYSQL_TMP_DIR/secret.json' as bfile_x, 1)
+--cat_file $MYSQL_TMP_DIR/secret.json
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval select bson_test('["test"]', '$MYSQL_TMP_DIR/out.json')
 
 --disconnect unprivileged
 --connection default
 
 --remove_file $MYSQL_TMP_DIR/bib0.json
 --remove_file $MYSQL_TMP_DIR/biblio.json
+--remove_file $MYSQL_TMP_DIR/secret.json
+--remove_file $MYSQLD_DATADIR/secret.json
 
 drop user unprivileged@localhost;
 
