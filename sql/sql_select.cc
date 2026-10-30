@@ -32291,6 +32291,7 @@ static void print_delete_using_table(THD *thd, TABLE_LIST *tbl, String *str,
 {
   if (tbl->merge_underlying_list)
   {
+    DBUG_ASSERT(0);
     bool first= true;
     for (TABLE_LIST *u= tbl->merge_underlying_list; u; u= u->next_local)
     {
