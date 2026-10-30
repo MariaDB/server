@@ -1477,6 +1477,8 @@ public:
   my_decimal *decimal_op(my_decimal *) override;
   bool native_op(THD *thd, Native *to) override;
   bool fix_length_and_dec(THD *thd) override;
+  decimal_digits_t decimal_precision() const override
+  { return args[2]->decimal_precision(); }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   LEX_CSTRING func_name_cstring() const override
   {
