@@ -57,14 +57,19 @@ BEGIN
     DECLARE v_lock_result INT;
     DECLARE v_lock_used_by BIGINT;
     DECLARE v_signal_message TEXT;
+    DECLARE v_log_bin_disabled BOOL DEFAULT FALSE;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
+        IF v_log_bin_disabled THEN
+            SET sql_log_bin = @log_bin;
+        END IF;
         SIGNAL SQLSTATE VALUE '90001'
            SET MESSAGE_TEXT = 'An error occurred, was sys.ps_setup_save() run before this procedure?';
     END;
 
     SET @log_bin := @@sql_log_bin;
     SET sql_log_bin = 0;
+    SET v_log_bin_disabled = TRUE;
 
     SELECT IS_USED_LOCK('sys.ps_setup_save') INTO v_lock_used_by;
 

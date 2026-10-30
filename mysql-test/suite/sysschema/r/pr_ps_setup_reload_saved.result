@@ -1,0 +1,27 @@
+#
+# MDEV-41940 sys.ps_setup_reload_saved() leaves session sql_log_bin disabled after an error
+#
+create temporary table saved_actors as select * from performance_schema.setup_actors;
+select @@sql_log_bin;
+@@sql_log_bin
+1
+call sys.ps_setup_reload_saved();
+ERROR 90001: An error occurred, was sys.ps_setup_save() run before this procedure?
+select @@sql_log_bin;
+@@sql_log_bin
+1
+insert into performance_schema.setup_actors select * from saved_actors;
+drop temporary table saved_actors;
+connect  con1,localhost,root,,;
+call sys.ps_setup_save(0);
+connection default;
+call sys.ps_setup_reload_saved();
+ERROR 90001: An error occurred, was sys.ps_setup_save() run before this procedure?
+select @@sql_log_bin;
+@@sql_log_bin
+1
+connection con1;
+call sys.ps_setup_reload_saved();
+disconnect con1;
+connection default;
+# End of 11.4 tests
