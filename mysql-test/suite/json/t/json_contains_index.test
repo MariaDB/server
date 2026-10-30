@@ -1,0 +1,20 @@
+--source include/have_sequence.inc
+create table t3 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as unsigned array))
+);
+
+insert into t3 select seq,
+  concat('["value-', seq, '", "value-', seq + 1,
+          '", "value-', seq + 2, '", "value-', seq + 3, '"]') from seq_1_to_200;
+
+let $q= select * from t3 where json_contains(js, '["value-100", "value-101", "value-102"]');
+eval explain $q;
+eval $q;
+
+let $q= select * from t3 where json_contains('["value-100", "value-101", "value-102"]', js);
+eval explain $q;
+eval $q;
+
+DROP TABLE t3;

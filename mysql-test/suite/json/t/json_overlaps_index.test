@@ -1,0 +1,18 @@
+--source include/have_sequence.inc
+create table t3 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as unsigned array))
+);
+
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+
+let $q= select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+eval explain $q;
+eval $q;
+
+let $q= select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+eval explain $q;
+eval $q;
+
+DROP TABLE t3;
