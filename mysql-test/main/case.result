@@ -625,4 +625,37 @@ select * from t1;
 metric_val
 1.0000
 drop table avg_calc_test, t1;
+#
+# MDEV-41650: Hex literals evaluate incorrectly in hybrid functions
+#
+SELECT (0x30 XOR 0) AS bare;
+bare
+1
+SELECT (COALESCE(NULL, 0x30) XOR 0) AS coalesce_hex;
+coalesce_hex
+1
+SELECT COALESCE('0', 5) XOR 0 AS coalesce_str_int;
+coalesce_str_int
+0
+SELECT COALESCE(0.5, 'abc') XOR 0 AS coalesce_float_str;
+coalesce_float_str
+1
+SELECT COALESCE(NULL, NULL) IS NULL AS coalesce_nulls;
+coalesce_nulls
+1
+SELECT COALESCE(0x30, NULL) XOR 0 AS coalesce_hex_first;
+coalesce_hex_first
+1
+SELECT COALESCE(NULL, COALESCE(NULL, 0x30)) XOR 0 AS coalesce_nested;
+coalesce_nested
+1
+SELECT IFNULL(NULL, 0x30) XOR 0 AS ifnull_hex;
+ifnull_hex
+1
+SELECT IF(NULL, 0x30, NULL) XOR 0 AS if_hex;
+if_hex
+NULL
+SELECT CASE WHEN NULL IS NULL THEN 0x30 END XOR 0 AS case_hex;
+case_hex
+1
 # End of 10.11 test
