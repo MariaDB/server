@@ -1,0 +1,9 @@
+#
+# MDEV-41498 CHANGE MASTER should reject null and line-break bytes
+#
+CHANGE MASTER TO MASTER_HOST='127.0\n.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value (found \n (newline) which is not allowed)
+CHANGE MASTER TO MASTER_HOST='127.0\0.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value (found \0 (null byte) which is not allowed)
+CHANGE MASTER TO MASTER_HOST='127.0\r.0.1';
+ERROR HY000: Incorrect arguments to CHANGE MASTER option value (found \r (carriage return) which is not allowed)

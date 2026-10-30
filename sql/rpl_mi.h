@@ -498,5 +498,12 @@ bool give_error_if_slave_running(bool already_lock);
 void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
                                        uint timeout);
 
+inline const char* get_invalid_change_master_char(const LEX_CSTRING *str) {
+  if (memchr(str->str, '\0', str->length)) return "\\0 (null byte)";
+  if (memchr(str->str, '\n', str->length)) return "\\n (newline)";
+  if (memchr(str->str, '\r', str->length)) return "\\r (carriage return)";
+  return nullptr; // Returns null if the string is perfectly valid
+}
+
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

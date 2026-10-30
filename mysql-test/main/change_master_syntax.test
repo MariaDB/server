@@ -1,0 +1,12 @@
+--echo #
+--echo # MDEV-41498 CHANGE MASTER should reject null and line-break bytes
+--echo #
+
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\n.0.1';
+
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\0.0.1';
+
+--error ER_WRONG_ARGUMENTS
+CHANGE MASTER TO MASTER_HOST='127.0\r.0.1';
