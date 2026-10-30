@@ -10,10 +10,6 @@ let $histogram_type_override='JSON_HB';
 --source include/have_sequence.inc
 --source include/test_db_charset_latin1.inc
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 
@@ -686,6 +682,14 @@ analyze select * from t1 where col1 < '"🂡';
 analyze select * from t1 where col1 < '"😺';
 
 drop table t1;
+
+--echo #
+--echo # MDEV-41603 DECODE_HISTOGRAM crashes when decoding JSON_HB
+--echo #
+SELECT DECODE_HISTOGRAM('JSON_HB', REPEAT('A',80));
+
+--echo # Item_func_decode_histogram::val_str shouldn't modify its arguments
+SELECT DECODE_HISTOGRAM('DOUBLE_PREC_HB',x), x from (select '123' x from seq_1_to_2) y;
 
 --echo # End of 10.11 tests
 

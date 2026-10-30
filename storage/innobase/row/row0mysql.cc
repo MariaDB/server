@@ -1387,7 +1387,7 @@ error_exit:
 		} else {
 			/* Pass NULL for the columns affected, since an INSERT affects
 			all FTS indexes. */
-			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+			fts_trx_add_op(trx, table, doc_id, FTS_INSERT);
 		}
 	}
 
@@ -1519,9 +1519,11 @@ row_fts_do_update(
 	doc_id_t	new_doc_id)	/* in: new document id */
 {
 	if(trx->fts_next_doc_id) {
-		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE, NULL);
-		if(new_doc_id != FTS_NULL_DOC_ID)
-		fts_trx_add_op(trx, table, new_doc_id, FTS_INSERT, NULL);
+		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE);
+		if (new_doc_id != FTS_NULL_DOC_ID) {
+			fts_trx_add_op(trx, table, new_doc_id,
+				       FTS_INSERT);
+		}
 	}
 }
 
@@ -1546,8 +1548,7 @@ row_fts_update_or_delete(
 
 	/* Deletes are simple; get them out of the way first. */
 	if (node->is_delete) {
-		/* A delete affects all FTS indexes, so we pass NULL */
-		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE, NULL);
+		fts_trx_add_op(trx, table, old_doc_id, FTS_DELETE);
 	} else {
 		doc_id_t	new_doc_id;
 		new_doc_id = fts_read_doc_id((byte*) &trx->fts_next_doc_id);

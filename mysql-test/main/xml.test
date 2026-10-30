@@ -319,6 +319,12 @@ select extractValue('<a>a</','/a');
 select extractValue('<a>a</a','/a');
 select extractValue('<a>a</a></b>','/a');
 select extractValue('<a b=>a</a>','/a');
+
+#
+# Unterminated CDATA must be rejected rather than passed to the value handler.
+#
+select ExtractValue('0123456789AB<![CDATA[','/');
+
 --enable_view_protocol
 
 #

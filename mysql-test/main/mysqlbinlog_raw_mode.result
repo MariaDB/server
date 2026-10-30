@@ -1,6 +1,5 @@
 reset master;
 set timestamp=1000000000;
-drop table if exists t1;
 CREATE TABLE t1 (c01 BIT);
 INSERT INTO t1 VALUES (0);
 INSERT INTO t1 VALUES (1);
@@ -272,3 +271,11 @@ UPDATE t1, t2 SET t1.a=10, t2.a=20;
 DROP TABLE t1,t2;
 flush logs;
 End of tests
+#
+# MDEV-41803 mariadb-binlog --raw takes the output file name from Rotate events without checking it
+#
+reset master;
+# restart
+FOUND 1 /Invalid log file name in rotate event/ in raw_rotate.out
+reset master;
+# End of 10.11 tests
