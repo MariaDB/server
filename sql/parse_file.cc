@@ -1,4 +1,5 @@
 /* Copyright (c) 2004, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -259,7 +260,13 @@ sql_create_definition_file(const LEX_CSTRING *dir,
 
   if (dir)
   {
-    fn_format(path, file_name->str, dir->str, "", MY_UNPACK_FILENAME);
+    if (!fn_format(path, file_name->str, dir->str, "",
+                   MY_UNPACK_FILENAME | MY_SAFE_PATH))
+    {
+      strxnmov(path, sizeof(path) - 1, dir->str, file_name->str, NullS);
+      my_error(ER_IDENT_CAUSES_TOO_LONG_PATH, MYF(0), FN_REFLEN - 1, path);
+      DBUG_RETURN(TRUE);
+    }
     path_end= strlen(path);
   }
   else

@@ -29,3 +29,12 @@ select count(a) from t1;
 count(a)
 0
 drop table t1;
+# End of 5.5 tests
+#
+# CREATE VIEW with too long path
+#
+CREATE DATABASE `d..................................................aaaa`;
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaaaa` AS SELECT 1 AS id;
+ERROR HY000: Long database name and identifier for object resulted in path length exceeding 511 characters. Path: './d@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002eaaaa/t@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e
+DROP DATABASE `d..................................................aaaa`;
+# End of 10.11 tests

@@ -41,3 +41,15 @@ create table t1(a int, b int, c int);
 --echo "Try to select from the table. This should not crash the server"
 select count(a) from t1;
 drop table t1;
+
+--echo # End of 5.5 tests
+
+--echo #
+--echo # CREATE VIEW with too long path
+--echo #
+CREATE DATABASE `d..................................................aaaa`;
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaaaa` AS SELECT 1 AS id;
+DROP DATABASE `d..................................................aaaa`;
+
+--echo # End of 10.11 tests
