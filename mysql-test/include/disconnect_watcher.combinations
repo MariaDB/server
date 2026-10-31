@@ -1,0 +1,5 @@
+[on]
+disconnect_watcher=1
+
+[off]
+disconnect_watcher=0

@@ -1,0 +1,18 @@
+--- a/mysql-test/main/disconnect_lock_wait_pipe.result
++++ b/mysql-test/main/disconnect_lock_wait_pipe.result
+@@ -12,8 +12,13 @@
+ connection default;
+ # A client on the named pipe waits for the lock
+ # The client process dies, the server is not reading from the pipe
+-# The reason is logged
+-FOUND 1 matches in mysqld.1.err
++# Not noticed, the statement keeps waiting until the lock is released
++SELECT COUNT(*) FROM information_schema.innodb_lock_waits;
++COUNT(*)
++1
++connection blocker;
++COMMIT;
++connection default;
+ disconnect blocker;
+ DROP TABLE t1;
+ # End of 10.11 tests

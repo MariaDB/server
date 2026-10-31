@@ -500,6 +500,8 @@ my_bool relay_log_recovery;
 my_bool opt_sync_frm;
 READ_ONLY_SYSVAR my_bool opt_allow_suspicious_udfs;
 my_bool opt_require_secure_transport= 0;
+/* A system variable only where there is a watcher, see sys_vars.cc */
+my_bool opt_disconnect_watcher= 1;
 READ_ONLY_SYSVAR char* opt_secure_file_priv;
 READ_ONLY_SYSVAR my_bool lower_case_file_system;
 READ_ONLY_SYSVAR my_bool opt_large_pages;

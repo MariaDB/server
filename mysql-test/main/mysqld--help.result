@@ -314,6 +314,12 @@ The following specify which files/extra groups are read (specified before remain
  that are not aware of the sandbox mode. If enabled, the
  server disconnects the client, otherwise the server puts
  the client in a sandbox mode
+ --disconnect-watcher 
+ Abort the statement of a client that disconnected while
+ the statement is running and the server is not reading
+ from the connection, for example when it waits for a
+ lock. Affects connections made after the change
+ (Defaults to on; use --skip-disconnect-watcher to disable.)
  --div-precision-increment=# 
  Precision of the result of '/' operator will be increased
  on that value
@@ -1815,6 +1821,7 @@ delayed-insert-limit 100
 delayed-insert-timeout 300
 delayed-queue-size 1000
 disconnect-on-expired-password FALSE
+disconnect-watcher TRUE
 div-precision-increment 4
 drop-before-create-or-replace FALSE
 encrypt-binlog FALSE

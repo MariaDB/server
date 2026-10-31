@@ -16,8 +16,7 @@
 #include "mariadb.h"
 #include "disconnect_watcher.h"
 
-#if !defined(EMBEDDED_LIBRARY) && (defined(__linux__) || defined(_WIN32) || \
-                                   defined(DISCONNECT_WATCHER_KQUEUE))
+#ifdef HAVE_DISCONNECT_WATCHER
 
 #include "sql_class.h"
 #include "sql_show.h"                           // find_thread_by_id

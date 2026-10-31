@@ -24,6 +24,10 @@ sub skip_combinations {
     $skip{'include/protocol.combinations'} = [ 'ps' ];
   }
 
+  # the variable exists only where there is a watcher, and it is ON by default
+  $skip{'include/disconnect_watcher.inc'} = 'Requires disconnect_watcher'
+    unless defined $::mysqld_variables{'disconnect-watcher'};
+
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 

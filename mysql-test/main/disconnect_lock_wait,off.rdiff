@@ -1,0 +1,68 @@
+--- a/mysql-test/main/disconnect_lock_wait.result
++++ b/mysql-test/main/disconnect_lock_wait.result
+@@ -21,9 +21,18 @@
+ connection con1;
+ disconnect con1;
+ connection default;
+-# The connection is logged once, with the reason
+-FOUND 1 matches in mysqld.1.err
+-FOUND 1 matches in mysqld.1.err
++# Not noticed, the statement keeps waiting until the lock is released
++still_waiting
++1
++connection blocker;
++COMMIT;
++connection default;
++connection blocker;
++BEGIN;
++SELECT * FROM t1 FOR UPDATE;
++a
++1
++connection default;
+ SET innodb_lock_wait_timeout=3600;
+ SELECT * FROM t1 FOR UPDATE;
+ connection default;
+@@ -31,9 +40,18 @@
+ connection con1;
+ disconnect con1;
+ connection default;
+-# The connection is logged once, with the reason
+-FOUND 1 matches in mysqld.1.err
+-FOUND 1 matches in mysqld.1.err
++# Not noticed, the statement keeps waiting until the lock is released
++still_waiting
++1
++connection blocker;
++COMMIT;
++connection default;
++connection blocker;
++BEGIN;
++SELECT * FROM t1 FOR UPDATE;
++a
++1
++connection default;
+ SET innodb_lock_wait_timeout=3600;
+ SELECT * FROM t1 FOR UPDATE;
+ connection default;
+@@ -41,9 +59,18 @@
+ connection con1;
+ disconnect con1;
+ connection default;
+-# The connection is logged once, with the reason
+-FOUND 1 matches in mysqld.1.err
+-FOUND 1 matches in mysqld.1.err
++# Not noticed, the statement keeps waiting until the lock is released
++still_waiting
++1
++connection blocker;
++COMMIT;
++connection default;
++connection blocker;
++BEGIN;
++SELECT * FROM t1 FOR UPDATE;
++a
++1
++connection default;
+ disconnect blocker;
+ DROP TABLE t1;
+ # End of 10.11 tests

@@ -1,6 +1,7 @@
 --source include/windows.inc
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/disconnect_watcher.inc
 
 --echo #
 --echo # MDEV-38741 Client disconnect fails to abort a lock wait, named pipe
@@ -50,17 +51,28 @@ let $waiter_id=
   unlink $file;
 EOF
 
+if (!$disconnect_watcher)
+{
+  --echo # Not noticed, the statement keeps waiting until the lock is released
+  SELECT COUNT(*) FROM information_schema.innodb_lock_waits;
+  connection blocker;
+  COMMIT;
+  connection default;
+}
 let $wait_condition=
   SELECT COUNT(*) = 0 FROM information_schema.processlist
   WHERE id = $waiter_id;
 --source include/wait_condition.inc
 
---echo # The reason is logged
-let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
-let SEARCH_PATTERN= Aborted connection .*Client disconnected;
-let SEARCH_WAIT= FOUND;
-let SEARCH_OUTPUT= count;
---source include/search_pattern_in_file.inc
+if ($disconnect_watcher)
+{
+  --echo # The reason is logged
+  let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+  let SEARCH_PATTERN= Aborted connection .*Client disconnected;
+  let SEARCH_WAIT= FOUND;
+  let SEARCH_OUTPUT= count;
+  --source include/search_pattern_in_file.inc
+}
 
 disconnect blocker;
 DROP TABLE t1;

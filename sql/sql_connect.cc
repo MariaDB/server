@@ -1449,7 +1449,8 @@ bool thd_prepare_connection(THD *thd)
                          (char *) thd->security_ctx->host_or_ip);
 
   prepare_new_connection_state(thd);
-  thd->disconnect_watch= disconnect_watcher_add(thd->thread_id, thd->net.vio);
+  thd->disconnect_watch= opt_disconnect_watcher ?
+    disconnect_watcher_add(thd->thread_id, thd->net.vio) : nullptr;
 #ifdef WITH_WSREP
   thd->wsrep_client_thread= true;
   wsrep_open(thd);

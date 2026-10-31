@@ -1,6 +1,23 @@
 --- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
-@@ -4709,99 +4709,9 @@ VARIABLE_COMMENT	Define threads usage for handling queries
+@@ -1012,16 +1012,6 @@
+ ENUM_VALUE_LIST	OFF,ON
+ READ_ONLY	NO
+ COMMAND_LINE_ARGUMENT	OPTIONAL
+-VARIABLE_NAME	DISCONNECT_WATCHER
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BOOLEAN
+-VARIABLE_COMMENT	Abort the statement of a client that disconnected while the statement is running and the server is not reading from the connection, for example when it waits for a lock. Affects connections made after the change
+-NUMERIC_MIN_VALUE	NULL
+-NUMERIC_MAX_VALUE	NULL
+-NUMERIC_BLOCK_SIZE	NULL
+-ENUM_VALUE_LIST	OFF,ON
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	OPTIONAL
+ VARIABLE_NAME	DIV_PRECISION_INCREMENT
+ VARIABLE_SCOPE	SESSION
+ VARIABLE_TYPE	BIGINT UNSIGNED
+@@ -5039,99 +5029,9 @@
  NUMERIC_MIN_VALUE	NULL
  NUMERIC_MAX_VALUE	NULL
  NUMERIC_BLOCK_SIZE	NULL

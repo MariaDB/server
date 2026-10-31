@@ -43,6 +43,7 @@
 #include "rpl_filter.h"
 #include "transaction.h"
 #include "mysqld.h"
+#include "disconnect_watcher.h"
 #include "lock.h"
 #include "sql_time.h"                       // known_date_time_formats
 #include "sql_acl.h" // mysql_user_table_is_in_short_password_format
@@ -3642,6 +3643,16 @@ static Sys_var_mybool Sys_require_secure_transport(
   DEFAULT(FALSE),
   NO_MUTEX_GUARD, NOT_IN_BINLOG,
   ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
+
+#ifdef HAVE_DISCONNECT_WATCHER
+static Sys_var_mybool Sys_disconnect_watcher(
+  "disconnect_watcher",
+  "Abort the statement of a client that disconnected while the statement is "
+  "running and the server is not reading from the connection, for example "
+  "when it waits for a lock. Affects connections made after the change",
+  GLOBAL_VAR(opt_disconnect_watcher), CMD_LINE(OPT_ARG), DEFAULT(TRUE),
+  NO_MUTEX_GUARD, NOT_IN_BINLOG);
+#endif
 
 static Sys_var_charptr_fscs Sys_secure_file_priv(
   "secure_file_priv",

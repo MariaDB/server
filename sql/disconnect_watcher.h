@@ -40,8 +40,13 @@
 #define DISCONNECT_WATCHER_KQUEUE
 #endif
 
+/* Systems that have a watcher; elsewhere the disconnect_watcher is always OFF */
 #if !defined(EMBEDDED_LIBRARY) && (defined(__linux__) || defined(_WIN32) || \
                                    defined(DISCONNECT_WATCHER_KQUEUE))
+#define HAVE_DISCONNECT_WATCHER
+#endif
+
+#ifdef HAVE_DISCONNECT_WATCHER
 bool disconnect_watcher_start();
 void disconnect_watcher_stop();
 #if defined(__linux__) || defined(DISCONNECT_WATCHER_KQUEUE)

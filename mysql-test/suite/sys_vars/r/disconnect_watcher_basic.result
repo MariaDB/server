@@ -1,0 +1,25 @@
+#
+# MDEV-38741 Client disconnect fails to abort a lock wait
+#
+SELECT @@global.disconnect_watcher;
+@@global.disconnect_watcher
+1
+SELECT @@session.disconnect_watcher;
+ERROR HY000: Variable 'disconnect_watcher' is a GLOBAL variable
+SET SESSION disconnect_watcher= 0;
+ERROR HY000: Variable 'disconnect_watcher' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL disconnect_watcher= 0;
+SELECT @@global.disconnect_watcher;
+@@global.disconnect_watcher
+0
+SET GLOBAL disconnect_watcher= ON;
+SELECT @@global.disconnect_watcher;
+@@global.disconnect_watcher
+1
+SET GLOBAL disconnect_watcher= 'abc';
+ERROR 42000: Variable 'disconnect_watcher' can't be set to the value of 'abc'
+SET GLOBAL disconnect_watcher= DEFAULT;
+SELECT @@global.disconnect_watcher;
+@@global.disconnect_watcher
+1
+# End of 10.11 tests

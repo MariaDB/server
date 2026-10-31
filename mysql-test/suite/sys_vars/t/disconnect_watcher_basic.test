@@ -1,0 +1,28 @@
+--source include/not_embedded.inc
+--source include/disconnect_watcher_value.inc
+if (!$disconnect_watcher)
+{
+  --skip Test requires: 'disconnect_watcher=ON by default', not on this system
+}
+
+--echo #
+--echo # MDEV-38741 Client disconnect fails to abort a lock wait
+--echo #
+
+SELECT @@global.disconnect_watcher;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.disconnect_watcher;
+--error ER_GLOBAL_VARIABLE
+SET SESSION disconnect_watcher= 0;
+
+SET GLOBAL disconnect_watcher= 0;
+SELECT @@global.disconnect_watcher;
+SET GLOBAL disconnect_watcher= ON;
+SELECT @@global.disconnect_watcher;
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL disconnect_watcher= 'abc';
+SET GLOBAL disconnect_watcher= DEFAULT;
+SELECT @@global.disconnect_watcher;
+
+--echo # End of 10.11 tests
