@@ -605,7 +605,7 @@ sub list_defaults_files
   if ('@sysconfdir@') {
     push @dirs, '@sysconfdir@/my.cnf';
   } else {
-    push @dirs, '/etc/my.cnf', '/etc/mysql/my.cnf';
+    push @dirs, '/etc/my.cnf', '/etc/mariadb/my.cnf';
   }
   push @dirs, "$ENV{MYSQL_HOME}/my.cnf" if $ENV{MYSQL_HOME};
   push @dirs, $opt{'extra-file'} if $opt{'extra-file'};
