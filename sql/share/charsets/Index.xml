@@ -296,7 +296,6 @@ To make maintaining easier please:
   <collation name="cp1251_bulgarian_ci"	id="14">
     <order>Belarusian</order>
     <order>Bulgarian</order>
-    <order>Macedonian</order>
     <order>Russian</order>
     <order>Serbian</order>
     <order>Mongolian</order>
@@ -307,7 +306,6 @@ To make maintaining easier please:
   <collation name="cp1251_general_ci"	id="51" flag="primary">
     <order>Belarusian</order>
     <order>Bulgarian</order>
-    <order>Macedonian</order>
     <order>Russian</order>
     <order>Serbian</order>
     <order>Mongolian</order>
@@ -316,7 +314,6 @@ To make maintaining easier please:
   <collation name="cp1251_general_cs"	id="52">
     <order>Belarusian</order>
     <order>Bulgarian</order>
-    <order>Macedonian</order>
     <order>Russian</order>
     <order>Serbian</order>
     <order>Mongolian</order>
@@ -331,6 +328,7 @@ To make maintaining easier please:
     <flag>binary</flag>
     <flag>nopad</flag>
   </collation>
+  <collation name="cp1251_macedonian_ci" id="1118" order="Macedonian"/>
 </charset>
 
 <charset name="hebrew">

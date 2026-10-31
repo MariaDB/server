@@ -143,3 +143,69 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-41544 Add cp1251_macedonian_ci collation
+--echo #
+
+SET NAMES cp1251 COLLATE cp1251_macedonian_ci;
+SELECT @@collation_connection;
+
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET cp1251 COLLATE cp1251_macedonian_ci);
+INSERT INTO t1 VALUES ('татко'), ('ќебе'), ('уво'), ('коњ'), ('леб');
+SELECT a FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET cp1251 COLLATE cp1251_macedonian_ci);
+INSERT INTO t1 VALUES ('дедо'), ('ѓеврек'), ('есен');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('зима'), ('ѕвезда'), ('игла');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('игла'), ('јаболко'), ('коњ');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('коњ'), ('леб'), ('љубов'), ('мајка');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('мајка'), ('нос'), ('његош'), ('око');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('татко'), ('ќебе'), ('уво');
+SELECT a FROM t1 ORDER BY a;
+DELETE FROM t1;
+
+INSERT INTO t1 VALUES ('чаша'), ('џез'), ('шапка');
+SELECT a FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET cp1251 COLLATE cp1251_macedonian_ci);
+INSERT INTO t1 VALUES ('ЌЕБЕ'), ('ќебе'), ('уво'), ('УВО');
+SELECT a FROM t1 WHERE a='ќебе';
+SELECT a FROM t1 WHERE a='УВО';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET cp1251 COLLATE cp1251_macedonian_ci, KEY(a));
+INSERT INTO t1 VALUES ('ЌЕБЕ'), ('ќебе'), ('уво'), ('УВО');
+SELECT a FROM t1 WHERE a='ќебе';
+SELECT a FROM t1 WHERE a='УВО';
+DROP TABLE t1;
+
+--source include/have_sequence.inc
+SELECT
+  GROUP_CONCAT(hex(seq) ORDER BY seq) AS h,
+  GROUP_CONCAT(CASE WHEN seq=0x7F THEN '0x7F'
+                    WHEN seq<0x20 THEN CONCAT('0x',HEX(seq))
+                    ELSE CHAR(seq USING cp1251) END ORDER BY seq) AS c
+FROM seq_0_to_255
+GROUP BY CHAR(seq USING cp1251) COLLATE cp1251_macedonian_ci;
+
+--echo #
+--echo # End of 13.3 tests
+--echo #

@@ -566,6 +566,43 @@ static STRNNCOLL_PARAM strcoll_utf8mb4_uca1400_danish_as_cs[]=
 };
 
 
+#ifdef HAVE_CHARSET_cp1251
+static STRNNCOLL_PARAM strcoll_cp1251_macedonian_ci[]=
+{
+  /* Alphabetical ordering of Macedonian letters */
+  /* дедо < ѓеврек < есен */
+  {CSTR("\xE4\xE5\xE4\xEE"),         CSTR("\x83\xE5\xE2\xF0\xE5\xEA"), -1}, /* дедо vs ѓеврек */
+  {CSTR("\x83\xE5\xE2\xF0\xE5\xEA"), CSTR("\xE5\xF1\xE5\xED"),         -1}, /* ѓеврек vs есен */
+  /* зима < ѕвезда < игла */
+  {CSTR("\xE7\xE8\xEC\xE0"),         CSTR("\xBE\xE2\xE5\xE7\xE4\xE0"), -1}, /* зима vs ѕвезда */
+  {CSTR("\xBE\xE2\xE5\xE7\xE4\xE0"), CSTR("\xE8\xE3\xEB\xE0"),         -1}, /* ѕвезда vs игла */
+  /* игла < јаболко < коњ */
+  {CSTR("\xE8\xE3\xEB\xE0"),         CSTR("\xBC\xE0\xE1\xEE\xEB\xEA\xEE"), -1}, /* игла vs јаболко */
+  {CSTR("\xBC\xE0\xE1\xEE\xEB\xEA\xEE"), CSTR("\xEA\xEE\x9C"),         -1}, /* јаболко vs коњ */
+  /* коњ < леб < љубов < мајка */
+  {CSTR("\xEA\xEE\x9C"),             CSTR("\xEB\xE5\xE1"),             -1}, /* коњ vs леб */
+  {CSTR("\xEB\xE5\xE1"),             CSTR("\x9A\xF3\xE1\xEE\xE2"),     -1}, /* леб vs љубов */
+  {CSTR("\x9A\xF3\xE1\xEE\xE2"),     CSTR("\xEC\xE0\xBC\xEA\xE0"),     -1}, /* љубов vs мајка */
+  /* мајка < нос < његош < око */
+  {CSTR("\xEC\xE0\xBC\xEA\xE0"),     CSTR("\xED\xEE\xF1"),             -1}, /* мајка vs нос */
+  {CSTR("\xED\xEE\xF1"),             CSTR("\x9C\xE5\xE3\xEE\xF8"),     -1}, /* нос vs његош */
+  {CSTR("\x9C\xE5\xE3\xEE\xF8"),     CSTR("\xEE\xEA\xEE"),             -1}, /* његош vs око */
+  /* татко < ќебе < уво */
+  {CSTR("\xF2\xE0\xF2\xEA\xEE"),     CSTR("\x9D\xE5\xE1\xE5"),         -1}, /* татко vs ќебе */
+  {CSTR("\x9D\xE5\xE1\xE5"),         CSTR("\xF3\xE2\xEE"),             -1}, /* ќебе vs уво */
+  /* чаша < џез < шапка */
+  {CSTR("\xF7\xE0\xF8\xE0"),         CSTR("\x9F\xE5\xE7"),             -1}, /* чаша vs џез */
+  {CSTR("\x9F\xE5\xE7"),             CSTR("\xF8\xE0\xEF\xEA\xE0"),     -1}, /* џез vs шапка */
+  /* Case insensitivity */
+  {CSTR("\x8D\xC5\xC1\xC5"),         CSTR("\x9D\xE5\xE1\xE5"),          0}, /* ЌЕБЕ == ќебе */
+  {CSTR("\x81\xC5\xC2\xD0\xC5\xCA"), CSTR("\x83\xE5\xE2\xF0\xE5\xEA"),  0}, /* ЃЕВРЕК == ѓеврек */
+  {CSTR("\xBD\xC2\xC5\xC7\xC4\xC0"), CSTR("\xBE\xE2\xE5\xE7\xE4\xE0"),  0}, /* ЅВЕЗДА == ѕвезда */
+  {CSTR("\x8F\xC5\xC7"),             CSTR("\x9F\xE5\xE7"),              0}, /* ЏЕЗ == џез */
+  {NULL, 0, NULL, 0, 0}
+};
+#endif
+
+
 static STRNNCOLL_PARAM strcoll_ucs2_common[]=
 {
   {CSTR("\xC0"),     CSTR("\xC1"),        -1},    /* Incomlete MB2 vs incomplete MB2 */
@@ -937,6 +974,9 @@ test_strcollsp()
   failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_cs",  strcoll_utf8mb4_uca1400_danish_aX_cX);
   failed+= strcollsp_by_name("utf8mb4_uca1400_danish_as_cs",  strcoll_utf8mb4_uca1400_danish_as_cs);
 
+#endif
+#ifdef HAVE_CHARSET_cp1251
+  failed+= strcollsp_by_name("cp1251_macedonian_ci", strcoll_cp1251_macedonian_ci);
 #endif
   return failed;
 }
