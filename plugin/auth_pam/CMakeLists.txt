@@ -43,7 +43,7 @@ IF(HAVE_PAM_APPL_H AND HAVE_GETGROUPLIST)
     MYSQL_ADD_EXECUTABLE(auth_pam_tool auth_pam_tool.c DESTINATION ${INSTALL_PLUGINDIR}/auth_pam_tool_dir COMPONENT Server)
     TARGET_LINK_LIBRARIES(auth_pam_tool pam)
     SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST}
-        "%attr(700,%{mysqld_user},-) ${INSTALL_PLUGINDIRABS}/auth_pam_tool_dir"
+        "%dir %attr(700,%{mysqld_user},-) ${INSTALL_PLUGINDIRABS}/auth_pam_tool_dir"
         "%attr(4755,root,-) ${INSTALL_PLUGINDIRABS}/auth_pam_tool_dir/auth_pam_tool")
     SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST} PARENT_SCOPE)
   ENDIF()
