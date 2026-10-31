@@ -5858,6 +5858,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
     if (fn && *fn)
       switch (ttp) {
+        case TAB_CSV:
         case TAB_FMT:
         case TAB_DBF:
         case TAB_XML:
