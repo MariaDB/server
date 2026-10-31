@@ -23,8 +23,11 @@ connection master;
 let $id=`SELECT id from information_schema.processlist where command='Binlog Dump'`;
 
 if ($id) {
-  replace_result $id DUMP_THREAD;
+  # The thread may end on its own meanwhile, when the slave is gone
+  --disable_query_log
+  --error 0,ER_NO_SUCH_THREAD
   eval kill $id;
+  --enable_query_log
   let $wait_condition= SELECT count(*)=0 from information_schema.processlist where command='Killed';
   source include/wait_condition.inc;
 }

@@ -1,0 +1,43 @@
+#
+# MDEV-38741 Client disconnect fails to abort a lock wait
+#
+call mtr.add_suppression("Aborted connection .*Client disconnected");
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+# The default connection, a unix socket where there are any, then TCP
+# closed with a FIN, and TCP closed with a reset
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The reason is logged, once
+FOUND 1 matches in mysqld.1.err
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The reason is logged, once
+FOUND 1 matches in mysqld.1.err
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The reason is logged, once
+FOUND 1 matches in mysqld.1.err
+disconnect blocker;
+DROP TABLE t1;
+# End of 10.11 tests

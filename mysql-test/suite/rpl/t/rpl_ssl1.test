@@ -135,6 +135,10 @@ CHANGE MASTER TO
  master_ssl_verify_server_cert=0,
  master_ssl=1;
 connection master;
+# The dump thread ends when the slave is gone
+let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.processlist
+  WHERE user='replssl';
+source include/wait_condition.inc;
 drop user replssl@127.0.0.1;
 connection slave;
 drop user replssl@127.0.0.1;

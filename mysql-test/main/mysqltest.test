@@ -2884,6 +2884,14 @@ list_files_write_file $MYSQLTEST_VARDIR/tmp/testdir/dir-list.txt $MYSQLTEST_VARD
 cat_file $MYSQLTEST_VARDIR/tmp/testdir/dir-list.txt;
 remove_files_wildcard $MYSQLTEST_VARDIR/tmp/testdir file*.txt;
 list_files $MYSQLTEST_VARDIR/tmp/testdir;
+
+# An optional argument that starts with # is an argument, not a comment
+write_file $MYSQLTEST_VARDIR/tmp/testdir/#sql-test;
+EOF
+write_file $MYSQLTEST_VARDIR/tmp/testdir/other-file;
+EOF
+list_files $MYSQLTEST_VARDIR/tmp/testdir #sql*;
+
 remove_files_wildcard $MYSQLTEST_VARDIR/tmp/testdir;
 list_files $MYSQLTEST_VARDIR/tmp/testdir;
 rmdir $MYSQLTEST_VARDIR/tmp/testdir;

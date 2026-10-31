@@ -1,0 +1,68 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-38741 Client disconnect fails to abort a lock wait
+--echo #
+
+call mtr.add_suppression("Aborted connection .*Client disconnected");
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+--echo # The default connection, a unix socket where there are any, then TCP
+--echo # closed with a FIN, and TCP closed with a reset
+let $round= 1;
+while ($round <= 3)
+{
+  let $host= localhost;
+  let $linger= ;
+  if ($round == 2)
+  {
+    let $host= 127.0.0.1;
+    let $linger= linger;
+  }
+  if ($round == 3)
+  {
+    let $host= 127.0.0.1;
+    let $linger= nolinger;
+  }
+  --disable_query_log
+  connect (con1,$host,root,,,$MASTER_MYPORT);
+  --enable_query_log
+  let $con1_id= `SELECT CONNECTION_ID()`;
+  SET innodb_lock_wait_timeout=3600;
+  send SELECT * FROM t1 FOR UPDATE;
+
+  connection default;
+  let $wait_condition=
+    SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+  --source include/wait_condition.inc
+
+  --echo # Disconnect abruptly, the server is not reading from the socket
+  connection con1;
+  dirty_close con1 $linger;
+
+  connection default;
+  let $wait_condition=
+    SELECT COUNT(*) = 0 FROM information_schema.processlist
+    WHERE id = $con1_id;
+  --source include/wait_condition.inc
+
+  --echo # The reason is logged, once
+  let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+  let SEARCH_PATTERN= Aborted connection $con1_id to db.*Client disconnected;
+  let SEARCH_WAIT= FOUND;
+  let SEARCH_OUTPUT= count;
+  --source include/search_pattern_in_file.inc
+  inc $round;
+}
+
+disconnect blocker;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

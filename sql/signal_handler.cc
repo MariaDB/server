@@ -272,6 +272,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     case KILL_WAIT_TIMEOUT_HARD:
       kreason= "KILL_WAIT_TIMEOUT";
       break;
+    case KILL_DISCONNECT:
+    case KILL_DISCONNECT_HARD:
+      kreason= "KILL_DISCONNECT";
+      break;
     }
 
     my_safe_printf_stderr("\nConnection ID (thread ID): %lu\n",
