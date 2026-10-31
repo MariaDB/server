@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-5194 Adding status Log_errors / Log_warnings
+--echo #
+
+SET @save_log_warnings= @@global.log_warnings;
+FLUSH GLOBAL STATUS;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+
+--echo # log_warnings=2: failed login is written to the error log and counted
+SET GLOBAL log_warnings= 2;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+--connect(con1,localhost,no_such_user,wrong,)
+--connection default
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+
+--echo # log_warnings=1: failed login is not written, so not counted
+SET GLOBAL log_warnings= 1;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+--connect(con1,localhost,no_such_user,wrong,)
+--connection default
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+
+--echo # FLUSH GLOBAL STATUS resets the counters
+FLUSH GLOBAL STATUS;
+SHOW GLOBAL STATUS LIKE 'Log\_%';
+
+SET GLOBAL log_warnings= @save_log_warnings;
