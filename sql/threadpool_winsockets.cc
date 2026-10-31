@@ -16,9 +16,10 @@
 
 #include <winsock2.h>
 #include <my_global.h>
-#include <violite.h>
+#include <vio.h>
 #include "threadpool_winsockets.h"
 #include <algorithm>
+#include <new>
 #include <vector>
 #include <mutex>
 
@@ -136,49 +137,74 @@ AIO_buffer_cache::~AIO_buffer_cache() { clear(); }
 /* Global variable for the cache buffers.*/
 AIO_buffer_cache read_buffers;
 
+class win_aiosocket::Prefetched_vio final : public Vio_filter
+{
+  uchar *m_buffer;
+  size_t m_capacity;
+  size_t m_read_pos{};
+  size_t m_read_end{};
+public:
+  Prefetched_vio(uchar *buffer, size_t capacity)
+    : m_buffer(buffer), m_capacity(capacity)
+  {
+  }
+
+  uchar *buffer() const
+  {
+    return m_buffer;
+  }
+
+  size_t capacity() const
+  {
+    return m_capacity;
+  }
+
+  size_t readable_size() const
+  {
+    return m_read_end - m_read_pos;
+  }
+  void set_readable_size(size_t size)
+  {
+    DBUG_ASSERT(!readable_size());
+    DBUG_ASSERT(size <= m_capacity);
+    m_read_pos= 0;
+    m_read_end= size;
+  }
+
+  size_t read(uchar *buf, size_t size) override
+  {
+    size_t available= readable_size();
+    if (!available)
+      return m_underlying->read(buf, size);
+    size_t count= std::min(size, available);
+    memcpy(buf, m_buffer + m_read_pos, count);
+    m_read_pos+= count;
+    return count;
+  }
+  my_bool has_data() const override
+  {
+    return readable_size() != 0 || m_underlying->has_data();
+  }
+};
+
 win_aiosocket::~win_aiosocket()
 {
+  /*
+    m_buf_ptr is on loan to the Prefetched_vio filter, which is owned by the
+    VIO chain.
+    Thus it is important this destructor runs after vio delete()
+    vio_delete() destroys the chain first, thus the buffer can be
+    safely returned to the cache.
+  */
   if (m_buf_ptr)
     read_buffers.release_buffer(m_buf_ptr);
 }
 
 
 /** Return number of unread bytes.*/
-size_t win_aiosocket::buffer_remaining()
+size_t win_aiosocket::buffer_remaining() const
 {
-  return m_buf_datalen - m_buf_off;
-}
-
-static my_bool my_vio_has_data(st_vio *vio)
-{
-  auto sock= (win_aiosocket *) vio->tp_ctx;
-  return sock->buffer_remaining() || sock->m_orig_vio_has_data(vio);
-}
-
-/*
- (Half-)buffered read.
-
- The buffer is filled once, by completion of the async IO.
-
- We do not refill the buffer once it is read off,
- does not make sense.
-*/
-static size_t my_vio_read(st_vio *vio, uchar *dest, size_t sz)
-{
-  auto sock= (win_aiosocket *) vio->tp_ctx;
-  DBUG_ASSERT(sock);
-
-  auto nbytes= std::min(sock->buffer_remaining(), sz);
-
-  if (nbytes > 0)
-  {
-    /* Copy to output, adjust the offset.*/
-    memcpy(dest, sock->m_buf_ptr + sock->m_buf_off, nbytes);
-    sock->m_buf_off += nbytes;
-    return nbytes;
-  }
-
-  return sock->m_orig_vio_read(vio, dest, sz);
+  return m_prefetched ? m_prefetched->readable_size() : 0;
 }
 
 DWORD win_aiosocket::begin_read()
@@ -194,8 +220,9 @@ DWORD win_aiosocket::begin_read()
     we do zero size read, but still need a valid
     pointer for the buffer parameter.
   */
-  if (m_buf_ptr)
-    buf= {(ULONG)READ_BUFSIZ, m_buf_ptr};
+  if (m_prefetched)
+    buf= {(ULONG)m_prefetched->capacity(),
+          reinterpret_cast<char *>(m_prefetched->buffer())};
   else
     buf= {0, &c};
 
@@ -223,38 +250,32 @@ void win_aiosocket::end_read(ULONG nbytes, DWORD err)
 {
   DBUG_ASSERT(!buffer_remaining());
   DBUG_ASSERT(!nbytes || m_buf_ptr);
-  m_buf_off= 0;
-  m_buf_datalen= nbytes;
+  if (m_prefetched)
+    m_prefetched->set_readable_size(nbytes);
 }
 
-void win_aiosocket::init(Vio *vio)
+void win_aiosocket::init(st_vio **vio)
 {
-  m_is_pipe= vio->type == VIO_TYPE_NAMEDPIPE;
-  m_handle=
-      m_is_pipe ? vio->hPipe : (HANDLE) mysql_socket_getfd(vio->mysql_socket);
+  m_is_pipe= vio_get_transport(*vio)->type() == VIO_TYPE_NAMEDPIPE;
+  m_handle= vio_handle(*vio);
 
   SetFileCompletionNotificationModes(m_handle, FILE_SKIP_SET_EVENT_ON_HANDLE);
-  if (vio->type == VIO_TYPE_SSL)
-  {
-    /*
-    TODO : This requires fixing viossl to call our manipulated VIO
-    */
-    return;
-  }
-
   if (!(m_buf_ptr = read_buffers.acquire_buffer()))
   {
     /* Ran out of buffers, that's fine.*/
     return;
   }
 
-  vio->tp_ctx= this;
-
-  m_orig_vio_has_data= vio->has_data;
-  vio->has_data= my_vio_has_data;
-
-  m_orig_vio_read= vio->read;
-  vio->read= my_vio_read;
+  Prefetched_vio *prefetched= new (std::nothrow)
+    Prefetched_vio(reinterpret_cast<uchar *>(m_buf_ptr), READ_BUFSIZ);
+  if (!prefetched)
+  {
+    read_buffers.release_buffer(m_buf_ptr);
+    m_buf_ptr= nullptr;
+    return;
+  }
+  m_prefetched= prefetched;
+  *vio= vio_wrap_transport(*vio, prefetched);
 }
 
 void init_win_aio_buffers(unsigned int n_buffers)
