@@ -144,8 +144,7 @@ TP_connection_win::TP_connection_win(CONNECT *c) :
     TP_connection(c)
 {
   /* Assign io completion callback */
-  HANDLE h= c->vio_type == VIO_TYPE_NAMEDPIPE ? c->pipe
-                                              : (HANDLE)mysql_socket_getfd(c->sock);
+  HANDLE h= c->handle();
 
   CHECK_ALLOC_ERROR(io=CreateThreadpoolIo(h, io_completion_callback, this, &callback_environ));
   CHECK_ALLOC_ERROR(timer= CreateThreadpoolTimer(timer_callback, this, &callback_environ));

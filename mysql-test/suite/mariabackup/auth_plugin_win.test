@@ -1,5 +1,6 @@
 --source include/windows.inc
 --source include/not_embedded.inc
+--source include/have_ssl_communication.inc
 
 if (!$AUTH_NAMED_PIPE_SO) {
   skip No named pipe plugin;
@@ -16,16 +17,15 @@ if (`SELECT count(*) <> 0 FROM mysql.user WHERE user = '$USERNAME'`) {
 INSTALL SONAME 'auth_named_pipe';
 
 --replace_result $USERNAME USERNAME
-eval CREATE USER '$USERNAME' IDENTIFIED WITH named_pipe;
+eval CREATE USER '$USERNAME' IDENTIFIED WITH named_pipe REQUIRE SSL;
 --replace_result $USERNAME USERNAME
 eval GRANT ALL PRIVILEGES ON *.* to '$USERNAME';
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf -u $USERNAME --backup --parallel=10 --protocol=pipe --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf -u $USERNAME --ssl --backup --parallel=10 --protocol=pipe --target-dir=$targetdir;
 --enable_result_log
 --replace_result $USERNAME USERNAME
 eval DROP USER '$USERNAME';
 rmdir $targetdir;
 UNINSTALL SONAME 'auth_named_pipe';
-

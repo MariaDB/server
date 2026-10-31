@@ -115,6 +115,17 @@ public:
   {
     return nullptr;
   }
+
+#ifdef _WIN32
+  /*
+    Start an overlapped read of at most len bytes into buf (WSARecv() for a
+    socket, ReadFile() for a named pipe).
+
+    @return 0 (including ERROR_IO_PENDING) on success, a Win32 error code
+    otherwise.
+  */
+  virtual DWORD async_read(OVERLAPPED *overlapped, void *buf, DWORD len)= 0;
+#endif
 };
 
 /* A VIO backed by a TCP/IP or Unix domain socket. */
@@ -159,6 +170,7 @@ public:
   {
     return reinterpret_cast<HANDLE>(fd());
   }
+  DWORD async_read(OVERLAPPED *overlapped, void *buf, DWORD len) override;
 #endif
   int nodelay(my_bool on);
   int set_keepalive_options(const struct vio_keepalive_opts *opts);
@@ -207,6 +219,8 @@ public:
   {
     return m_pipe;
   }
+
+  DWORD async_read(OVERLAPPED *overlapped, void *buf, DWORD len) override;
 };
 #endif
 

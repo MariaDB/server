@@ -1412,8 +1412,7 @@ TP_connection_generic::TP_connection_generic(CONNECT *c):
   DBUG_ASSERT(c->vio_type != VIO_TYPE_INVALID);
 
 #ifdef _WIN32
-  fd= (c->vio_type == VIO_TYPE_NAMEDPIPE) ?
-    c->pipe: (TP_file_handle) mysql_socket_getfd(c->sock);
+  fd= c->handle();
 #else
   fd= mysql_socket_getfd(c->sock);
 #endif

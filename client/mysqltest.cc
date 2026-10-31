@@ -10889,10 +10889,15 @@ void append_stmt_result(DYNAMIC_STRING *ds, MYSQL_STMT *stmt,
   /* Allocate array with bind structs, lengths and NULL flags */
   my_bind= (MYSQL_BIND*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(MYSQL_BIND),
                                    MYF(MY_WME|MY_FAE|MY_ZEROFILL));
+  /*
+    mysql_stmt_bind_result() no longer zero-initializes *bind->length for
+    variable-length types (CONC-821), and leaves it untouched on a NULL
+    fetch; zero-fill here so a NULL column's unused length is well-defined.
+  */
   length= (ulong*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(ulong),
-                             MYF(MY_WME|MY_FAE));
+                             MYF(MY_WME|MY_FAE|MY_ZEROFILL));
   is_null= (my_bool*) my_malloc(PSI_NOT_INSTRUMENTED, num_fields * sizeof(my_bool),
-                                MYF(MY_WME|MY_FAE));
+                                MYF(MY_WME|MY_FAE|MY_ZEROFILL));
 
   /* Allocate data for the result of each field */
   for (i= 0; i < num_fields; i++)

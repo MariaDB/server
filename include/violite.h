@@ -203,6 +203,16 @@ MYSQL_SOCKET *vio_mysql_socket_ptr(Vio *vio);
   For named pipe, this is the underlying HANDLE to the pipe.
 */
 HANDLE vio_handle(Vio *vio);
+
+/*
+  Start an overlapped read of at most len bytes into buf on vio's transport
+  (WSARecv() for a socket, ReadFile() for a named pipe).
+
+  @return 0 (including ERROR_IO_PENDING) on success, a Win32 error code
+  otherwise.
+*/
+DWORD vio_async_read(Vio *vio, OVERLAPPED *overlapped, void *buf,
+                            DWORD len);
 #endif
 
 const char *vio_type_name(enum enum_vio_type vio_type, size_t *len);

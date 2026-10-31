@@ -287,6 +287,18 @@ int Socket_vio::set_timeout(uint which, int timeout_ms)
   return 0;
 }
 
+#ifdef _WIN32
+DWORD Socket_vio::async_read(OVERLAPPED *overlapped, void *buf,
+                                    DWORD len)
+{
+  DWORD flags= 0, err= 0;
+  WSABUF wsabuf{ len, (char *) buf };
+  if (WSARecv((SOCKET) fd(), &wsabuf, 1, 0, &flags, overlapped, NULL))
+    err= WSAGetLastError();
+  return err;
+}
+#endif
+
 /* Set TCP_NODELAY (disable Nagle's algorithm */
 int Socket_vio::nodelay(my_bool on)
 {

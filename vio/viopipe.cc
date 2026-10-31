@@ -221,4 +221,13 @@ int Named_pipe_vio::shutdown(int how)
   m_state= VIO_STATE_SHUTDOWN;
   return CancelIoEx(m_pipe, NULL);
 }
+
+DWORD Named_pipe_vio::async_read(OVERLAPPED *overlapped, void *buf,
+                                        DWORD len)
+{
+  DWORD err= 0;
+  if (!ReadFile(m_pipe, buf, len, 0, overlapped))
+    err= GetLastError();
+  return err;
+}
 #endif

@@ -1,0 +1,17 @@
+# MDEV-22991: SSL over Windows named pipes
+--source include/windows.inc
+--source include/not_embedded.inc
+--source include/have_ssl_communication.inc
+
+CREATE USER pipe_ssl_user@localhost REQUIRE SUBJECT '/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB/CN=client';
+
+--echo # Client connection without SSL over a named pipe
+--exec $MYSQL --protocol=pipe --user=root --skip-ssl -e "SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'" 2>&1
+
+--echo # Client connection with SSL over a named pipe
+--exec $MYSQL --protocol=pipe --user=root --ssl -e "SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'" 2>&1
+
+--echo # Client connection with SSL over a named pipe and REQUIRE SUBJECT
+--exec $MYSQL --protocol=pipe --user=pipe_ssl_user --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem -e "SELECT VARIABLE_VALUE <> '' AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher'" 2>&1
+
+DROP USER pipe_ssl_user@localhost;
