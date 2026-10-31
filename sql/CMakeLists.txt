@@ -169,6 +169,8 @@ SET (SQL_SOURCE
                sql_explain.cc
                sql_analyze_stmt.cc
                sql_join_cache.cc
+               sql_multi_key.cc
+               sql_multi_key_batch.cc
                create_options.cc multi_range_read.cc
                opt_histogram_json.cc
                opt_index_cond_pushdown.cc opt_subselect.cc

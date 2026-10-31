@@ -4594,6 +4594,7 @@ public:
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
+  Item_param(THD *thd, const Item_param &item);
 
   void cleanup() override
   {
@@ -4901,8 +4902,9 @@ private:
   Field *m_default_field;
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *shallow_copy(THD *thd) const override;
+  Item *deep_copy(THD *thd) const override
+  { return shallow_copy_with_checks(thd); }
 };
 
 

@@ -12861,6 +12861,17 @@ void JOIN_TAB::calc_used_field_length(bool max_fl)
 }
 
 
+static Item *make_cond_for_join_tab(JOIN_TAB *tab, table_map tables)
+{
+  Item *cond= tab->is_inner_table_of_outer_join() ?
+                *tab->get_first_inner_table()->on_expr_ref : tab->join->conds;
+  if (!cond)
+    return NULL;
+  return make_cond_for_table(tab->join->thd, cond, tables | tab->table->map,
+                             tab->table->map, -1, FALSE, TRUE);
+}
+
+
 /* 
   @brief
   Extract pushdown conditions for a table scan
@@ -12883,27 +12894,87 @@ int JOIN_TAB::make_scan_filter()
   COND *tmp;
   DBUG_ENTER("make_scan_filter");
 
-  Item *cond= is_inner_table_of_outer_join() ?
-                *get_first_inner_table()->on_expr_ref : join->conds;
-  
-  if (cond)
+  if ((tmp= make_cond_for_join_tab(this, join->const_table_map)))
   {
-    if ((tmp= make_cond_for_table(join->thd, cond,
-                                  join->const_table_map | table->map,
-                                  table->map, -1, FALSE, TRUE)))
-    {
-      DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
-      if (!(cache_select=
-            (SQL_SELECT*) join->thd->memdup((uchar*) select,
-                                            sizeof(SQL_SELECT))))
-        DBUG_RETURN(1);
-      cache_select->cond= tmp;
-      cache_select->read_tables=join->const_table_map;
-    }
-    else if (join->thd->is_error())
+    DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
+    if (!(cache_select=
+          (SQL_SELECT*) join->thd->memdup((uchar*) select,
+                                          sizeof(SQL_SELECT))))
       DBUG_RETURN(1);
+    cache_select->cond= tmp;
+    cache_select->read_tables=join->const_table_map;
   }
+  else if (join->thd->is_error())
+    DBUG_RETURN(1);
   DBUG_RETURN(0);
+}
+
+
+static bool note_ref_equality(JOIN_TAB *tab, Item *item, key_part_map *seen,
+                              key_part_map *ref_value)
+{
+  if (item->type() != Item::FUNC_ITEM)
+    return TRUE;
+  Item_func *func= (Item_func *) item;
+  if (func->functype() != Item_func::EQ_FUNC &&
+      func->functype() != Item_func::EQUAL_FUNC)
+    return TRUE;
+  KEY_PART_INFO *key_part= tab->get_keyinfo_by_key_no(tab->ref.key)->key_part;
+  for (uint side= 0; side < 2; side++)
+  {
+    Item *field= func->arguments()[side]->real_item();
+    if (field->type() != Item::FIELD_ITEM)
+      continue;
+    for (uint i= 0; i < tab->ref.key_parts; i++)
+    {
+      if (!((Item_field *) field)->field->eq(key_part[i].field))
+        continue;
+      if (*seen & ((key_part_map) 1 << i))
+        return FALSE;
+      *seen|= (key_part_map) 1 << i;
+      Item *value= func->arguments()[1 - side]->real_item();
+      if (tab->ref.items[i]->eq(value, 1) ||
+          tab->ref.items[i]->real_item()->eq(value, 1))
+        *ref_value|= (key_part_map) 1 << i;
+    }
+  }
+  return TRUE;
+}
+
+
+Item *make_multi_key_pushdown_cond(JOIN_TAB *tab)
+{
+  JOIN *join= tab->join;
+  table_map tables= join->const_table_map;
+  /* Inside an SJM nest the join buffer holds only the nest's tables
+     (JOIN_CACHE::calc_record_fields) */
+  JOIN_TAB *prev= tab->bush_root_tab ?
+                  tab->bush_root_tab->bush_children->start :
+                  first_linear_tab(join, WITHOUT_BUSH_ROOTS,
+                                   WITHOUT_CONST_TABLES);
+  for (; prev != tab; prev= next_linear_tab(join, prev, WITHOUT_BUSH_ROOTS))
+    tables|= prev->table->map;
+  Item *cond= make_cond_for_join_tab(tab, tables);
+  if (!cond)
+    return NULL;
+  /* test_if_ref() may leave out of the recheck an = at any depth whose value
+     is the ref's: each ref part needs that = once at the top, for the engine
+     to bind. An = on an outer reference never reaches cond. */
+  key_part_map seen= 0, ref_value= 0;
+  if (is_cond_and(cond))
+  {
+    List_iterator_fast<Item> li(*((Item_cond *) cond)->argument_list());
+    while (Item *item= li++)
+    {
+      if (!note_ref_equality(tab, item, &seen, &ref_value))
+        return NULL;
+    }
+  }
+  else if (!note_ref_equality(tab, cond, &seen, &ref_value))
+    return NULL;
+  if (ref_value != make_prev_keypart_map(tab->ref.key_parts))
+    return NULL;
+  return cond->deep_copy_with_checks(join->thd);
 }
 
 
@@ -15991,7 +16062,7 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       - whether the join table is an inner table of an outer join or semi-join
       - whether the optimizer switches
           outer_join_with_cache, semijoin_with_cache, join_cache_incremental,
-          join_cache_hashed, join_cache_bka,
+          join_cache_hashed, join_cache_bka, join_cache_multi_key_read,
         are set on or off
       - the join cache level set for the query
       - the join 'options'
@@ -16388,7 +16459,18 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       {
         if (cache_level == 5)
           prev_cache= 0;
-        if ((tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache)))
+        if ((join->allowed_join_cache_types & JOIN_CACHE_MULTI_KEY_BIT) &&
+            (tab->table->file->ha_table_flags() & HA_CAN_MULTI_KEY_READ) &&
+            (tab->type == JT_REF || tab->type == JT_EQ_REF))
+        {
+          DBUG_EXECUTE_IF("multi_key_cache_simulate_oom",
+                          DBUG_SET("+d,simulate_out_of_memory"););
+          tab->cache= new (root) JOIN_CACHE_MULTI_KEY(join, tab, flags,
+                                                      prev_cache);
+        }
+        else
+          tab->cache= new (root) JOIN_CACHE_BKA(join, tab, flags, prev_cache);
+        if (tab->cache)
           return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
@@ -33816,6 +33898,7 @@ bool JOIN::change_result(select_result *new_result, select_result *old_result)
     bit 2 is set if the join buffers are allowed to be hashed
     but 3 is set if the join buffers are allowed to be used for BKA
   join algorithms.
+    bit 4 is set if BKA join buffers are allowed to use multi-key reads.
   The allowed types are read from system variables.
   Besides the function sets maximum allowed join cache level that is
   also read from a system variable.
@@ -33830,6 +33913,8 @@ void JOIN::set_allowed_join_cache_types()
     allowed_join_cache_types|= JOIN_CACHE_HASHED_BIT;
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_JOIN_CACHE_BKA))
     allowed_join_cache_types|= JOIN_CACHE_BKA_BIT;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_JOIN_CACHE_MULTI_KEY_READ))
+    allowed_join_cache_types|= JOIN_CACHE_MULTI_KEY_BIT;
   allowed_semijoin_with_cache=
     optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN_WITH_CACHE);
   allowed_outer_join_with_cache=
