@@ -180,6 +180,9 @@ const  fts_index_selector_t fts_index_selector[] = {
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
+	ulint*		next_pos;	/*!< Lowest position for the next
+					token of a parser plugin
+					(fts_doc_t::parser_pos) */
 };
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -1067,10 +1070,12 @@ fts_tokenizer_word_get(
 
 	mysql_mutex_assert_owner(&cache->lock);
 
-	/* If it is a stopword, do not index it */
-	if (!fts_check_token(text,
-		    cache->stopword_info.cached_stopword,
-		    index_cache->charset)) {
+	/* If it is a stopword, do not index it. A parser plugin filters
+	its words itself. */
+	if (!index_cache->index->parser
+	    && !fts_check_token(text,
+				cache->stopword_info.cached_stopword,
+				index_cache->charset)) {
 
 		return(NULL);
 	}
@@ -3761,56 +3766,50 @@ fts_add_token(
 	fts_string_t	str,
 	ulint		position)
 {
-	/* Ignore string whose character number is less than
-	"fts_min_token_size" or more than "fts_max_token_size" */
+	mem_heap_t*	heap;
+	fts_string_t	t_str;
+	fts_token_t*	token;
+	ib_rbt_bound_t	parent;
 
-	if (fts_check_token(&str, NULL, result_doc->charset)) {
+	heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
 
-		mem_heap_t*	heap;
-		fts_string_t	t_str;
-		fts_token_t*	token;
-		ib_rbt_bound_t	parent;
+	t_str.f_n_char = str.f_n_char;
 
-		heap = static_cast<mem_heap_t*>(result_doc->self_heap->arg);
+	t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
 
-		t_str.f_n_char = str.f_n_char;
+	t_str.f_str = static_cast<byte*>(
+		mem_heap_alloc(heap, t_str.f_len));
 
-		t_str.f_len = str.f_len * result_doc->charset->casedn_multiply() + 1;
-
-		t_str.f_str = static_cast<byte*>(
-			mem_heap_alloc(heap, t_str.f_len));
-
-		/* For binary collations, a case sensitive search is
-		performed. Hence don't convert to lower case. */
-		if (my_binary_compare(result_doc->charset)) {
-			memcpy(t_str.f_str, str.f_str, str.f_len);
-			t_str.f_str[str.f_len]= 0;
-			t_str.f_len= str.f_len;
-		} else {
-			t_str.f_len= result_doc->charset->casedn_z(
-					(const char*) str.f_str, str.f_len,
-					(char *) t_str.f_str, t_str.f_len);
-		}
-
-		/* Add the word to the document statistics. If the word
-		hasn't been seen before we create a new entry for it. */
-		if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
-			fts_token_t	new_token;
-
-			new_token.text = t_str;
-
-			new_token.positions = ib_vector_create(
-				result_doc->self_heap, sizeof(ulint), 32);
-
-			parent.last = rbt_add_node(
-				result_doc->tokens, &parent, &new_token);
-
-			ut_ad(rbt_validate(result_doc->tokens));
-		}
-
-		token = rbt_value(fts_token_t, parent.last);
-		ib_vector_push(token->positions, &position);
+	/* For binary collations, a case sensitive search is
+	performed. Hence don't convert to lower case. */
+	if (my_binary_compare(result_doc->charset)) {
+		memcpy(t_str.f_str, str.f_str, str.f_len);
+		t_str.f_str[str.f_len]= 0;
+		t_str.f_len= str.f_len;
+	} else {
+		t_str.f_len= result_doc->charset->casedn_z(
+				(const char*) str.f_str, str.f_len,
+				(char *) t_str.f_str, t_str.f_len);
 	}
+
+	/* Add the word to the document statistics. If the word
+	hasn't been seen before we create a new entry for it. */
+	if (rbt_search(result_doc->tokens, &parent, &t_str) != 0) {
+		fts_token_t	new_token;
+
+		new_token.text = t_str;
+
+		new_token.positions = ib_vector_create(
+			result_doc->self_heap, sizeof(ulint), 32);
+
+		parent.last = rbt_add_node(
+			result_doc->tokens, &parent, &new_token);
+
+		ut_ad(rbt_validate(result_doc->tokens));
+	}
+
+	token = rbt_value(fts_token_t, parent.last);
+	ib_vector_push(token->positions, &position);
 }
 
 /********************************************************************
@@ -3848,7 +3847,11 @@ fts_process_token(
 
 	position = start_pos + ret - str.f_len + add_pos;
 
-	fts_add_token(result_doc, str, position);
+	/* Ignore string whose character number is less than
+	"fts_min_token_size" or more than "fts_max_token_size" */
+	if (fts_check_token(&str, NULL, doc->charset)) {
+		fts_add_token(result_doc, str, position);
+	}
 
 	return(ret);
 }
@@ -3966,11 +3969,24 @@ fts_tokenize_add_word_for_parser(
 	str.f_n_char = fts_get_token_size(
 		const_cast<CHARSET_INFO*>(param->cs), word, str.f_len);
 
-	/* JAN: TODO: MySQL 5.7 FTS
-	ut_ad(boolean_info->position >= 0);
-	position = boolean_info->position + fts_param->add_pos;
-	*/
-	position = fts_param->add_pos++;
+	if (!fts_token_fits(&str)) {
+		return(0);
+	}
+
+	/* The plugin API has no token position. Phrase search
+	(fts_query_match_phrase()) treats positions as byte offsets
+	into the document, as the built-in tokenizer stores them, so
+	use the offset of the word when it points into the document.
+	The positions of a document must keep increasing (MDEV-24088),
+	so a word that the parser built elsewhere, or one that does not
+	come after the previous token, gets the position after the
+	previous token. */
+	position = fts_param->add_pos;
+	if (word >= param->doc && word < param->doc + param->length) {
+		position += ulint(word - param->doc);
+	}
+	position = std::max(position, *fts_param->next_pos);
+	*fts_param->next_pos = position + 1;
 
 	fts_add_token(result_doc, str, position);
 
@@ -4026,6 +4042,8 @@ fts_tokenize_document(
 		fts_tokenize_param_t	fts_param;
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
+		doc->parser_pos = 0;
+		fts_param.next_pos = &doc->parser_pos;
 
 		fts_tokenize_by_parser(doc, parser, &fts_param);
 	} else {
@@ -4052,6 +4070,7 @@ fts_tokenize_document_next(
 
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = add_pos;
+		fts_param.next_pos = &doc->parser_pos;
 
 		fts_tokenize_by_parser(doc, parser, &fts_param);
 	} else {
@@ -5164,7 +5183,9 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
         ulint field_len;
         const byte* field_data= rec_get_nth_field(rec, offsets, col_pos,
                                                   &field_len);
-        if (field_len == UNIV_SQL_NULL)
+        /* Skip an empty field as a NULL, as fts_fetch_doc_from_rec()
+        does */
+        if (field_len == UNIV_SQL_NULL || !field_len)
           continue;
         if (!get_doc->index_cache->charset)
         {
@@ -5192,10 +5213,9 @@ static void fts_init_recover_all_docs(FTSQueryExecutor *executor,
           fts_tokenize_document_next(&doc, doc_len, NULL, parser);
 
 	processed_field++;
-        doc_len+=
-          (i < (unsigned) get_doc->index_cache->index->n_user_defined_cols - 1)
-          ? field_len + 1
-          : field_len;
+        /* Not field_len: that is the length of the locally stored part
+        of an externally stored field */
+        doc_len+= doc.text.f_len + 1;
       }
 
       fts_cache_add_doc(cache, get_doc->index_cache, doc_id, doc.tokens);

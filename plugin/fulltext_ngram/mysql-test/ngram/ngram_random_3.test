@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+# Restarts and kills the server
+--source include/not_embedded.inc
+--source include/big_test.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# With 3-grams (ngram_random_3.opt)
+let $n_docs= 300;
+let $n_docs_crash= 100;
+let $n_queries= 80;
+--source ngram_random.inc

@@ -42,6 +42,8 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+3	Optimizing MySQL	In this tutorial we will show ...
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');
@@ -79,6 +81,8 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+3	Optimizing MySQL	In this tutorial we will show ...
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');
@@ -200,6 +204,8 @@ id	title	body
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('will go');
 id	title	body
+3	Optimizing MySQL	In this tutorial we will show ...
+5	Go MySQL Tricks	How to use full text search engine
 # Test plugin parser tokenizer difference
 SELECT * FROM articles WHERE
 MATCH(title, body) AGAINST('full-text');
@@ -219,3 +225,39 @@ ERROR HY000: Function 'simple_parser' is not defined
 DROP TABLE articles;
 UNINSTALL PLUGIN simple_parser;
 ERROR 42000: PLUGIN simple_parser does not exist
+#
+# MDEV-35967 Server crashes when creating a fulltext index with
+#            simple_parser plugin
+#
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t (title CHAR, body TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a', 'xyz xyz'), ('b', 'xyz uvw xyz uvw');
+ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+SELECT * FROM t WHERE MATCH(title, body) AGAINST('xyz');
+title	body
+a	xyz xyz
+b	xyz uvw xyz uvw
+DROP TABLE t;
+UNINSTALL PLUGIN simple_parser;
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+# Tokens of a parser plugin that do not fit into the index (more than
+# 84 characters) are skipped, when the index is built and when rows
+# are added
+#
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t (a TEXT) ENGINE=InnoDB CHARSET=latin1;
+INSERT INTO t VALUES (CONCAT(REPEAT('x', 400), ' short'));
+ALTER TABLE t ADD FULLTEXT(a) WITH PARSER simple_parser;
+INSERT INTO t VALUES (CONCAT(REPEAT('y', 85), ' ', REPEAT('z', 84)));
+SELECT LEFT(a, 5) FROM t WHERE MATCH(a) AGAINST('short');
+LEFT(a, 5)
+xxxxx
+SELECT COUNT(*) FROM t WHERE MATCH(a) AGAINST(REPEAT('y', 85));
+COUNT(*)
+0
+SELECT LEFT(a, 5) FROM t WHERE MATCH(a) AGAINST(REPEAT('z', 84));
+LEFT(a, 5)
+yyyyy
+DROP TABLE t;
+UNINSTALL PLUGIN simple_parser;

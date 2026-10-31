@@ -1,0 +1,271 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+#
+SET NAMES utf8mb4;
+CREATE FUNCTION rnd() RETURNS DOUBLE NO SQL
+BEGIN
+SET @rnd_state= (@rnd_state * 1103515245 + 12345) % 2147483648;
+RETURN @rnd_state / 2147483648;
+END|
+CREATE FUNCTION rnd_text(max_len INT) RETURNS TEXT CHARSET utf8mb4 NO SQL
+BEGIN
+DECLARE chars TEXT CHARSET utf8mb4 DEFAULT
+'日本人中山川大小上下木水火金土月日本人中山川大小上下aBcaBc  ,.，。𠀀😀';
+DECLARE n INT DEFAULT FLOOR(rnd() * (max_len + 1));
+DECLARE s TEXT CHARSET utf8mb4 DEFAULT '';
+WHILE n > 0 DO
+SET s= CONCAT(s, SUBSTRING(chars, 1 + FLOOR(rnd() * CHAR_LENGTH(chars)), 1));
+SET n= n - 1;
+END WHILE;
+RETURN s;
+END|
+CREATE FUNCTION ngram_word(w TEXT CHARSET utf8mb4) RETURNS TEXT CHARSET utf8mb4
+NO SQL
+BEGIN
+DECLARE n INT DEFAULT @@ngram_token_size;
+DECLARE i INT DEFAULT 1;
+DECLARE s TEXT CHARSET utf8mb4 DEFAULT '|';
+WHILE i + n - 1 <= CHAR_LENGTH(w) DO
+SET s= CONCAT(s, SUBSTRING(w, i, n), '|');
+SET i= i + 1;
+END WHILE;
+RETURN s;
+END|
+CREATE FUNCTION ngram_doc(d TEXT CHARSET utf8mb4) RETURNS TEXT CHARSET utf8mb4
+NO SQL
+BEGIN
+DECLARE i INT DEFAULT 1;
+DECLARE ch VARCHAR(1) CHARSET utf8mb4 COLLATE utf8mb4_bin;
+DECLARE word TEXT CHARSET utf8mb4 DEFAULT '';
+DECLARE s TEXT CHARSET utf8mb4 DEFAULT '|';
+SET d= CONCAT(COALESCE(d, ''), ' ');
+WHILE i <= CHAR_LENGTH(d) DO
+SET ch= SUBSTRING(d, i, 1);
+IF ch IN (' ', ',', '.') THEN
+SET s= CONCAT(s, SUBSTRING(ngram_word(word), 2));
+SET word= '';
+ELSE
+SET word= CONCAT(word, ch);
+END IF;
+SET i= i + 1;
+END WHILE;
+RETURN s;
+END|
+CREATE FUNCTION rnd_word(len INT) RETURNS VARCHAR(40) CHARSET utf8mb4
+READS SQL DATA
+BEGIN
+DECLARE chars TEXT CHARSET utf8mb4 DEFAULT '日本人中山川大小上下木水火金土月abBc';
+DECLARE w VARCHAR(40) CHARSET utf8mb4 DEFAULT '';
+DECLARE d TEXT CHARSET utf8mb4;
+DECLARE r INT;
+DECLARE tries INT DEFAULT 0;
+WHILE rnd() < 0.7 AND tries < 50 DO
+SET r= 1 + FLOOR(rnd() * (SELECT COUNT(*) FROM docs));
+SELECT c INTO d FROM docs WHERE id = r;
+SET w= SUBSTRING(d, 1 + FLOOR(rnd() * GREATEST(CHAR_LENGTH(d) - len + 1, 1)),
+len);
+IF CHAR_LENGTH(w) = len AND w REGEXP '^[日本人中山川大小上下木水火金土月abBc]+$' THEN
+RETURN w;
+END IF;
+SET tries= tries + 1;
+END WHILE;
+SET w= '';
+WHILE CHAR_LENGTH(w) < len DO
+SET w= CONCAT(w, SUBSTRING(chars, 1 + FLOOR(rnd() * CHAR_LENGTH(chars)), 1));
+END WHILE;
+RETURN w;
+END|
+CREATE PROCEDURE add_docs(first_id INT, n INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < n DO
+SET @a= IF(rnd() < 0.1, NULL, rnd_text(8)), @c= rnd_text(60);
+INSERT INTO docs VALUES (first_id + i, @a, @c, ngram_doc(@a), ngram_doc(@c));
+SET i= i + 1;
+END WHILE;
+END|
+CREATE PROCEDURE change_docs(tbl VARCHAR(10), max_id INT, n_update INT,
+n_delete INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+SET @s= CONCAT('UPDATE ', tbl, ' SET a= ?, c= ?, ta= ?, tc= ? WHERE id = ?');
+PREPARE upd FROM @s;
+SET @s= CONCAT('DELETE FROM ', tbl, ' WHERE id = ?');
+PREPARE del FROM @s;
+WHILE i < n_update + n_delete DO
+SET @id= 1 + FLOOR(rnd() * max_id);
+IF i < n_update THEN
+SET @a= rnd_text(8), @c= rnd_text(60);
+SET @ta= ngram_doc(@a), @tc= ngram_doc(@c);
+EXECUTE upd USING @a, @c, @ta, @tc, @id;
+ELSE
+EXECUTE del USING @id;
+END IF;
+SET i= i + 1;
+END WHILE;
+DEALLOCATE PREPARE upd;
+DEALLOCATE PREPARE del;
+END|
+CREATE FUNCTION has_word(w VARCHAR(40)) RETURNS TEXT CHARSET utf8mb4 NO SQL
+RETURN CONCAT('(ta LIKE ''%', ngram_word(w), '%'' OR tc LIKE ''%',
+ngram_word(w), '%'')')|
+CREATE PROCEDURE gen_queries(n INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+DECLARE kind INT;
+DECLARE w1, w2 VARCHAR(40) CHARSET utf8mb4;
+DECLARE l INT;
+DECLARE n_gram INT DEFAULT @@ngram_token_size;
+DECLARE cond TEXT CHARSET utf8mb4;
+WHILE i < n DO
+SET kind= 1 + FLOOR(rnd() * 7);
+IF kind = 6 AND n_gram = 1 THEN
+SET kind= 1;
+END IF;
+SET w1= rnd_word(n_gram + FLOOR(rnd() * 3));
+SET w2= rnd_word(n_gram + FLOOR(rnd() * 3));
+CASE kind
+WHEN 1 THEN
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT('+', w1), has_word(w1));
+WHEN 2 THEN
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT('+', w1, ' +', w2),
+CONCAT(has_word(w1), ' AND ', has_word(w2)));
+WHEN 3 THEN
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT('+', w1, ' -', w2),
+CONCAT(has_word(w1), ' AND NOT ', has_word(w2)));
+WHEN 4 THEN
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT('"', w1, '"'), has_word(w1));
+WHEN 5 THEN
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT(w1, ' ', w2),
+CONCAT(has_word(w1), ' OR ', has_word(w2)));
+WHEN 6 THEN
+SET l= 1 + FLOOR(rnd() * (n_gram - 1));
+SET w1= LEFT(w1, l);
+INSERT INTO q (kind, query, cond) VALUES (kind, CONCAT(w1, '*'),
+CONCAT('(COALESCE(a, '''') REGEXP ''', w1, '[^ ,.]{', n_gram - l,
+'}'' OR c REGEXP ''', w1, '[^ ,.]{', n_gram - l, '}'')'));
+ELSE
+SET cond= '(FALSE', l= 1;
+WHILE l + n_gram - 1 <= CHAR_LENGTH(w1) DO
+SET cond= CONCAT(cond, ' OR ', has_word(SUBSTRING(w1, l, n_gram)));
+SET l= l + 1;
+END WHILE;
+INSERT INTO q (kind, query, cond) VALUES (kind, w1, CONCAT(cond, ')'));
+END CASE;
+SET i= i + 1;
+END WHILE;
+END|
+CREATE PROCEDURE check_all(tbl VARCHAR(10), phase VARCHAR(20))
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE v_kind INT;
+DECLARE v_query VARCHAR(100) CHARSET utf8mb4;
+DECLARE v_cond TEXT CHARSET utf8mb4;
+DECLARE n_queries, n_found INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT kind, query, cond FROM q ORDER BY id;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done= TRUE;
+OPEN cur;
+next_query: LOOP
+FETCH cur INTO v_kind, v_query, v_cond;
+IF done THEN
+LEAVE next_query;
+END IF;
+# Natural language mode on MyISAM and Aria leaves out words in more than
+# half of the rows.
+IF v_kind = 7 AND tbl <> 't1' THEN
+ITERATE next_query;
+END IF;
+SET @m= CONCAT('MATCH(a, c) AGAINST(''', v_query, '''',
+IF(v_kind = 7, '', ' IN BOOLEAN MODE'), ')');
+SET @s= CONCAT('SELECT COUNT(*) INTO @n_match FROM ', tbl, ' WHERE ', @m);
+PREPARE st FROM @s;
+EXECUTE st;
+SET @s= CONCAT('SELECT COUNT(*) INTO @n_expected FROM ', tbl, ' WHERE ',
+v_cond);
+PREPARE st FROM @s;
+EXECUTE st;
+SET @s= CONCAT('SELECT COUNT(*) INTO @n_both FROM ', tbl, ' WHERE ', @m,
+' AND ', v_cond);
+PREPARE st FROM @s;
+EXECUTE st;
+DEALLOCATE PREPARE st;
+IF @n_match <> @n_both OR @n_expected <> @n_both THEN
+INSERT INTO mismatch VALUES (phase, tbl, v_kind, v_query, @n_match,
+@n_expected, @n_both);
+END IF;
+SET n_queries= n_queries + 1;
+SET n_found= n_found + (@n_expected > 0);
+END LOOP;
+CLOSE cur;
+INSERT INTO checks VALUES (phase, tbl, n_queries, n_found);
+END|
+SET @rnd_state= 4711;
+CREATE TABLE docs (id INT PRIMARY KEY, a VARCHAR(20), c TEXT, ta TEXT, tc TEXT)
+ENGINE=InnoDB CHARSET=utf8mb4;
+CREATE TABLE q (id INT AUTO_INCREMENT PRIMARY KEY, kind INT,
+query VARCHAR(100), cond TEXT) ENGINE=InnoDB CHARSET=utf8mb4;
+CREATE TABLE mismatch (phase VARCHAR(20), tbl VARCHAR(10), kind INT,
+query VARCHAR(100), n_match INT, n_expected INT,
+n_both INT) ENGINE=InnoDB CHARSET=utf8mb4;
+CREATE TABLE checks (phase VARCHAR(20), tbl VARCHAR(10), n_queries INT,
+n_found INT) ENGINE=InnoDB;
+CALL add_docs(1, 300);
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(20), c TEXT, ta TEXT, tc TEXT)
+ENGINE=InnoDB CHARSET=utf8mb4;
+INSERT INTO t1 SELECT * FROM docs;
+ALTER TABLE t1 ADD FULLTEXT ft(a, c) WITH PARSER ngram;
+CALL gen_queries(80);
+CALL check_all('t1', 'bulk');
+CALL add_docs(300 + 1, 300);
+INSERT INTO t1 SELECT * FROM docs WHERE id > 300;
+CALL check_all('t1', 'cache');
+SET GLOBAL innodb_optimize_fulltext_only= ON;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SET GLOBAL innodb_optimize_fulltext_only= OFF;
+CALL check_all('t1', 'optimize');
+CALL change_docs('t1', 2 * 300, 300 * 3 DIV 10, 300 DIV 5);
+CALL check_all('t1', 'dml');
+# restart
+SET NAMES utf8mb4;
+CALL check_all('t1', 'restart');
+SET @rnd_state= 815;
+CALL add_docs(2 * 300 + 1, 100);
+INSERT INTO t1 SELECT * FROM docs WHERE id > 2 * 300;
+# restart
+SET NAMES utf8mb4;
+CALL check_all('t1', 'recovery');
+CREATE TABLE t2 (id INT PRIMARY KEY, a VARCHAR(20), c TEXT, ta TEXT, tc TEXT)
+ENGINE=MyISAM CHARSET=utf8mb4;
+INSERT INTO t2 SELECT * FROM t1;
+ALTER TABLE t2 ADD FULLTEXT ft(a, c) WITH PARSER ngram;
+CALL check_all('t2', 'myisam');
+CREATE TABLE t3 (id INT PRIMARY KEY, a VARCHAR(20), c TEXT, ta TEXT, tc TEXT,
+FULLTEXT ft(a, c) WITH PARSER ngram)
+ENGINE=Aria CHARSET=utf8mb4;
+INSERT INTO t3 SELECT * FROM t1;
+CALL check_all('t3', 'aria');
+SELECT * FROM checks;
+phase	tbl	n_queries	n_found
+bulk	t1	80	42
+cache	t1	80	45
+optimize	t1	80	45
+dml	t1	80	39
+restart	t1	80	39
+recovery	t1	80	40
+myisam	t2	72	33
+aria	t3	72	33
+SELECT * FROM mismatch ORDER BY phase, tbl, query LIMIT 20;
+phase	tbl	kind	query	n_match	n_expected	n_both
+DROP TABLE t1, t2, t3, docs, q, mismatch, checks;
+DROP FUNCTION rnd;
+DROP FUNCTION rnd_text;
+DROP FUNCTION ngram_word;
+DROP FUNCTION ngram_doc;
+DROP FUNCTION rnd_word;
+DROP FUNCTION has_word;
+DROP PROCEDURE add_docs;
+DROP PROCEDURE change_docs;
+DROP PROCEDURE gen_queries;
+DROP PROCEDURE check_all;

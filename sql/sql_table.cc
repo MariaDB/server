@@ -7299,6 +7299,13 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       (new_key->flags & HA_KEYFLAG_MASK))
     return Compare_keys::NotEqual;
 
+  /* A fulltext parser added, removed or replaced */
+  if (((table_key->flags ^ new_key->flags) & HA_USES_PARSER) ||
+      ((table_key->flags & HA_USES_PARSER) &&
+       !Lex_ident_plugin(*plugin_name(table_key->parser)).streq(
+         *new_key->parser_name)))
+    return Compare_keys::NotEqual;
+
   if (table_key->user_defined_key_parts != new_key->user_defined_key_parts)
     return Compare_keys::NotEqual;
 

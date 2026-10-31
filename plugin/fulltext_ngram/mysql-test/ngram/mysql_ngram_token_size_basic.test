@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+#
+#  2014-11-05 - Added
+#
+
+# Out-of-range values are tested in mysql_ngram_token_size_0, _minus_1
+# and _11, the upper boundary in _10, each with its value in its .opt
+# file.
+
+#
+# show the global and session values;
+#
+select @@global.ngram_token_size;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.ngram_token_size;
+show global variables like 'ngram_token_size';
+show session variables like 'ngram_token_size';
+--disable_warnings
+select * from information_schema.global_variables where variable_name='ngram_token_size';
+select * from information_schema.session_variables where variable_name='ngram_token_size';
+--enable_warnings
+
+# show it's read-only
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global ngram_token_size = 3;

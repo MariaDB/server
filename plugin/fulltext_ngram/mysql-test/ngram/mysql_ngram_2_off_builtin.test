@@ -1,0 +1,26 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# Scenario 3 of mysql_ngram_2: CREATE a CJK fulltext index without ngram
+# parser when ngram parser is not loaded (--ngram=OFF in
+# mysql_ngram_2_off_builtin.opt)
+
+# MySQL 8.0 connects with utf8mb4 by default
+SET NAMES utf8mb4;
+
+CREATE TABLE t2 (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200)
+) ENGINE=InnoDB DEFAULT CHARACTER SET gb2312 COLLATE gb2312_chinese_ci;
+
+ALTER TABLE t2 ADD FULLTEXT INDEX ft_title (title);
+
+INSERT INTO t2 (title) VALUES  ('中国');
+
+SELECT * FROM t2 WHERE MATCH(title) AGAINST('中国') ORDER BY id;
+SELECT * FROM t2 WHERE MATCH(title) AGAINST('中国上海') ORDER BY id;
+
+DROP TABLE t2;

@@ -1,0 +1,157 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+#
+SET NAMES utf8mb4;
+#
+# A well-formed Big5 character without a Unicode mapping does not end
+# the document
+#
+CREATE TABLE t (a TEXT CHARACTER SET big5, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=InnoDB;
+INSERT INTO t VALUES (CONCAT(_big5 X'C840', _big5 'abc'));
+SELECT HEX(a) FROM t WHERE MATCH(a) AGAINST('abc' IN BOOLEAN MODE);
+HEX(a)
+C840616263
+DROP TABLE t;
+#
+# Single-byte punctuation and spaces separate words, multi-byte
+# characters do not
+#
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=InnoDB CHARSET=utf8mb4;
+SET GLOBAL innodb_ft_aux_table='test/t';
+INSERT INTO t VALUES (1, 'ab,cd e'), (2, '数据、库');
+SELECT word, doc_id, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE
+ORDER BY doc_id, position;
+word	doc_id	position
+ab	1	0
+cd	1	3
+数据	2	0
+据、	2	3
+、库	2	6
+SET GLOBAL innodb_ft_aux_table=default;
+DROP TABLE t;
+#
+# A word that becomes a phrase of n-grams matches only as a whole,
+# also with + and -
+#
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'English'), (2, 'lion'), (3, 'gl zz lion'),
+(4, 'gli lion');
+SELECT id FROM t WHERE MATCH(a) AGAINST('gli' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+4
+SELECT id FROM t WHERE MATCH(a) AGAINST('+lion -gli' IN BOOLEAN MODE) ORDER BY id;
+id
+2
+3
+SELECT id FROM t WHERE MATCH(a) AGAINST('+(gli lio) -ngl' IN BOOLEAN MODE)
+ORDER BY id;
+id
+2
+3
+4
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=MyISAM;
+INSERT INTO t VALUES (1, 'English'), (2, 'lion'), (3, 'gl zz lion'),
+(4, 'gli lion');
+SELECT id FROM t WHERE MATCH(a) AGAINST('gli' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+4
+SELECT id FROM t WHERE MATCH(a) AGAINST('+lion -gli' IN BOOLEAN MODE) ORDER BY id;
+id
+2
+3
+SELECT id FROM t WHERE MATCH(a) AGAINST('+(gli lio) -ngl' IN BOOLEAN MODE)
+ORDER BY id;
+id
+2
+3
+4
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=Aria;
+INSERT INTO t VALUES (1, 'English'), (2, 'lion'), (3, 'gl zz lion'),
+(4, 'gli lion');
+SELECT id FROM t WHERE MATCH(a) AGAINST('gli' IN BOOLEAN MODE) ORDER BY id;
+id
+1
+4
+SELECT id FROM t WHERE MATCH(a) AGAINST('+lion -gli' IN BOOLEAN MODE) ORDER BY id;
+id
+2
+3
+SELECT id FROM t WHERE MATCH(a) AGAINST('+(gli lio) -ngl' IN BOOLEAN MODE)
+ORDER BY id;
+id
+2
+3
+4
+DROP TABLE t;
+#
+# Natural language mode: a row matches any n-gram of the query
+#
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=MyISAM;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx');
+id
+1
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=Aria;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx');
+id
+1
+SELECT id FROM t WHERE MATCH(a) AGAINST('cdx' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+#
+# UPDATE and DELETE change what is found
+#
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+UPDATE t SET a= 'pqrs' WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('abc' IN BOOLEAN MODE);
+id
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+1
+DELETE FROM t WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=MyISAM;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+UPDATE t SET a= 'pqrs' WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('abc' IN BOOLEAN MODE);
+id
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+1
+DELETE FROM t WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=Aria;
+INSERT INTO t VALUES (1, 'abcd'), (2, 'klmn'), (3, 'uvwx');
+UPDATE t SET a= 'pqrs' WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('abc' IN BOOLEAN MODE);
+id
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+1
+DELETE FROM t WHERE id = 1;
+SELECT id FROM t WHERE MATCH(a) AGAINST('pqr' IN BOOLEAN MODE);
+id
+DROP TABLE t;

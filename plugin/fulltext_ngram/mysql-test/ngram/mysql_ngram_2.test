@@ -1,0 +1,136 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+#
+#   InnoDB FULLTEXT SEARCH: CJK support - ngram parser
+#
+#
+
+
+#Test 3 scenarios:
+#1. CREATE a CJK fulltext index with ngram parser when ngram parser is loaded,
+# restart without ngram parser, do SELECT/INSERT;
+#2. CREATE a CJK fulltext index with ngram parser when ngram parser is not loaded.
+#3. CREATE a CJK fulltext index without ngram parser when ngram parser is not loaded.
+# Scenario 2 is in mysql_ngram_2_off_parser, 3 in mysql_ngram_2_off_builtin;
+# they start the server without ngram (--ngram=OFF in their .opt files).
+
+SET NAMES utf8mb4;
+
+# t1 with default parser
+CREATE TABLE t1 (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+	content TEXT,
+	FULLTEXT INDEX ft_content (content)
+) ENGINE=InnoDB DEFAULT CHARACTER SET gb2312 COLLATE gb2312_chinese_ci;
+
+INSERT INTO t1 (title, content) VALUES  ('中国', '中国'), ('中国上海', '中国上海');
+
+ALTER TABLE t1 ADD FULLTEXT INDEX ft_title (title);
+
+SHOW CREATE TABLE t1;
+
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国上海') ORDER BY id;
+
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国上海') ORDER BY id;
+
+DROP TABLE t1;
+
+# t1 with ngram parser
+CREATE TABLE t1 (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+	content TEXT,
+	FULLTEXT INDEX ft_content (content) WITH PARSER ngram
+) ENGINE=InnoDB DEFAULT CHARACTER SET gb2312 COLLATE gb2312_chinese_ci;
+
+INSERT INTO t1 (title, content) VALUES  ('中国', '中国'), ('中国上海', '中国上海');
+
+ALTER TABLE t1 ADD FULLTEXT INDEX ft_title (title) WITH PARSER ngram;
+
+SHOW CREATE TABLE t1;
+
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国上海') ORDER BY id;
+
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国上海') ORDER BY id;
+
+# t2 with ngram parser
+CREATE TABLE t2 (
+        id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+        title VARCHAR(200),
+	content TEXT,
+	FULLTEXT INDEX ft_content (content) WITH PARSER ngram
+) ENGINE=InnoDB DEFAULT CHARACTER SET gb2312 COLLATE gb2312_chinese_ci;
+
+ALTER TABLE t2 ADD FULLTEXT INDEX ft_title (title) WITH PARSER ngram;
+
+# Restart without ngram.
+let $restart_parameters= --ngram=OFF;
+--source include/restart_mysqld.inc
+
+# t1
+CHECK TABLE t1;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+SELECT * FROM t1;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国');
+
+--error ER_PLUGIN_IS_NOT_LOADED
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国上海');
+
+--error ER_PLUGIN_IS_NOT_LOADED
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国');
+
+--error ER_PLUGIN_IS_NOT_LOADED
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国上海');
+
+--error ER_PLUGIN_IS_NOT_LOADED
+INSERT INTO t1 (title, content) VALUES  ('中国', '中国');
+
+--error ER_PLUGIN_IS_NOT_LOADED
+DROP INDEX ft_title ON t1;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+DROP INDEX ft_content ON t1;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+TRUNCATE TABLE t1;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+ALTER TABLE t1 RENAME TO t3;
+
+# t2
+# MariaDB opens the table to rename it, which needs the parser plugin.
+--error ER_PLUGIN_IS_NOT_LOADED
+RENAME TABLE t2 to t3;
+
+# DROP TABLE without the parser plugin leaves the InnoDB table behind in
+# MariaDB (MDEV-41753), so drop t2 after the restart with ngram.
+
+# Restart with ngram.
+let $restart_parameters= ;
+--source include/restart_mysqld.inc
+
+DROP TABLE t2;
+
+CHECK TABLE t1;
+
+SELECT * FROM t1;
+
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(title) AGAINST('中国上海') ORDER BY id;
+
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国') ORDER BY id;
+SELECT * FROM t1 WHERE MATCH(content) AGAINST('中国上海') ORDER BY id;
+
+DROP TABLE t1;

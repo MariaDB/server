@@ -1,0 +1,64 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+#
+#
+# The longest n-grams (ngram_longest.opt), of characters of 1 to 3 bytes
+#
+SET NAMES utf8mb4;
+SELECT @@ngram_token_size;
+@@ngram_token_size
+10
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=InnoDB CHARSET=utf8mb4;
+INSERT INTO t VALUES (1, 'a一b二c三d四e五f'), (2, 'αa中βb一ωc二γd三δe四εf五ζg六');
+SELECT id FROM t WHERE MATCH(a) AGAINST('一b二c三d四e五f' IN BOOLEAN MODE);
+id
+1
+SELECT id FROM t WHERE MATCH(a) AGAINST('a中βb一ωc二γd' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('三δe四εf五ζg六' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('"αa中βb一ωc二γd三δe四εf五ζg六"' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('a一b二c三d四e' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=MyISAM CHARSET=utf8mb4;
+INSERT INTO t VALUES (1, 'a一b二c三d四e五f'), (2, 'αa中βb一ωc二γd三δe四εf五ζg六');
+SELECT id FROM t WHERE MATCH(a) AGAINST('一b二c三d四e五f' IN BOOLEAN MODE);
+id
+1
+SELECT id FROM t WHERE MATCH(a) AGAINST('a中βb一ωc二γd' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('三δe四εf五ζg六' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('"αa中βb一ωc二γd三δe四εf五ζg六"' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('a一b二c三d四e' IN BOOLEAN MODE);
+id
+DROP TABLE t;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+ENGINE=Aria CHARSET=utf8mb4;
+INSERT INTO t VALUES (1, 'a一b二c三d四e五f'), (2, 'αa中βb一ωc二γd三δe四εf五ζg六');
+SELECT id FROM t WHERE MATCH(a) AGAINST('一b二c三d四e五f' IN BOOLEAN MODE);
+id
+1
+SELECT id FROM t WHERE MATCH(a) AGAINST('a中βb一ωc二γd' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('三δe四εf五ζg六' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('"αa中βb一ωc二γd三δe四εf五ζg六"' IN BOOLEAN MODE);
+id
+2
+SELECT id FROM t WHERE MATCH(a) AGAINST('a一b二c三d四e' IN BOOLEAN MODE);
+id
+DROP TABLE t;
