@@ -77,7 +77,7 @@ def	mysql	general_log	server_id	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(
 def	mysql	general_log	thread_id	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	general_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	mediumtext			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	global_priv	Host	1	''	NO	char	255	765	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(255)	PRI		select,insert,update,references		NEVER	NULL	NO	NO	
-def	mysql	global_priv	Priv	3	'{}'	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext			select,insert,update,references		NEVER	NULL	NO	NO	
+def	mysql	global_priv	Priv	3	'{}'	NO	json	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	json			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	global_priv	User	2	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)	PRI		select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	gtid_slave_pos	domain_id	1	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned	PRI		select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	gtid_slave_pos	seq_no	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL	NO	NO	
@@ -161,7 +161,7 @@ def	mysql	roles_mapping	Role	3	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3
 def	mysql	roles_mapping	User	2	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)	PRI		select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	servers	Db	3	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	servers	Host	2	''	NO	varchar	2048	6144	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(2048)			select,insert,update,references		NEVER	NULL	NO	NO	
-def	mysql	servers	Options	10	'{}'	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext			select,insert,update,references		NEVER	NULL	NO	NO	
+def	mysql	servers	Options	10	'{}'	NO	json	4294967295	4294967295	NULL	NULL	NULL	NULL	NULL	json			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	servers	Owner	9	''	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	servers	Password	5	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(64)			select,insert,update,references		NEVER	NULL	NO	NO	
 def	mysql	servers	Port	6	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(4)			select,insert,update,references		NEVER	NULL	NO	NO	
@@ -273,6 +273,7 @@ AND CHARACTER_OCTET_LENGTH / CHARACTER_MAXIMUM_LENGTH = 1
 ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 1.0000	blob	NULL	NULL
+1.0000	json	NULL	NULL
 1.0000	longblob	NULL	NULL
 1.0000	varbinary	NULL	NULL
 1.0000	char	latin1	latin1_swedish_ci
@@ -408,7 +409,7 @@ NULL	mysql	general_log	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 1.0000	mysql	general_log	argument	mediumtext	16777215	16777215	utf8mb3	utf8mb3_general_ci	mediumtext
 3.0000	mysql	global_priv	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	global_priv	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)
-1.0000	mysql	global_priv	Priv	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	global_priv	Priv	json	4294967295	4294967295	NULL	NULL	json
 NULL	mysql	gtid_slave_pos	domain_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	mysql	gtid_slave_pos	sub_id	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	gtid_slave_pos	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
@@ -498,7 +499,7 @@ NULL	mysql	servers	Port	int	NULL	NULL	NULL	NULL	int(4)
 3.0000	mysql	servers	Socket	char	108	324	utf8mb3	utf8mb3_general_ci	char(108)
 3.0000	mysql	servers	Wrapper	char	64	192	utf8mb3	utf8mb3_general_ci	char(64)
 3.0000	mysql	servers	Owner	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
-1.0000	mysql	servers	Options	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	servers	Options	json	4294967295	4294967295	NULL	NULL	json
 NULL	mysql	slow_log	start_time	timestamp	NULL	NULL	NULL	NULL	timestamp(6)
 1.0000	mysql	slow_log	user_host	mediumtext	16777215	16777215	utf8mb3	utf8mb3_general_ci	mediumtext
 NULL	mysql	slow_log	query_time	time	NULL	NULL	NULL	NULL	time(6)

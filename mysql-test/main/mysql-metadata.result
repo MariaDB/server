@@ -18,7 +18,7 @@ Catalog:    `def`
 Database:   `test`
 Table:      `t1`
 Org_table:  `t1`
-Type:       BLOB (format=json)
+Type:       LONG_BLOB (type=json)
 Collation:  latin1_swedish_ci (8)
 Length:     4294967295
 Max_length: 0
