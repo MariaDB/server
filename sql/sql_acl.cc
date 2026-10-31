@@ -9049,7 +9049,8 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
-
+    if (item->privs == GRANT_ACL)
+      continue;
     if (strcmp(item->user, sctx->priv_user) == 0 &&
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
@@ -9113,6 +9114,8 @@ bool check_grant_db(THD *thd, const char *db)
   {
     GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
                                                              idx);
+    if ((grant_table->cols | grant_table->privs) == GRANT_ACL)
+      continue;
     if (len < grant_table->key_length &&
         !memcmp(grant_table->hash_key, helping, len) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))

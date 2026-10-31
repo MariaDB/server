@@ -5703,8 +5703,9 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, false) ||
+    privilege_t test_access(SHOW_DB_ACL | (DB_ACLS & ~GRANT_ACL));
+    if (sctx->master_access & test_access ||
+        acl_get_all3(sctx, db_name->str, false) & test_access ||
         !check_grant_db(thd, db_name->str))
 #endif
     {
