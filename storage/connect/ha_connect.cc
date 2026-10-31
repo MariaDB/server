@@ -1397,11 +1397,13 @@ char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && *partname) {
-    sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
-    PPOOLHEADER pph = (PPOOLHEADER)xp->g->Sarea;
-    snprintf(sv, xp->g->Sarea_Size - pph->To_Free, s, partname);
-    PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
+  const char *p;
+
+  if (IsPartitioned() && s && *partname && (p= strstr(s, "%s"))) {
+    size_t len= strlen(s) - 2 + strlen(partname) + 1;
+
+    sv= (char*)PlugSubAlloc(xp->g, NULL, len);
+    snprintf(sv, len, "%.*s%s%s", (int) (p - s), s, partname, p + 2);
   } else
     sv= (char*)s;
 
@@ -7143,7 +7145,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     s= "/";
 #endif  // !_WIN32
     if (IsPartitioned()) {
-      snprintf(tfn, sizeof(tfn), fn, GetPartName());
+      if (const char *p= strstr(fn, "%s"))
+        snprintf(tfn, sizeof(tfn), "%.*s%s%s", (int) (p - fn), fn,
+                 GetPartName(), p + 2);
+      else
+        snprintf(tfn, sizeof(tfn), "%s", fn);
 
       // This is to avoid an initialization error raised by the
       // test on check_table_flags made in ha_partition::open
