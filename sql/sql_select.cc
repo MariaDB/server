@@ -32285,7 +32285,10 @@ enum explainable_cmd_type get_explainable_cmd_type(THD *thd)
   Print a table of the USING clause of a single-table DELETE: its name and
   alias only, as TABLE_LIST::print() would repeat the system-time clause
   already printed in the FROM part. A merged view is expanded to its tables.
+
+  NOTE: the view can only be a single-table view.
 */
+#if 0
 static void print_delete_using_table(THD *thd, TABLE_LIST *tbl, String *str,
                                      enum_query_type query_type)
 {
@@ -32297,7 +32300,10 @@ static void print_delete_using_table(THD *thd, TABLE_LIST *tbl, String *str,
       if (first)
         first= false;
       else
+      {
+        DBUG_ASSERT(0);
         str->append(',');
+      }
       print_delete_using_table(thd, u, str, query_type);
     }
     return;
@@ -32317,6 +32323,7 @@ static void print_delete_using_table(THD *thd, TABLE_LIST *tbl, String *str,
                                  lower_case_table_names == 1);
   }
 }
+#endif
 
 
 /*
@@ -32634,7 +32641,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       str->append(get_explainable_cmd_name(sel_type));
       print_hints(thd, str);
     }
-    if (sel_type == DELETE_CMD)
+    if (sel_type == DELETE_CMD && top_join_list.elements)
     {
       str->append(STRING_WITH_LEN(" from "));
       bool first= true;
@@ -32663,6 +32670,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
         print_join(thd, 0, str, &top_join_list, query_type);
       else
       {
+        str->append(STRING_WITH_LEN("from "));
         bool first= true;
         List_iterator_fast<TABLE_LIST> li(leaf_tables);
         TABLE_LIST *tbl;
@@ -32672,9 +32680,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
             first= false;
           else
             str->append(',');
-          if (sel_type == DELETE_CMD)
-            print_delete_using_table(thd, tbl, str, query_type);
-          else
+          //if (sel_type == DELETE_CMD)
+          //  print_delete_using_table(thd, tbl, str, query_type);
+          //else
             tbl->print(thd, 0, str, query_type);
         }
       }

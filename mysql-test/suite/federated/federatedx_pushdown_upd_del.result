@@ -2378,10 +2378,10 @@ SELECT argument FROM mysql.general_log
 WHERE argument LIKE 'delete %' OR argument LIKE 'update %'
 ORDER BY event_time;
 argument
-delete  from `federated`.`t3` using `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 3)
-delete  from `federated`.`t3` using `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 3) order by `federated`.`t3`.`b` limit 2
-delete  from `federated`.`t3` using `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 4)
-delete  from `federated`.`t3` using `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 4)
+delete from `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 3)
+delete from `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 3) order by `federated`.`t3`.`b` limit 2
+delete from `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 4)
+delete from `federated`.`t3` where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 4)
 update `federated`.`t3` set `federated`.`t3`.`b` = `federated`.`t3`.`b` + 100 where `federated`.`t3`.`a` in (select `federated`.`t3`.`a` from `federated`.`t3` where `federated`.`t3`.`a` < 3)
 connection slave;
 TRUNCATE TABLE mysql.general_log;
