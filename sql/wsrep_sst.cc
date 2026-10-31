@@ -1771,10 +1771,10 @@ sst_user_grants(const std::string& method)
     nullptr
   };
 
-  if (method == "mariabackup-test") {
+  if (method == WSREP_SST_MARIABACKUP) {
     return mariabackup;
   }
-  if (method == "rsync") {
+  if (method == WSREP_SST_RSYNC) {
     assert(0); // should not attempt to create user for this SSST
     return rsync;
   }
