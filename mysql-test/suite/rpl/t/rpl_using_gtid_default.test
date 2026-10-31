@@ -15,25 +15,23 @@
 #           RESET SLAVE will preserve Using_Gtid without any informational
 #           messages.
 #   Case 3) A slave configured with Using_Gtid=No against a master which
-#           supports GTIDs will revert to Using_Gtid=Slave_Pos after issued
-#           RESET SLAVE and provide an informational note
-#   Case 4) A fresh slave targeting a master which does not support GTIDs
-#           will fall back to Using_Gtid=No when starting. An informational
-#           message should be logged.
-#   Case 5) A slave connected to a master which does not support GTIDs
-#           should preserve Using_Gtid=No when issued RESET SLAVE. No message
-#           should be provided to the user.
-#   Case 6) A slave configured with Using_Gtid=Current_Pos should revert
-#           to Slave_Pos when issued RESET SLAVE. An informational message
-#           should be provided to the user.
-#   Case 7) The MTR include file rpl_change_topology.inc should implicitly
+#           supports GTIDs will continue Using_Gtid=No after issued
+#           RESET SLAVE.
+#   Case 4) A fresh slave with Using_Gtid=Slave_Pos targeting a primary
+#           which does not support GTIDs will fall back to Using_Gtid=No
+#           when connecting to the master. An informational message should be
+#           logged. On each reconnect the original value of Using_Gtid=Slave_Pos
+#           will be used with the fallback to Using_Gtid=No if needed.
+#   Case 5) A slave configured with Using_Gtid=Current_Pos should keep
+#           it its value when issued RESET SLAVE.
+#   Case 6) The MTR include file rpl_change_topology.inc should implicitly
 #           set MASTER_USE_GTID=NO when provided with $rpl_master_log_file
-#   Case 8) The MTR include file reset_slave.inc should keep/delete GTID state
+#   Case 7) The MTR include file reset_slave.inc should keep/delete GTID state
 #           when reset_slave_keep_gtid_state is set, respectively.
-#   Case 9) A slave issued CHANGE MASTER TO specified with log coordinates
+#   Case 8) A slave issued CHANGE MASTER TO specified with log coordinates
 #           but not master_use_gtid=No should warn the user that Using_Gtid is
 #           being changed to No.
-#   Case 10) A slave issued CHANGE MASTER TO specified with log coordinates
+#   Case 9) A slave issued CHANGE MASTER TO specified with log coordinates
 #           and master_use_gtid=Slave_Pos should warn the user that the log
 #           coordinates will be ignored.
 #
@@ -65,29 +63,32 @@ RESET SLAVE;
 SHOW WARNINGS;
 --source include/start_slave.inc
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_gtid: $using_gtid
 if ($using_gtid != $expected_default_using_gtid)
 {
     --die Using_Gtid has wrong value of '$using_gtid' when it should be '$expected_default_using_gtid'
 }
 
-
 --echo #
---echo # Ensure that a slave configured with Using_Gtid=No will revert to its
---echo # default of Slave_Pos after RESET SLAVE for a master which supports
---echo # GTIDs
+--echo # Ensure that a slave configured with Using_Gtid=No will keep its
+--echo # value of after RESET SLAVE even if master which supports GTIDs
 
 --source include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 --source include/stop_slave.inc
 RESET SLAVE;
---echo # A notification that Using_Gtid was reverted should exist
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_gtid: $using_gtid
+
+--echo # There should be no warnings
 SHOW WARNINGS;
 --source include/start_slave.inc
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
-if ($using_gtid != $expected_default_using_gtid)
+--echo Using_gtid: $using_gtid
+if ($using_gtid != "No")
 {
-    --die Using_Gtid has wrong value of '$using_gtid' when it should be '$expected_default_using_gtid'
+    --die Using_Gtid has wrong value of '$using_gtid' when it should be 'No'
 }
 
 --echo # Clear SHOW WARNINGS
@@ -98,17 +99,19 @@ DROP TABLE t1;
 set SQL_LOG_BIN=1;
 --enable_query_log
 
-
 --echo #
 --echo # If the master does not support GTIDs (version < 10), the slave
---echo # should fall back to Using_Gtid=No on slave start, and should not
---echo # revert Using_Gtid to Slave_Pos after RESET SLAVE
+--echo # should fall back to Using_Gtid=No on slave start
+--echo #
 
 --source include/stop_slave.inc
 RESET SLAVE ALL;
 
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 --eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=1
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_gtid: $using_gtid
+
 SET @saved_dbug= @@GLOBAL.debug_dbug;
 set @@global.debug_dbug= "d,mock_mariadb_master_v5_in_get_master_version";
 --source include/start_slave.inc
@@ -116,6 +119,7 @@ set @@global.debug_dbug= "d,mock_mariadb_master_v5_in_get_master_version";
 --echo # Slave should detect at start that the master does not support GTIDs
 --echo # and fall-back to Using_Gtid=No
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_gtid: $using_gtid
 if ($using_gtid != 'No')
 {
     --die Using_Gtid has wrong value of '$using_gtid' when it should be 'No'
@@ -134,39 +138,49 @@ if(!$log_error_)
 --let SEARCH_PATTERN=Falling back to Using_Gtid=No because master does not support GTIDs
 --source include/search_pattern_in_file.inc
 
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_Gtid= $using_gtid
+
+
 --source include/stop_slave.inc
 RESET SLAVE;
 
---echo # Slave should know that the master does not support GTIDs and
---echo # preserve Using_Gtid=No
+--echo # Slave sets the using_gtid value back to its original value
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
-if ($using_gtid != 'No')
+--echo Using_gtid: $using_gtid
+if ($using_gtid != 'Slave_Pos')
 {
-    --die Using_Gtid has wrong value of '$using_gtid' when it should be 'No'
+    --die Using_Gtid has wrong value of '$using_gtid' when it should be 'Slave_Pos'
 }
---echo # 'No' was not reverted and therefore no note should be added
 SHOW WARNINGS;
 set @@global.debug_dbug= @saved_dbug;
 --source include/start_slave.inc
 
+--let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
+--echo Using_Gtid= $using_gtid
 
 --echo #
---echo # Ensure that a slave configured with Using_Gtid=Current_Pos will revert
---echo # to its default of Slave_Pos after RESET SLAVE.
+--echo # Ensure that a slave configured with Using_Gtid=Current_Pos will keep
+--echo # its value after RESET SLAVE.
 
 --source include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=Current_Pos;
 --source include/start_slave.inc
 --source include/stop_slave.inc
 RESET SLAVE;
---echo # A notification that Using_Gtid was reverted should exist
+--echo # A notification that Using_Gtid was reverted should not exist
 SHOW WARNINGS;
 --source include/start_slave.inc
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
-if ($using_gtid != $expected_default_using_gtid)
+--echo Using_gtid: $using_gtid
+if ($using_gtid != "Current_Pos")
 {
-    --die Using_Gtid has wrong value of '$using_gtid' when it should be '$expected_default_using_gtid'
+    --die Using_Gtid has wrong value of '$using_gtid' when it should be 'Current_Pos'
 }
+
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+--source include/start_slave.inc
 
 --echo # Clear SHOW WARNINGS
 --disable_query_log
@@ -191,7 +205,7 @@ set SQL_LOG_BIN=1;
 --echo # connection 'master' is the slave in this comparison
 --connection master
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
---echo # Validating Using_Gtid=No..
+--echo Using_gtid: $using_gtid
 if (`SELECT strcmp("$using_gtid","No") != 0`)
 {
     --die Using_Gtid should be No when calling rpl_change_topology with \$rpl_master_log_file set
@@ -205,7 +219,7 @@ if (`SELECT strcmp("$using_gtid","No") != 0`)
 --echo # connection 'slave' is back to slave role
 --connection slave
 --let $using_gtid= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1)
---echo # Validating Using_Gtid=$expected_default_using_gtid..
+--echo Using_gtid: $using_gtid
 if (`SELECT strcmp("$using_gtid","$expected_default_using_gtid")!= 0`)
 {
     --die Using_Gtid should be back to $expected_default_using_gtid with empty \$rpl_master_log_file

@@ -1480,17 +1480,20 @@ void Explain_table_access::fill_key_len_str(String *key_len_str,
 
 bool Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
 {
-  if (set_pseudo_key(mem_root, key->name.str))
-    return 1;
+  uint len= 0;
+  KEY_PART_INFO *part, *part_end;
+
+  if (set_pseudo_key(mem_root, &key->name))
+    return 1;                                   // Out of memory
 
   key_len= key_len_arg;
-  uint len= 0;
-  for (uint i= 0; i < key->usable_key_parts; i++)
+  for (part= key->key_part, part_end= part+ key->usable_key_parts ;
+       part < part_end;
+       part++)
   {
-    if (!key_parts_list.append_str(mem_root,
-                                   key->key_part[i].field->field_name.str))
+    if (!key_parts_list.append_str(mem_root, &part->field->field_name))
       return 1;
-    len += key->key_part[i].store_length;
+    len+= part->store_length;
     if (len >= key_len_arg)
       break;
   }
@@ -1498,11 +1501,11 @@ bool Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
 }
 
 
-bool Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
+bool Explain_index_use::set_pseudo_key(MEM_ROOT *root, const Lex_ident_column *name)
 {
-  if (key_name_arg)
+  if (name->str)
   {
-    if (!(key_name= strdup_root(root, key_name_arg)))
+    if (!(key_name= strmake_root(root, name->str, name->length)))
       return 1;
   }
   else
@@ -1763,13 +1766,20 @@ int Explain_table_access::print_explain(select_result_sink *output,
     pointer on allocated copy of the string
 */
 
+const char *String_list::append_str(MEM_ROOT *mem_root, const Lex_ident_column *str)
+{
+  char *cp;
+  if (!(cp = strmake_root(mem_root, str->str, str->length)))
+    return NULL;
+  push_back(cp, mem_root);
+  return cp;
+}
+
 const char *String_list::append_str(MEM_ROOT *mem_root, const char *str)
 {
-  size_t len= strlen(str);
   char *cp;
-  if (!(cp = (char*)alloc_root(mem_root, len+1)))
+  if (!(cp = strdup_root(mem_root, str)))
     return NULL;
-  memcpy(cp, str, len+1);
   push_back(cp, mem_root);
   return cp;
 }
@@ -1821,6 +1831,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer,
       break;
     case ET_SKIP_OPEN_TABLE:
       writer->add_member("skip_open_table").add_bool(true);
+      break;
+    case ET_IS_FAST_PATH:
+      writer->add_member("is_fast_path").add_bool(true);
       break;
     case ET_OPEN_FRM_ONLY:
       writer->add_member("open_frm_only").add_bool(true);
@@ -2420,6 +2433,7 @@ const LEX_CSTRING extra_tag_text[]=
   { STRING_WITH_LEN("Scanned 0 databases") },
   { STRING_WITH_LEN("Scanned 1 database") },
   { STRING_WITH_LEN("Scanned all databases") },
+  { STRING_WITH_LEN("I_S fast path") },
 
   { STRING_WITH_LEN("Using index for group-by") }, // special handling
   { STRING_WITH_LEN("USING MRR: DONT PRINT ME") }, // special handling
@@ -3094,7 +3108,7 @@ int Explain_range_checked_fer::append_possible_keys_stat(MEM_ROOT *alloc,
     if (possible_keys.is_set(j))
     {
       if (!(keys_stat_names[j]= key_set.append_str(alloc,
-                                                   table->key_info[j].name.str)))
+                                                   &table->key_info[j].name)))
         return 1;
     }
     else

@@ -22,8 +22,6 @@ MASTER_USE_GTID=current_pos,
 IGNORE_SERVER_IDS=(123),
 DO_DOMAIN_IDS=(19);
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
 SHOW SLAVE STATUS;
 Slave_IO_State	
@@ -59,7 +57,7 @@ Master_SSL_Cert
 Master_SSL_Cipher	
 Master_SSL_Key	
 Seconds_Behind_Master	NULL
-Master_SSL_Verify_Server_Cert	No
+Master_SSL_Verify_Server_Cert	Yes
 Last_IO_Errno	0
 Last_IO_Error	
 Last_SQL_Errno	0

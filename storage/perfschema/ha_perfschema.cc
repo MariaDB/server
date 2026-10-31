@@ -450,32 +450,29 @@ int ha_perfschema::delete_table(const char *name)
     isolate the schema and table name.
   */
 
-  char table_path[FN_REFLEN+1];
-  strncpy(table_path, name, sizeof(table_path));
-  table_path[FN_REFLEN]='\0';
-
   char *ptr;
+  char table_path[FN_REFLEN+1];
   char *table_name;
   char *db_name;
   const PFS_engine_table_share *share;
 
-  /* Start scan from the end. */
-  ptr = strend(table_path) - 1;
+  ptr= strmake(table_path, name, sizeof(table_path)-1);
 
-  /* Find path separator */
-  while ((ptr >= table_path) && (*ptr != '\\') && (*ptr != '/')) {
+  /* Find table separator */
+  while ((ptr > table_path) && (ptr[-1] != '\\') && (ptr[-1] != '/'))
+    ptr--;
+
+  table_name= ptr;
+  if (ptr != table_path)
+  {
+    ptr[-1]= '\0';
     ptr--;
   }
-
-  table_name = ptr + 1;
-  *ptr = '\0';
-
-  /* Find path separator */
-  while ((ptr >= table_path) && (*ptr != '\\') && (*ptr != '/')) {
+  /* Find db separator */
+  while ((ptr > table_path) && (ptr[-1] != '\\') && (ptr[-1] != '/'))
     ptr--;
-  }
 
-  db_name = ptr + 1;
+  db_name= ptr;
 
   share = find_table_share(PFS_ident_db(Lex_cstring_strlen(db_name)),
                            PFS_ident_table(Lex_cstring_strlen(table_name)));

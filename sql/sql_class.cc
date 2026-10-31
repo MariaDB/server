@@ -4352,6 +4352,11 @@ void Query_arena::free_items()
 {
   Item *next;
   DBUG_ENTER("Query_arena::free_items");
+#ifndef DBUG_OFF
+  if (THD *thd= current_thd)
+    for (Item *item= free_list; item; item= item->next)
+      item->dbug_check_shallow_copy_type(thd);
+#endif
   /* This works because items are allocated on THD::mem_root */
   for (; free_list; free_list= next)
   {

@@ -4124,7 +4124,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
       slave_errno= ER_BAD_SLAVE_UNTIL_COND;
       goto err;
     }
-    if (mi->using_gtid == Master_info::USE_GTID_NO)
+    if (!mi->is_gtid_supported())
     {
       slave_errno= ER_UNTIL_REQUIRES_USING_GTID;
       goto err;
@@ -4387,16 +4387,6 @@ int reset_slave(THD *thd, Master_info* mi)
     goto err;
   }
 
-  if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS &&
-      mi->master_supports_gtid)
-  {
-    push_warning_printf(
-        thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
-        ER_THD(thd, WARN_OPTION_CHANGING), "RESET SLAVE", "Using_Gtid",
-        mi->using_gtid_astext(mi->using_gtid),
-        mi->using_gtid_astext(Master_info::USE_GTID_SLAVE_POS));
-  }
-
   /* Clear master's log coordinates and associated information */
   mi->clear_in_memory_info(thd->lex->reset_slave_info.all);
 
@@ -4412,6 +4402,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->connects_tried= 0;
   mi->rli.newest_master_timestamp= 0;
   mi->rli.slave_timestamp= 0;
+  mi->master_use_gtid.reset_to_user_value();
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
@@ -4716,7 +4707,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   saved_port= mi->port;
   strmake_buf(saved_log_name, mi->master_log_name);
   saved_log_pos= mi->master_log_pos;
-  saved_using_gtid= mi->using_gtid;
+  saved_using_gtid= mi->using_gtid();
 
   /*
     If the user specified host or port without binlog or position,
@@ -4751,16 +4742,28 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   if (lex_mi->port)
     mi->port = lex_mi->port;
-  if (lex_mi->connect_retry)
-    lex_mi->connect_retry(mi);
-  if (lex_mi->retry_count)
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_CONNECT_RETRY)
+    mi->master_connect_retry= lex_mi->connect_retry;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_CONNECT_RETRY)
+    mi->master_connect_retry.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_RETRY_COUNT)
   {
-    lex_mi->retry_count(mi);
-    // also reset the counter in case `connects_tried > master_retry_count`
+    mi->master_retry_count= lex_mi->retry_count;
+    /* Reset the counter in case `connects_tried > master_retry_count`. */
     mi->connects_tried= 0;
   }
-  if (lex_mi->heartbeat_period)
-    lex_mi->heartbeat_period(mi);
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_RETRY_COUNT)
+  {
+    mi->master_retry_count.set_default();
+    mi->connects_tried= 0;
+  }
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_HEARTBEAT_PERIOD)
+    mi->master_heartbeat_period= lex_mi->heartbeat_period;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_HEARTBEAT_PERIOD)
+    mi->master_heartbeat_period.set_default();
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
   mi->reset_master_server_id();
 
@@ -4788,33 +4791,57 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
                              &mi->ignore_server_ids);
   }
 
-  if (lex_mi->ssl)
-    lex_mi->ssl(mi);
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL)
+    mi->master_ssl= lex_mi->ssl;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL)
+    mi->master_ssl.set_default();
 
   if (lex_mi->sql_delay != -1)
     mi->rli.set_sql_delay(lex_mi->sql_delay);
 
-  if (lex_mi->ssl_verify_server_cert)
-    lex_mi->ssl_verify_server_cert(mi);
-  if (lex_mi->ssl_ca)
-    lex_mi->ssl_ca(mi);
-  if (lex_mi->ssl_capath)
-    lex_mi->ssl_capath(mi);
-  if (lex_mi->ssl_cert)
-    lex_mi->ssl_cert(mi);
-  if (lex_mi->ssl_cipher)
-    lex_mi->ssl_cipher(mi);
-  if (lex_mi->ssl_key)
-    lex_mi->ssl_key(mi);
-  if (lex_mi->ssl_crl)
-    lex_mi->ssl_crl(mi);
-  if (lex_mi->ssl_crlpath)
-    lex_mi->ssl_crlpath(mi);
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_VERIFY_SERVER_CERT)
+    mi->master_ssl_verify_server_cert= lex_mi->ssl_verify_server_cert;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_VERIFY_SERVER_CERT)
+    mi->master_ssl_verify_server_cert.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CA)
+    mi->master_ssl_ca= lex_mi->ssl_ca;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CA)
+    mi->master_ssl_ca.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CAPATH)
+    mi->master_ssl_capath= lex_mi->ssl_capath;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CAPATH)
+    mi->master_ssl_capath.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CERT)
+    mi->master_ssl_cert= lex_mi->ssl_cert;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CERT)
+    mi->master_ssl_cert.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CIPHER)
+    mi->master_ssl_cipher= lex_mi->ssl_cipher;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CIPHER)
+    mi->master_ssl_cipher.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_KEY)
+    mi->master_ssl_key= lex_mi->ssl_key;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_KEY)
+    mi->master_ssl_key.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CRL)
+    mi->master_ssl_crl= lex_mi->ssl_crl;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CRL)
+    mi->master_ssl_crl.set_default();
+
+  if (lex_mi->mi_used_options & MI_USED_OPTION_SSL_CRLPATH)
+    mi->master_ssl_crlpath= lex_mi->ssl_crlpath;
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_SSL_CRLPATH)
+    mi->master_ssl_crlpath.set_default();
 
 #ifndef HAVE_OPENSSL
-  if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
-      lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
-      lex_mi->ssl_verify_server_cert || lex_mi->ssl_crl || lex_mi->ssl_crlpath)
+  if ((lex_mi->mi_used_options | lex_mi->mi_used_default) &
+      MI_USED_OPTION_ANY_SSL)
     push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_SLAVE_IGNORED_SSL_PARAMS,
                  ER_THD(thd, ER_SLAVE_IGNORED_SSL_PARAMS));
@@ -4835,20 +4862,27 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->use_gtid)
-    lex_mi->use_gtid(mi);
-  else if (
-           lex_mi->log_file_name || lex_mi->pos ||
+  if (lex_mi->mi_used_options & MI_USED_OPTION_USE_GTID)
+    mi->master_use_gtid.set_user_value(lex_mi->use_gtid);
+  else if (lex_mi->mi_used_default & MI_USED_OPTION_USE_GTID)
+    mi->master_use_gtid.set_default();
+  else if (lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
   {
-    if (mi->using_gtid != Master_info::USE_GTID_NO)
+    if (mi->is_gtid_supported())
     {
       push_warning_printf(
           thd, Sql_condition::WARN_LEVEL_NOTE, WARN_OPTION_CHANGING,
           ER_THD(thd, WARN_OPTION_CHANGING), "CHANGE MASTER TO", "Using_Gtid",
-          mi->using_gtid_astext(mi->using_gtid),
+          mi->using_gtid_astext(mi->using_gtid()),
           mi->using_gtid_astext(Master_info::USE_GTID_NO));
-      mi->using_gtid= Master_info::USE_GTID_NO;
+      /*
+        As the user has not told us to use_gtid, but is using log
+        positions, let us threat this as if the user would have
+        specified USE_GTID_NO.  This is needed to ensure that RESET
+        SLAVE or automatic reconnect will not convert to using GTID.
+      */
+      mi->master_use_gtid.set_user_value(Master_info::USE_GTID_NO);
     }
   }
 
@@ -4856,7 +4890,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     Warn about ignored options if there are GTID/log coordinate option
     conflicts
   */
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  if (mi->is_gtid_supported())
   {
     if (lex_mi->log_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -4883,12 +4917,12 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   ignore_ids= ((lex_mi->repl_ignore_domain_ids_opt ==
                 LEX_MASTER_INFO::LEX_MI_ENABLE) ?
                &lex_mi->repl_ignore_domain_ids : NULL);
-
   /*
-    Note: mi->using_gtid stores the previous state in case no MASTER_USE_GTID
-    is specified.
+    Note: mi->master_use_gtid stores the previous state in case no
+    MASTER_USE_GTID is specified.
   */
-  if (mi->domain_id_filter.update_ids(do_ids, ignore_ids, mi->using_gtid))
+  if (mi->domain_id_filter.update_ids(do_ids, ignore_ids,
+                                      mi->is_gtid_supported()))
   {
     my_error(ER_MASTER_INFO, MYF(0),
              (int) lex_mi->connection_name.length,
@@ -4934,7 +4968,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   {
     String new_gtid_state;
 
-    if (mi->using_gtid != Master_info::USE_GTID_SLAVE_POS)
+    if (mi->using_gtid() != Master_info::USE_GTID_SLAVE_POS)
     {
       my_error(ER_CM_OPTION_MISSING_REQUIREMENT, MYF(0),
                "MASTER_DEMOTE_TO_SLAVE", "TRUE", "Using_Gtid=Slave_Pos");
@@ -5029,11 +5063,10 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     "master_log_pos='%ld'.", saved_host, saved_port, saved_log_name,
     (ulong) saved_log_pos, mi->host, mi->port, mi->master_log_name,
     (ulong) mi->master_log_pos);
-  if (saved_using_gtid != Master_info::USE_GTID_NO ||
-      mi->using_gtid != Master_info::USE_GTID_NO)
+  if (saved_using_gtid != Master_info::USE_GTID_NO || mi->is_gtid_supported())
     sql_print_information("Previous Using_Gtid=%s. New Using_Gtid=%s",
                           mi->using_gtid_astext(saved_using_gtid),
-                          mi->using_gtid_astext(mi->using_gtid));
+                          mi->using_gtid_astext(mi->using_gtid()));
 
   /*
     If we don't write new coordinates to disk now, then old will remain in

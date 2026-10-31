@@ -12,61 +12,64 @@ RESET SLAVE;
 SHOW WARNINGS;
 Level	Code	Message
 include/start_slave.inc
+Using_gtid: Slave_Pos
 #
-# Ensure that a slave configured with Using_Gtid=No will revert to its
-# default of Slave_Pos after RESET SLAVE for a master which supports
-# GTIDs
+# Ensure that a slave configured with Using_Gtid=No will keep its
+# value of after RESET SLAVE even if master which supports GTIDs
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 include/start_slave.inc
 include/stop_slave.inc
 RESET SLAVE;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
-# A notification that Using_Gtid was reverted should exist
+Using_gtid: No
+# There should be no warnings
 SHOW WARNINGS;
 Level	Code	Message
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 include/start_slave.inc
+Using_gtid: No
 # Clear SHOW WARNINGS
 #
 # If the master does not support GTIDs (version < 10), the slave
-# should fall back to Using_Gtid=No on slave start, and should not
-# revert Using_Gtid to Slave_Pos after RESET SLAVE
+# should fall back to Using_Gtid=No on slave start
+#
 include/stop_slave.inc
 RESET SLAVE ALL;
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USER='root', MASTER_CONNECT_RETRY=1;
+Using_gtid: Slave_Pos
 SET @saved_dbug= @@GLOBAL.debug_dbug;
 set @@global.debug_dbug= "d,mock_mariadb_master_v5_in_get_master_version";
 include/start_slave.inc
 # Slave should detect at start that the master does not support GTIDs
 # and fall-back to Using_Gtid=No
+Using_gtid: No
 # Slave should have an informational message stating it is falling
 # back to Using_Gtid=No
 FOUND 1 /Falling back to Using_Gtid=No because master does not support GTIDs/ in mysqld.2.err
+Using_Gtid= No
 include/stop_slave.inc
 RESET SLAVE;
-# Slave should know that the master does not support GTIDs and
-# preserve Using_Gtid=No
-# 'No' was not reverted and therefore no note should be added
+# Slave sets the using_gtid value back to its original value
+Using_gtid: Slave_Pos
 SHOW WARNINGS;
 Level	Code	Message
 set @@global.debug_dbug= @saved_dbug;
 include/start_slave.inc
+Using_Gtid= Slave_Pos
 #
-# Ensure that a slave configured with Using_Gtid=Current_Pos will revert
-# to its default of Slave_Pos after RESET SLAVE.
+# Ensure that a slave configured with Using_Gtid=Current_Pos will keep
+# its value after RESET SLAVE.
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=Current_Pos;
 include/start_slave.inc
 include/stop_slave.inc
 RESET SLAVE;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
-# A notification that Using_Gtid was reverted should exist
+# A notification that Using_Gtid was reverted should not exist
 SHOW WARNINGS;
 Level	Code	Message
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'Current_Pos' to 'Slave_Pos'
+include/start_slave.inc
+Using_gtid: Current_Pos
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
 include/start_slave.inc
 # Clear SHOW WARNINGS
 # The MTR include file rpl_change_topology.inc should implicitly set
@@ -77,12 +80,12 @@ include/stop_slave.inc
 include/rpl_change_topology.inc [new topology=2->1]
 # connection 'master' is the slave in this comparison
 connection master;
-# Validating Using_Gtid=No..
+Using_gtid: No
 # ..success
 include/rpl_change_topology.inc [new topology=1->2]
 # connection 'slave' is back to slave role
 connection slave;
-# Validating Using_Gtid=Slave_Pos..
+Using_gtid: Slave_Pos
 # ..success
 include/start_slave.inc
 #

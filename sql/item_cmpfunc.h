@@ -1699,6 +1699,8 @@ class in_string :public in_vector
       str_value= *str;
       collation.set(str->charset());
     }
+  protected:
+    ITEM_SHALLOW_COPY(Item_string_for_in_vector)
   };
 public:
   in_string(THD *thd, uint elements, qsort_cmp2 cmp_func, CHARSET_INFO *cs);
@@ -3005,6 +3007,8 @@ public:
   table_map used_tables() const override
     { return used_tables_cache | RAND_TABLE_BIT; }
   bool const_item() const override { return FALSE; }
+protected:
+  ITEM_SHALLOW_COPY(Item_is_not_null_test)
 };
 
 

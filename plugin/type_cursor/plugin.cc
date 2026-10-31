@@ -367,6 +367,8 @@ public:
     DBUG_ASSERT(fc);
     return fc->resolve_spvar_cursor_rowtype(thd, cursor);
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_field_refcursor)
 };
 
 

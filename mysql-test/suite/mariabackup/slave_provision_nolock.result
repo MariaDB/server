@@ -40,8 +40,6 @@ connection server2;
 connection server2;
 STOP SLAVE;
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 DROP PROCEDURE gen_load;
 DROP TABLE t1, t2, t3;
 connection default;

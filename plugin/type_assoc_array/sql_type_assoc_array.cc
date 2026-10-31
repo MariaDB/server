@@ -244,6 +244,8 @@ public:
     unpack();
     return Item_field::save_in_field(field, no_conversions);
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_field_packable_scalar)
 };
 
 
@@ -280,11 +282,7 @@ public:
     return false;
   }
 
-  Item *shallow_copy(THD *thd) const override
-  {
-    DBUG_ASSERT(0);
-    return get_item_copy<Item_field_packable_row>(thd, this);
-  }
+  Item *shallow_copy(THD *thd) const override { return nullptr; }
 
   static uint packed_col_length(Field *field)
   {

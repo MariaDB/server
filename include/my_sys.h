@@ -560,7 +560,7 @@ static inline int my_b_inited(IO_CACHE *info) { return MY_TEST(info->buffer); }
 
 static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
-  if (info->read_pos + Count <= info->read_end)
+  if (likely(info->read_pos + Count <= info->read_end))
   {
     memcpy(Buffer, info->read_pos, Count);
     info->read_pos+= Count;
@@ -572,7 +572,7 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
   MEM_CHECK_DEFINED(Buffer, Count);
-  if (info->write_pos + Count <= info->write_end)
+  if (likely(info->write_pos + Count <= info->write_end))
   {
     if (Count)
     {
@@ -586,7 +586,7 @@ static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 
 static inline int my_b_get(IO_CACHE *info)
 {
-  if (info->read_pos != info->read_end)
+  if (likely(info->read_pos != info->read_end))
   {
     info->read_pos++;
     return info->read_pos[-1];
@@ -597,7 +597,7 @@ static inline int my_b_get(IO_CACHE *info)
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
   MEM_CHECK_DEFINED(&chr, 1);
-  if (info->write_pos >= info->write_end)
+  if (unlikely(info->write_pos >= info->write_end))
     if (my_b_flush_io_cache(info, 1))
       return 1;
   *info->write_pos++= chr;

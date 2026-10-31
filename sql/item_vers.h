@@ -148,6 +148,8 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees_eq") };
     return name;
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_func_trt_trx_sees_eq)
 };
 
 #endif /* ITEM_VERS_INCLUDED */

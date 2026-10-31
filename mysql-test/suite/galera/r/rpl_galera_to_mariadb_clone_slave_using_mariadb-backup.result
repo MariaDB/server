@@ -107,8 +107,6 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 ### Slave: Shutdown the server
 connection slave;
 ### Master: Run a transaction while the slave is shut down
@@ -203,8 +201,6 @@ connection slave;
 STOP SLAVE;
 include/wait_for_slave_to_stop.inc
 RESET SLAVE ALL;
-Warnings:
-Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 set global wsrep_on=OFF;
 include/kill_binlog_dump_threads.inc

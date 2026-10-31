@@ -50,6 +50,7 @@
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/common/types/timestamp.hpp"
 #include "duckdb/common/types/date.hpp"
+#include "duckdb/common/types/datetime.hpp"
 #include "duckdb/main/database.hpp"
 #include "duckdb/main/connection.hpp"
 
@@ -1667,9 +1668,28 @@ static void register_json_unquote_function(duckdb::Catalog &catalog,
   }
 }
 
+static void mariadb_time_from_micros_func(duckdb::DataChunk &args,
+                                          duckdb::ExpressionState &,
+                                          duckdb::Vector &result)
+{
+  duckdb::UnaryExecutor::Execute<int64_t, duckdb::dtime_t>(
+      args.data[0], result, args.size(),
+      [](int64_t micros) { return duckdb::dtime_t(micros); });
+}
+
 static void register_time_arith_functions(duckdb::Catalog &catalog,
                                           duckdb::CatalogTransaction transaction)
 {
+  {
+    duckdb::ScalarFunctionSet set("mariadb_time");
+    set.AddFunction(duckdb::ScalarFunction(
+        {duckdb::LogicalType::BIGINT}, duckdb::LogicalType::TIME,
+        mariadb_time_from_micros_func));
+    duckdb::CreateScalarFunctionInfo info(std::move(set));
+    info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+    catalog.CreateFunction(transaction, info);
+  }
+
   /* addtime(TIMESTAMP/TIME, VARCHAR) → TIMESTAMP/TIME */
   {
     duckdb::ScalarFunctionSet set("addtime");

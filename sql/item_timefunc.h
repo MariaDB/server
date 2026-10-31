@@ -1505,6 +1505,8 @@ public:
     null_value= !it.is_valid_interval_DDhhmmssff();
     return it.to_string(to, m_fsp);
   }
+protected:
+  ITEM_SHALLOW_COPY(Item_interval_DDhhmmssff_typecast)
 };
 
 

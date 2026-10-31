@@ -20,13 +20,18 @@
   along with this program; if not, write to the Free Software Foundation,
   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
-#ifndef MYSQL_MEMORY_H
-#define MYSQL_MEMORY_H
-
 /**
   @file mysql/psi/mysql_memory.h
   Instrumentation helpers for memory allocation.
 */
+
+#ifndef MYSQL_MEMORY_H
+/**
+  @defgroup Memory_instrumentation Memory Instrumentation
+  @ingroup Instrumentation_interface
+  @{
+*/
+#define MYSQL_MEMORY_H
 
 #include "mysql/psi/psi.h"
 
@@ -45,12 +50,6 @@
 #ifndef PSI_MEMORY_CALL
 #define PSI_MEMORY_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Memory_instrumentation Memory Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def mysql_memory_register(P1, P2, P3)

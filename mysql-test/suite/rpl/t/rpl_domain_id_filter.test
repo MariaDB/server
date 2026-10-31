@@ -367,8 +367,9 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 --echo DO_DOMAIN_IDS (BEFORE)     : $do_domain_ids_before
 --echo IGNORE_DOMAIN_IDS (BEFORE) : $ignore_domain_ids_before
 
-# MASTER_USE_GTID can't be set to NO when either of IGNORE_DOMAIN_IDS or
-# DO_DOMAIN_IDS is non-empty.
+--echo # MASTER_USE_GTID can't be set to NO when either of IGNORE_DOMAIN_IDS or
+--echo # DO_DOMAIN_IDS is non-empty.
+
 --error ER_MASTER_INFO
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=NO;

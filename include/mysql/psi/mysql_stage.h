@@ -26,6 +26,10 @@
 /**
   @file mysql/psi/mysql_stage.h
   Instrumentation helpers for stages.
+
+  @defgroup Stage_instrumentation Stage Instrumentation
+  @ingroup Instrumentation_interface
+  @{
 */
 
 #include "mysql/psi/psi.h"
@@ -33,12 +37,6 @@
 #ifndef PSI_STAGE_CALL
 #define PSI_STAGE_CALL(M) PSI_DYNAMIC_CALL(M)
 #endif
-
-/**
-  @defgroup Stage_instrumentation Stage Instrumentation
-  @ingroup Instrumentation_interface
-  @{
-*/
 
 /**
   @def mysql_stage_register(P1, P2, P3)

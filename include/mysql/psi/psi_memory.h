@@ -38,7 +38,7 @@ extern "C" {
   @file mysql/psi/psi_memory.h
   Performance schema instrumentation interface.
 
-  @defgroup Instrumentation_interface Instrumentation Interface
+  @addtogroup Instrumentation_interface
   @{
 */
 
@@ -55,7 +55,7 @@ struct PSI_thread;
 #ifdef HAVE_PSI_1
 
 /**
-  @defgroup Group_PSI_v1 Application Binary Interface, version 1
+  @defgroup Group_PSI_v1 Application Binary Interface, Version 1
   @ingroup Instrumentation_interface
   @{
 */

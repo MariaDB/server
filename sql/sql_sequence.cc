@@ -1122,21 +1122,6 @@ end:
   DBUG_RETURN(error);
 }
 
-#if defined(HAVE_REPLICATION)
-class wait_for_commit_raii
-{
-private:
-  THD *m_thd;
-  wait_for_commit *m_wfc;
-
-public:
-  wait_for_commit_raii(THD* thd) :
-      m_thd(thd), m_wfc(thd->suspend_subsequent_commits())
-    {}
-  ~wait_for_commit_raii() { m_thd->resume_subsequent_commits(m_wfc); }
-};
-#endif
-
 bool Sql_cmd_alter_sequence::execute(THD *thd)
 {
   int error= 0;
@@ -1150,10 +1135,8 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   No_such_table_error_handler no_such_table_handler;
   DBUG_ENTER("Sql_cmd_alter_sequence::execute");
   {
-#if defined(HAVE_REPLICATION)
     /* No wakeup():s of subsequent commits is allowed in this function. */
-    wait_for_commit_raii suspend_wfc(thd);
-#endif
+    Suspend_subsequent_commits suspend_wfc(thd);
 
     if (check_access(thd, ALTER_ACL, first_table->db.str,
                      &first_table->grant.privilege,
