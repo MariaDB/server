@@ -74,7 +74,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 #if defined(_WIN32)
 	// Start the child process. 
 	if (_spawnlp(_P_WAIT, "curl", "curl", "--proto", "=http,https", fn, "--", buf, NULL)) {
-		my_snprintf(g->Message, sizeof(g->Message), "spawn curl failed (%M)", errno);
+		my_snprintf(g->Message, sizeof(g->Message), "spawn curl failed (%iE)", errno);
 		rc = 1;
 	}	// endif _spawnlp
 #else   // !_WIN32
@@ -93,7 +93,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		_exit(1); // NOT exit()
 	} else if (pID < 0) {
 		// failed to fork
-		my_snprintf(g->Message, sizeof(g->Message), "Failed to fork: %M", errno);
+		my_snprintf(g->Message, sizeof(g->Message), "Failed to fork: %iE", errno);
 		rc = 1;
 	} else {
 		// Parent process - wait for the child to terminate
