@@ -248,6 +248,27 @@ create table t1 (a integer) partition by list(a) subpartition by key(a) (
   partition p2 values in (1) (subpartition sp3, subpartition `sp-4`)
 );
 
+create table t1 (a int) partition by list (a) (
+  partition p0 values in (3),
+  partition p1 values in (5)
+);
+insert t1 values (3),(5);
+--error ER_WRONG_PARTITION_NAME
+alter table t1 add partition (partition `#mysql50#p-2` values in (7));
+select * from t1;
+--list_files $MYSQLD_DATADIR/test t1*
+drop table t1;
+
+create table t1 (a int) partition by list (a) subpartition by key(a) (
+  partition p0 values in (3) (subpartition sp0, subpartition sp1),
+  partition p1 values in (5) (subpartition sp2, subpartition sp3)
+);
+insert t1 values (3),(5);
+--error ER_WRONG_PARTITION_NAME
+alter table t1 add partition (partition p2 values in (7) (subpartition sp4, subpartition `#mysql50#sp-5`));
+select * from t1;
+drop table t1;
+
 # two ways to fix bad partition name:
 --copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYD $MYSQLD_DATADIR/test/t1#P#p-2.MYD
 --copy_file $MYSQLTEST_VARDIR/std_data/parts/mysql50#P#p0.MYI $MYSQLD_DATADIR/test/t1#P#p-2.MYI
