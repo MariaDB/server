@@ -1,5 +1,5 @@
-/* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, 2020, MariaDB
+/* Copyright (c) 2015, Oracle and/or its affiliates.
+   Copyright (c) 2016, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -757,22 +757,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
       (tx_changed & TX_CHG_CHISTICS))
   {
     bool is_xa= thd->transaction->xid_state.is_explicit_XA();
-    size_t start;
-
-    /* 2 length by 1 byte and code */
-    if (unlikely((1 + 1 + 1 + 110 + buf->length() >= MAX_PACKET_LENGTH) ||
-                 buf->reserve(1 + 1 + 1, EXTRA_ALLOC)))
-      return true;
-
-    compile_time_assert(SESSION_TRACK_TRANSACTION_CHARACTERISTICS < 251);
-    /* Session state type (SESSION_TRACK_TRANSACTION_CHARACTERISTICS) */
-    buf->q_append((char)SESSION_TRACK_TRANSACTION_CHARACTERISTICS);
-
-    /* placeholders for lengths. will be filled in at the end */
-    buf->q_append('\0');
-    buf->q_append('\0');
-
-    start= buf->length();
+    StringBuffer<512> acc;
 
     {
       /*
@@ -861,9 +846,9 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
           Unfortunately, we can't re-use tx_isolation_names /
           tx_isolation_typelib as it hyphenates its items.
         */
-        buf->append(STRING_WITH_LEN("SET TRANSACTION ISOLATION LEVEL "));
-        buf->append(&isol[tx_isol_level - 1]);
-        buf->append(STRING_WITH_LEN("; "));
+        acc.append(STRING_WITH_LEN("SET TRANSACTION ISOLATION LEVEL "));
+        acc.append(&isol[tx_isol_level - 1]);
+        acc.append(STRING_WITH_LEN("; "));
       }
 
       /*
@@ -877,7 +862,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
       */
       if ((tx_curr_state & TX_EXPLICIT) && !is_xa)
       {
-        buf->append(STRING_WITH_LEN("START TRANSACTION"));
+        acc.append(STRING_WITH_LEN("START TRANSACTION"));
 
         /*
           "WITH CONSISTENT SNAPSHOT"
@@ -886,9 +871,9 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         */
         if (tx_curr_state & TX_WITH_SNAPSHOT)
         {
-          buf->append(STRING_WITH_LEN(" WITH CONSISTENT SNAPSHOT"));
+          acc.append(STRING_WITH_LEN(" WITH CONSISTENT SNAPSHOT"));
           if (tx_read_flags != TX_READ_INHERIT)
-            buf->append(STRING_WITH_LEN(","));
+            acc.append(STRING_WITH_LEN(","));
         }
 
         /*
@@ -910,11 +895,11 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
         if (tx_read_flags != TX_READ_INHERIT)
         {
           if (tx_read_flags == TX_READ_ONLY)
-            buf->append(STRING_WITH_LEN(" READ ONLY"));
+            acc.append(STRING_WITH_LEN(" READ ONLY"));
           else
-            buf->append(STRING_WITH_LEN(" READ WRITE"));
+            acc.append(STRING_WITH_LEN(" READ WRITE"));
         }
-        buf->append(STRING_WITH_LEN("; "));
+        acc.append(STRING_WITH_LEN("; "));
       }
       else if (tx_read_flags != TX_READ_INHERIT)
       {
@@ -924,59 +909,46 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
           in START TRANSACTION, but for now, we'll resysynthesize the original
           command as closely as possible.
         */
-        buf->append(STRING_WITH_LEN("SET TRANSACTION "));
+        acc.append(STRING_WITH_LEN("SET TRANSACTION "));
         if (tx_read_flags == TX_READ_ONLY)
-          buf->append(STRING_WITH_LEN("READ ONLY; "));
+          acc.append(STRING_WITH_LEN("READ ONLY; "));
         else
-          buf->append(STRING_WITH_LEN("READ WRITE; "));
+          acc.append(STRING_WITH_LEN("READ WRITE; "));
       }
 
       if ((tx_curr_state & TX_EXPLICIT) && is_xa)
       {
         XID *xid= thd->transaction->xid_state.get_xid();
-        long glen, blen;
-
-        buf->append(STRING_WITH_LEN("XA START"));
-
-        if ((glen= xid->gtrid_length) > 0)
-        {
-          buf->append(STRING_WITH_LEN(" '"));
-          buf->append(xid->data, glen);
-
-          if ((blen= xid->bqual_length) > 0)
-          {
-            buf->append(STRING_WITH_LEN("','"));
-            buf->append(xid->data + glen, blen);
-          }
-          buf->append(STRING_WITH_LEN("'"));
-
-          if (xid->formatID != 1)
-          {
-            buf->append(STRING_WITH_LEN(","));
-            buf->append_ulonglong(xid->formatID);
-          }
-        }
-
-        buf->append(STRING_WITH_LEN("; "));
+        acc.append(STRING_WITH_LEN("XA START x'"));
+        acc.append_hex(xid->data, xid->gtrid_length);
+        acc.append(STRING_WITH_LEN("', x'"));
+        acc.append_hex(xid->data + xid->gtrid_length, xid->bqual_length);
+        acc.append(STRING_WITH_LEN("', "));
+        acc.append_ulonglong(xid->formatID);
+        acc.append(STRING_WITH_LEN("; "));
       }
 
       // discard trailing space
-      if (buf->length() > start)
-        buf->length(buf->length() - 1);
+      if (acc.length())
+        acc.length(acc.length() - 1);
     }
 
-    {
-      size_t length= buf->length() - start;
-      uchar *place= (uchar *)(buf->ptr() + (start - 2));
-      DBUG_ASSERT(length < 249); // in fact < 110
-      DBUG_ASSERT(start >= 3);
+    DBUG_ASSERT(acc.length() < 65536);
 
-      DBUG_ASSERT((place - 1)[0] == SESSION_TRACK_TRANSACTION_CHARACTERISTICS);
-      /* Length of the overall entity. */
-      place[0]= (uchar)length + 1;
-      /* Transaction characteristics (length-encoded string). */
-      place[1]= (uchar)length;
-    }
+    /* 6 bytes for 2 lengths below 64K, variable-length encoded */
+    if (unlikely((buf->length() + acc.length() + 6 + 1>= MAX_PACKET_LENGTH) ||
+                  buf->reserve(acc.length() + 7)))
+      return true;
+
+    uchar *ptr= (uchar*)buf->end();
+
+    compile_time_assert(SESSION_TRACK_TRANSACTION_CHARACTERISTICS < 251);
+    /* Session state type (SESSION_TRACK_TRANSACTION_CHARACTERISTICS) */
+    *ptr++= SESSION_TRACK_TRANSACTION_CHARACTERISTICS;
+    ptr= net_store_length(ptr, acc.length() +  net_length_size(acc.length()));
+    ptr= net_store_length(ptr, acc.length());
+    memcpy(ptr, acc.ptr(), acc.length());
+    buf->length(ptr + acc.length() - (uchar*)buf->ptr());
   }
 
   tx_reported_state= tx_curr_state;
