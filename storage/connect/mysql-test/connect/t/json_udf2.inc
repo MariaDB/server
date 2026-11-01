@@ -22,6 +22,8 @@ DROP FUNCTION jsonlocate;
 DROP FUNCTION json_locate_all;
 DROP FUNCTION json_file;
 DROP FUNCTION jfile_make;
+DROP FUNCTION jfile_convert;
+DROP FUNCTION jfile_bjson;
 DROP FUNCTION json_get_item;
 DROP FUNCTION json_item_merge;
 DROP FUNCTION jsoncontains;

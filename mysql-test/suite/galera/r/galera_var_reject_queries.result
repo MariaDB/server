@@ -10,8 +10,6 @@ SELECT * FROM t1;
 Got one of the listed errors
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 connection node_1a;
-SELECT * FROM t1;
-Got one of the listed errors
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SELECT * FROM t1;
 Got one of the listed errors

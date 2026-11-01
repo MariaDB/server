@@ -192,6 +192,8 @@ DROP SERVER s;
 
 --echo # End of 10.11 tests
 
+--echo # End of 11.4 tests
+
 --echo #
 --echo # MDEV-40312 SHOW CREATE SERVER incorrect quoting
 --echo #

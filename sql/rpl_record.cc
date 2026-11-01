@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB Corporation.
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -330,6 +330,9 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
 
   Unpack_record_state st(row_data, row_end, (bitmap_bits_set(cols) + 7) / 8);
 
+  if (unlikely(st.pack_ptr > row_end))
+    DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
+
   if (bitmap_is_clear_all(cols))
   {
     /**
@@ -402,8 +405,18 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
       {
         /* Column does not exist on slave, skip over it */
         if (!null_value)
-          st.pack_ptr+=
-              tabledef->calc_field_size(master_idx, (uchar *) st.pack_ptr);
+        {
+          uint32 len= tabledef->calc_field_size(master_idx,
+                                    (uchar *) st.pack_ptr,
+                                    (size_t) (st.row_end - st.pack_ptr));
+          if (unlikely(st.pack_ptr + len > st.row_end))
+          {
+            rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                             rgi->gtid_info(), "Corrupt field data");
+            DBUG_RETURN(HA_ERR_CORRUPT_EVENT);
+          }
+          st.pack_ptr+= len;
+        }
         continue;
       }
 
@@ -569,10 +582,11 @@ int unpack_row(const rpl_group_info *rgi, TABLE *table, uint const master_cols,
  */ 
 int prepare_record(TABLE *const table)
 {
-  uint col= 0;
   DBUG_ENTER("prepare_record");
 
   restore_record(table, s->default_values);
+  /* Drop the explicit value marks left by the previously unpacked row */
+  table->reset_default_fields();
 
   /*
     All fields are used
@@ -584,27 +598,33 @@ int prepare_record(TABLE *const table)
     For fields on the slave that are not going to be updated from the row image,
     we check if they have a default.
     The check follows the same rules as the INSERT query without specifying an
-    explicit value for a field not having the explicit default 
+    explicit value for a field not having the explicit default
     (@c check_that_all_fields_are_given_values()).
   */
-  col= bitmap_get_first_clear(table->write_set);
-  for (Field **field_ptr= table->field + col; *field_ptr; field_ptr++, col++)
+  for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
-    if (!bitmap_is_set(table->write_set, col))
-      continue;
-
     Field *const f= *field_ptr;
-    DBUG_ASSERT(!((f->flags & NO_DEFAULT_VALUE_FLAG) && f->vcol_info)); // QQ
-    if ((f->flags & NO_DEFAULT_VALUE_FLAG) &&
-        (f->real_type() != MYSQL_TYPE_ENUM) && !f->vcol_info)
+    uint col_idx= f->field_index;
+
+    /* Check fields not in write_set, matching has_no_default_value() logic */
+    if (!bitmap_is_set(table->write_set, col_idx))
     {
-      THD *thd= f->table->in_use;
-      f->set_default();
-      push_warning_printf(thd,
-                          Sql_condition::WARN_LEVEL_WARN,
-                          ER_NO_DEFAULT_FOR_FIELD,
-                          ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
-                          f->field_name.str);
+      /* Skip virtual columns; they compute their own value */
+      if (f->vcol_info)
+        continue;
+
+      /* Check for NO_DEFAULT_VALUE_FLAG, excluding VERS_ROW_START/END and ENUM types */
+      if ((f->flags & (NO_DEFAULT_VALUE_FLAG | VERS_ROW_START | VERS_ROW_END))
+            == NO_DEFAULT_VALUE_FLAG && f->real_type() != MYSQL_TYPE_ENUM)
+      {
+        THD *thd= f->table->in_use;
+        f->set_default();
+        push_warning_printf(thd,
+                            Sql_condition::WARN_LEVEL_WARN,
+                            ER_NO_DEFAULT_FOR_FIELD,
+                            ER_THD(thd, ER_NO_DEFAULT_FOR_FIELD),
+                            f->field_name.str);
+      }
     }
   }
 

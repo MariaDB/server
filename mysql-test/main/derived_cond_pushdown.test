@@ -4578,4 +4578,316 @@ select * from (select id  from t1 union select id from t2) dt1,
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-36295 INTERVAL() pushed into a derived table
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1,10),(5,20),(9,30);
+select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 1;
+drop table t1;
+
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-41238 Bound parameters prevent condition pushdown into a grouped
+--echo #   view, while CAST enables it
+--echo #
+
+create table t0 (x varchar(32) not null, y varchar(32) not null,
+                 key ix_xy (x, y));
+insert into t0 select concat('x', seq mod 10), concat('y', seq mod 5)
+               from seq_1_to_200;
+create view v1 as select x, y, count(*) as total from t0 group by x, y;
+
+create table t1 (i int not null, s varchar(32) not null,
+                 dc decimal(10,2) not null, d date not null,
+                 dtm datetime not null, b int not null);
+insert into t1 select seq mod 10, concat('s', seq mod 10), (seq mod 10) + 0.5,
+                      date'2020-01-01' + interval (seq mod 10) day,
+                      timestamp'2020-01-01 00:00:00' + interval (seq mod 10) day,
+                      seq
+               from seq_1_to_100;
+create view vg as select i, s, dc, d, dtm, count(*) as cnt, max(b) as mb
+                  from t1 group by i, s, dc, d, dtm;
+create view vu as select i, s, b from t1 where b <= 50
+                  union all
+                  select i, s, b from t1 where b > 50;
+create table t2 (i int not null, b int not null);
+insert into t2 select seq mod 10, seq from seq_1_to_50;
+
+--echo # Both conjuncts are pushed into the view, with each execution's values
+prepare s from 'select * from v1 where x = ? and y = ?';
+execute s using 'x7', 'y2';
+execute s using 'x3', 'y3';
+prepare s from 'explain format=json select * from v1 where x = ? and y = ?';
+--echo # Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+--source include/explain-no-costs.inc
+execute s using 'x7', 'y2';
+
+--echo # One parameter and one literal
+prepare s from 'select * from v1 where x = ? and y = ''y2''';
+execute s using 'x7';
+execute s using 'x2';
+prepare s from 'explain format=json select * from v1 where x = ? and y = ''y2''';
+--echo # Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+--source include/explain-no-costs.inc
+execute s using 'x7';
+
+--echo # The same with the value sent with mysql_stmt_send_long_data()
+# The PS_ commands are sent as SQL when these protocols are on
+--disable_cursor_protocol
+--disable_ps_protocol
+--PS_prepare select * from v1 where x = ? and y = 'y2'
+--PS_bind_long x7
+--PS_execute
+--PS_bind_long x2
+--PS_execute
+--PS_close
+--PS_prepare explain format=json select * from v1 where x = ? and y = 'y2'
+--PS_bind_long x7
+--echo # Check that x = 'x7' and y = 'y2' is pushed down into the materialized view v1
+--source include/explain-no-costs.inc
+--PS_execute
+--PS_close
+--enable_ps_protocol
+--enable_cursor_protocol
+
+--echo # A parameter inside an OR, a comparison and an IN list
+prepare s from 'select i, cnt from vg where (i = ? or i = 8) and s <> ''zz''';
+execute s using 7;
+execute s using 1;
+prepare s from
+  'explain format=json select i, cnt from vg where (i = ? or i = 8) and s <> ''zz''';
+--echo # Check that (i = 7 or i = 8) and s <> 'zz' is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using 7;
+prepare s from 'select i, cnt from vg where i > ?';
+execute s using 7;
+execute s using 8;
+prepare s from 'explain format=json select i, cnt from vg where i > ?';
+--echo # Check that i > 7 is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using 7;
+prepare s from 'select i, cnt from vg where s in (?, ?)';
+execute s using 's7', 's8';
+execute s using 's1', 's2';
+prepare s from 'explain format=json select i, cnt from vg where s in (?, ?)';
+--echo # Check that s in ('s7','s8') is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using 's7', 's8';
+
+--echo # Equalities on columns of each type, and NULL
+prepare s from 'select i, cnt from vg where i = ?';
+execute s using 7;
+execute s using NULL;
+prepare s from 'explain format=json select i, cnt from vg where i = ?';
+--echo # Check that i = 7 is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using 7;
+--echo # Check that i = NULL is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using NULL;
+prepare s from 'select i, cnt from vg where dc = ?';
+execute s using 7.5;
+execute s using 2.50;
+prepare s from 'explain format=json select i, cnt from vg where dc = ?';
+--echo # Check that dc = 7.5 is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using 7.5;
+prepare s from 'select i, cnt from vg where d = ?';
+execute s using date'2020-01-08';
+execute s using date'2020-01-03';
+prepare s from 'explain format=json select i, cnt from vg where d = ?';
+--echo # Check that d = DATE'2020-01-08' is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using date'2020-01-08';
+prepare s from 'select i, cnt from vg where dtm = ?';
+execute s using timestamp'2020-01-08 00:00:00';
+execute s using date'2020-01-03';
+prepare s from 'explain format=json select i, cnt from vg where dtm = ?';
+--echo # Check that dtm = TIMESTAMP'2020-01-08 00:00:00' is pushed down into vg
+--source include/explain-no-costs.inc
+execute s using timestamp'2020-01-08 00:00:00';
+
+--echo # A UNION ALL view, and a parameter in one branch's select list
+prepare s from 'select * from vu where i = ? and b > ?';
+execute s using 7, 40;
+execute s using 3, 80;
+prepare s from 'explain format=json select * from vu where i = ? and b > ?';
+--echo # Check that i = 7 and b > 40 is pushed down into both branches of vu
+--source include/explain-no-costs.inc
+execute s using 7, 40;
+prepare s from
+  'select * from (select i, b as bb from t1 where b <= 50
+                  union all
+                  select i, b + ? from t1 where b > 50) dt
+   where dt.bb > 95';
+execute s using 0;
+execute s using 10;
+prepare s from
+  'explain format=json
+   select * from (select i, b as bb from t1 where b <= 50
+                  union all
+                  select i, b + ? from t1 where b > 50) dt
+   where dt.bb > 95';
+--echo # Check that bb > 95 is pushed down into both branches, as b + 0 > 95 into the second
+--source include/explain-no-costs.inc
+execute s using 0;
+
+--echo # A derived table that is not grouped, and a parameter in its select list
+set optimizer_switch='derived_merge=off';
+prepare s from 'select * from (select i, s, b from t1) dt where dt.i = ? and dt.b > ?';
+execute s using 7, 90;
+execute s using 3, 50;
+prepare s from
+  'explain format=json
+   select * from (select i, s, b from t1) dt where dt.i = ? and dt.b > ?';
+--echo # Check that i = 7 and b > 90 is pushed down into dt
+--source include/explain-no-costs.inc
+execute s using 7, 90;
+prepare s from 'select * from (select i, b + ? as bb from t1) dt where dt.bb > 99';
+execute s using 0;
+execute s using 5;
+prepare s from
+  'explain format=json
+   select * from (select i, b + ? as bb from t1) dt where dt.bb > 99';
+--echo # Check that bb > 99 is pushed down into dt as b + 0 > 99
+--source include/explain-no-costs.inc
+execute s using 0;
+set optimizer_switch=default;
+
+--echo # A parameter in the GROUP BY expression: pushed into WHERE, not HAVING
+prepare s from
+  'select * from (select i + ? as ii, count(*) as c from t1 group by ii) dt
+   where dt.ii = 5';
+execute s using 0;
+execute s using 2;
+prepare s from
+  'explain format=json
+   select * from (select i + ? as ii, count(*) as c from t1 group by ii) dt
+   where dt.ii = 5';
+--echo # Check that ii = 5 is pushed down into the WHERE of dt as i + 0 = 5
+--source include/explain-no-costs.inc
+execute s using 0;
+
+--echo # HAVING to WHERE: the part of an OR that is extracted
+prepare s from
+  'select i, max(b) from t1 group by i
+   having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0)';
+execute s using 7;
+execute s using 1;
+prepare s from
+  'explain format=json select i, max(b) from t1 group by i
+   having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0)';
+--echo # Check that i = 7 or i = 8 is moved from HAVING to WHERE
+--source include/explain-no-costs.inc
+execute s using 7;
+prepare s from
+  'select i, max(b) from t1 group by i
+   having count(*) > 0 and ((i > ? and max(b) > 0) or (i < 3 and max(b) > 0))';
+execute s using 7;
+execute s using 8;
+prepare s from
+  'explain format=json select i, max(b) from t1 group by i
+   having count(*) > 0 and ((i > ? and max(b) > 0) or (i < 3 and max(b) > 0))';
+--echo # Check that i > 7 or i < 3 is moved from HAVING to WHERE
+--source include/explain-no-costs.inc
+execute s using 7;
+
+--echo # Pushdown into a materialized IN subquery
+prepare s from
+  'select * from t1
+   where (t1.i, t1.b) in (select t2.i, max(t2.b) from t2 group by t2.i)
+     and t1.i = ? and t1.b < ?';
+execute s using 7, 50;
+execute s using 3, 50;
+prepare s from
+  'explain format=json select * from t1
+   where (t1.i, t1.b) in (select t2.i, max(t2.b) from t2 group by t2.i)
+     and t1.i = ? and t1.b < ?';
+--echo # Check that i = 7 is pushed down into the materialized subquery as t2.i = 7
+--source include/explain-no-costs.inc
+execute s using 7, 50;
+prepare s from
+  'select * from t1
+   where t1.i in (select t2.i + cast(? as signed) as x from t2 having x >= 0)
+     and t1.i > 7';
+execute s using 0;
+execute s using 1;
+prepare s from
+  'explain format=json select * from t1
+   where t1.i in (select t2.i + cast(? as signed) as x from t2 having x >= 0)
+     and t1.i > 7';
+--echo # Check that i > 7 is pushed down into the materialized subquery as
+--echo #   t2.i + cast(0 as signed) > 7
+--source include/explain-no-costs.inc
+execute s using 0;
+
+--echo # A CTE referenced twice: the second reference has clones of the
+--echo # parameters, and both references get the copies
+prepare s from
+  'with c as (select i, max(b) as mb from t1 group by i
+              having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0))
+   select * from c c1 join c c2 on c1.i = c2.i order by c1.i';
+execute s using 7;
+execute s using 1;
+prepare s from
+  'explain format=json
+   with c as (select i, max(b) as mb from t1 group by i
+              having (i = ? and max(b) > 0) or (i = 8 and max(b) > 0))
+   select * from c c1 join c c2 on c1.i = c2.i';
+--echo # Check that i = 7 or i = 8 is moved to WHERE in both references to c
+--source include/explain-no-costs.inc
+execute s using 7;
+prepare s from
+  'with c as (select i + ? as ii, count(*) as cnt from t1 group by ii)
+   select * from c c1 join c c2 on c1.ii = c2.ii where c1.ii = 5';
+execute s using 0;
+execute s using 2;
+prepare s from
+  'explain format=json
+   with c as (select i + ? as ii, count(*) as cnt from t1 group by ii)
+   select * from c c1 join c c2 on c1.ii = c2.ii where c1.ii = 5';
+--echo # Check that ii = 5 is pushed down into both references to c as i + 0 = 5
+--source include/explain-no-costs.inc
+execute s using 0;
+
+drop view v1, vg, vu;
+drop table t0, t1, t2;
+
+--echo # Split materialization on an equality with a parameter
+create table t3 (a int not null, b int not null, key ix_a (a));
+insert into t3 select seq mod 2000, seq from seq_1_to_20000;
+create table t4 (k int not null);
+insert into t4 values (10), (20), (30), (40), (50);
+analyze table t3, t4 persistent for all;
+prepare s from
+  'select * from t4, (select a, count(*) as c, max(b) as mb from t3 group by a) dt
+   where dt.a = t4.k + ?';
+execute s using 0;
+execute s using 1;
+prepare s from
+  'explain format=json
+   select * from t4, (select a, count(*) as c, max(b) as mb from t3 group by a) dt
+   where dt.a = t4.k + ?';
+--echo # Check that dt is split: it is read by ref on key0, and t3 by ref on ix_a
+--source include/explain-no-costs.inc
+execute s using 0;
+drop table t3, t4;
+
+--echo # The casefold rewrite of MDEV-40006 applies to a parameter list
+set names utf8mb4;
+create table t1 (id int, cs varchar(10), key(cs)) collate=utf8mb4_general_ci;
+insert into t1 (id, cs) values (1, 'AA1AA'),(2, 'BB2BB'),(3, 'CC3CC');
+prepare s from 'select id, cs from t1 where upper(cs) in (?, ?)';
+execute s using 'AA1AA', 'BB2BB';
+execute s using 'aa1aa', 'CC3CC';
+prepare s from 'explain select id, cs from t1 where upper(cs) in (?, ?)';
+--echo # Check that the plan reads t1 by range on cs
+execute s using 'AA1AA', 'BB2BB';
+deallocate prepare s;
+drop table t1;
+set names default;
+
+--echo # End of 11.4 tests

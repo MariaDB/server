@@ -1,0 +1,74 @@
+SET @@global.binlog_expire_logs_seconds= 0;
+SET @@global.max_binlog_total_size= 0;
+SET @@global.slave_connections_needed_for_purge= 1;
+SELECT @@global.slave_connections_needed_for_purge;
+@@global.slave_connections_needed_for_purge
+1
+SELECT @@global.binlog_expire_logs_seconds, @@global.max_binlog_total_size;
+@@global.binlog_expire_logs_seconds	@@global.max_binlog_total_size
+0	0
+# No replica has ever connected:
+SELECT COUNT(*) AS dump_threads FROM information_schema.PROCESSLIST
+WHERE COMMAND = 'Binlog Dump';
+dump_threads
+0
+RESET MASTER;
+#
+# Part 1 (control). Nothing has attempted a purge yet, so no refusal is
+# cached, and the interactive purge correctly ignores the slave's guard.
+#
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+binlog-000000.ibb	#
+binlog-000001.ibb	#
+binlog-000002.ibb	#
+binlog-000003.ibb	#
+binlog-000004.ibb	#
+PURGE BINARY LOGS TO 'binlog-000002.ibb';
+SHOW WARNINGS;
+Level	Code	Message
+show binary logs;
+Log_name	File_size
+binlog-000002.ibb	#
+binlog-000003.ibb	#
+binlog-000004.ibb	#
+#
+# Part 2. Let one automatic purge be refused, then try PURGE that must
+# be effective on the fixed server.
+#
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+show binary logs;
+Log_name	File_size
+binlog-000002.ibb	#
+binlog-000003.ibb	#
+binlog-000004.ibb	#
+binlog-000005.ibb	#
+binlog-000006.ibb	#
+binlog-000007.ibb	#
+# Let the files age past binlog_expire_logs_seconds: purge_logs_before_date
+# skips can_purge_log() for any file whose mtime is not older than that.
+SET @@global.binlog_expire_logs_seconds= 1;
+# Rotating attempts an automatic purge, which the guard refuses. That
+# refusal is what populates the cache.
+FLUSH BINARY LOGS;
+# Now the interactive purge. It should behave exactly as in part 1.
+PURGE BINARY LOGS TO 'binlog-000005.ibb';
+# On affected versions this reports binlog-000002.ibb as the current active
+# binlog, while binlog-000007.ibb is active:
+SHOW WARNINGS;
+Level	Code	Message
+show binary logs;
+Log_name	File_size
+binlog-000005.ibb	#
+binlog-000006.ibb	#
+binlog-000007.ibb	#
+binlog-000008.ibb	#
+SET @@global.binlog_expire_logs_seconds = $save_binlog_expire_logs_seconds;
+SET @@global.max_binlog_total_size= $save_max_binlog_total_size;
+SET @@global.slave_connections_needed_for_purge= $save_slave_connections_needed_for_purge;
+RESET MASTER;

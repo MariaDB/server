@@ -691,7 +691,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> RETURN_ORACLE_SYM             /* SQL-2003-R, PLSQL-R */
 %token  <kwd> REVOKE                        /* SQL-2003-R */
 %token  <kwd> RIGHT                         /* SQL-2003-R */
-%token  <kwd> ROW_NUMBER_SYM
 %token  <kwd> ROWS_SYM                      /* SQL-2003-R */
 %token  <kwd> ROWTYPE_ORACLE_SYM            /* PLSQL-R    */
 %token  <kwd> SECOND_MICROSECOND_SYM
@@ -1105,6 +1104,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ROW_SYM                       /* SQL-2003-R */
 %token  <kwd>  ROW_COUNT_SYM                 /* SQL-2003-N */
 %token  <kwd>  ROW_FORMAT_SYM
+%token  <kwd>  ROW_NUMBER_SYM
 %token  <kwd>  RTREE_SYM
 %token  <kwd>  SAVEPOINT_SYM                 /* SQL-2003-R */
 %token  <kwd>  SCALAR_SYM
@@ -1767,6 +1767,7 @@ rule:
         derived_table_list table_reference_list_parens
         nested_table_reference_list join_table_parens
         update_table_list table_function
+        delete_single_table
 %type <date_time_type> date_time_type;
 %type <interval> interval
 
@@ -8815,6 +8816,8 @@ table_index_name:
 binlog_base64_event:
           BINLOG_SYM TEXT_STRING_sys
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $2;
             Lex->ident.str=    NULL;
@@ -8823,6 +8826,8 @@ binlog_base64_event:
           |
           BINLOG_SYM '@' ident_or_text ',' '@' ident_or_text
           {
+            if (Lex->sphead)
+              my_yyabort_error((ER_SP_BADSTATEMENT, MYF(0), "BINLOG"));
             Lex->sql_command = SQLCOM_BINLOG_BASE64_EVENT;
             Lex->comment= $3;
             Lex->ident=   $6;
@@ -10188,6 +10193,7 @@ predicate:
           }
         | predicate LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
+            Lex->check_escape_placeholder($5);
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, $5, true);
             if (unlikely(!$$))
               MYSQL_YYABORT;
@@ -10201,6 +10207,7 @@ predicate:
           }
         | predicate not LIKE predicate ESCAPE_SYM predicate %prec LIKE
           {
+            Lex->check_escape_placeholder($6);
             Item *item= new (thd->mem_root) Item_func_like(thd, $1, $4, $6, true);
             if (unlikely(!item))
               MYSQL_YYABORT;
@@ -14616,7 +14623,7 @@ delete_part2:
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
             LEX *lex= Lex;
-            lex->last_table()->vers_conditions= lex->vers_conditions;
+            $2->vers_conditions= lex->vers_conditions;
             lex->sql_command= SQLCOM_DELETE;
             if (!(lex->m_sql_cmd=
                   new (thd->mem_root) Sql_cmd_delete(false)))
@@ -14644,12 +14651,12 @@ delete_single_table:
 
             Lex->query_tables= 0;
             Lex->query_tables_last= &Lex->query_tables;
-            if (unlikely(!Select->
-                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type,
-                                           Select->pop_index_hints(),
-                                           $5)))
+            if (!($$= Select->
+                    add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
+                                      YYPS->m_lock_type,
+                                      YYPS->m_mdl_type,
+                                      Select->pop_index_hints(),
+                                      $5)))
               MYSQL_YYABORT;
             Lex->auxiliary_table_list.first->correspondent_table=
               Lex->query_tables;
@@ -14662,7 +14669,7 @@ delete_single_table_for_period:
           delete_single_table opt_for_portion_of_time_clause
           {
             if ($2)
-              Lex->last_table()->period_conditions= Lex->period_conditions;
+              $1->period_conditions= Lex->period_conditions;
           }
         ;
 
@@ -17364,6 +17371,7 @@ keyword_sp_var_and_label:
 %ifdef MARIADB
         | ROWNUM_SYM
 %endif
+        | ROW_NUMBER_SYM
         | SECOND_SYM
         | SETVAL_SYM
         | SOUNDS_SYM
@@ -17561,7 +17569,6 @@ reserved_keyword_udt_not_param_type:
         | RIGHT
         | ROWS_SYM
         | ROWTYPE_ORACLE_SYM
-        | ROW_NUMBER_SYM
         | SECOND_MICROSECOND_SYM
         | SELECT_SYM
         | SENSITIVE_SYM

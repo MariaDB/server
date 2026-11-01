@@ -1,0 +1,173 @@
+#
+# A persistent cursor that is restored after the buffer pool shrank and
+# grew again
+#
+# btr_pcur_t::restore_position() accepts the stored position without a
+# search when the block descriptor that it remembers holds the same page
+# id and the same modify_clock. The descriptors are at fixed addresses,
+# and a grow initializes the descriptors that an earlier shrink withdrew.
+# If that reset modify_clock, a page that is read into such a descriptor
+# after the grow could have the modify_clock that a cursor stored before
+# the shrink, when the page had been read into the same descriptor after
+# an earlier grow. The page can have changed in between, and the cursor
+# would continue from a stale record pointer.
+#
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_partition.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+
+# One leaf page each, with the records in descending key order in the page.
+# A reorganization writes them in key order, so pk=20 moves to the offset
+# of pk=1.
+create table t1 (pk int primary key, val varchar(255) not null)
+engine=innodb stats_persistent=0 charset=latin1;
+insert into t1 select seq, repeat('a', 100) from seq_1_to_20 order by seq desc;
+create table t2 like t1;
+insert into t2 select seq, repeat('a', 100) from seq_1_to_20 order by seq desc;
+
+# One page per partition. A lookup of an evicted partition reads one page.
+# The page cleaner keeps about innodb_lru_scan_depth blocks free, and the
+# partitions must outnumber them.
+create table t3 (pk int primary key) engine=innodb stats_persistent=0
+partition by hash(pk) partitions 256;
+insert into t3 select seq from seq_0_to_255;
+
+# Three times innodb_buffer_pool_size, to evict everything else.
+create table t4 (a int primary key, b varchar(7000)) engine=innodb
+stats_persistent=0;
+insert into t4 select seq, repeat('x', 7000) from seq_1_to_3000;
+
+delimiter |;
+# Stop the statement after it read pk=1 and stored its position.
+create function hold(x int) returns int
+begin
+  if x = 1 then
+    set debug_sync= 'now SIGNAL paused WAIT_FOR go';
+  end if;
+  return 1;
+end|
+
+# Grow the buffer pool from @old_size to @new_size and read the only page
+# of the table tbl into the first block that the grow adds. A concurrent
+# page read can take that block; then shrink and try again. The first call
+# sets @first_new, the block id of the first new block. Later calls require
+# the same @first_new.
+create procedure read_into_first_new_block(tbl varchar(64))
+begin
+  declare attempts int default 5;
+  declare blk bigint default -1;
+  declare p int;
+  set @read_tbl= concat('select count(*) into @n from ', tbl);
+  prepare read_tbl from @read_tbl;
+  while blk != @first_new do
+    if attempts = 0 then
+      signal sqlstate '45000' set message_text= 'Wrong placement';
+    end if;
+    set attempts= attempts - 1;
+    if blk != -1 then
+      set global innodb_buffer_pool_size= @old_size;
+    end if;
+    # Evict all pages of t1, t2 and t3.
+    select sum(length(b)) into @n from t4;
+    if @first_new = 0 then
+      set @first_new= (select pool_size
+                       from information_schema.innodb_buffer_pool_stats);
+    end if;
+    set global innodb_buffer_pool_size= @new_size;
+    # A grow appends the new blocks to the end of the free list. Read pages
+    # of t3 until only the new blocks are free.
+    set p= 0;
+    while (select free_buffers > pool_size - @first_new
+           from information_schema.innodb_buffer_pool_stats) do
+      if p = 256 then
+        signal sqlstate '45000' set message_text= 'Out of partitions';
+      end if;
+      select pk into @n from t3 where pk= p;
+      set p= p + 1;
+    end while;
+    execute read_tbl;
+    select block_id into blk from information_schema.innodb_buffer_page
+    where table_name = concat('`test`.`', tbl, '`');
+  end while;
+  deallocate prepare read_tbl;
+end|
+delimiter ;|
+
+# Purge resets DB_TRX_ID in the inserted records. Let it finish, so that it
+# reads no pages into the free blocks that the procedure counts.
+set global innodb_max_purge_lag_wait= 0;
+
+set @old_size= @@global.innodb_buffer_pool_size;
+set @new_size= 12582912;
+set @first_new= 0;
+# The minimum, which keeps fewer blocks free than t3 has partitions.
+set @save_scan_depth= @@global.innodb_lru_scan_depth;
+set global innodb_lru_scan_depth= 100;
+
+--echo #
+--echo # A read that continues from a stale position
+--echo #
+--echo # Read the page of t1 into the first new block.
+call read_into_first_new_block('t1');
+connect (con1,localhost,root);
+--send select group_concat(pk) from t1 where hold(pk)
+connection default;
+set debug_sync= 'now WAIT_FOR paused';
+--echo # Reorganize the page while the read holds a stored position on pk=1.
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,do_page_reorganize';
+insert into t1 values (21, repeat('a', 100));
+set debug_dbug= @save_dbug;
+--echo # Shrink, which moves the page out of the block.
+set global innodb_buffer_pool_size= @old_size;
+--echo # Read the page of t1 into the same block again.
+call read_into_first_new_block('t1');
+--echo # Resume the read, which must return pk=2 to pk=20.
+set debug_sync= 'now SIGNAL go';
+connection con1;
+--reap
+connection default;
+set global innodb_buffer_pool_size= @old_size;
+# Purge was blocked by the read view of the paused read. Let it finish, so
+# that it reads no pages into the new blocks of the next case.
+set global innodb_max_purge_lag_wait= 0;
+
+--echo #
+--echo # An UPDATE that continues from a stale position
+--echo #
+--echo # Read the page of t2 into the first new block.
+call read_into_first_new_block('t2');
+connection con1;
+--send update t2 set val= 'b' where hold(pk)
+connection default;
+set debug_sync= 'now WAIT_FOR paused';
+--echo # Reorganize the page while the UPDATE holds a stored position on pk=1.
+set debug_dbug= '+d,do_page_reorganize';
+insert into t2 values (21, repeat('a', 100));
+set debug_dbug= @save_dbug;
+--echo # Shrink, which moves the page out of the block.
+set global innodb_buffer_pool_size= @old_size;
+--echo # Read the page of t2 into the same block again.
+call read_into_first_new_block('t2');
+--echo # Resume the UPDATE, which must change pk=1, not pk=20.
+set debug_sync= 'now SIGNAL go';
+connection con1;
+--enable_info
+--reap
+--disable_info
+disconnect con1;
+connection default;
+select group_concat(pk) from t2 where val = 'b';
+
+set debug_sync= 'reset';
+drop procedure read_into_first_new_block;
+drop function hold;
+drop table t1, t2, t3, t4;
+set global innodb_buffer_pool_size= @old_size;
+set global innodb_lru_scan_depth= @save_scan_depth;
+--source include/wait_until_count_sessions.inc

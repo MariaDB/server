@@ -8287,15 +8287,18 @@ int handler::check_duplicate_long_entry_key(const uchar *new_rec, uint key_no)
   if (result)
     goto end;
 
-  // restore pointers after swap_values in TABLE::update_virtual_fields()
-  for (Field **vf= table->vfield; *vf; vf++)
-  {
-    if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
-        bitmap_is_set(table->read_set, (*vf)->field_index))
-      ((Field_blob*)*vf)->swap_value_and_read_value();
-  }
   do
   {
+    /*
+      Undo the VCOL_UPDATE_FOR_READ swap after each lookup read, so that the
+      next read does not compute into the buffer record[1] points to.
+    */
+    for (Field **vf= table->vfield; *vf; vf++)
+    {
+      if (!(*vf)->stored_in_db() && (*vf)->flags & BLOB_FLAG &&
+          bitmap_is_set(table->read_set, (*vf)->field_index))
+        ((Field_blob*)*vf)->swap_value_and_read_value();
+    }
     if (!long_unique_fields_differ(key_info, lookup_buffer))
     {
       lookup_handler->position(table->record[0]);

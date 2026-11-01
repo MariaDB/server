@@ -189,21 +189,11 @@ the FTS system. */
 struct fts_trx_t {
 	trx_t*		trx;		/*!< InnoDB transaction */
 
-	ib_vector_t*	savepoints;	/*!< Active savepoints, must have at
-					least one element, the implied
-					savepoint */
-	ib_vector_t*	last_stmt;	/*!< last_stmt */
+	ib_rbt_t*	tables;		/*!< Modified FTS tables; indexed by
+					dict_table_t*, cells are
+					fts_trx_table_t* */
 
 	mem_heap_t*	heap;		/*!< heap */
-};
-
-/** Information required for transaction savepoint handling. */
-struct fts_savepoint_t {
-	const void*	name;		/*!< First entry is always NULL, the
-					default instance. Otherwise the
-					savepoint */
-
-	ib_rbt_t*	tables;		/*!< Modified FTS tables */
 };
 
 /** Information about changed rows in a transaction for a single table. */
@@ -212,8 +202,15 @@ struct fts_trx_table_t {
 
 	fts_trx_t*	fts_trx;	/*!< link to parent */
 
+	ib_vector_t*	ops;		/*!< operations, in the order of
+					fts_trx_add_op(); elements are
+					fts_trx_row_t. These are trimmed by
+					fts_trx_rollback(). */
+
 	ib_rbt_t*	rows;		/*!< rows changed; indexed by doc-id,
-					cells are fts_trx_row_t* */
+					cells are fts_trx_row_t*. Built from
+					ops when the transaction is
+					committed. */
 
 	fts_doc_ids_t*	added_doc_ids;	/*!< list of added doc ids (NULL until
 					the first addition) */
@@ -228,7 +225,10 @@ struct fts_trx_row_t {
 
 	fts_row_state	state;		/*!< state of the row */
 
-	ib_vector_t*	fts_indexes;	/*!< The indexes that are affected */
+	undo_no_t	undo_no;	/*!< trx_t::undo_no when the operation
+					was recorded; a partial rollback to
+					a savepoint discards the operations
+					that are newer than the savepoint */
 };
 
 /** List of document ids that were added during a transaction. This
@@ -418,17 +418,18 @@ inline void fts_doc_ids_free(fts_doc_ids_t* doc_ids)
 /** Sort an array of doc_id */
 void fts_doc_ids_sort(ib_vector_t *doc_ids);
 
-/******************************************************************//**
-Notify the FTS system about an operation on an FTS-indexed table. */
-void
-fts_trx_add_op(
-/*===========*/
-	trx_t*		trx,			/*!< in: InnoDB transaction */
-	dict_table_t*	table,			/*!< in: table */
-	doc_id_t	doc_id,			/*!< in: doc id */
-	fts_row_state	state,			/*!< in: state of the row */
-	ib_vector_t*	fts_indexes);		/*!< in: FTS indexes affected
-						(NULL=all) */
+/** Notify the FTS system about an operation on an FTS-indexed table.
+@param trx    InnoDB transaction
+@param table  table
+@param doc_id document id
+@param state  state of the row */
+void fts_trx_add_op(trx_t *trx, dict_table_t *table,
+                    doc_id_t doc_id, fts_row_state state) noexcept;
+
+/** Discard the FTS operations that were recorded after a savepoint.
+@param trx    transaction with trx->fts_trx
+@param limit  trx_t::undo_no of the savepoint */
+void fts_trx_rollback(trx_t *trx, undo_no_t limit) noexcept;
 
 /******************************************************************//**
 Free an FTS trx. */
@@ -667,29 +668,6 @@ void
 fts_optimize_request_sync_table(
 	dict_table_t*	table);
 
-/**********************************************************************//**
-Take a FTS savepoint. */
-void
-fts_savepoint_take(
-/*===============*/
-	fts_trx_t*	fts_trx,		/*!< in: fts transaction */
-	const void*	name);			/*!< in: savepoint */
-
-/**********************************************************************//**
-Refresh last statement savepoint. */
-void
-fts_savepoint_laststmt_refresh(
-/*===========================*/
-	trx_t*		trx);			/*!< in: transaction */
-
-/**********************************************************************//**
-Release the savepoint data identified by  name. */
-void
-fts_savepoint_release(
-/*==================*/
-	trx_t*		trx,			/*!< in: transaction */
-	const void*	name);			/*!< in: savepoint */
-
 /** Clear cache.
 @param[in,out]	cache	fts cache */
 void
@@ -702,21 +680,6 @@ void
 fts_cache_init(
 /*===========*/
 	fts_cache_t*	cache);			/*!< in: cache */
-
-/*********************************************************************//**
-Rollback to and including savepoint indentified by name. */
-void
-fts_savepoint_rollback(
-/*===================*/
-	trx_t*		trx,			/*!< in: transaction */
-	const void*	name);			/*!< in: savepoint */
-
-/*********************************************************************//**
-Rollback to and including savepoint indentified by name. */
-void
-fts_savepoint_rollback_last_stmt(
-/*=============================*/
-	trx_t*		trx);			/*!< in: transaction */
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.

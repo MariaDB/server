@@ -28,8 +28,6 @@ SET(HEADERS
   mariadb_capi_rename.h
   pack.h
   my_byteorder.h
-  little_endian.h
-  big_endian.h
   mysql_time.h 
   ma_dyncol.h
   my_list.h

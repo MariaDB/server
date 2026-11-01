@@ -1,0 +1,18 @@
+call mtr.add_suppression("Write to binary log failed*");
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+SET GLOBAL rpl_semi_sync_master_wait_point = 'AFTER_SYNC';
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='d,injecting_fault_writing';
+CREATE TABLE t1 (i INT);
+CREATE TABLE t1 (i INT);
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+SELECT 1;
+1
+1
+SHOW STATUS LIKE 'Rpl_semi_sync_master_status';
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+SET GLOBAL rpl_semi_sync_master_wait_point = DEFAULT;
+DROP TABLE IF EXISTS t1;

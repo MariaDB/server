@@ -36,7 +36,9 @@ send SET GLOBAL innodb_buffer_pool_size=8388608;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR blocked';
 # IA-32: 504 blocks; IA-32 glibc SUX_LOCK_GENERIC: 500; macOS SUX_LOCK_GENERIC: 498
---replace_regex /([45]..)\/\1/505\/505/
+# Other threads may already have withdrawn some blocks before
+# buf_pool_shrink_before_wakeup.
+--replace_regex /\([0-9]+\/[45][0-9][0-9]\)/(505\/505)/
 SHOW STATUS LIKE 'innodb_buffer_pool_resize_status';
 SET DEBUG_SYNC='now SIGNAL go';
 connection con1;

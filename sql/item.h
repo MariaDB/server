@@ -3807,12 +3807,6 @@ public:
 
   bool ora_join_add_table_ref(ora_join_processor_param *arg,
                               TABLE_LIST *table);
-
-  friend bool insert_fields(THD *thd, Name_resolution_context *context,
-                            const LEX_CSTRING &db_name,
-                            const LEX_CSTRING &table_name,
-                            List_iterator<Item> *it,
-                            bool any_privileges, bool returning_field);
 };
 
 
@@ -4471,6 +4465,11 @@ class Item_param final :public Item_basic_value,
   };
 
   bool m_empty_string_is_null;
+  /*
+    The value is changed during the execution (optimized array binding),
+    so the parameter is not a constant
+  */
+  bool m_changing_value;
 
   class PValue_simple
   {
@@ -4556,6 +4555,7 @@ public:
 
   Item_param(THD *thd, const LEX_CSTRING *name_arg,
              uint pos_in_query_arg, uint len_in_query_arg);
+  Item_param(THD *thd, const Item_param &item);
 
   void cleanup() override
   {
@@ -4771,15 +4771,18 @@ public:
     If value for parameter was not set we treat it as non-const
     so no one will use parameters value in fix_fields still
     parameter is constant during execution.
+    During optimized array binding execution the value changes for every
+    set of parameters, so it is not constant either.
   */
   bool const_item() const override
   {
-    return state != NO_VALUE;
+    return state != NO_VALUE && !m_changing_value;
   }
   table_map used_tables() const override
   {
-    return state != NO_VALUE ? (table_map)0 : PARAM_TABLE_BIT;
+    return const_item() ? (table_map)0 : PARAM_TABLE_BIT;
   }
+  void set_changing_value(bool changing);
   void print(String *str, enum_query_type query_type) override;
   bool is_null() override
   { DBUG_ASSERT(state != NO_VALUE); return state == NULL_VALUE; }
@@ -4863,8 +4866,9 @@ private:
   Field *m_default_field;
 
 protected:
-  Item *shallow_copy(THD *thd) const override { return nullptr; }
-  Item *deep_copy(THD *thd) const override { return nullptr; }
+  Item *shallow_copy(THD *thd) const override;
+  Item *deep_copy(THD *thd) const override
+  { return shallow_copy_with_checks(thd); }
 };
 
 

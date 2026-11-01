@@ -287,7 +287,7 @@ enum ha_base_keytype {
   Note that these can only be up to 16 bits!
 */
 
-#define HA_NOSAME                  1U   /* Set if not dupplicated records */
+#define HA_NOSAME                  1U   /* Set if not duplicated records */
 #define HA_PACK_KEY                2U   /* Pack string key to previous key */
 #define HA_SPACE_PACK_USED         4U   /* Test for if SPACE_PACK used */
 #define HA_VAR_LENGTH_KEY          8U   /* automatic bit */

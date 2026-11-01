@@ -1,0 +1,18 @@
+#
+# MDEV-40545: --force-read must not loop on a truncated event
+#
+# The event header is truncated
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
+DELIMITER /*!*/;
+ERROR: Error in Log_event::read_log_event(): 'Event truncated'
+ERROR: Could not read entry at offset 4: Error in log format or read error.
+# The event body is truncated
+SET @@SESSION.PSEUDO_SLAVE_MODE=1;
+SET @@session.max_delayed_threads=0;
+SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0;
+DELIMITER /*!*/;
+ERROR: Error in Log_event::read_log_event(): 'Event truncated', data_len: 94, event_type: 15
+ERROR: Could not read entry at offset 4: Error in log format or read error.
+# End of 11.4 tests

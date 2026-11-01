@@ -65,11 +65,6 @@ DROP TABLE t1, t2;
 # Test purge by size
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
 
-SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
-SET GLOBAL slave_connections_needed_for_purge= 1;
---error ER_LOG_IN_USE
-PURGE BINARY LOGS TO 'binlog-000001.ibb';
-SHOW WARNINGS;
 SET GLOBAL slave_connections_needed_for_purge= 0;
 --error ER_LOG_IN_USE
 PURGE BINARY LOGS TO 'binlog-000001.ibb';

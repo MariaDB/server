@@ -1,11 +1,11 @@
 # Used to check if running in Bash
-bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/wsrep_notify:94]
-bash-term-in-posix-shell '[ "$url" ==' [usr/bin/mariadbd-safe:216]
+bash-term-in-posix-shell '${BASH_VERSION' [usr/share/mysql/wsrep_notify:*]
+bash-term-in-posix-shell '[ "$url" ==' [usr/bin/mariadbd-safe:*]
 # In comment so false-positive
-bash-term-in-posix-shell 'let' [usr/bin/mariadbd-safe:41]
+bash-term-in-posix-shell 'let' [usr/bin/mariadbd-safe:*]
 # Supported in Zsh and Bash (also Dash)
-bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:712]
-bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:832]
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:*]
+bash-term-in-posix-shell 'ulimit' [usr/bin/mariadbd-safe:*]
 
 # These are from stop word list
 spelling-error-in-binary noone no one [usr/bin/aria_chk]

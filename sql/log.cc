@@ -8416,13 +8416,18 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
   if (opt_binlog_engine_hton)
   {
     DBUG_ASSERT(cache_data != nullptr);
-    uint32_t avail= (uint32_t)(dest->write_end - dest->write_pos);
+    uint64_t total= my_b_tell(dest);
+    uint32_t avail=
+      unlikely(total >= binlog_max_spill_size) ? 0 :
+      MY_MIN((uint32_t)(dest->write_end - dest->write_pos),
+             (uint32_t)(binlog_max_spill_size - total));
     if (unlikely(avail < Gtid_log_event::max_size) &&
         avail < gtid_event.get_size())
     {
       /*
-        The GTID event doesn't fit in the cache, so we have to spill the
-        contents as oob event data.
+        The GTID event doesn't fit in the cache (or within
+        binlog_max_spill_size), so we have to spill the contents as oob event
+        data.
       */
       if (my_b_flush_io_cache(dest, 0))
         DBUG_RETURN(true);
@@ -9033,7 +9038,7 @@ err:
         mysql_mutex_unlock(&LOCK_commit_ordered);
         cache_mngr->last_commit_pos_file.engine_file_no=
           engine_context->out_file_no;
-        cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+        cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
                      (file, engine_context, commit_gtid)))
@@ -9102,7 +9107,8 @@ err:
         mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
         mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-        if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+        if (likely(!error) &&
+            repl_semisync_master.wait_after_sync(log_file_name, offset))
         {
           error=1;
           /* error is already printed inside hook */
@@ -10644,7 +10650,7 @@ MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct() later. */
           cache_mngr->need_write_direct= TRUE;
@@ -11151,7 +11157,7 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct later. */
           cache_mngr->need_write_direct= TRUE;

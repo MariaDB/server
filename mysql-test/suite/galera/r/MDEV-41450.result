@@ -1,0 +1,33 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT,
+c INT AS (b + 1) VIRTUAL, KEY(c)) ENGINE=InnoDB;
+INSERT INTO t1 (a, b) VALUES (1, 1), (2, 2), (3, 3);
+SET GLOBAL innodb_max_purge_lag_wait= 0;
+SET @old_debug_dbug= @@global.debug_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL debug_dbug= '+d,btr_force_pessimistic_delete';
+SET GLOBAL debug_dbug= '+d,enable_row_purge_sec_tree_sync';
+DELETE FROM t1 WHERE a = 1;
+SET DEBUG_SYNC= 'now WAIT_FOR purge_sec_tree_begin';
+SET GLOBAL debug_dbug= @old_debug_dbug;
+connection node_2;
+ALTER TABLE t1 ADD COLUMN d INT;
+connection node_1;
+SET SESSION wsrep_sync_wait= 0;
+SET DEBUG_SYNC= 'now SIGNAL purge_sec_tree_execute';
+SET SESSION wsrep_sync_wait= DEFAULT;
+DELETE FROM t1 WHERE a = 2;
+SET STATEMENT max_statement_time= 10 FOR
+SET GLOBAL innodb_max_purge_lag_wait= 0;
+SELECT a, b, c, d FROM t1;
+a	b	c	d
+3	83	84	NULL
+connection node_2;
+SELECT a, b, c, d FROM t1;
+a	b	c	d
+3	83	84	NULL
+DROP TABLE t1;
+connection node_1;
+SET DEBUG_SYNC= 'RESET';

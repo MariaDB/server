@@ -396,3 +396,56 @@ CAST(@a AS CHAR CHARACTER SET latin1)	<?xml version="1.0" encoding="iso-8859-1"?
 	</line>
 </t1>
 
+#
+# MDEV-41405 ASAN stack-buffer-overflow TDBXML::Initialize/TDBXML::OpenDB
+# after insert into CONNECT table
+#
+CREATE TABLE t1 (id INT)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='x.xml'
+  OPTION_LIST='XmlDB=root89,xmlsup=libxml2';
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+CREATE TABLE t2 (id INT)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='x.xml'
+  OPTION_LIST='XmlDB=XMLDB,xmlsup=libxml2';
+INSERT INTO t2 VALUES (2);
+ERROR HY000: Got error 174 'Missing XMLDB' from CONNECT
+DROP TABLE t2;
+CREATE TABLE t3 (id INT)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=XMLDB,xmlsup=libxml2';
+CREATE TABLE t4 (id INT)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=XMLDB,xmlsup=libxml2';
+CREATE TABLE t5 (id INT)
+ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=/XMLDB,xmlsup=libxml2';
+INSERT INTO t3 VALUES (3);
+INSERT INTO t4 VALUES (4);
+INSERT INTO t5 VALUES (5);
+DROP TABLE t3, t4, t5;
+SET @a=LOAD_FILE('MYSQLD_DATADIR/test/y.xml');
+SELECT REPLACE(@a, REPEAT('A', 240), 'XMLDB') AS y;
+y	<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created by the MariaDB CONNECT Storage Engine-->
+<XMLDB>
+<t3>
+	<t3>
+		<id>3</id>
+	</t3>
+</t3>
+<t4>
+	<t4>
+		<id>4</id>
+	</t4>
+</t4>
+<t5>
+	<t5>
+		<id>5</id>
+	</t5>
+</t5>
+</XMLDB>
+
+#
+# End of 10.11 tests
+#

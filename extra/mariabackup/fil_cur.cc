@@ -47,7 +47,7 @@ specified possibly absolute path.
 For user tablespaces both "./database/table.ibd" and
 "/remote/dir/database/table.ibd" result in "database/table.ibd".
 
-For system tablepsaces (i.e. When is_system is TRUE) both "/remote/dir/ibdata1"
+For system tablespaces (i.e. When is_system is TRUE) both "/remote/dir/ibdata1"
 and "./ibdata1" yield "ibdata1" in the output. */
 const char *
 xb_get_relative_path(

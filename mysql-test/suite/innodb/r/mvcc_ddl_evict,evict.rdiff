@@ -1,0 +1,14 @@
+--- mvcc_ddl_evict.result
++++ mvcc_ddl_evict,evict.reject
+@@ -102,10 +102,7 @@
+ 2	2	2
+ # success
+ SELECT a FROM t FORCE INDEX(k2);
+-a
+-1
+-2
+-# success
++# errname: ER_TABLE_DEF_CHANGED
+ COMMIT;
+ connection default;
+ DROP TABLE t;

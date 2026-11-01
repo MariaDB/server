@@ -1,0 +1,9 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+SET binlog_row_image = NOBLOB;
+CREATE TABLE t (pk INT PRIMARY KEY, a BLOB NOT NULL, UNIQUE(a));
+INSERT IGNORE INTO t (pk) VALUES (1),(2);
+--sync_slave_with_master
+--connection master
+DROP TABLE t;
+--source include/rpl_end.inc

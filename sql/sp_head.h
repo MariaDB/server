@@ -407,6 +407,9 @@ public:
   int
   add_instr(sp_instr_cursor_copy_struct *instr);
 
+  void move_expr_items_to_free_list(THD *thd, Item **list, Item *expr);
+  void add_to_free_list(THD *thd, Item *items);
+
   bool
   add_instr_jump(THD *thd, sp_pcontext *spcont);
 

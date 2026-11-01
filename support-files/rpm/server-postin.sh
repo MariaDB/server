@@ -57,10 +57,6 @@ if [ $1 = 1 ] ; then
 
   # Change permissions again to fix any new files.
   chown -R %{mysqld_user}:%{mysqld_group} $datadir
-
-  # Fix permissions for the permission database so that only the user
-  # can read them.
-  chmod -R og-rw $datadir/mysql
 fi
 
 # install SELinux files - but don't override existing ones

@@ -4813,7 +4813,32 @@ public:
 
     return NULL;
   }
-  /* store value for the duration of the current read record */
+  /*
+    Double-buffering of virtual blob columns with 'value' and 'read_value'.
+    'value' is the scratch buffer that store() writes into (and points the
+    record at), while 'read_value' holds the computed value for the read
+    row. The swap only exchanges buffer ownership, so a record pointer
+    already referring to that memory stays valid until a later swap returns
+    the buffer to 'value' and a store() reuses it.
+
+    enum_vcol_update_mode says which buffer each update_virtual_fields()
+    mode stores blob values into: the modes that store into 'read_value'
+    compute into 'value' and then swap, so a later store() into 'value'
+    does not overwrite the value of the read row.
+
+    Code that reads or computes another row into record[0] while a saved
+    record still points into 'value' moves 'value' aside with
+    TABLE::remember_blob_values() and back with
+    TABLE::restore_blob_values() (or drops the moved buffers with
+    TABLE::free_blob_values()). With with_stored this also covers stored
+    generated blobs.
+
+    handler::check_duplicate_long_entry_key() reads rows in between, and
+    each read swaps, so it swaps back after each read: 'read_value' keeps
+    the buffer of the row read before the lookup (the one record[1] points
+    to in UPDATE), and the buffer of the lookup read stays in 'value' for
+    restore_blob_values() to free.
+  */
   inline void swap_value_and_read_value()
   {
     read_value.swap(value);
@@ -4857,8 +4882,10 @@ public:
   void print_key_value(String *out, uint32 length) override;
   Binlog_type_info binlog_type_info() const override;
 
-  friend void TABLE::remember_blob_values(String *blob_storage);
-  friend void TABLE::restore_blob_values(String *blob_storage);
+  friend void TABLE::remember_blob_values(String *blob_storage,
+                                           bool with_stored);
+  friend void TABLE::restore_blob_values(String *blob_storage,
+                                          bool with_stored);
 };
 
 

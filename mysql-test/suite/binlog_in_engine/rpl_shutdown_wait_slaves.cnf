@@ -1,0 +1,24 @@
+!include my.cnf
+
+[mysqld.1]
+log_warnings=3
+[mysqld.2]
+
+[mysqld.3]
+innodb
+binlog-storage-engine=innodb
+max_binlog_size=8M
+innodb-binlog-state-interval=128k
+
+[mysqld.4]
+innodb
+binlog-storage-engine=innodb
+max_binlog_size=8M
+innodb-binlog-state-interval=128k
+
+[ENV]
+SERVER_MYPORT_3=		@mysqld.3.port
+SERVER_MYSOCK_3=		@mysqld.3.socket
+
+SERVER_MYPORT_4=		@mysqld.4.port
+SERVER_MYSOCK_4=		@mysqld.4.socket

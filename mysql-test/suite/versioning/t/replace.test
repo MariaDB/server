@@ -196,6 +196,79 @@ drop table t1;
 
 set sql_mode=@old_mode;
 
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #
+--echo # REPLACE turns the conflicting row into history
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+insert t1 (id, a) values (1, 'old'), (2, 'start');
+replace t1 (id, a) values (2, 'final');
+check table t1 extended;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+
+--echo # History row already exists: the conflicting row is deleted
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'old'), (2, 'start');
+replace t1 (id, a) values (2, 'middle');
+replace t1 (id, a) values (2, 'final');
+set timestamp= default;
+check table t1 extended;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+
+--echo # Negative lifetime: the conflicting row is deleted, no history row
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'old'), (2, 'start');
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+replace t1 (id, a) values (2, 'final');
+set timestamp= default;
+check table t1 extended;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+
+--echo # Two conflicting rows
+create table t1 (id int primary key, u int unique, a text,
+                 v text as (concat('v-', a)) virtual, key (v(10)))
+with system versioning;
+insert t1 (id, u, a) values (1, 1, 'one'), (2, 2, 'two');
+replace t1 (id, u, a) values (1, 2, 'final');
+check table t1 extended;
+select id, u, a, v from t1 for system_time all force index (v) order by v;
+drop table t1;
+
+--echo #
+--echo # MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+--echo #            versioned table
+--echo #
+create table t1 (id int primary key, a text charset latin1,
+  s text charset utf8mb4 as (concat('s-', a)) stored, key (s(10)))
+with system versioning;
+insert t1 (id, a) values (1, 'old'), (2, 'old-and-longer');
+# History rows from UPDATE (vers_insert_history_row())
+update t1 set a= 'new';
+# History row from REPLACE (TABLE::delete_row())
+replace t1 (id, a) values (2, 'final');
+check table t1 extended;
+select id, a, s, s = concat('s-', a) as ok from t1 for system_time all
+order by id, a;
+drop table t1;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
 --echo # End of 10.11 tests
 
 --source suite/versioning/common_finish.inc

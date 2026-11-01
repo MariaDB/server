@@ -768,8 +768,11 @@ dberr_t AuxRecordReader::default_word_processor(
   {
     /* Check if this word is different from the last word */
     word= static_cast<fts_word_t*>(ib_vector_last(words));
-    if (word_len != word->text.f_len ||
-        memcmp(word->text.f_str, word_data, word_len))
+    if (m_collation
+        ? ha_compare_word(m_collation, word->text.f_str, word->text.f_len,
+                          word_data, word_len)
+        : (word_len != word->text.f_len ||
+           memcmp(word->text.f_str, word_data, word_len)))
     {
       /* Different word - push new word and initialize */
       word= static_cast<fts_word_t*>(ib_vector_push(words, nullptr));

@@ -1,0 +1,37 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+--source include/have_innodb_binlog.inc
+
+--echo ### MDEV-41433: Infinite IO error and reconnect when slave has MASTER_USE_GTID=NO on a binlog-in-engine master
+--connection slave
+--source include/stop_slave.inc
+SET STATEMENT sql_log_bin=0 FOR
+  ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET STATEMENT sql_log_bin=0 FOR
+  CALL mtr.add_suppression('Got fatal error 1236 from master');
+CHANGE MASTER TO master_use_gtid=NO;
+START SLAVE;
+
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+
+--connection slave
+--source include/wait_for_slave_sql_to_start.inc
+--let $slave_io_errno= 1236
+--source include/wait_for_slave_io_error.inc
+
+STOP SLAVE SQL_THREAD;
+CHANGE MASTER TO master_use_gtid=Slave_pos;
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+
+SELECT * FROM t1 ORDER BY a;
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

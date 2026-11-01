@@ -141,96 +141,22 @@
                               mi_int4store((uchar*) (T) + 0, def_temp4);\
                               mi_int4store((uchar*) (T) + 4, def_temp3); }
 
-#ifdef WORDS_BIGENDIAN
+/* Floating point numbers in MyISAM/Aria keys and in filesort keys are stored
+   in big-endian byte order. */
+#define mi_float4store(T,A) MY_COPY_BE4((T), (const void*) &(A))
+#define mi_float8store(T,V) MY_COPY_BE8((T), (const void*) &(V))
 
-#define mi_float4store(T,A) { ((uchar*) (T))[0]= ((uchar*) &A)[0];\
-                              ((uchar*) (T))[1]= ((uchar*) &A)[1];\
-                              ((uchar*) (T))[2]= ((uchar*) &A)[2];\
-                              ((uchar*) (T))[3]= ((uchar*) &A)[3]; }
+#define mi_float4get(V,M)                                                    \
+  do {                                                                       \
+    compile_time_assert(sizeof(V) == sizeof(float));                         \
+    MY_COPY_BE4(&(V), (M));                                                  \
+  } while(0)
 
-#define mi_float4get(V,M)   { float def_temp;\
-                              ((uchar*) &def_temp)[0]= ((const uchar*) (M))[0];\
-                              ((uchar*) &def_temp)[1]= ((const uchar*) (M))[1]; \
-                              ((uchar*) &def_temp)[2]= ((const uchar*) (M))[2];\
-                              ((uchar*) &def_temp)[3]= ((const uchar*) (M))[3];\
-                              (V)= def_temp; }
-
-#define mi_float8store(T,V) { ((uchar*) (T))[0]= ((const uchar*) &V)[0];\
-                              ((uchar*) (T))[1]= ((const uchar*) &V)[1];\
-                              ((uchar*) (T))[2]= ((const uchar*) &V)[2];\
-                              ((uchar*) (T))[3]= ((const uchar*) &V)[3];\
-                              ((uchar*) (T))[4]= ((const uchar*) &V)[4];\
-                              ((uchar*) (T))[5]= ((const uchar*) &V)[5];\
-                              ((uchar*) (T))[6]= ((const uchar*) &V)[6];\
-                              ((uchar*) (T))[7]= ((const uchar*) &V)[7]; }
-
-#define mi_float8get(V,M)   { double def_temp;\
-                              ((uchar*) &def_temp)[0]= ((const uchar*) (M))[0];\
-                              ((uchar*) &def_temp)[1]= ((const uchar*) (M))[1];\
-                              ((uchar*) &def_temp)[2]= ((const uchar*) (M))[2];\
-                              ((uchar*) &def_temp)[3]= ((const uchar*) (M))[3];\
-                              ((uchar*) &def_temp)[4]= ((const uchar*) (M))[4];\
-                              ((uchar*) &def_temp)[5]= ((const uchar*) (M))[5];\
-                              ((uchar*) &def_temp)[6]= ((const uchar*) (M))[6];\
-                              ((uchar*) &def_temp)[7]= ((const uchar*) (M))[7]; \
-                              (V)= def_temp; }
-#else
-
-#define mi_float4store(T,A) { ((uchar*) (T))[0]= ((const uchar*) &A)[3];\
-                              ((uchar*) (T))[1]= ((const uchar*) &A)[2];\
-                              ((uchar*) (T))[2]= ((const uchar*) &A)[1];\
-                              ((uchar*) (T))[3]= ((const uchar*) &A)[0]; }
-
-#define mi_float4get(V,M)   { float def_temp;\
-                              ((uchar*) &def_temp)[0]= ((const uchar*) (M))[3];\
-                              ((uchar*) &def_temp)[1]= ((const uchar*) (M))[2];\
-                              ((uchar*) &def_temp)[2]= ((const uchar*) (M))[1];\
-                              ((uchar*) &def_temp)[3]= ((const uchar*) (M))[0];\
-                              (V)= def_temp; }
-
-#if defined(__FLOAT_WORD_ORDER) && (__FLOAT_WORD_ORDER == __BIG_ENDIAN)
-#define mi_float8store(T,V) { ((uchar*) (T))[0]= ((const uchar*) &V)[3];\
-                              ((uchar*) (T))[1]= ((const uchar*) &V)[2];\
-                              ((uchar*) (T))[2]= ((const uchar*) &V)[1];\
-                              ((uchar*) (T))[3]= ((const uchar*) &V)[0];\
-                              ((uchar*) (T))[4]= ((const uchar*) &V)[7];\
-                              ((uchar*) (T))[5]= ((const uchar*) &V)[6];\
-                              ((uchar*) (T))[6]= ((const uchar*) &V)[5];\
-                              ((uchar*) (T))[7]= ((const uchar*) &V)[4];}
-
-#define mi_float8get(V,M)   { double def_temp;\
-                              ((uchar*) &def_temp)[0]= ((const uchar*) (M))[3];\
-                              ((uchar*) &def_temp)[1]= ((const uchar*) (M))[2];\
-                              ((uchar*) &def_temp)[2]= ((const uchar*) (M))[1];\
-                              ((uchar*) &def_temp)[3]= ((const uchar*) (M))[0];\
-                              ((uchar*) &def_temp)[4]= ((const uchar*) (M))[7];\
-                              ((uchar*) &def_temp)[5]= ((const uchar*) (M))[6];\
-                              ((uchar*) &def_temp)[6]= ((const uchar*) (M))[5];\
-                              ((uchar*) &def_temp)[7]= ((const uchar*) (M))[4];\
-                              (V)= def_temp; }
-
-#else
-#define mi_float8store(T,V) { ((uchar*) (T))[0]= ((const uchar*) &V)[7];\
-                              ((uchar*) (T))[1]= ((const uchar*) &V)[6];\
-                              ((uchar*) (T))[2]= ((const uchar*) &V)[5];\
-                              ((uchar*) (T))[3]= ((const uchar*) &V)[4];\
-                              ((uchar*) (T))[4]= ((const uchar*) &V)[3];\
-                              ((uchar*) (T))[5]= ((const uchar*) &V)[2];\
-                              ((uchar*) (T))[6]= ((const uchar*) &V)[1];\
-                              ((uchar*) (T))[7]= ((const uchar*) &V)[0];}
-
-#define mi_float8get(V,M)   { double def_temp;\
-                              ((uchar*) &def_temp)[0]= ((const uchar*) (M))[7];\
-                              ((uchar*) &def_temp)[1]= ((const uchar*) (M))[6];\
-                              ((uchar*) &def_temp)[2]= ((const uchar*) (M))[5];\
-                              ((uchar*) &def_temp)[3]= ((const uchar*) (M))[4];\
-                              ((uchar*) &def_temp)[4]= ((const uchar*) (M))[3];\
-                              ((uchar*) &def_temp)[5]= ((const uchar*) (M))[2];\
-                              ((uchar*) &def_temp)[6]= ((const uchar*) (M))[1];\
-                              ((uchar*) &def_temp)[7]= ((const uchar*) (M))[0];\
-                              (V)= def_temp; }
-#endif /* __FLOAT_WORD_ORDER */
-#endif /* WORDS_BIGENDIAN */
+#define mi_float8get(V,M)                                                    \
+  do {                                                                       \
+    compile_time_assert(sizeof(V) == sizeof(double));                        \
+    MY_COPY_BE8(&(V), (M));                                                  \
+  } while(0)
 
 /* Fix to avoid warnings when sizeof(ha_rows) == sizeof(long) */
 
