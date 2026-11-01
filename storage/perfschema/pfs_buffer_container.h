@@ -551,6 +551,17 @@ public:
     return page_count * PFS_PAGE_SIZE;
   }
 
+  /*
+    Upper bound of get_row_count() for the whole life time of the container.
+    Unlike get_row_count(), which grows as pages are added, this is fixed by
+    init() and never changes afterwards. Use it to size data structures that
+    must stay valid across a concurrent growth of the container.
+  */
+  ulong get_max_row_count() const
+  {
+    return m_max_page_count * PFS_PAGE_SIZE;
+  }
+
   ulong get_row_size() const
   {
     return sizeof(value_type);

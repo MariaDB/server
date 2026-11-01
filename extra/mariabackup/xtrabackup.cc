@@ -4052,7 +4052,7 @@ xb_fil_io_init()
 @param[in] is_remote true if tablespace file is .isl
 @param[in] skip_node_page0 true if we don't need to read node page 0. Otherwise
 node page0 will be read, and it's size and free pages limit
-will be set from page 0, what is neccessary for checking and fixing corrupted
+will be set from page 0, what is necessary for checking and fixing corrupted
 pages.
 @param[in] defer_space_id use the space id to create space object
 when there is deferred tablespace
@@ -5922,7 +5922,7 @@ This function handles DDL changes at the end of backup, under protection of
 FTWRL.  This ensures consistent backup in presence of DDL.
 
 - New tables, that were created during backup, are now copied into backup.
-  Also, tablespaces with optimized (no redo loggin DDL) are re-copied into 
+  Also, tablespaces with optimized (no redo logging DDL) are re-copied into
   backup. This tablespaces will get the extension ".new" in the backup
 
 - Tables that were renamed during backup, are marked as renamed

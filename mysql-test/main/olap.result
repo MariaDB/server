@@ -920,6 +920,7 @@ MAX(c)
 1001
 DROP TABLE t1;
 # End of 10.11 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 #
 # MDEV-41146: WHERE is not checked when every table is const and
 # the query needs a temporary table

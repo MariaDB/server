@@ -985,6 +985,102 @@ parse_cnf()
 }
 
 #
+# ignore-db-dirs is repeatable: each occurrence adds a directory, and an
+# empty value resets the list accumulated so far (mysqld.cc,
+# OPT_IGNORE_DB_DIRECTORY). parse_cnf() keeps only the last occurrence,
+# so it cannot be used here; read every occurrence, in order, and replay
+# the same accumulate/reset rule.
+#
+# The server does not restrict the characters a directory name may
+# contain (sql_show.cc, push_ignored_db_dir() only checks its length).
+# wsrep_sst_rsync splices each name, unescaped, into an eval'd rsync
+# filter, so a name is kept only if it is made up solely of letters,
+# digits, '.', '_', '+' and '-'; anything else is logged as an error and
+# left out of the result instead of being allowed to break out of that
+# context. '.' and '+' are find -regex operators, so a caller that
+# splices a name into a regex (wsrep_sst_mariabackup's cpat) must still
+# escape those two itself; this function only guarantees the eval-safe
+# character set, not regex-safety.
+#
+# 1st parameter: group (config file section), or a my_print_defaults
+#                flag such as --mysqld (which already reads every group
+#                and group-suffix combination the server itself does,
+#                in the file's own order); '|'-separated group names are
+#                also accepted, each queried in the same call so cross-
+#                group ordering is preserved, but a plain group name
+#                does not get the server's group-suffix handling that
+#                --mysqld does.
+#
+# Limitation: this only reads option files (via my_print_defaults).
+# --datadir, --innodb-data-home-dir and the other directory options
+# this script cares about are also captured from --mysqld-args further
+# up, so a command-line-only value still reaches the script; ignore-db-
+# dirs has no such second path, so a value given purely on the server's
+# command line, with no matching file entry, is not seen here and is
+# not excluded from SST.
+#
+# Returns the resulting directory names as a comma-separated list.
+#
+get_ignore_db_dirs()
+{
+    local groups="$1"
+    local ignore_db_dirs=""
+    local group
+    local group_args=""
+    local line
+    local dir
+
+    # Pass every group to a single my_print_defaults call, so entries
+    # are returned in the file's own order across all of them, the same
+    # order the server itself would see them in (a separate call per
+    # group would instead group all of one section's entries together,
+    # regardless of where they actually sit relative to the others):
+    while [ -n "$groups" ]; do
+        group="${groups%%\|*}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
+        group_args="$group_args $group"
+    done
+
+    while IFS= read -r line; do
+        line="${line#--loose-}"
+        line="${line#--}"
+        case "$line" in
+        ignore[-_]db[-_]dir*=*)
+            dir="${line#*=}"
+            if [ -z "$dir" ]; then
+                ignore_db_dirs=""
+            else
+                case "$dir" in
+                *[!A-Za-z0-9._+-]*)
+                    wsrep_log_error \
+                        "ignore_db_dirs: '$dir' is not a safe" \
+                        "directory name (only letters, digits," \
+                        "'.', '_', '+' and '-' are allowed); SST" \
+                        "will not exclude it"
+                    ;;
+                *)
+                    ignore_db_dirs="$ignore_db_dirs${ignore_db_dirs:+,}$dir"
+                    ;;
+                esac
+            fi
+            ;;
+        esac
+    done <<EOF
+$("$MY_PRINT_DEFAULTS" \
+      ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+      ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+      ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+      $group_args)
+EOF
+
+    echo "$ignore_db_dirs"
+}
+
+#
 # This function simply checks for the presence of the parameter
 # in the config file, but does not return its value. It returns "1"
 # (true) even if the parameter is present in the configuration file

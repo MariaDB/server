@@ -121,6 +121,136 @@ select f1, f3, check_row(row_start, row_end) from t1 for system_time all order b
 --echo # Cleanup
 drop tables t1, t2;
 
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+--echo #
+--echo # MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+--echo #            table (on UPDATE)
+--echo #
+--echo # Virtual blob over row_end, computed before and after row_end is set
+create table t1 (id int primary key, a text,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  v text as (concat(a, '-', unix_timestamp(re))) virtual,
+  key (v(40)))
+with system versioning;
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from t1 where id = 1;
+check table t1 extended;
+select id, a from t1 for system_time all force index (v) order by id;
+drop table t1;
+
+--echo # AFTER DELETE trigger reads OLD of a virtual blob over row_end
+create table t1 (id int primary key, a text,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  v text as (concat('v-', a, '-', unix_timestamp(re))) virtual)
+with system versioning;
+create table log (id int, ok int);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id,
+                     old.v = concat('v-', old.a, '-', unix_timestamp(old.re)));
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from t1;
+select * from log order by id;
+drop table t1, log;
+
+--echo # Multi-table DELETE
+create table t1 (id int primary key, a text,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  v text as (concat('v-', a, '-', unix_timestamp(re))) virtual)
+with system versioning;
+create table log (id int, ok int);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id,
+                     old.v = concat('v-', old.a, '-', unix_timestamp(old.re)));
+create table t2 (x int);
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+insert t2 values (1);
+delete t1 from t1, t2;
+select * from log order by id;
+drop table t1, t2, log;
+
+--echo # History row already exists: the row is deleted
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+create table log (id int, old_v text);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id, old.v);
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'one');
+delete from t1;
+insert t1 (id, a) values (1, 'two');
+delete from t1;
+set timestamp= default;
+check table t1 extended;
+select * from log order by old_v;
+select id, a, v from t1 for system_time all force index (v) order by v;
+drop table t1, log;
+
+--echo # Negative lifetime: the row is deleted
+create table t1 (id int primary key, a text, v text as (concat('v-', a)) virtual,
+                 key (v(10))) with system versioning;
+create table log (id int, old_v text);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id, old.v);
+set timestamp= unix_timestamp('2001-01-01 00:00:00');
+insert t1 (id, a) values (1, 'one');
+set timestamp= unix_timestamp('2000-06-01 00:00:00');
+delete from t1;
+set timestamp= default;
+check table t1 extended;
+select * from log;
+select id, a, v from t1 for system_time all;
+drop table t1, log;
+
+--echo # ha_update_row() of the history row fails
+create table p (id int primary key, a text, v text as (concat('v-', a)) virtual)
+with system versioning engine=innodb;
+create table c (id int, foreign key (id) references p (id)) engine=innodb;
+insert p (id, a) values (1, 'one');
+insert c values (1);
+--error ER_ROW_IS_REFERENCED_2
+delete from p;
+--error ER_ROW_IS_REFERENCED_2
+delete p from p, c;
+check table p extended;
+select id, a, v from p for system_time all;
+drop table c, p;
+
+--echo #
+--echo # MDEV-41621 Stored generated BLOB column is wrong on REPLACE into
+--echo #            versioned table
+--echo #
+--echo # AFTER DELETE trigger reads OLD of a stored generated blob over row_end
+create table t1 (id int primary key, a text charset latin1,
+  rs timestamp(6) as row start invisible,
+  re timestamp(6) as row end invisible,
+  period for system_time (rs, re),
+  s text charset utf8mb4 as (concat('s-', a, '-', unix_timestamp(re))) stored)
+with system versioning;
+create table log (id int, ok int);
+create trigger tr after delete on t1 for each row
+  insert log values (old.id,
+                     old.s = concat('s-', old.a, '-', unix_timestamp(old.re)));
+insert t1 (id, a) values (1, 'one'), (2, 'two');
+delete from t1;
+select * from log order by id;
+drop table t1, log;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
+--echo # End of 10.11 tests
+
 --echo #
 --echo # MDEV-41050 versioned DELETE via row_end index leaves a row undeleted
 --echo #

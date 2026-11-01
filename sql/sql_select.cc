@@ -2029,7 +2029,13 @@ int JOIN::optimize()
     if (optimization_state != JOIN::NOT_OPTIMIZED)
       return FALSE;
     optimization_state= JOIN::OPTIMIZATION_IN_PROGRESS;
+    bool first_optimization= select_lex->first_cond_optimization;
     res= optimize_inner();
+    if (unlikely(res) && first_optimization)
+    {
+      /* A failed first optimization may leave the statement half-done */
+      thd->lex->needs_reprepare= true;
+    }
   }
   if (!with_two_phase_optimization)
   {
@@ -2524,8 +2530,11 @@ JOIN::optimize_inner()
       optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING) &&
       cond_value != Item::COND_FALSE)
   {
-    having=
-      select_lex->pushdown_from_having_into_where(thd, having);
+    if (select_lex->pushdown_from_having_into_where(thd, &having))
+    {
+      error= 1;
+      DBUG_RETURN(1);
+    }
     if (select_lex->attach_to_conds.elements != 0)
     {
       conds= and_new_conditions_to_optimized_cond(thd, conds, &cond_equal,

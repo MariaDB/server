@@ -32,64 +32,123 @@
 static mysql_rwlock_t lock;
 
 /*
-  Parse proxy protocol version 1 header (text)
+  PROXY v1 header is a single line, at most 107 bytes including CRLF
+  (the protocol specification, section 2.1).
 */
-static int parse_v1_header(char *hdr, size_t len, proxy_peer_info *peer_info)
+#define MAX_PROXY_V1_HEADER_LEN 107
+
+/* Parse a port, decimal digits only. Returns 0 on success, -1 on error */
+static int parse_v1_port(const char *str, int *port)
 {
-  char address_family[MAX_PROXY_HEADER_LEN + 1];
-  char client_address[MAX_PROXY_HEADER_LEN + 1];
-  char server_address[MAX_PROXY_HEADER_LEN + 1];
-  int client_port;
-  int server_port;
-
-  int ret = sscanf(hdr, "PROXY %s %s %s %d %d",
-    address_family, client_address, server_address,
-    &client_port, &server_port);
-
-  if (ret != 5)
-  {
-    if (ret >= 1 && !strcmp(address_family, "UNKNOWN"))
-    {
-      peer_info->is_local_command= true;
-      return 0;
-    }
+  char *end;
+  /*
+    strtoull() would also accept leading spaces and signs, and leading
+    zeroes are not allowed, except for the port 0.
+  */
+  if (*str < '0' || *str > '9' || (*str == '0' && str[1]))
     return -1;
-  }
-
-  if (client_port < 0 || client_port > 0xffff
-    || server_port < 0 || server_port > 0xffff)
+  unsigned long long val= strtoull(str, &end, 10);
+  if (*end || val > 0xffff)
     return -1;
+  *port= int(val);
+  return 0;
+}
 
-  if (!strcmp(address_family, "UNKNOWN"))
+
+/* Fields of the v1 header after "PROXY ", in the order they appear */
+enum proxy_v1_field
+{
+  V1_PROTOCOL,
+  V1_CLIENT_ADDRESS,
+  V1_SERVER_ADDRESS,
+  V1_CLIENT_PORT,
+  V1_SERVER_PORT,
+  V1_FIELD_COUNT
+};
+
+#define CRLF_LEN 2
+
+/*
+  Parse proxy protocol version 1 header (text), must end with CRLF.
+  Fields are separated by exactly one space.
+*/
+static int parse_v1_header(char *line, size_t len, proxy_peer_info *peer_info)
+{
+  static const char prefix[]= "PROXY ", unknown[]= "UNKNOWN";
+  if (len < sizeof(prefix) - 1 + CRLF_LEN ||
+      line[len - CRLF_LEN] != '\r' || line[len - 1] != '\n')
+    return -1;
+  line[len - CRLF_LEN]= 0;
+  if (strncmp(line, prefix, sizeof(prefix) - 1))
+    return -1;
+  char *p= line + sizeof(prefix) - 1;
+
+  /* Anything after UNKNOWN is ignored. */
+  if (!strncmp(p, unknown, sizeof(unknown) - 1) &&
+      (p[sizeof(unknown) - 1] == 0 || p[sizeof(unknown) - 1] == ' '))
   {
     peer_info->is_local_command= true;
     return 0;
   }
-  else if (!strcmp(address_family, "TCP4"))
+
+  char *field[V1_FIELD_COUNT];
+  for (int i= 0; i < V1_FIELD_COUNT; i++)
   {
-    /* Initialize IPv4 peer address.*/
+    field[i]= p;
+    char *space= strchr(p, ' ');
+    if (i < V1_FIELD_COUNT - 1)
+    {
+      if (!space)
+        return -1;
+      *space= 0;
+      p= space + 1;
+    }
+    else if (space)
+      return -1;
+    if (!*field[i])
+      return -1;
+  }
+
+  int client_port, server_port;
+  if (parse_v1_port(field[V1_CLIENT_PORT], &client_port) ||
+      parse_v1_port(field[V1_SERVER_PORT], &server_port))
+    return -1;
+
+  if (!strcmp(field[V1_PROTOCOL], "TCP4"))
+  {
     peer_info->peer_addr.ss_family= AF_INET;
-    if (!inet_pton(AF_INET, client_address,
+    if (!inet_pton(AF_INET, field[V1_CLIENT_ADDRESS],
       &((struct sockaddr_in *)(&peer_info->peer_addr))->sin_addr))
       return -1;
   }
-  else if (!strcmp(address_family, "TCP6"))
+  else if (!strcmp(field[V1_PROTOCOL], "TCP6"))
   {
-    /* Initialize IPv6 peer address.*/
     peer_info->peer_addr.ss_family= AF_INET6;
-    if (!inet_pton(AF_INET6, client_address,
+    if (!inet_pton(AF_INET6, field[V1_CLIENT_ADDRESS],
       &((struct sockaddr_in6 *)(&peer_info->peer_addr))->sin6_addr))
       return -1;
   }
+  else
+    return -1;
   peer_info->port= client_port;
+
   /* Check if server address is legal.*/
   char addr_bin[16];
-  if (!inet_pton(peer_info->peer_addr.ss_family,
-    server_address, addr_bin))
+  if (!inet_pton(peer_info->peer_addr.ss_family, field[V1_SERVER_ADDRESS],
+                 addr_bin))
     return -1;
 
   return 0;
 }
+
+
+/*
+  PROXY v2 header is 16 bytes, followed by the address block with source and
+  destination address and port. Whole header length for TCP over IPv4, IPv6.
+*/
+#define PROXY_V2_HEADER_LEN 16
+#define PROXY_V2_TCP4_LEN (PROXY_V2_HEADER_LEN + 2 * 4 + 2 * 2)
+#define PROXY_V2_TCP6_LEN (PROXY_V2_HEADER_LEN + 2 * 16 + 2 * 2)
 
 
 /*
@@ -129,14 +188,14 @@ static int parse_v2_header(uchar *hdr, size_t len,proxy_peer_info *peer_info)
   switch (fam)
   {
     case 0x11:  /* TCPv4 */
-      if (len < 25)
+      if (len < PROXY_V2_TCP4_LEN)
         return -1;
       sin->sin_family= AF_INET;
       memcpy(&(sin->sin_addr), hdr + 16, 4);
       peer_info->port= (hdr[24] << 8) + hdr[25];
       break;
     case 0x21:  /* TCPv6 */
-      if (len < 49)
+      if (len < PROXY_V2_TCP6_LEN)
         return -1;
       sin6->sin6_family= AF_INET6;
       memcpy(&(sin6->sin6_addr), hdr + 16, 16);
@@ -199,16 +258,24 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   if (have_v1_header)
   {
     /* Read until end of header (newline character)*/
-    while(pos < sizeof(hdr) - 1)
+    bool end_of_line= false;
+    while(!end_of_line && pos < MAX_PROXY_V1_HEADER_LEN)
     {
-      long len= (long)vio_read(vio, hdr + pos, 1);
-      if (len < 0)
+      ssize_t len= vio_read(vio, hdr + pos, 1);
+      if (len != 1)
         return -1;
-      pos++;
-      if (hdr[pos-1] == '\n')
+      switch (hdr[pos])
+      {
+      case 0:
+        return -1; /* NUL byte is not allowed */
+      case '\n':
+        end_of_line= true;
         break;
+      }
+      pos++;
     }
-    DBUG_ASSERT(pos < sizeof(hdr));
+    if (!end_of_line)
+      return -1;
     hdr[pos]= 0;
 
     if (parse_v1_header((char *)hdr, pos, peer_info))
@@ -216,10 +283,9 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
   }
   else // if (have_v2_header)
   {
-#define PROXY_V2_HEADER_LEN 16
     /* read off 16 bytes of the header.*/
     ssize_t len= vio_read(vio, hdr + pos, PROXY_V2_HEADER_LEN - pos);
-    if (len < 0)
+    if (len != PROXY_V2_HEADER_LEN - ssize_t(pos))
       return -1;
     // 2 last bytes are the length in network byte order of the part following header
     ushort trail_len= ((ushort)hdr[PROXY_V2_HEADER_LEN-2] << 8) + hdr[PROXY_V2_HEADER_LEN-1];
@@ -228,7 +294,7 @@ int parse_proxy_protocol_header(NET *net, proxy_peer_info *peer_info)
     if (trail_len > 0)
     {
       len= vio_read(vio,  hdr + PROXY_V2_HEADER_LEN, trail_len);
-      if (len < 0)
+      if (len != trail_len)
         return -1;
     }
     pos= PROXY_V2_HEADER_LEN + trail_len;

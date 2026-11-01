@@ -465,15 +465,6 @@ void clear_opt_noacl()
   }
 }
 
-/**
-   @brief 'grant_option' is used to indicate if privileges needs
-   to be checked, in which case the lock, LOCK_grant, is used
-   to protect access to the grant table.
-   @note This flag is dropped in 5.1
-   @see grant_init()
- */
-bool volatile grant_option;
-
 my_bool opt_skip_slave_start = 0; ///< If set, slave is not autostarted
 my_bool opt_reckless_slave = 0;
 READ_ONLY_SYSVAR my_bool opt_enable_named_pipe= 0;
@@ -4134,14 +4125,6 @@ static int init_common_variables()
     exit(1);
   }
 
-#ifdef HAVE_OPENSSL
-  if (check_openssl_compatibility())
-  {
-    sql_print_error("Incompatible OpenSSL version. Cannot continue...");
-    exit(1);
-  }
-#endif
-
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
 
@@ -6350,6 +6333,7 @@ int mysqld_main(int argc, char **argv)
   my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
+  vio_check_ssl_init();
   if (init_server_components())
     unireg_abort(1);
 
@@ -8383,6 +8367,7 @@ static void usage(void)
          "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead "
          "of 'mariadbd --verbose --help'.");
   }
+  fflush(stdout);
   DBUG_VOID_RETURN;
 }
 #endif /*!EMBEDDED_LIBRARY*/
@@ -8429,7 +8414,6 @@ static int mysql_init_variables(void)
   opt_endinfo= using_udf_functions= 0;
   opt_using_transactions= 0;
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
-  grant_option= 0;
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
   malloc_calls= 0;
   subquery_cache_miss= subquery_cache_hit= 0;

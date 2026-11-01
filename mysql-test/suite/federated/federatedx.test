@@ -2128,6 +2128,23 @@ DROP SERVER s;
 --echo # End of 11.0 tests
 
 --echo #
+--echo # MDEV-40808 Uninitialized TABLE_LIST causes crash triggered by DROP SERVER
+--echo #
+evalp create server s foreign data wrapper mysql options
+  (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+create table t1 (id int);
+insert into t1 values (1);
+create table t1_fed engine=federated connection='s/t1';
+select * from t1_fed;
+handler t1 open;
+drop server s;
+handler t1 read first;
+handler t1 close;
+drop table t1_fed, t1;
+
+--echo # End of 11.4 tests
+
+--echo #
 --echo # MDEV-35184 Corruption errors upon creation or usage of Federated table with vector key
 --echo #
 evalp create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);

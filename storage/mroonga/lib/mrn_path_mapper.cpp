@@ -34,8 +34,8 @@ namespace mrn {
                          const char *mysql_data_home_path)
     : original_mysql_path_(original_mysql_path),
       path_prefix_(path_prefix),
-      mysql_data_home_path_(mysql_data_home_path) {
-    db_path_[0] = '\0';
+      mysql_data_home_path_(mysql_data_home_path),
+      db_path_() {
     db_name_[0] = '\0';
     table_name_[0] = '\0';
     mysql_table_name_[0] = '\0';
@@ -49,64 +49,55 @@ namespace mrn {
    *   "/tmp/mysql-test/var/tmp/mysqld.1/#sql27c5_1_0.mrn"
    */
   const char *PathMapper::db_path() {
-    if (db_path_[0] != '\0') {
-      return db_path_;
+    if (!db_path_.empty()) {
+      return db_path_.c_str();
     }
 
     if (original_mysql_path_[0] == FN_CURLIB &&
         original_mysql_path_[1] == FN_LIBCHAR) {
       if (path_prefix_) {
-        strcpy(db_path_, path_prefix_);
+        db_path_ = path_prefix_;
       }
-
-      int i = 2, j = strlen(db_path_), len;
-      len = strlen(original_mysql_path_);
-      while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
-        db_path_[j++] = original_mysql_path_[i++];
+      const char *db_name = original_mysql_path_ + 2;
+      const char *db_name_end = strchr(db_name, FN_LIBCHAR);
+      if (db_name_end) {
+        db_path_.append(db_name, db_name_end - db_name);
+      } else {
+        db_path_ += db_name;
       }
-      db_path_[j] = '\0';
     } else if (mysql_data_home_path_) {
-      int len = strlen(original_mysql_path_);
-      int mysql_data_home_len = strlen(mysql_data_home_path_);
-      if (len > mysql_data_home_len &&
-          !strncmp(original_mysql_path_,
-                   mysql_data_home_path_,
-                   mysql_data_home_len)) {
-        int i = mysql_data_home_len, j;
+      size_t mysql_data_home_length = strlen(mysql_data_home_path_);
+      const char *db_name = original_mysql_path_ + mysql_data_home_length;
+      const char *db_name_end = nullptr;
+      if (strlen(original_mysql_path_) > mysql_data_home_length &&
+          strncmp(original_mysql_path_,
+                  mysql_data_home_path_,
+                  mysql_data_home_length) == 0) {
+        db_name_end = strchr(db_name, FN_LIBCHAR);
+      }
+      if (db_name_end) {
         if (path_prefix_ && path_prefix_[0] == FN_LIBCHAR) {
-          strcpy(db_path_, path_prefix_);
-          j = strlen(db_path_);
+          db_path_ = path_prefix_;
         } else {
-          memcpy(db_path_, mysql_data_home_path_, mysql_data_home_len);
+          db_path_.assign(mysql_data_home_path_, mysql_data_home_length);
           if (path_prefix_) {
             if (path_prefix_[0] == FN_CURLIB &&
                 path_prefix_[1] == FN_LIBCHAR) {
-              strcpy(&db_path_[mysql_data_home_len], &path_prefix_[2]);
+              db_path_ += path_prefix_ + 2;
             } else {
-              strcpy(&db_path_[mysql_data_home_len], path_prefix_);
+              db_path_ += path_prefix_;
             }
-            j = strlen(db_path_);
-          } else {
-            j = mysql_data_home_len;
           }
         }
-
-        while (original_mysql_path_[i] != FN_LIBCHAR && i < len) {
-          db_path_[j++] = original_mysql_path_[i++];
-        }
-        if (i == len) {
-          memcpy(db_path_, original_mysql_path_, len);
-        } else {
-          db_path_[j] = '\0';
-        }
+        db_path_.append(db_name, db_name_end - db_name);
       } else {
-        strcpy(db_path_, original_mysql_path_);
+        db_path_ = original_mysql_path_;
       }
     } else {
-      strcpy(db_path_, original_mysql_path_);
+      db_path_ = original_mysql_path_;
     }
-    strcat(db_path_, MRN_DB_FILE_SUFFIX);
-    return db_path_;
+    db_path_ += MRN_DB_FILE_SUFFIX;
+    return db_path_.c_str();
   }
 
   /**

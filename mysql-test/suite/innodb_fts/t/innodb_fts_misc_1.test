@@ -971,3 +971,44 @@ TRUNCATE TABLE t;
 DROP TABLE t;
 DROP TABLE server_stopword;
 SET GLOBAL innodb_ft_server_stopword_table= default;
+
+--echo #
+--echo # MDEV-41665 InnoDB assertion with result != FTS_INVALID on
+--echo # DELETE IGNORE with FK cascades on tables with FULLTEXT indexes
+--echo #
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(10),
+		 KEY(a)) ENGINE=InnoDB;
+
+CREATE TABLE t2 (id INT PRIMARY KEY, a VARCHAR(10), b VARCHAR(10),
+  KEY(a), KEY(b), FULLTEXT(a),
+  FOREIGN KEY (a) REFERENCES t1(a) ON DELETE CASCADE) ENGINE=InnoDB;
+
+CREATE TABLE t3 (id INT PRIMARY KEY, b VARCHAR(10), KEY(b),
+  FOREIGN KEY (b) REFERENCES t2(b) ON DELETE RESTRICT) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1,'xxx'),(2,'xxx');
+INSERT INTO t2 VALUES (1,'xxx','k');
+INSERT INTO t3 VALUES (1,'k');
+DELETE IGNORE FROM t1;
+SELECT * FROM t1;
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('xxx');
+DROP TABLE t3, t2, t1;
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(10), u INT, UNIQUE(u),
+		 KEY(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, a VARCHAR(10), KEY(a),
+		 FULLTEXT(a), FOREIGN KEY (a) REFERENCES t1(a)
+		 ON UPDATE CASCADE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'aaa',1),(2,'xxx',2),(4,'www',4);
+INSERT INTO t2 VALUES (1,'aaa'),(2,'xxx');
+
+# Row 1 succeeds (cascade aaa->bbb);
+# Row 2 fails on UNIQUE(u) after its cascade.
+UPDATE IGNORE t1 SET a='bbb', u=5 WHERE id IN (1,2);
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('bbb');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('aaa');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('xxx');
+DROP TABLE t2, t1;

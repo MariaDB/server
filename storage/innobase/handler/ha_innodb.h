@@ -512,7 +512,7 @@ protected:
 	uchar*			m_upd_buf;
 
 	/** the size of upd_buf in bytes */
-	ulint			m_upd_buf_size;
+	size_t			m_upd_buf_size;
 
 	/** Flags that specify the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;

@@ -3087,6 +3087,47 @@ SELECT 1 /* doesn't throw error */;
 
 --echo # End of 10.11 tests
 
+--echo #
+--echo # PS_bind_long binds like PS_bind, but sends every value as a string
+--echo # with mysql_stmt_send_long_data() before each PS_execute
+--echo #
+
+# The PS_ commands are sent as SQL when these protocols are on
+--disable_cursor_protocol
+--disable_ps_protocol
+--PS_prepare select concat('[', ?, ']') as a, concat('[', ?, ']') as b
+--echo # PS_bind: 010 is bound as an integer, no long data is sent
+--let $c0= query_get_value(show session status like 'Com_stmt_send_long_data', Value, 1)
+--PS_bind 010 abc
+--PS_execute
+--let $c1= query_get_value(show session status like 'Com_stmt_send_long_data', Value, 1)
+--let $d= $($c1 - $c0)
+--echo # long data packets: $d
+--PS_close
+
+# Prepare again: the server cannot take long data for a parameter that the
+# previous execution bound as an integer
+--PS_prepare select concat('[', ?, ']') as a, concat('[', ?, ']') as b
+--echo # PS_bind_long: 010 stays a string, both values are sent as long data
+--echo # for each of the two executions
+--PS_bind_long 010 abc
+--PS_execute
+--PS_execute
+--let $c2= query_get_value(show session status like 'Com_stmt_send_long_data', Value, 1)
+--let $d= $($c2 - $c1)
+--echo # long data packets: $d
+--echo # A later PS_bind sends no long data
+--PS_bind 7 xyz
+--PS_execute
+--let $c3= query_get_value(show session status like 'Com_stmt_send_long_data', Value, 1)
+--let $d= $($c3 - $c2)
+--echo # long data packets: $d
+--PS_close
+--enable_ps_protocol
+--enable_cursor_protocol
+
+--echo # End of 11.4 tests
+
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc
 

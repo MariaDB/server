@@ -9,7 +9,7 @@
 # bad value silently accepted (i.e. with no warning) - which is what an
 # un-sanitized provider does.
 #
---let $galera_version=26.4.29
+--let $galera_version=26.4.28
 source ../wsrep/include/check_galera_version.inc;
 
 --source include/have_innodb.inc

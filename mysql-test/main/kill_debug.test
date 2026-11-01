@@ -361,3 +361,120 @@ reap;
 DROP TABLE t1;
 disconnect con1;
 SET debug_sync='RESET';
+
+--echo #
+--echo # MDEV-31567 SIGSEGV in reinit_stmt_before_use | Prepared_statement::execute
+--echo #
+--echo # The first EXECUTE is killed after the one-time semi-join rewrite, but
+--echo # before the nested selects save their WHERE. The statement must be
+--echo # re-prepared, not run half-rewritten. The bug was reported with
+--echo # max_statement_time, KILL QUERY at a sync point makes it deterministic.
+CREATE TABLE t (a INT);
+let $q= 1;
+let $d= 62;
+while ($d)
+{
+  let $q= SELECT a FROM t WHERE a IN ($q);
+  dec $d;
+}
+connect (con1,localhost,root,,);
+let $id= `SELECT CONNECTION_ID()`;
+--echo PREPARE s FROM <62 nested IN subqueries>
+--disable_query_log
+eval PREPARE s FROM '$q';
+--enable_query_log
+SET debug_sync='before_join_optimize SIGNAL parked WAIT_FOR go EXECUTE 1';
+send EXECUTE s;
+connection default;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_sync='RESET';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # The same with rows, the results must be correct
+INSERT INTO t VALUES (1),(2),(3);
+--echo PREPARE s FROM <62 nested IN subqueries>
+--disable_query_log
+eval PREPARE s FROM '$q';
+--enable_query_log
+SET debug_sync='before_join_optimize SIGNAL parked WAIT_FOR go EXECUTE 1';
+send EXECUTE s;
+connection default;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_sync='RESET';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # The same in a stored procedure
+--echo CREATE PROCEDURE p() <62 nested IN subqueries>
+--disable_query_log
+eval CREATE PROCEDURE p() $q;
+--enable_query_log
+SET debug_sync='before_join_optimize SIGNAL parked WAIT_FOR go EXECUTE 1';
+send CALL p();
+connection default;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_sync='RESET';
+CALL p();
+CALL p();
+DROP PROCEDURE p;
+connection default;
+disconnect con1;
+
+--echo # If the re-prepare fails, it must be tried again on the next EXECUTE
+CREATE USER u@localhost;
+GRANT SUPER ON *.* TO u@localhost;
+GRANT SELECT ON test.t TO u@localhost;
+connect (con2,localhost,u,,test);
+let $id= `SELECT CONNECTION_ID()`;
+--echo PREPARE s FROM <62 nested IN subqueries>
+--disable_query_log
+eval PREPARE s FROM '$q';
+--enable_query_log
+SET debug_sync='before_join_optimize SIGNAL parked WAIT_FOR go EXECUTE 1';
+send EXECUTE s;
+connection default;
+SET debug_sync='now WAIT_FOR parked';
+replace_result $id id;
+eval KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+REVOKE SELECT ON test.t FROM u@localhost;
+connection con2;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_sync='RESET';
+--error ER_TABLEACCESS_DENIED_ERROR
+EXECUTE s;
+SHOW STATUS LIKE 'Com_stmt_reprepare';
+connection default;
+GRANT SELECT ON test.t TO u@localhost;
+connection con2;
+EXECUTE s;
+SHOW STATUS LIKE 'Com_stmt_reprepare';
+connection default;
+disconnect con2;
+DROP USER u@localhost;
+DROP TABLE t;
+SET debug_sync='RESET';
+
+--echo # End of 11.4 tests

@@ -1,0 +1,57 @@
+# Tests for PFS_table_context, the per-statement scan context shared by the
+# status_by_* and variables_by_thread tables.
+
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-39566 MariaDB crash while running a SELECT on table
+--echo # performance_schema.status_by_thread
+--echo #
+
+--echo # Started with performance_schema_hosts_size=0, so that the host and
+--echo # the account containers have different sizes.
+SELECT COUNT(*) AS host_rows FROM performance_schema.status_by_host;
+
+--echo # A sorted scan re-initializes the table context from thread local
+--echo # storage after the sort. status_by_account must not restore the
+--echo # context of status_by_host, which the correlated subquery scans in
+--echo # between.
+--let $pfs_table= status_by_account
+--let $pfs_cols= o.user, o.host, o.variable_name
+--let $pfs_order= o.variable_name
+--let $pfs_where= WHERE (SELECT COUNT(*) FROM performance_schema.status_by_host h WHERE h.variable_name = o.variable_name) >= 0
+--source ../include/sorted_scan_all_rows.inc
+
+--echo # The same the other way round.
+--let $pfs_table= status_by_host
+--let $pfs_cols= o.host, o.variable_name
+--let $pfs_order= o.variable_name
+--let $pfs_where= WHERE (SELECT COUNT(*) FROM performance_schema.status_by_account a WHERE a.variable_name = o.variable_name) >= 0
+--source ../include/sorted_scan_all_rows.inc
+
+--echo # The other tables sized from a buffer container. variables_by_thread
+--echo # is changed too but is not exposed as a table in MariaDB.
+--let $pfs_table= status_by_thread
+--let $pfs_cols= o.thread_id, o.variable_name
+--let $pfs_order= o.variable_name, o.thread_id
+--source ../include/sorted_scan_all_rows.inc
+
+--let $pfs_table= status_by_user
+--let $pfs_cols= o.user, o.variable_name
+--let $pfs_order= o.variable_name, o.user
+--source ../include/sorted_scan_all_rows.inc
+
+--echo # A filesort that sorts row ids rather than whole rows calls rnd_pos()
+--echo # for every sorted row, so this is the only case that reads the map of
+--echo # the restored context.
+SET @save_max_length_for_sort_data= @@max_length_for_sort_data;
+SET @@max_length_for_sort_data= 4;
+--let $pfs_table= status_by_account
+--let $pfs_cols= o.user, o.host, o.variable_name
+--let $pfs_order= o.variable_name
+--let $pfs_where= WHERE (SELECT COUNT(*) FROM performance_schema.status_by_host h WHERE h.variable_name = o.variable_name) >= 0
+--source ../include/sorted_scan_all_rows.inc
+SET @@max_length_for_sort_data= @save_max_length_for_sort_data;
+
+--echo # End of 10.11 tests

@@ -2747,9 +2747,6 @@ static int innobase_savepoint(THD *thd, void *savepoint) noexcept
     trx->last_stmt_start= savept;
     trx->end_bulk_insert();
 
-    if (trx->fts_trx)
-      fts_savepoint_take(trx->fts_trx, savepoint);
-
     DBUG_RETURN(0);
   }
 }
@@ -2762,13 +2759,10 @@ static int innobase_savepoint(THD *thd, void *savepoint) noexcept
 
   @return 0 always
 */
-static int innobase_release_savepoint(THD *thd, void *savepoint) noexcept
+static int innobase_release_savepoint(THD *thd, void*) noexcept
 {
   DBUG_ENTER("innobase_release_savepoint");
-  trx_t *trx= check_trx_exists(thd);
-  ut_ad(trx->mysql_thd == thd);
-  if (trx->fts_trx)
-    fts_savepoint_release(trx, savepoint);
+  ut_ad(check_trx_exists(thd)->mysql_thd == thd);
   DBUG_RETURN(0);
 }
 
@@ -4498,8 +4492,6 @@ static bool end_of_statement(trx_t *trx) noexcept
   ut_d(const trx_state_t trx_state{trx->state});
   ut_ad(trx_state == TRX_STATE_ACTIVE || trx_state == TRX_STATE_NOT_STARTED);
 
-  if (trx->fts_trx)
-    fts_savepoint_laststmt_refresh(trx);
   if (trx->is_bulk_insert())
   {
     /* Allow a subsequent INSERT into an empty table
@@ -4697,11 +4689,6 @@ innobase_rollback(
       ut_a(trx_state == TRX_STATE_ACTIVE);
       ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
       error= trx->rollback(&trx->last_stmt_start);
-      if (trx->fts_trx)
-      {
-        fts_savepoint_rollback_last_stmt(trx);
-        fts_savepoint_laststmt_refresh(trx);
-      }
       trx->last_stmt_start= trx->undo_no;
       trx->end_bulk_insert();
     }
@@ -4873,11 +4860,6 @@ innobase_rollback_to_savepoint(
 
   dberr_t error= trx->rollback(savept);
   /* Store the position for rolling back the next SQL statement */
-  if (trx->fts_trx)
-  {
-    fts_savepoint_laststmt_refresh(trx);
-    fts_savepoint_rollback(trx, savept);
-  }
   trx->last_stmt_start= trx->undo_no;
   trx->end_bulk_insert();
   DBUG_RETURN(convert_error_code_to_mysql(error, 0, nullptr));
@@ -8253,7 +8235,7 @@ calc_row_difference(
 	const uchar*	new_row,
 	TABLE*		table,
 	uchar*		upd_buff,
-	ulint		buff_len,
+	size_t		buff_len,
 	row_prebuilt_t*	prebuilt,
 	ib_uint64_t&	auto_inc)
 {
@@ -8785,6 +8767,21 @@ ha_innobase::update_row(
 
 		m_upd_buf_size = table->s->reclength + table->s->max_key_length
 			+ MAX_REF_PARTS * 3;
+
+		/* Reserve an extra packed value for every
+		virtual column. calc_row_difference() may retain
+		both new and old values for indexed virtual
+		columns, including columns indexed by an online
+		rebuild.
+		The buffer is reused, so its capacity must also
+		cover virtual columns that become indexed
+		after the initial allocation. */
+		for (uint i = 0; i < table->s->fields; i++) {
+			Field *field = table->field[i];
+			if (!field->stored_in_db()) {
+				m_upd_buf_size += field->pack_length();
+			}
+		}
 
 		m_upd_buf = reinterpret_cast<uchar*>(
 			my_malloc(PSI_INSTRUMENT_ME,

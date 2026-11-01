@@ -680,8 +680,22 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
-/** The last parsed FILE_RENAME records */
-static std::map<uint32_t,std::string> renamed_spaces;
+/** A parsed FILE_RENAME record */
+struct recv_rename
+{
+  /** tablespace identifier */
+  uint32_t id;
+  /** the file name before the rename */
+  std::string from;
+  /** the file name after the rename */
+  std::string to;
+};
+
+/** The parsed FILE_RENAME records, in the order in which they
+were written. Renames must be replayed in this order, because
+one rename may be freeing a file name that a subsequent
+rename is going to use. */
+static std::vector<recv_rename> renamed_spaces;
 
 /** Files for which fil_ibd_load() returned FIL_LOAD_DEFER */
 static struct
@@ -2781,13 +2795,13 @@ log_parse_file(const page_id_t id, bool if_exists,
       fil_name_process(reinterpret_cast<const char*>(fn2), fn2end - fn2,
                        space_id, mfile_type_t(b & 0xf0), if_exists);
       if (recv_sys.file_checkpoint)
-      {
-        const char *name= reinterpret_cast<const char*>(fn2);
-        const size_t len= fn2end - fn2;
-        auto r= renamed_spaces.emplace(space_id, std::string{name,len});
-        if (!r.second)
-          r.first->second= std::string{name, len};
-      }
+        /* Retain every record, in log order. Maintain the file names
+        in which order the file names were freed and occupied */
+        renamed_spaces.push_back({space_id,
+                                  std::string{reinterpret_cast<const char*>(l),
+                                              size_t(fnend - l)},
+                                  std::string{reinterpret_cast<const char*>(fn2),
+                                              size_t(fn2end - fn2)}});
     }
     else if ((b & 0xf0) == FILE_CREATE)
       fname.create_lsn= recv_sys.start_lsn;
@@ -4626,7 +4640,19 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 	return DB_SUCCESS;
 }
 
-/** Apply any FILE_RENAME records */
+/** Apply any FILE_RENAME records.
+
+The records are replayed in the order in which they were written,
+which is the order in which the server executed the renames.
+Each of those renames required its target file name to be
+unoccupied at the time, and therefore replaying them in the same
+order can never be blocked by an existing file.
+
+A record is applied only if the tablespace is currently using the
+file name that the record is renaming from. That skips the renames
+that had already been executed before the server was killed,
+and it prevents a record from renaming a file backwards
+after a later record has already moved it. */
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -4634,24 +4660,20 @@ static dberr_t recv_rename_files()
 
   dberr_t err= DB_SUCCESS;
 
-  for (auto i= renamed_spaces.begin(); i != renamed_spaces.end(); )
+  mysql_mutex_lock(&fil_system.mutex);
+  for (const recv_rename &r : renamed_spaces)
   {
-    const auto &r= *i;
-    const uint32_t id= r.first;
-    fil_space_t *space= fil_space_t::get(id);
+    const uint32_t id= r.id;
+    fil_space_t *space= fil_space_get_by_id(id);
     if (!space)
-    {
-      i++;
       continue;
-    }
     ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
     char *old= space->chain.start->name;
-    if (r.second != old)
+    if (r.from == old)
     {
       bool exists;
       os_file_type_t ftype;
-      const char *new_name= r.second.c_str();
-      mysql_mutex_lock(&fil_system.mutex);
+      const char *new_name= r.to.c_str();
       const fil_space_t *other= nullptr;
       if (!space->chain.start->is_open() && space->chain.start->deferred &&
           (other= fil_system.find(new_name)) &&
@@ -4660,9 +4682,16 @@ static dberr_t recv_rename_files()
 
       if (other)
       {
-        /* Multiple tablespaces use the same file name. This should
-        only be possible if the recovery of both files was deferred
-        (no valid page 0 is contained in either file). We shall not
+        /* Two tablespaces are associated with the same file name.
+        In normal crash recovery, at most one file rename or creation
+        would normally need to be replayed, so this could only arise
+        if the recovery of both files was deferred (no valid page 0
+        is contained in either file). But when recovering from a
+        backup that was taken with innodb_log_archive=ON, many more
+        FILE_RENAME records may need to be replayed, and the same
+        file name can be freed and reused by different tablespaces
+        more than once, so this situation can legitimately occur
+        even outside that deferred-recovery case. We shall not
         rename the file, just rename the metadata. */
         sql_print_information("InnoDB: Renaming tablespace metadata " UINT32PF
                               " from '%s' to '%s' that is also associated"
@@ -4686,19 +4715,19 @@ static dberr_t recv_rename_files()
         if (err != DB_SUCCESS)
           sql_print_error("InnoDB: Cannot replay rename of tablespace "
                           UINT32PF " to '%s': %s", id, new_name, ut_strerr(err));
-        goto done;
+        mysql_mutex_lock(&fil_system.mutex);
       }
-      mysql_mutex_unlock(&fil_system.mutex);
     }
-done:
-    space->release();
+
     if (err != DB_SUCCESS)
     {
       recv_sys.set_corrupt_fs();
       break;
     }
-    renamed_spaces.erase(i++);
   }
+
+  mysql_mutex_unlock(&fil_system.mutex);
+  renamed_spaces.clear();
   return err;
 }
 

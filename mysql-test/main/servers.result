@@ -192,6 +192,7 @@ Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner	Options
 s					8		mysqL		{"HOST": "", "PORT": "8"}
 DROP SERVER s;
 # End of 10.11 tests
+# End of 11.4 tests
 #
 # MDEV-40312 SHOW CREATE SERVER incorrect quoting
 #
