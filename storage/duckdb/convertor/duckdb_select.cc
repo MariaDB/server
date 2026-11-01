@@ -42,6 +42,16 @@ static void store_field_temporal_value(Field *field, MYSQL_TIME *ltime)
 }
 
 /**
+  Convert a DuckDB value to a string for MariaDB string-like fields.
+*/
+static duckdb::string duckdb_value_as_string(const duckdb::Value &value)
+{
+  if (value.type().InternalType() == duckdb::PhysicalType::VARCHAR)
+    return value.GetValueUnsafe<duckdb::string>();
+  return value.ToString();
+}
+
+/**
   Store a duckdb value in a field of mysql format.
   @param field            the field to store value
   @param value            the value to be stored
@@ -67,7 +77,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_GEOMETRY:
     case MYSQL_TYPE_BIT: {
-      auto str= value.GetValueUnsafe<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       auto varchar= str.c_str();
       auto varchar_len= str.size();
       field->store(varchar, varchar_len, &my_charset_bin);
@@ -78,14 +88,14 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_VAR_STRING: {
       if (is_uuid_field(field))
       {
-        auto str= value.GetValue<duckdb::string>();
+        auto str= duckdb_value_as_string(value);
         field->store(str.c_str(), str.size(), system_charset_info);
         break;
       }
       if (field->has_charset())
       {
         DBUG_ASSERT(field->charset() != &my_charset_bin);
-        auto str= value.GetValue<duckdb::string>();
+        auto str= duckdb_value_as_string(value);
         auto varchar= str.c_str();
         auto varchar_len= str.size();
         field->store(varchar, varchar_len, field->charset());
@@ -93,7 +103,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
       }
       else
       {
-        auto str= value.GetValueUnsafe<duckdb::string>();
+        auto str= duckdb_value_as_string(value);
         auto varchar= str.c_str();
         auto varchar_len= str.size();
         field->store(varchar, varchar_len, &my_charset_bin);
@@ -105,7 +115,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     case MYSQL_TYPE_ENUM:
     case MYSQL_TYPE_SET:
     case MYSQL_TYPE_NEWDECIMAL: {
-      auto str= value.GetValue<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       auto varchar= str.c_str();
       auto varchar_len= str.size();
       field->store(varchar, varchar_len, system_charset_info);
@@ -157,7 +167,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
         DuckDB date_t stores days since 1970-01-01.
         Convert to MYSQL_TIME via val_str and store_time.
       */
-      auto str= value.GetValue<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       MYSQL_TIME tm;
       MYSQL_TIME_STATUS status;
       my_time_status_init(&status);
@@ -167,7 +177,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     }
     case MYSQL_TYPE_DATETIME:
     case MYSQL_TYPE_DATETIME2: {
-      auto str= value.GetValue<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       MYSQL_TIME tm;
       MYSQL_TIME_STATUS status;
       my_time_status_init(&status);
@@ -177,7 +187,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     }
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_TIMESTAMP2: {
-      auto str= value.GetValue<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       MYSQL_TIME tm;
       MYSQL_TIME_STATUS status;
       my_time_status_init(&status);
@@ -187,7 +197,7 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
     }
     case MYSQL_TYPE_TIME:
     case MYSQL_TYPE_TIME2: {
-      auto str= value.GetValue<duckdb::string>();
+      auto str= duckdb_value_as_string(value);
       MYSQL_TIME tm;
       MYSQL_TIME_STATUS status;
       my_time_status_init(&status);

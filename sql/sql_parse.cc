@@ -2883,7 +2883,8 @@ bool sp_process_definer(THD *thd)
       SUPER privilege).
     */
     bool curuser= thd->security_ctx->is_priv_user(d->user, d->host);
-    bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
+    bool currole= !curuser && !d->host.length &&
+                  !strcmp(d->user.str, thd->security_ctx->priv_role);
     if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
@@ -6895,6 +6896,14 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
   TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
   if ((subselects_tables= all_tables->next_global))
   {
+    /*
+      Only the target table is ours. Own tables come first in the list,
+      so the first not-own table means there are no more to check.
+      The rest were added for prelocking. Their routines check them.
+    */
+    if (subselects_tables == thd->lex->first_not_own_table())
+      return 0;
+
     /*
       Access rights asked for the first table of a view should be the same
       as for the view

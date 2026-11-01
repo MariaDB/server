@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016, 2017 MariaDB
+   Copyright (c) 2016, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -330,6 +330,12 @@ public:
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
+
+/*
+  An upper bound for the number of CTE specification clones created while
+  resolving references to WITH elements in a statement.
+*/
+const uint max_number_of_cte_references= 1000;
 
 /**
   @class With_clause

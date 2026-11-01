@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1139,6 +1139,7 @@ public:
   bool with_rownum:1;     /* rownum() function indicator */
   bool braces:1;    /* SELECT ... UNION (SELECT ... ) <- this braces */
   bool automatic_brackets:1; /* dummy select for INTERSECT precedence */
+  bool with_placeholder:1; /* parameter placeholder is used directly here */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field:1;
   /*
@@ -1457,7 +1458,8 @@ public:
     return (next_select() == 0 && group_list.elements == 0 &&
             having == 0 && with_sum_func == 0 && with_rownum == 0 &&
             table_list.elements >= 1 && !(options & SELECT_DISTINCT) &&
-            limit_params.select_limit == 0);
+            limit_params.select_limit == 0 &&
+            limit_params.offset_limit == 0);
   }
   void mark_as_belong_to_derived(TABLE_LIST *derived);
   void increase_derived_records(ha_rows records);
@@ -3171,6 +3173,9 @@ public:
   */
   my_ptrdiff_t clone_spec_offset;
 
+  /* number of CTE specification clones made while resolving references */
+  uint cte_references;
+
   Create_view_info *create_view;
 
   /* Query Plan Footprint of a currently running select  */
@@ -3384,6 +3389,10 @@ public:
   bool use_only_table_context:1;
   bool escape_used:1;
   bool default_used:1;    /* using default() function */
+  /* result of a subquery depends on a parameter placeholder */
+  bool subquery_with_placeholder:1;
+  /* ESCAPE of LIKE or JSON_SEARCH depends on a parameter placeholder */
+  bool escape_with_placeholder:1;
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
   bool without_validation:1; /* exchange or convert partition WITHOUT VALIDATION */
@@ -4779,6 +4788,13 @@ public:
     return false;
   }
   bool check_main_unit_semantics();
+  bool subquery_has_placeholder();
+  bool expr_has_placeholder(Item *expr);
+  void check_escape_placeholder(Item *escape)
+  {
+    if (expr_has_placeholder(escape))
+      escape_with_placeholder= true;
+  }
 
   SELECT_LEX_UNIT *parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
                                             enum sub_select_type unit_type,

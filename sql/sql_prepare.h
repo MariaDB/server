@@ -97,6 +97,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex);
 
 my_bool bulk_parameters_iterations(THD *thd);
 my_bool bulk_parameters_set(THD *thd);
+my_bool bulk_execution_per_row(THD *thd);
 /**
   Execute a fragment of server code in an isolated context, so that
   it doesn't leave any effect on THD. THD must have no open tables.

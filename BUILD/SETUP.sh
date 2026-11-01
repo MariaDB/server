@@ -280,7 +280,7 @@ fi
 # (returns 0 if finds lines)
 
 # As cmake doesn't like CC and CXX with a space, use symlinks from
-# /usr/lib64/ccache if they exits.
+# /usr/lib64/ccache if they exist.
 
 if ccache -V > /dev/null 2>&1 && test "$CCACHE_DISABLE" != "1" && test "$CC" = "gcc"
 then

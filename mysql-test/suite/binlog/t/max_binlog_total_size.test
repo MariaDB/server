@@ -16,6 +16,7 @@ FLUSH LOGS;
 FLUSH LOGS;
 source include/show_binary_logs.inc;
 show status like "binlog_disk_use";
+set @save_slave_connections_needed_for_purge= @@global.slave_connections_needed_for_purge;
 set @@global.slave_connections_needed_for_purge= 0;
 --echo # binary.000001 should be deleted now
 source include/show_binary_logs.inc;
@@ -90,5 +91,5 @@ show status like "binlog_disk_use";
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
-set @@global.slave_connections_needed_for_purge= default;
+set @@global.slave_connections_needed_for_purge= @save_slave_connections_needed_for_purge;
 # End of 11.4 tests

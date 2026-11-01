@@ -35,8 +35,53 @@ connection node_2;
 # Confirm the donor's rsync SST script flushed the filesystems
 # holding the Aria and InnoDB per-table directories, not only the
 # data directory itself.
-FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_data/ in mysqld.1.err
-FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_index/ in mysqld.1.err
-FOUND 1 /Synced filesystem: MYSQLTEST_VARDIR/tmp/MDEV-40727_innodb_data/test/ in mysqld.1.err
+MDEV-40727_aria_data
+MDEV-40727_aria_index
+MDEV-40727_innodb_data/test
+connection node_2;
+SHOW CREATE TABLE t_aria;
+Table	Create Table
+t_aria	CREATE TABLE `t_aria` (
+  `f1` int(11) NOT NULL,
+  `f2` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+SHOW CREATE TABLE t_innodb;
+Table	Create Table
+t_innodb	CREATE TABLE `t_innodb` (
+  `f1` int(11) NOT NULL,
+  `f2` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_innodb_data/'
+SELECT * FROM t_aria;
+f1	f2
+1	aria_row_1
+2	aria_row_2
+SELECT * FROM t_innodb;
+f1	f2
+1	innodb_row_1
+2	innodb_row_2
 connection node_1;
+SHOW CREATE TABLE t_aria;
+Table	Create Table
+t_aria	CREATE TABLE `t_aria` (
+  `f1` int(11) NOT NULL,
+  `f2` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_data/' INDEX DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_aria_index/'
+SHOW CREATE TABLE t_innodb;
+Table	Create Table
+t_innodb	CREATE TABLE `t_innodb` (
+  `f1` int(11) NOT NULL,
+  `f2` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`f1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci DATA DIRECTORY='MYSQLTEST_VARDIR/tmp/MDEV-40727_innodb_data/'
+SELECT * FROM t_aria;
+f1	f2
+1	aria_row_1
+2	aria_row_2
+SELECT * FROM t_innodb;
+f1	f2
+1	innodb_row_1
+2	innodb_row_2
 DROP TABLE t_aria, t_innodb;

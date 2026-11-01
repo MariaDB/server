@@ -508,6 +508,26 @@ deallocate prepare stmt;
 drop procedure inner_p;
 
 --echo #
+--echo # MDEV-41470 Server crashes in check_grant / delete_precheck on 2nd execution of SP
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+CREATE FUNCTION f1() RETURNS INT RETURN (SELECT COUNT(*) FROM t1, t2);
+CREATE VIEW v1 AS SELECT f1();
+
+CREATE PROCEDURE p1() DELETE FROM v1;
+--error ER_NON_UPDATABLE_TABLE
+CALL p1;
+--error ER_NON_UPDATABLE_TABLE
+CALL p1;
+
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
 

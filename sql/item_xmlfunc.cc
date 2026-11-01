@@ -25,7 +25,8 @@
 #include "set_var.h"
 #include "my_xml.h"
 #include "sp_pcontext.h"
-#include "sql_parse.h"                          // THD
+#include "sql_class.h"                          // THD
+#include "sql_parse.h"                          // for check_stack_overrun
 
 /*
   TODO: future development directions:
@@ -2210,9 +2211,19 @@ static int my_xpath_parse_FilterExpr(MY_XPATH *xpath)
   RETURN
     1 - success
     0 - failure
+
+  Please note: There is non-standard returning here to
+               simplify processing in the parser.
 */
 static int my_xpath_parse_OrExpr(MY_XPATH *xpath)
 {
+  /*
+     Check for stack ovver run because it might call itself and
+     result in stack overflow. Return error if thats the case.
+  */
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE , NULL))
+    return 0;
+
   if (!my_xpath_parse_AndExpr(xpath))
     return 0;
 

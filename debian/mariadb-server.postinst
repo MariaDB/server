@@ -151,9 +151,9 @@ EOF
     # circumstances as it contains scripts that are executed by root.
     set +e
     find $mariadb_statedir ! -uid 0 -print0 -or ! -gid 0 -print0 | xargs -0 -r sudo chown 0:0
-    find $mariadb_datadir ! -uid "$(id -u mysql)" -print0 | xargs -0 -r chown mysql
+    PATH=/bin:/usr/bin find $mariadb_datadir/ ! -uid "$(id -u mysql)" -execdir chown -h mysql {} +
     chown mysql:adm $mariadb_logdir
-    find "$mariadb_logdir" -print0 | xargs -0 -r chown mysql:adm
+    find "$mariadb_logdir/" -maxdepth 1 -print0 | xargs -0 -r chown -h mysql:adm
     chmod 2750 $mariadb_logdir
     set -e
 

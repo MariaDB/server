@@ -134,11 +134,12 @@ class Ack_listener
 {
 public:
   my_socket local_read_signal;
+  my_socket local_ack_signal;
   const Slave_ilist &m_slaves;
   int error;
 
   Ack_listener(const Slave_ilist &slaves)
-    :local_read_signal(-1), m_slaves(slaves), error(0)
+    :local_read_signal(-1), local_ack_signal(-1), m_slaves(slaves), error(0)
   {
     my_socket pipes[2];
 #ifdef _WIN32
@@ -155,23 +156,35 @@ public:
     }
 #endif /* _WIN32 */
     local_read_signal= pipes[0];
-    global_ack_signal_fd= pipes[1];
+    local_ack_signal= pipes[1];
   }
 
   virtual ~Ack_listener()
   {
+    DBUG_ASSERT(global_ack_signal_fd != local_ack_signal);
 #ifdef _WIN32
     my_socket pipes[2];
     pipes[0]= local_read_signal;
-    pipes[1]= global_ack_signal_fd;
+    pipes[1]= local_ack_signal;
     close_socketpair(pipes);
 #else
-    if (global_ack_signal_fd >= 0)
-      close(global_ack_signal_fd);
+    if (local_ack_signal >= 0)
+      close(local_ack_signal);
     if (local_read_signal >= 0)
       close(local_read_signal);
 #endif /* _WIN32 */
-    global_ack_signal_fd= local_read_signal= -1;
+    local_ack_signal= local_read_signal= -1;
+  }
+
+  void set_global_ack_signal_fd()
+  {
+    DBUG_ASSERT(global_ack_signal_fd == -1);
+    global_ack_signal_fd= local_ack_signal;
+  }
+
+  void clear_global_ack_signal_fd()
+  {
+    global_ack_signal_fd= -1;
   }
 
   int got_error()  { return error; }

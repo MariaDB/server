@@ -369,3 +369,19 @@ x	a	s	e	sv
 1	a	2010-01-01	2020-01-01	a 2010-01-01 2020-01-01
 drop table t1, log;
 # End of 10.11 tests
+#
+# MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+#
+# Subquery on another table: row must be split, not updated whole
+create table t1 (id int, s date, e date, period for app(s,e));
+create table t2 (id int);
+insert into t1 values (1, '2000-01-01', '2000-01-10');
+insert into t2 values (1);
+update t1 for portion of app from '2000-01-05' to '2000-01-20' set id= 2
+where id in (select id from t2);
+select * from t1;
+id	s	e
+1	2000-01-01	2000-01-05
+2	2000-01-05	2000-01-10
+drop table t1, t2;
+# End of 11.4 tests

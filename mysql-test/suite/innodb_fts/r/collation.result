@@ -1,0 +1,36 @@
+#
+# MDEV-41360  OPTIMIZE TABLE crashes with
+#     ib_vector_size(optim->words) > 0 on FULLTEXT index
+#     with collation-equal words
+#
+SET NAMES utf8;
+SET GLOBAL innodb_optimize_fulltext_only = ON;
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+a TEXT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
+FULLTEXT KEY (a)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'resume');
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+INSERT INTO t1 VALUES (2, _utf8 0x72c3a973756dc3a9);
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DELETE FROM t1 WHERE id = 2;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SELECT * FROM t1 WHERE MATCH(a) against ('resume');
+id	a
+1	resume
+INSERT INTO t1 VALUES(3, 'résumé');
+DELETE FROM t1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+SELECT * FROM t1 WHERE MATCH(a) against ('resume');
+id	a
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only = OFF;

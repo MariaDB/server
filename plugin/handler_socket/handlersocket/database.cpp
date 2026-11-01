@@ -272,7 +272,6 @@ dbcontext::init_thread(const void *stack_bottom, volatile int& shutdown_flag)
   {
     my_thread_init();
     thd = new THD(0);
-    thd->thread_stack = (char *)stack_bottom;
     DBG_THR(fprintf(stderr,
       "thread_stack = %p sizeof(THD)=%zu sizeof(mtx)=%zu "
       "O: %zu %zu %zu %zu %zu %zu %zu\n",
