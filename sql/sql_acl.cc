@@ -3559,17 +3559,6 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 }
 
 
-static void acl_update_role(const char *rolename, const privilege_t privileges)
-{
-  ACL_ROLE *role= find_acl_role(rolename, true);
-  if (role)
-  {
-    role->initial_role_access= role->access= privileges;
-    DBUG_ASSERT(strcasecmp(rolename, public_name.str) || acl_public == role);
-  }
-}
-
-
 ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
                    const Account_options &options,
                    const privilege_t privileges)
@@ -4839,6 +4828,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  ACL_ROLE *role= NULL;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -4934,6 +4924,12 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     if (old_row_exists && !old_row_is_role)
     {
+      goto end;
+    }
+    role= find_acl_role(combo->user.str, true);
+    if ((role != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
     if (user_table.set_is_role(true))
@@ -5093,7 +5089,7 @@ end:
     {
       if (old_row_exists)
       {
-        acl_update_role(combo->user.str, rights);
+        role->initial_role_access= role->access= rights;
         if (cleanup_tables)
         {
           /*
@@ -5103,12 +5099,8 @@ end:
             role got its new (empty) privileges, so that roles and users that
             had this role granted don't keep its old privileges cached.
           */
-          ACL_ROLE *role= find_acl_role(combo->user.str, true);
-          if (role)
-          {
-            unlink_role_and_propagate(role);
-            reset_dynamic(&role->parent_grantee);
-          }
+          unlink_role_and_propagate(role);
+          reset_dynamic(&role->parent_grantee);
         }
       }
       else
