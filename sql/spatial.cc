@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3359,6 +3359,9 @@ uint32 Gis_geometry_collection::get_data_size() const
   n_objects= uint4korr(data);
   data+= 4;
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return GET_SIZE_ERROR;
+
   while (n_objects--)
   {
     uint32 wkb_type,object_size;
@@ -3491,7 +3494,7 @@ uint Gis_geometry_collection::init_from_wkb(const char *wkb, uint len,
   n_geom= wkb_get_uint(wkb, bo);
 
   if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&wkb_orig))
-    return 1;
+    return 0;
 
   if (res->reserve(4, 512))
     return 0;
@@ -3578,6 +3581,9 @@ bool Gis_geometry_collection::get_data_as_wkt(String *txt,
   n_objects= uint4korr(data);
   data+= 4;
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
+
   if (n_objects == 0)
   {
     txt->append(STRING_WITH_LEN(" EMPTY"), 512);
@@ -3621,6 +3627,9 @@ bool Gis_geometry_collection::get_data_as_json(String *txt, uint max_dec_digits,
     return 1;
   n_objects= uint4korr(data);
   data+= 4;
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
 
   bool any_objects= false;
   txt->qs_append('[');
@@ -3666,6 +3675,9 @@ bool Gis_geometry_collection::get_mbr(MBR *mbr, const char **end) const
   if (n_objects == 0)
     goto exit;
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
+
   while (n_objects--)
   {
     uint32 wkb_type;
@@ -3703,6 +3715,9 @@ int Gis_geometry_collection::area(double *ar,  const char **end) const
   result= 0.0;
   if (n_objects == 0)
     goto exit;
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
 
   while (n_objects--)
   {
@@ -3743,6 +3758,9 @@ int Gis_geometry_collection::geom_length(double *len, const char **end) const
 
   if (n_objects == 0)
     goto exit;
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
 
   while (n_objects--)
   {
@@ -3841,6 +3859,9 @@ bool Gis_geometry_collection::dimension(uint32 *res_dim, const char **end) const
   n_objects= uint4korr(data);
   data+= 4;
 
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+    return 1;
+
   *res_dim= 0;
   while (n_objects--)
   {
@@ -3886,6 +3907,9 @@ int Gis_geometry_collection::store_shapes(Gcalc_shape_transporter *trn) const
     trn->empty_shape();
     return 0;
   }
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, (uchar*)&buffer))
+   return 1;
 
   if (trn->start_collection(n_objects))
     return 1;

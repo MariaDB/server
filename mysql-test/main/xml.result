@@ -673,6 +673,11 @@ extractValue('<a b=>a</a>','/a')
 NULL
 Warnings:
 Warning	1525	Incorrect XML value: 'parse error at line 1 pos 7: '>' unexpected (ident or string wanted)'
+select ExtractValue('0123456789AB<![CDATA[','/');
+ExtractValue('0123456789AB<![CDATA[','/')
+NULL
+Warnings:
+Warning	1525	Incorrect XML value: 'parse error at line 1 pos 22: unexpected END-OF-INPUT'
 select extractValue('<e>1</e>','position()');
 ERROR HY000: XPATH syntax error: ''
 select extractValue('<e>1</e>','last()');

@@ -121,20 +121,63 @@ while ($ctr <= $n_tables_node1)
 --echo # holding the Aria and InnoDB per-table directories, not only the
 --echo # data directory itself.
 
+# Match only the trailing, test-specific part of each path, not the
+# full $MYSQLTEST_VARDIR-rooted path: the script logs the physical
+# path (readlink -f / cd -P), so if the vardir is itself reached
+# through a symlink, the logged path differs textually from the
+# literal one built here even though the right filesystem was synced.
+# Anchor on the space before the trailing "(timestamp)" the log line
+# always ends with, not on a regex end-of-line "$": this pattern is
+# matched against the whole remaining file content, not line by line,
+# so "$" only matches at the very end of that content.
+#
+# SEARCH_ABORT makes a miss a hard failure on its own, so the include's
+# own FOUND/NOT FOUND line (which would otherwise show the pattern and
+# the full log file path) can be suppressed; echo just the directory
+# name instead.
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
---let SEARCH_PATTERN = Synced filesystem: $aria_data_dir
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---source include/search_pattern_in_file.inc
+--let SEARCH_ABORT = NOT FOUND
 
---let SEARCH_PATTERN = Synced filesystem: $aria_index_dir
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_result_log
+--let SEARCH_PATTERN = Synced filesystem:.*MDEV-40727_aria_data[[:space:]]
 --source include/search_pattern_in_file.inc
+--enable_result_log
+--echo MDEV-40727_aria_data
 
---let SEARCH_PATTERN = Synced filesystem: $innodb_data_dir/test
---replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_result_log
+--let SEARCH_PATTERN = Synced filesystem:.*MDEV-40727_aria_index[[:space:]]
 --source include/search_pattern_in_file.inc
+--enable_result_log
+--echo MDEV-40727_aria_index
+
+--disable_result_log
+--let SEARCH_PATTERN = Synced filesystem:.*MDEV-40727_innodb_data/test[[:space:]]
+--source include/search_pattern_in_file.inc
+--enable_result_log
+--echo MDEV-40727_innodb_data/test
+
+# DATA DIRECTORY/INDEX DIRECTORY echo back a physical path (symlinks
+# resolved), which can differ textually from the literal
+# $MYSQLTEST_VARDIR-rooted path used to create the table if the vardir
+# itself is reached through a symlink; match on the trailing,
+# test-specific part of the path only, regardless of its prefix.
+--connection node_2
+--replace_regex /'[^']*\/tmp\/MDEV-40727_aria_data\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_aria_data\/'/ /'[^']*\/tmp\/MDEV-40727_aria_index\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_aria_index\/'/
+SHOW CREATE TABLE t_aria;
+--replace_regex /'[^']*\/tmp\/MDEV-40727_innodb_data\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_innodb_data\/'/
+SHOW CREATE TABLE t_innodb;
+
+SELECT * FROM t_aria;
+SELECT * FROM t_innodb;
 
 --connection node_1
+--replace_regex /'[^']*\/tmp\/MDEV-40727_aria_data\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_aria_data\/'/ /'[^']*\/tmp\/MDEV-40727_aria_index\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_aria_index\/'/
+SHOW CREATE TABLE t_aria;
+--replace_regex /'[^']*\/tmp\/MDEV-40727_innodb_data\/'/'MYSQLTEST_VARDIR\/tmp\/MDEV-40727_innodb_data\/'/
+SHOW CREATE TABLE t_innodb;
+SELECT * FROM t_aria;
+SELECT * FROM t_innodb;
+
 DROP TABLE t_aria, t_innodb;
 
 --exec rm -rf $aria_data_dir $aria_index_dir $innodb_data_dir

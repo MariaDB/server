@@ -224,3 +224,30 @@ drop database db1;
 drop table t3, t4, s2;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-41648 sequence permissions aren't checked in LOAD DATA
+--echo #
+
+create database db1;
+use db1;
+create sequence s;
+create table t1 (a char(10), b char(10), v bigint not null default (nextval(s)));
+create user u@localhost;
+grant select,insert on db1.t1 to u@localhost;
+grant file on *.* to u@localhost;
+
+--connect u,localhost,u,,db1
+--error ER_TABLEACCESS_DENIED_ERROR
+insert into t1 (a,b) values (1,0);
+--replace_result "SELECT, INSERT" "SELECT"
+--error ER_TABLEACCESS_DENIED_ERROR
+load data infile '../../std_data/loaddata_pair.dat' into table t1 (a,b);
+select * from t1;
+--disconnect u
+--connection default
+drop user u@localhost;
+drop database db1;
+use test;
+
+--echo # End of 10.11 tests

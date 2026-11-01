@@ -9633,7 +9633,6 @@ my_bool mysql_rm_tmp_tables(void)
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)
