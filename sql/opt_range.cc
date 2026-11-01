@@ -4222,6 +4222,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   range_par->remove_false_where_parts= false;
 
   range_par->keys= 1; // one index
+  range_par->key[0]= range_par->key_parts;
   range_par->using_real_indexes= FALSE;
   range_par->remove_jump_scans= FALSE;
   range_par->real_keynr[0]= 0;
@@ -10047,6 +10048,22 @@ bool sel_trees_must_be_ored(RANGE_OPT_PARAM* param,
   tmp.subtract(oredable_keys);
   if (!tmp.is_clear_all())
     DBUG_RETURN(FALSE);
+
+  /* return true if there is only one key */
+  {
+    key_map::Iterator it0(oredable_keys);
+    uint idx= it0++;
+    if (idx != key_map::Iterator::BITMAP_END)
+    {
+      key_map ref;
+      ref.set_bit(idx);
+      /* looking for only one bit set */
+      if (oredable_keys == ref)
+        DBUG_RETURN(TRUE);
+    }
+    else
+      DBUG_RETURN(TRUE);
+  }
 
   int idx1, idx2;
   key_map::Iterator it1(oredable_keys);
