@@ -7,6 +7,7 @@
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
 /*  (C) Copyright to the author Olivier BERTRAND          1993-2020    */
+/*  (C) Copyright MariaDB plc                             2026         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -181,6 +182,17 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 	g->jump_level = -1;   /* New setting to allow recursive call of Plug */
 	return(g);
 } /* end of PlugInit */
+
+/***********************************************************************/
+/*  PlugCleanSarea: zero the work area past its pool header, so that   */
+/*  padding of structures allocated there is initialized when they are */
+/*  written to a file as is.                                           */
+/***********************************************************************/
+void PlugCleanSarea(PGLOBAL g)
+{
+	constexpr size_t skip= sizeof(POOLHEADER);
+	memset((char*)g->Sarea + skip, 0, g->Sarea_Size - skip);
+} /* end of PlugCleanSarea */
 
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
@@ -599,6 +611,16 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 
   return (memp);
 } /* end of PlugSubAlloc */
+
+/***********************************************************************/
+/*  Return the number of bytes still free (unreserved) in a pool.      */
+/***********************************************************************/
+size_t PlugSubAllocLeft(PGLOBAL g, void *memp)
+{
+  PPOOLHEADER pph = (PPOOLHEADER)((memp) ? memp : g->Sarea);
+
+  return pph->FreeBlk;
+} /* end of PlugSubAllocLeft */
 
 /***********************************************************************/
 /*  Program for sub-allocating and copying a string in a storage area. */

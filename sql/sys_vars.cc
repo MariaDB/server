@@ -2562,7 +2562,7 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
   Master_info *mi;
   bool res= false;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -2608,7 +2608,7 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
   enum_slave_parallel_mode val=
     (enum_slave_parallel_mode)opt_slave_parallel_mode;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -4171,7 +4171,8 @@ static const char *old_mode_names[]=
   "OLD_FLUSH_STATUS",                   // 7: deprecated since 11.5
   "SESSION_USER_IS_USER",               // 8: deprecated since 11.7
   "2_DIGIT_YEAR",                       // 9: deprecated since 13.0
-  "UTF8_IS_UTF8MB3",                    // 10: deprecated since 13.1
+  "X509_LENIENT_COMPARE",               // 10: deprecated since 13.1
+  "UTF8_IS_UTF8MB3",                    // 11: deprecated since 13.1
   0
 };
 
@@ -4200,7 +4201,7 @@ static bool old_mode_deprecated(sys_var *self, THD *thd, set_var *var)
   for (; i <= 9; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1300>(thd, old_mode_names[i]);
-  for (; i <= 10; i++)
+  for (; i <= 11; i++)
     if ((1ULL<<i) & v)
       warn_deprecated<1301>(thd, old_mode_names[i]);
   return false;
@@ -5916,7 +5917,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
   bool result= true;                            // Assume error
   LEX_CSTRING *base_name= &var->base;
 
-  if (!base_name->length)
+  if (!base_name->str)
     base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -5986,6 +5987,9 @@ Sys_var_rpl_filter::global_value_ptr(THD *thd,
   uchar *ret;
   Master_info *mi;
   Rpl_filter *rpl_filter;
+
+  if (!base_name->str)
+    base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mi= get_master_info(base_name, !base_name->length ?

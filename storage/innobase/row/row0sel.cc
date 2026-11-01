@@ -1352,6 +1352,8 @@ sel_set_rec_lock(
 		return DB_LOCK_TABLE_FULL;
 	}
 
+	/* Change LOCK_X_BY_TABLE to LOCK_X */
+	mode &= LOCK_MODE_MASK;
 	if (dict_index_is_clust(index)) {
 		err = lock_clust_rec_read_check_and_lock(
 			0, block, rec, index, offsets,
@@ -3387,7 +3389,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 	/* Extract values from prebuilt */
 	dtuple_t*	clust_ref= prebuilt->clust_ref;
 	btr_pcur_t*	clust_pcur= prebuilt->clust_pcur;
-	lock_mode	select_lock_type= prebuilt->select_lock_type;
+	lock_mode	select_lock_type= prebuilt->real_lock_mode();
 	trx_t*		trx= prebuilt->trx;
 
 	dict_index_t*	clust_index;
@@ -3522,6 +3524,13 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 			select_lock_type,
 			LOCK_REC_NOT_GAP,
 			thr);
+
+		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
+			/* Cancel the lock wait, unless the lock was granted
+			meanwhile; then continue with a normal locking read
+			of clust_rec. */
+			err = lock_trx_handle_wait(trx);
+		}
 
 		switch (err) {
 		case DB_SUCCESS:
@@ -4265,7 +4274,8 @@ bool row_search_with_covering_prefix(
 
 	/* In ha_innobase::build_template() we choose to access the
 	whole row when using exclusive row locks or In case of fts
-	query, we need to read from clustered index */
+	query, we need to read from clustered index. LOCK_X_BY_TABLE (see
+	ha_innobase::extra_opt()) is deliberately not matched here */
 	if (prebuilt->select_lock_type == LOCK_X || prebuilt->in_fts_query
 	    || !index->is_btree()) {
 		return false;
@@ -4821,10 +4831,7 @@ aborted:
 		} else {
 wait_table_again:
 			err = lock_table(prebuilt->table, nullptr,
-                       prebuilt->full_table_scan ?
-                       prebuilt->select_lock_type :
-                       (prebuilt->select_lock_type == LOCK_S
-                        ? LOCK_IS : LOCK_IX), thr);
+                       prebuilt->table_lock_mode(), thr);
 
 			if (err != DB_SUCCESS) {
 
@@ -5663,9 +5670,6 @@ requires_clust_rec:
 						      need_vrow ? &vrow : NULL,
 						      mtr);
 
-		if (err == DB_LOCK_WAIT && prebuilt->skip_locked) {
-			err = lock_trx_handle_wait(trx);
-		}
 		switch (err) {
 		case DB_SUCCESS:
 			if (clust_rec == NULL) {
@@ -6713,24 +6717,63 @@ rec_loop:
       check_latest_version:
         /* In CHECK TABLE...EXTENDED, always check if the secondary
         index record matches the latest clustered index record
-        version, no matter if it is visible in our own read view.
-
-        If the latest clustered index version is delete-marked and
-        purgeable, it is not safe to fetch any BLOBs for column prefix
-        indexes because they may already have been freed. */
-        if (rec_trx_id &&
-            rec_get_deleted_flag(clust_rec,
-                                 prebuilt->table->not_redundant()) &&
-            purge_sys.is_purgeable(rec_trx_id))
-          goto did_not_find;
-
+        version, no matter if it is visible in our own read view. */
         if (!clust_offsets)
           clust_offsets= rec_get_offsets(clust_rec, clust_index, nullptr,
                                          clust_index->n_core_fields,
                                          ULINT_UNDEFINED, &heap);
-        err= row_check_index_match(prebuilt,
-                                   clust_rec, clust_index, clust_offsets,
-                                   rec, index, offsets);
+
+        /* If the latest clustered index version is delete-marked and
+        purgeable, it is not safe to fetch any BLOBs for column prefix
+        indexes because they may already have been freed. Where anything
+        will be dereferenced, freeze purge_sys.view across the test and
+        the fetch, so that purge cannot start freeing in between.
+
+        The freeze deliberately spans the whole comparison, not only the
+        fetch: row_check_index_match() dereferences one field at a time,
+        and for an index over a virtual column it evaluates the column
+        expression as well. Purge stays blocked for as long as that
+        takes.
+
+        A record that is not delete-marked owns all its externally stored
+        columns, and purge frees no reference that a record still owns, so
+        only a delete-marked one needs the freeze. The delete-mark cannot
+        change while this mini-transaction holds the page latch.
+
+        DB_TRX_ID stays out of that choice. It is 0 on a delete-marked
+        record that IMPORT TABLESPACE could not remove, and such a record
+        still needs the freeze, its references having been disowned to a
+        version that purge may free. Where it is 0 there is no transaction
+        to ask about, which is what both tests below need. */
+        {
+          const bool deleted=
+            rec_get_deleted_flag(clust_rec, prebuilt->table->not_redundant());
+
+          if (!deleted || !rec_offs_any_extern(clust_offsets) ||
+              DBUG_IF("purge_no_blob_freeze"))
+          {
+            /* purge_no_blob_freeze sends a record that does have externally
+            stored columns here as well, which is how the fetch below behaved
+            before it was protected. */
+            if (deleted && rec_trx_id && purge_sys.is_purgeable(rec_trx_id))
+              goto did_not_find;
+
+            err= row_check_index_match(prebuilt,
+                                       clust_rec, clust_index, clust_offsets,
+                                       rec, index, offsets);
+          }
+          else
+          {
+            purge_sys_t::view_guard freeze{purge_sys_t::view_guard::VIEW};
+
+            if (rec_trx_id && freeze.view().changes_visible(rec_trx_id))
+              goto did_not_find;
+
+            err= row_check_index_match(prebuilt,
+                                       clust_rec, clust_index, clust_offsets,
+                                       rec, index, offsets);
+          }
+        }
 
         switch (err) {
         default:
@@ -6802,6 +6845,9 @@ rec_loop:
 
         for (;;)
         {
+          /* The writer of clust_rec, whose undo log record rebuilds the next
+          version. Read before clust_rec is replaced by it below. */
+          const trx_id_t version_trx_id= rec_trx_id;
           mem_heap_t *prev_heap= vers_heap;
           vers_heap= mem_heap_create(1024);
           err= trx_undo_prev_version_build(clust_rec,
@@ -6870,13 +6916,67 @@ rec_loop:
           if (&view != &trx->read_view)
           {
             /* It is not safe to fetch BLOBs of committed delete-marked
-            records that may have been freed in purge. */
-            err= clust_rec_deleted && rec_trx_id &&
-              purge_sys.is_purgeable(rec_trx_id)
-              ? DB_SUCCESS_LOCKED_REC
-              : row_check_index_match(prebuilt,
-                                      clust_rec, clust_index, clust_offsets,
-                                      rec, index, offsets);
+            records that may have been freed in purge. Where anything will
+            be dereferenced, freeze purge_sys.view across the test and the
+            fetch, so that purge cannot start freeing in between. As at
+            check_latest_version, the freeze deliberately spans the whole
+            comparison, which fetches one field at a time and may evaluate
+            a virtual column expression. */
+            const bool extern_cols= rec_offs_any_extern(clust_offsets);
+
+            if (!extern_cols || DBUG_IF("purge_no_blob_freeze"))
+            {
+              /* purge_no_blob_freeze sends a version that does have
+              externally stored columns here as well, which is how the
+              fetch below behaved before it was protected. */
+              if (extern_cols)
+                DEBUG_SYNC_C("row_check_index_extended_match");
+              err= clust_rec_deleted && rec_trx_id &&
+                purge_sys.is_purgeable(rec_trx_id)
+                ? DB_SUCCESS_LOCKED_REC
+                : row_check_index_match(prebuilt,
+                                        clust_rec, clust_index, clust_offsets,
+                                        rec, index, offsets);
+            }
+            else
+            {
+              purge_sys_t::view_guard freeze{purge_sys_t::view_guard::VIEW};
+
+              /* Confirm that purge cannot see the writer of the version
+              clust_rec was rebuilt from. Unlike every other walk over old
+              versions, this one decides reachability from the lagging
+              purge_sys.end_view, so it does reach history that purge is
+              already free to remove.
+
+              Where it does, stop and report nothing. The orphan reports
+              of the other exits are calibrated on purge_sys.end_view,
+              while this test speaks about purge_sys.view, which is ahead
+              of it. Feeding a decision of the one into a gate of the
+              other could raise an error for a record that is not
+              delete-marked and is nonetheless sound. No report is lost
+              for good: as soon as end_view reaches the same point,
+              trx_undo_prev_version_build() reports missing history, and
+              a record that is truly unmatchable is flagged then.
+
+              row_check_index_purgeable forces this branch, which is
+              otherwise reached only when the view advances between the
+              walk starting and the freeze. */
+              if (freeze.view().changes_visible(version_trx_id) ||
+                  DBUG_IF("row_check_index_purgeable"))
+              {
+                ut_ad(!found_in_view);
+                goto free_vers_heap;
+              }
+
+              DEBUG_SYNC_C("row_check_index_extended_match");
+
+              err= clust_rec_deleted && rec_trx_id &&
+                freeze.view().changes_visible(rec_trx_id)
+                ? DB_SUCCESS_LOCKED_REC
+                : row_check_index_match(prebuilt,
+                                        clust_rec, clust_index, clust_offsets,
+                                        rec, index, offsets);
+            }
 
             switch (err) {
             default:
@@ -6894,6 +6994,7 @@ rec_loop:
                 visible_trx_id= rec_trx_id;
                 found_in_view= !clust_rec_deleted;
               }
+            free_vers_heap:
               mem_heap_free(vers_heap);
               if (!found_in_view)
                 goto did_not_find;

@@ -489,3 +489,66 @@ INSERT INTO articles(id, title) VALUES(7, 'mysql');
 SELECT * FROM articles WHERE MATCH(title) AGAINST('mysql');
 
 DROP TABLE articles;
+
+--echo #
+--echo # MDEV-41665 InnoDB assertion with result != FTS_INVALID on
+--echo # DELETE IGNORE with FK cascades on tables with FULLTEXT indexes
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(20), FULLTEXT(a)) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, a VARCHAR(20), FULLTEXT(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb');
+INSERT INTO t2 VALUES (1,'ccc');
+
+# Savepoint before the transaction has any FTS changes: delete
+BEGIN;
+SAVEPOINT s;
+DELETE FROM t1 WHERE id=1;
+ROLLBACK TO s;
+COMMIT;
+SELECT * FROM t1 WHERE MATCH(a) AGAINST('aaa');
+
+# Same, with an update (the Doc ID changes)
+BEGIN;
+SAVEPOINT s;
+UPDATE t1 SET a='ddd' WHERE id=1;
+ROLLBACK TO s;
+COMMIT;
+SELECT * FROM t1 WHERE MATCH(a) AGAINST('aaa');
+SELECT * FROM t1 WHERE MATCH(a) AGAINST('ddd');
+
+# Savepoint after the transaction already has FTS changes
+BEGIN;
+INSERT INTO t2 VALUES (2,'fff');
+SAVEPOINT s;
+DELETE FROM t1 WHERE id=1;
+UPDATE t2 SET a='ggg' WHERE id=1;
+ROLLBACK TO s;
+COMMIT;
+SELECT * FROM t1 WHERE MATCH(a) AGAINST('aaa');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('ccc');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('fff');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('ggg');
+
+# Rolling back to the same savepoint more than once
+BEGIN;
+INSERT INTO t2 VALUES (3,'hhh');
+SAVEPOINT s;
+DELETE FROM t2 WHERE id=3;
+ROLLBACK TO s;
+DELETE FROM t2 WHERE id=2;
+ROLLBACK TO s;
+COMMIT;
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('hhh');
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('fff');
+
+# A released savepoint keeps the changes made after it
+BEGIN;
+INSERT INTO t2 VALUES (4,'iii');
+SAVEPOINT s;
+DELETE FROM t2 WHERE id=4;
+RELEASE SAVEPOINT s;
+COMMIT;
+SELECT * FROM t2 WHERE MATCH(a) AGAINST('iii');
+
+DROP TABLE t1, t2;

@@ -263,7 +263,7 @@ sub get_dbh {
          $dbh = DBI->connect($cxn_string, $user, $pass, $defaults);
          # Immediately set character set and binmode on STDOUT.
          if ( my ($charset) = $cxn_string =~ m/charset=(\w+)/ ) {
-            my $sql = "/*!40101 SET NAMES $charset*/";
+            my $sql = "SET NAMES $charset";
             MKDEBUG && _d("$dbh: $sql");
             $dbh->do($sql);
             MKDEBUG && _d('Enabling charset for STDOUT');
@@ -298,7 +298,7 @@ sub get_dbh {
    MKDEBUG && _d('DBH info: ',
       $dbh,
       Dumper($dbh->selectrow_hashref(
-         'SELECT DATABASE(), CONNECTION_ID(), VERSION()/*!50038 , @@hostname*/')),
+         'SELECT DATABASE(), CONNECTION_ID(), VERSION(), @@hostname')),
       ' Connection info: ', ($dbh->{mariadb_hostinfo} || 'undef'),
       ' Character set info: ',
       Dumper($dbh->selectall_arrayref(
@@ -316,7 +316,7 @@ sub get_hostname {
       return $host;
    }
    my ( $hostname, $one ) = $dbh->selectrow_array(
-      'SELECT /*!50038 @@hostname, */ 1');
+      'SELECT @@hostname, 1');
    return $hostname;
 }
 
@@ -4601,27 +4601,23 @@ my %stmt_maker_for = (
    },
    INNODB_STATUS => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'SHOW /*innotop*/ ENGINE INNODB STATUS'
-             : 'SHOW /*innotop*/ INNODB STATUS');
+      return $dbh->prepare('SHOW /*innotop*/ ENGINE INNODB STATUS');
    },
    SHOW_VARIABLES => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare($config{global}->{val} && version_ge( $dbh, '4.0.3' )
+      return $dbh->prepare($config{global}->{val}
              ? 'SHOW /*innotop*/ GLOBAL VARIABLES'
              : 'SHOW /*innotop*/ VARIABLES');
    },
    SHOW_STATUS => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare($config{global}->{val} && version_ge( $dbh, '5.0.2' )
+      return $dbh->prepare($config{global}->{val}
              ? 'SHOW /*innotop*/ GLOBAL STATUS'
              : 'SHOW /*innotop*/ STATUS');
    },
    KILL_QUERY => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'KILL /*innotop*/ QUERY ?'
-             : 'KILL /*innotop*/ ?');
+      return $dbh->prepare('KILL /*innotop*/ QUERY ?');
    },
    SHOW_MASTER_LOGS => sub {
       my ( $dbh ) = @_;
@@ -4643,15 +4639,11 @@ my %stmt_maker_for = (
    },
    KILL_CONNECTION => sub {
       my ( $dbh ) = @_;
-      return $dbh->prepare(version_ge( $dbh, '5.0.0' )
-             ? 'KILL /*innotop*/ CONNECTION ?'
-             : 'KILL /*innotop*/ ?');
+      return $dbh->prepare('KILL /*innotop*/ CONNECTION ?');
    },
    OPEN_TABLES => sub {
       my ( $dbh ) = @_;
-      return version_ge($dbh, '4.0.0')
-         ? $dbh->prepare('SHOW /*innotop*/ OPEN TABLES')
-         : undef;
+      return $dbh->prepare('SHOW /*innotop*/ OPEN TABLES');
    },
    PROCESSLIST => sub {
       my ( $dbh ) = @_;
@@ -5091,7 +5083,7 @@ sub deadlock_thread {
 
       my @stmts = (
          "set transaction isolation level serializable",
-         (version_ge($dbh, '4.0.11') ? "start transaction" : 'begin'),
+         "start transaction",
          "select * from $tbl where a = $id",
          "update $tbl set a = $id where a <> $id",
       );
@@ -6079,8 +6071,7 @@ sub display_explain {
 
    if ( $query ) {
 
-      my $part = version_ge($dbhs{$cxn}->{dbh}, '5.1.5') ? 'PARTITIONS' : '';
-      $query = "EXPLAIN $part\n" . $query;
+      $query = "EXPLAIN PARTITIONS\n" . $query;
 
       eval {
          if ( $db ) {
@@ -7672,10 +7663,8 @@ sub connect_to_db {
 
       # Set timeouts so an unused connection stays alive.
       # For example, a connection might be used in Q mode but idle in T mode.
-      if ( version_ge($dbh, '4.0.3')) {
-         my $timeout = $config{cxn_timeout}->{val};
-         $dbh->do("set session wait_timeout=$timeout, interactive_timeout=$timeout");
-      }
+      my $timeout = $config{cxn_timeout}->{val};
+      $dbh->do("set session wait_timeout=$timeout, interactive_timeout=$timeout");
    }
    return $href->{dbh};
 }
@@ -9735,9 +9724,8 @@ sub clear_deadlock {
       do_query($cxn, "set SQL_LOG_BIN=0");
 
       # Set up the table for creating a deadlock.
-      my $engine = version_ge($dbhs{$cxn}->{dbh}, '4.1.2') ? 'engine' : 'type';
       return unless do_query($cxn, "drop table if exists $tbl");
-      return unless do_query($cxn, "create table $tbl(a int) $engine=innodb");
+      return unless do_query($cxn, "create table $tbl(a int) engine=innodb");
       return unless do_query($cxn, "delete from $tbl");
       return unless do_query($cxn, "insert into $tbl(a) values(0), (1)");
       return unless do_query($cxn, "commit"); # Or the children will block against the parent

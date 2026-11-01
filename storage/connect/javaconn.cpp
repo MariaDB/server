@@ -218,6 +218,111 @@ void JAVAConn::ResetJVM(void)
 
 } // end of ResetJVM
 
+#if defined(_WIN32)
+/*
+  Remember the error of a JVM probe. Only the first error that is not
+  "not found" is kept, so that e.g. a wrong bitness is not hidden by the
+  next probe. err is initially ERROR_MOD_NOT_FOUND.
+*/
+static void set_jvm_error(DWORD *err, DWORD error)
+{
+  if (*err == ERROR_MOD_NOT_FOUND || *err == ERROR_PATH_NOT_FOUND)
+    *err= error;
+}
+
+
+/* Check the snprintf() result for a truncated path; record the error. */
+static bool path_fits(int len, size_t size, DWORD *err)
+{
+  if (len < int(size))
+    return true;
+  set_jvm_error(err, ERROR_FILENAME_EXCED_RANGE);
+  return false;
+}
+
+
+/* Load jvm.dll from the path. */
+static HMODULE load_jvm(const char *path, DWORD *err)
+{
+  HMODULE h;
+
+  if (!(h= LoadLibrary(path)))
+    set_jvm_error(err, GetLastError());
+  return h;
+}
+
+
+/* Read a string value from HKLM, a missing value is not an error. */
+static bool get_registry_string(const char *key, const char *name, char *buf,
+                                DWORD size, DWORD *err)
+{
+  LSTATUS rc= RegGetValue(HKEY_LOCAL_MACHINE, key, name,
+                          RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ, NULL, buf,
+                          &size);
+  if (rc != ERROR_SUCCESS && rc != ERROR_FILE_NOT_FOUND)
+    set_jvm_error(err, rc == ERROR_MORE_DATA ? ERROR_FILENAME_EXCED_RANGE : rc);
+  return rc == ERROR_SUCCESS;
+}
+
+
+/*
+  Load jvm.dll from a JDK or JRE home. Like java.exe, prefer "server" (the
+  only JVM since JDK 9) over "client", also in the jre subdirectory of JDK 8.
+*/
+static HMODULE load_jvm_from_home(const char *home, DWORD *err)
+{
+  static const char *dirs[]=
+  {
+    "\\bin\\server", "\\bin\\client", "\\jre\\bin\\server", "\\jre\\bin\\client"
+  };
+  char path[MAX_PATH];
+  HMODULE h= NULL;
+
+  for (uint i= 0; !h && i < array_elements(dirs); i++)
+  {
+    if (path_fits(snprintf(path, sizeof(path), "%s%s\\jvm.dll", home, dirs[i]),
+                  sizeof(path), err))
+      h= load_jvm(path, err);
+  }
+  return h;
+}
+
+
+/*
+  Load jvm.dll using the registry keys of Java installers: JavaSoft\{JDK|JRE}
+  has CurrentVersion, naming a subkey with RuntimeLib (JRE) or JavaHome.
+  JDK 8 used the longer key names.
+*/
+static HMODULE load_jvm_from_registry(DWORD *err)
+{
+  static const char *keys[]=
+  {
+    "SOFTWARE\\JavaSoft\\JDK", "SOFTWARE\\JavaSoft\\JRE",
+    "SOFTWARE\\JavaSoft\\Java Development Kit",
+    "SOFTWARE\\JavaSoft\\Java Runtime Environment"
+  };
+  HMODULE h= NULL;
+
+  for (uint i= 0; !h && i < array_elements(keys); i++)
+  {
+    char version[MAX_PATH], subkey[MAX_PATH], path[MAX_PATH];
+
+    if (!get_registry_string(keys[i], "CurrentVersion", version,
+                             sizeof(version), err))
+      continue;
+
+    if (!path_fits(snprintf(subkey, sizeof(subkey), "%s\\%s", keys[i], version),
+                   sizeof(subkey), err))
+      continue;
+    if (get_registry_string(subkey, "RuntimeLib", path, sizeof(path), err))
+      h= load_jvm(path, err);
+    if (!h && get_registry_string(subkey, "JavaHome", path, sizeof(path), err))
+      h= load_jvm_from_home(path, err);
+  }
+  return h;
+}
+#endif /* _WIN32 */
+
 /***********************************************************************/
 /*  Dynamically link the JVM library.                                  */
 /*  The purpose of this function is to allow using the CONNECT plugin  */
@@ -225,61 +330,38 @@ void JAVAConn::ResetJVM(void)
 /***********************************************************************/
 bool JAVAConn::GetJVM(PGLOBAL g)
 {
-	int ntry;
-
 	if (!LibJvm) {
-		char soname[512];
-
 #if defined(_WIN32)
-		for (ntry = 0; !LibJvm && ntry < 3; ntry++) {
-			if (!ntry && JvmPath) {
-				snprintf(soname, sizeof(soname), "%s\\jvm.dll", JvmPath);
+		DWORD err = ERROR_MOD_NOT_FOUND;
+		char  path[MAX_PATH];
 
-				ntry = 3;		 // No other try
-			} else if (ntry < 2 && getenv("JAVA_HOME")) {
-				safe_strcpy(soname, sizeof(soname), getenv("JAVA_HOME"));
+		const char *what = "jvm.dll (set JAVA_HOME or connect_jvm_path)";
 
-				if (ntry == 1)
-					safe_strcat(soname, sizeof(soname), "\\jre");
+		if (JvmPath) {
+			// An explicitly configured path is exclusive, no fallback
+			what = JvmPath;
+			if (path_fits(snprintf(path, sizeof(path), "%s\\jvm.dll", JvmPath),
+			              sizeof(path), &err))
+				LibJvm = load_jvm(path, &err);
+		} else {
+			const char *home = getenv("JAVA_HOME");
 
-				safe_strcat(soname, sizeof(soname), "\\bin\\client\\jvm.dll");
-			} else {
-				// Try to find it through the registry
-				char version[16];
-				char javaKey[64] = "SOFTWARE\\JavaSoft\\Java Runtime Environment";
-				LONG  rc;
-				DWORD BufferSize = 16;
+			if (home && *home)
+				LibJvm = load_jvm_from_home(home, &err);
 
-				safe_strcpy(soname, sizeof(soname), "jvm.dll");		// In case it fails
-
-				if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "CurrentVersion",
-					RRF_RT_ANY, NULL, (PVOID)&version, &BufferSize)) == ERROR_SUCCESS) {
-					safe_strcat(javaKey, sizeof(javaKey), "\\");
-					safe_strcat(javaKey, sizeof(javaKey), version);
-					BufferSize = sizeof(soname);
-
-					if ((rc = RegGetValue(HKEY_LOCAL_MACHINE, javaKey, "RuntimeLib",
-						RRF_RT_ANY, NULL, (PVOID)&soname, &BufferSize)) != ERROR_SUCCESS)
-						printf("RegGetValue: rc=%ld\n", rc);
-
-				} // endif rc
-
-				ntry = 3;		 // Try this only once
-			} // endelse
-
-			// Load the desired shared library
-			LibJvm = LoadLibrary(soname);
-		}	// endfor ntry
+			if (!LibJvm)
+				LibJvm = load_jvm_from_registry(&err);
+		}
 
 		// Get the needed entries
 		if (!LibJvm) {
 			char  buf[256];
-			DWORD rc = GetLastError();
+			DWORD rc = err;
 
 			FormatMessage(FORMAT_MESSAGE_FLAGS, NULL, rc, 0,
 				            (LPTSTR)buf, sizeof(buf), NULL);
 			snprintf(g->Message, sizeof(g->Message), MSG(DLL_LOAD_ERROR)": %s", rc,
-							 soname, buf);
+							 what, buf);
 		} else if (!(CreateJavaVM = (CRTJVM)GetProcAddress((HINSTANCE)LibJvm,
 			                                       "JNI_CreateJavaVM"))) {
 			snprintf(g->Message, sizeof(g->Message), MSG(PROCADD_ERROR), GetLastError(), "JNI_CreateJavaVM");
@@ -300,6 +382,8 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 #endif   // _DEBUG
 		} // endif LibJvm
 #else   // !_WIN32
+		char soname[FN_REFLEN];
+		int ntry;
 		const char *error = NULL;
 
 		for (ntry = 0; !LibJvm && ntry < 2; ntry++) {

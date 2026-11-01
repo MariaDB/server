@@ -248,7 +248,7 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
     the same, so any table using data/index_file_name will fail.
   */
   if (mysql_compare_tables(table, &part_alter_info, &part_create_info,
-                           &metadata_equal))
+                           &metadata_equal, true))
   {
     my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
     DBUG_RETURN(TRUE);

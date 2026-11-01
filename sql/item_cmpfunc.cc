@@ -2014,17 +2014,17 @@ bool Item_func_opt_neg::eq(const Item *item, const Eq_config &config) const
 
 bool Item_func_interval::fix_length_and_dec(THD *thd)
 {
-  uint rows= row->cols();
+  uint rows= row()->cols();
 
   for (uint i= 0 ; i < rows; i++)
   {
-    if (row->element_index(i)->check_cols(1))
+    if (row()->element_index(i)->check_cols(1))
       return true;
   }
 
-  use_decimal_comparison= ((row->element_index(0)->result_type() ==
+  use_decimal_comparison= ((row()->element_index(0)->result_type() ==
                             DECIMAL_RESULT) ||
-                           (row->element_index(0)->result_type() ==
+                           (row()->element_index(0)->result_type() ==
                             INT_RESULT));
   if (rows > 8)
   {
@@ -2032,7 +2032,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
 
     for (uint i= 1; not_null_consts && i < rows; i++)
     {
-      Item *el= row->element_index(i);
+      Item *el= row()->element_index(i);
       not_null_consts&= el->const_item() && !el->is_null();
     }
 
@@ -2046,7 +2046,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
       {
         for (uint i= 1; i < rows; i++)
         {
-          Item *el= row->element_index(i);
+          Item *el= row()->element_index(i);
           interval_range *range= intervals + (i-1);
           if ((el->result_type() == DECIMAL_RESULT) ||
               (el->result_type() == INT_RESULT))
@@ -2070,16 +2070,16 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
       {
         for (uint i= 1; i < rows; i++)
         {
-          intervals[i-1].dbl= row->element_index(i)->val_real();
+          intervals[i-1].dbl= row()->element_index(i)->val_real();
         }
       }
     }
   }
   base_flags&= ~item_base_t::MAYBE_NULL;
   max_length= 2;
-  used_tables_and_const_cache_join(row);
-  not_null_tables_cache= row->not_null_tables();
-  with_flags|= row->with_flags;
+  used_tables_and_const_cache_join(row());
+  not_null_tables_cache= row()->not_null_tables();
+  with_flags|= row()->with_flags;
   return false;
 }
 
@@ -2107,15 +2107,15 @@ longlong Item_func_interval::val_int()
 
   if (use_decimal_comparison)
   {
-    dec= row->element_index(0)->val_decimal(&dec_buf);
-    if (row->element_index(0)->null_value)
+    dec= row()->element_index(0)->val_decimal(&dec_buf);
+    if (row()->element_index(0)->null_value)
       return -1;
     my_decimal2double(E_DEC_FATAL_ERROR, dec, &value);
   }
   else
   {
-    value= row->element_index(0)->val_real();
-    if (row->element_index(0)->null_value)
+    value= row()->element_index(0)->val_real();
+    if (row()->element_index(0)->null_value)
       return -1;
   }
 
@@ -2123,7 +2123,7 @@ longlong Item_func_interval::val_int()
   {					// Use binary search to find interval
     uint start,end;
     start= 0;
-    end=   row->cols()-2;
+    end=   row()->cols()-2;
     while (start != end)
     {
       uint mid= (start + end + 1) / 2;
@@ -2149,9 +2149,9 @@ longlong Item_func_interval::val_int()
             value < range->dbl) ? 0 : start + 1;
   }
 
-  for (i=1 ; i < row->cols() ; i++)
+  for (i=1 ; i < row()->cols() ; i++)
   {
-    Item *el= row->element_index(i);
+    Item *el= row()->element_index(i);
     if (use_decimal_comparison &&
         ((el->result_type() == DECIMAL_RESULT) ||
          (el->result_type() == INT_RESULT)))
@@ -5739,6 +5739,80 @@ bool Item_cond::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+/**
+  Compare two Item_cond expressions for equality.
+
+  Distinct AND/OR items are normally not considered equal, preserving their
+  execution order. Some metadata comparisons can explicitly request a set
+  comparison because table definitions may be serialized with their
+  arguments reordered.
+
+  @param item   The other Item to compare with
+  @param config Comparison configuration
+
+  @return true if expressions are equivalent, false otherwise
+*/
+bool Item_cond::eq(const Item *item, const Eq_config &config) const
+{
+  if (this == item)
+    return true;
+
+  if (!config.unordered_conditions)
+    return false;
+
+  if (item->type() != COND_ITEM || (used_tables() & RAND_TABLE_BIT))
+    return false;
+
+  const Item_cond *item_cond= (const Item_cond *) item;
+  if (functype() != item_cond->functype())
+    return false;
+
+  /*
+    Treat the argument lists as sets. Checking both directions deliberately
+    ignores duplicate terms: A OR B and A OR B OR A are equivalent here.
+  */
+  List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+  Item *arg1;
+  while ((arg1= li1++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+    Item *arg2;
+    while ((arg2= li2++))
+    {
+      if (arg1->eq(arg2, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+
+  List_iterator_fast<Item> li2(const_cast<List<Item>&>(item_cond->list));
+  Item *arg2;
+  while ((arg2= li2++))
+  {
+    bool found_match= false;
+    List_iterator_fast<Item> li1(const_cast<List<Item>&>(list));
+    Item *arg1;
+    while ((arg1= li1++))
+    {
+      if (arg2->eq(arg1, config))
+      {
+        found_match= true;
+        break;
+      }
+    }
+    if (!found_match)
+      return false;
+  }
+
+  return true;
+}
+
+
 void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
 {
   List_iterator<Item> li(list);
@@ -7312,7 +7386,17 @@ void Item_equal::merge_into_list(THD *thd, List<Item_equal> *list,
     if (!merge_into)
     {
       if (item->merge_with_check(thd, this, save_merged))
+      {
         merge_into= item;
+        /*
+          If the caller doesn't set save_merged, then remove the items from the
+          source, which is 'this' object.  That prevents an ASAN problem where
+          an item appearing in both lists has its memory deleted via one list
+          and then is later read via the other.
+        */
+        if (!save_merged)
+          equal_items.empty();
+      }
     }
     else
     {

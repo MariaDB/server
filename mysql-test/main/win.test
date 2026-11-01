@@ -3150,3 +3150,28 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+
+--echo #
+--echo # MDEV-41146: WHERE is not checked when every table is const and
+--echo # the query needs a temporary table
+--echo #
+
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (1),(10);
+
+--echo # rand() < 0 is never true, so the result is empty.
+select a, row_number() over () from t1 where a=1 and rand() < 0;
+select a, row_number() over () from t1 where a=1 and rand() >= 0;
+
+--echo # t2.b > 5 is true only for the row where t2.b is 10.
+--sorted_result
+select b, (select row_number() over () from t1 where t1.a=1 and t2.b > 5) x
+from t2;
+
+drop table t1, t2;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

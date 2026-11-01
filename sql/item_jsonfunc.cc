@@ -2289,6 +2289,12 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return TRUE;
 
+  /*
+    The result also contains the hard-coded '[', ']', '{', '}', '"', ':',
+    ',' and ' ' (this is also used by JSON_OBJECT).
+  */
+  collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
+
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
   {
     ulonglong arg_length;
@@ -4221,28 +4227,34 @@ bool Item_func_json_keys::fix_length_and_dec(THD *thd)
 static int check_key_in_list(String *res,
                              const uchar *key, int key_len)
 {
-  const uchar *c= (const uchar *) res->ptr() + 2; /* beginning '["' */
-  const uchar *end= (const uchar *) res->end() - 1; /* ending '"' */
+  const uchar *c, *end;
+
+  if (!res || res->length() < 2)
+    return 0;
+
+  c= (const uchar *) res->ptr() + 1;
+  end= (const uchar *) res->end();
 
   while (c < end)
   {
-    int n_char;
-    for (n_char=0; c[n_char] != '"' && n_char < key_len; n_char++)
+    while (c < end && *c != '"')
+      c++;
+    if (c >= end)
+      break;
+    c++;
+
+    const uchar *key_start= c;
+    int n_char= 0;
+    while (c + n_char < end && c[n_char] != '"')
     {
-      if (c[n_char] != key[n_char])
-        break;
+      n_char++;
     }
-    if (c[n_char] == '"')
-    {
-      if (n_char == key_len)
-        return 1;
-    }
-    else
-    {
-      while (c[n_char] != '"')
-        n_char++;
-    }
-    c+= n_char + 4; /* skip ', "' */
+
+    if (n_char == key_len &&
+        (key_len == 0 || memcmp(key_start, key, key_len) == 0))
+      return 1;
+
+    c+= n_char + 1;
   }
   return 0;
 }
@@ -4936,6 +4948,9 @@ Item_func_json_objectagg::fix_fields(THD *thd, Item **ref)
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return 1;
 
+  /* The result also contains the hard-coded '{', '}', '"', ':', ',' and ' ' */
+  collation.repertoire|= MY_REPERTOIRE_ASCII_NOT_IDENT;
+
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
@@ -5177,6 +5192,13 @@ bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value,
                                   MEM_ROOT *current_mem_root, json_engine_t *temp_je,
                                   MEM_ROOT_DYNAMIC_ARRAY *stack)
 {
+  /*
+    Remember the array levels for json_skip_to_level(): after ']' is
+    scanned, stack_p already points to the parent, where
+    json_skip_level() could incorrectly consume parent elements.
+  */
+  const int js_level= json_get_level(js);
+  const int value_level= json_get_level(value);
   bool res= false;
   while (json_scan_next(js) == 0 && json_scan_next(value) == 0 &&
          js->state == JST_VALUE && value->state == JST_VALUE)
@@ -5185,19 +5207,21 @@ bool json_compare_arrays_in_order(json_engine_t *js, json_engine_t *value,
       return FALSE;
     if (js->value_type != value->value_type)
     {
-      json_skip_current_level(js, value);
+      json_skip_to_level(js, js_level);
+      json_skip_to_level(value, value_level);
       return FALSE;
     }
     res= check_overlaps(js, value, true, current_mem_root, temp_je, stack);
     if (!res)
     {
-      json_skip_current_level(js, value);
+      json_skip_to_level(js, js_level);
+      json_skip_to_level(value, value_level);
       return FALSE;
     }
   }
-  res= (value->state == JST_ARRAY_END || value->state == JST_OBJ_END ?
-        TRUE : FALSE);
-  json_skip_current_level(js, value);
+  res= (js->state == JST_ARRAY_END && value->state == JST_ARRAY_END);
+  json_skip_to_level(js, js_level);
+  json_skip_to_level(value, value_level);
   return res;
 }
 

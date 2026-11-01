@@ -946,11 +946,15 @@ dict_mem_fill_vcol_set_for_base_col(
 					table,
 					v_col->base_col[j]->ind).str) == 0) {
 
-				if (*v_cols == NULL) {
-					*v_cols = UT_NEW_NOKEY(dict_vcol_set());
+				/* A change to a base column changes the
+				complete secondary-index record. Include
+				every virtual key part of each affected index,
+				so that a cascaded update has the old values
+				required for undo. */
+				for (const auto& v_idx : v_col->v_indexes) {
+					dict_mem_fill_vcol_has_index(
+						v_idx.index, v_cols);
 				}
-
-				(*v_cols)->insert(v_col);
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 --- misc_debug.result
-+++ misc_debug.reject
++++ misc_debug,vers.result
 @@ -7,14 +7,14 @@
  SET @saved_debug_dbug = @@SESSION.debug_dbug;
  SET SESSION debug_dbug="+d,ib_dict_create_index_tree_fail";
@@ -51,7 +51,7 @@
  # MDEV-25663 Double free of transaction during TRUNCATE
  #
  call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-@@ -65,12 +39,3 @@
+@@ -65,15 +39,6 @@
  SET debug_dbug=@saved_debug_dbug;
  DROP TABLE t1;
  # End of 10.3 tests
@@ -64,3 +64,6 @@
 -ALTER TABLE t1 ADD FULLTEXT(f2);
 -ERROR HY000: Tablespace has been discarded for table `t1`
 -DROP TABLE t1;
+ #
+ #  MDEV-40324 use-of-uninitialized-value after creation of
+ #                FULLTEXT table failure

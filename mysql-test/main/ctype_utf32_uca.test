@@ -345,3 +345,38 @@ SET @charset='utf32';
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_unicode_ci;
+--source include/ctype_tailoring_view_create.inc
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_czech_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_uca1400_ai_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_uca1400_ai_cs;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_uca1400_as_ci;
+--source include/ctype_tailoring_01_probe.inc
+
+SET NAMES utf8mb4;
+SET collation_connection=utf32_uca1400_as_cs;
+--source include/ctype_tailoring_01_probe.inc
+--source include/ctype_tailoring_view_drop.inc
+
+SET NAMES DEFAULT;
+
+--echo # End of 11.8 tests

@@ -37,14 +37,12 @@ SET @collation_connection_saved = @@collation_connection||
 SET @@character_set_client = latin1||
 SET @@character_set_results = latin1||
 SET @@collation_connection = latin1_swedish_ci||
-/*!50002
 CREATE DEFINER=root@localhost TRIGGER ts_insert
 BEFORE INSERT ON test_suppressions
 FOR EACH ROW BEGIN
   DECLARE dummy INT;
   SELECT "" REGEXP NEW.pattern INTO dummy;
-END
-*/||
+END||
 SET @@character_set_client = @character_set_client_saved||
 SET @@character_set_results = @character_set_results_saved||
 SET @@collation_connection = @collation_connection_saved||
@@ -68,14 +66,12 @@ SET @collation_connection_saved = @@collation_connection||
 SET @@character_set_client = latin1||
 SET @@character_set_results = latin1||
 SET @@collation_connection = latin1_swedish_ci||
-/*!50002
 CREATE DEFINER=root@localhost TRIGGER gs_insert
 BEFORE INSERT ON global_suppressions
 FOR EACH ROW BEGIN
   DECLARE dummy INT;
   SELECT "" REGEXP NEW.pattern INTO dummy;
-END
-*/||
+END||
 SET @@character_set_client = @character_set_client_saved||
 SET @@character_set_results = @character_set_results_saved||
 SET @@collation_connection = @collation_connection_saved||
@@ -288,13 +284,11 @@ END||
 -- Declare a procedure testcases can use to insert test
 -- specific suppressions
 --
-/*!50001
 CREATE DEFINER=root@localhost
 PROCEDURE add_suppression(pattern VARCHAR(255))
 BEGIN
   INSERT INTO test_suppressions (pattern) VALUES (pattern);
   FLUSH NO_WRITE_TO_BINLOG TABLE test_suppressions;
-END
-*/||
+END||
 
 

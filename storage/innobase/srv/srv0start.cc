@@ -1610,6 +1610,10 @@ dberr_t srv_start(bool create_new_db)
 		}
 
 		if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
+			ut_d(log_sys.latch.rd_lock());
+			ut_ad(mtr_t::finisher_validate()
+			      || !log_sys.is_recoverable());
+			ut_d(log_sys.latch.rd_unlock());
 			/* Apply the hashed log records to the
 			respective file pages, for the last batch of
 			recv_group_scan_log_recs().

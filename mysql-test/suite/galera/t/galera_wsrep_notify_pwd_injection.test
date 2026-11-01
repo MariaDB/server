@@ -1,0 +1,38 @@
+#
+# A configured wsrep_notify_cmd password containing an apostrophe and a
+# space must reach the client intact, as a single value, not split into
+# two arguments or otherwise reinterpreted.
+#
+# STEPS:
+#  - node 1's wsrep_notify_cmd is configured with such a password, and a
+#    fake argv-recording client instead of a real mysql client
+#  - wait for the 2-node cluster to fully form (node 1 reaches Synced)
+#  - check that the notify script passes the password intact via
+#    MYSQL_PWD, and that it never appears in argv at all
+#
+
+if (!$WSREP_NOTIFY_CMD)
+{
+  --skip Needs the shipped wsrep_notify script
+}
+
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+
+--connection node_1
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'WSREP_LOCAL_STATE_COMMENT'
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--sleep 2
+
+--let $argv_file = $MYSQLTEST_VARDIR/tmp/wsrep_notify_pwd_injection.argv
+--let $env_file = $MYSQLTEST_VARDIR/tmp/wsrep_notify_pwd_injection.env
+cat_file $argv_file;
+cat_file $env_file;
+--remove_file $argv_file
+--remove_file $env_file

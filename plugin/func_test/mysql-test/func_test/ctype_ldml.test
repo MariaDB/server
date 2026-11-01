@@ -1,0 +1,53 @@
+--source include/have_ucs2.inc
+--source include/have_utf8mb4.inc
+--source include/have_utf16.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--echo #
+--echo # Collations loaded at runtime from Index.xml.
+--echo # - 8bit collations get their tailoring flags detected from the
+--echo #   collation weights (my_8bit_collation_flags_from_data())
+--echo # - Unicode collations get theirs from the LDML rules (whether they
+--echo #   reorder the ASCII range).
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("Charset id.*trying to replace");
+--enable_query_log
+
+--vertical_results
+SELECT full_collation_name AS name,
+  collation_tailoring(full_collation_name, 'ascii_digits') AS digits,
+  collation_tailoring(full_collation_name, 'ascii_minus_dot_digits') AS minus_dot_digits,
+  collation_tailoring(full_collation_name, 'ascii_alnum') AS alnum,
+  collation_tailoring(full_collation_name, 'ascii_ident') AS ident,
+  collation_tailoring(full_collation_name, 'ascii') AS ascii,
+  '---' AS `---`
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE full_collation_name IN
+ ('ascii2_general_ci', 'ascii2_bin', 'ascii2_general_nopad_ci',
+  'ascii2_nopad_bin', 'ascii2_general_inherited_ci',
+  'latin1_test', 'latin1_test2', 'latin1_test2_cs',
+  'latin1_swedish_nopad2_ci', 'latin1_space_after_letters_ci',
+  'utf8mb3_test_ci', 'utf8mb3_phone_ci', 'utf8mb3_5624_1',
+  'utf8mb3_implicit_weights_ci',
+  'utf8mb4_test_ci', 'utf8mb4_test_520_nopad_ci',
+  'utf8mb4_uca1400_test01_as_ci',
+  'ucs2_test_ci', 'ucs2_vn_ci', 'utf16_test_ci', 'utf32_test_ci')
+ORDER BY full_collation_name;
+--horizontal_results
+
+--echo #
+--echo # latin1_space_after_letters_ci is a PAD collation where the space
+--echo # sorts after the letters, so "ab" is greater than "abc". It must not
+--echo # have a tailoring on ALNUM and IDENT, otherwise it would be considered
+--echo # compatible with collations where the space sorts before the letters.
+--echo #
+SELECT 'ab' COLLATE latin1_swedish_ci < 'abc' AS swedish,
+       'ab' COLLATE latin1_space_after_letters_ci < 'abc' AS space_after;
+
+--echo # End of 11.8 tests

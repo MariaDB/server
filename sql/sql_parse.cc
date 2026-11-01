@@ -2866,7 +2866,8 @@ bool sp_process_definer(THD *thd)
       SUPER privilege).
     */
     bool curuser= thd->security_ctx->is_priv_user(d->user, d->host);
-    bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
+    bool currole= !curuser && !d->host.length &&
+                  !strcmp(d->user.str, thd->security_ctx->priv_role);
     if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
@@ -3268,6 +3269,11 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 bool Sql_cmd_show_routine_code::execute(THD *thd)
 {
   sp_head *sp;
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT(thd) &&
+      wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_SHOW))
+    return true;
+#endif /* WITH_WSREP */
   if (m_handler->sp_cache_routine(thd, m_name, &sp))
     return true;
   if (!sp || sp->show_routine_code(thd))
@@ -5566,6 +5572,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       There is no need to check for table permissions here, because
       if a user has no permissions to read a table, he won't be
       able to open it (with SQLCOM_HA_OPEN) in the first place.
+      On implicit reopen mysql_ha_open() checks privileges again.
     */
     unit->set_limit(select_lex);
 
@@ -5971,7 +5978,7 @@ finish:
   if (!thd->is_error() && !res)
     res= store_optimizer_context(thd);
 
-  if (thd->opt_ctx_replay)
+  if (thd->opt_ctx_replay && !thd->spcont && !thd->in_sub_stmt)
     thd->opt_ctx_replay->restore_modified_table_stats();
 
   if (res || thd->is_error())
@@ -6949,6 +6956,14 @@ bool check_one_table_access(THD *thd, privilege_t privilege,
   TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
   if ((subselects_tables= all_tables->next_global))
   {
+    /*
+      Only the target table is ours. Own tables come first in the list,
+      so the first not-own table means there are no more to check.
+      The rest were added for prelocking. Their routines check them.
+    */
+    if (subselects_tables == thd->lex->first_not_own_table())
+      return 0;
+
     /*
       Access rights asked for the first table of a view should be the same
       as for the view
@@ -10430,6 +10445,14 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
   /* Reset parser state. */
 
   thd->m_parser_state= NULL;
+
+  /*
+    The parser-only part of LEX is not meant to be used after parsing.
+    Mark it as freed so that stale accesses are caught early. It is
+    brought back by LEX::start() -> LEX_Parser_state::reset_parser_state().
+  */
+  TRASH_FREE((void*) &static_cast<LEX_Parser_state&>(*thd->lex),
+             sizeof(LEX_Parser_state));
 
   /* Restore creation context. */
 

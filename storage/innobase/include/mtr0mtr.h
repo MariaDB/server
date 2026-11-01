@@ -748,7 +748,11 @@ private:
   { return finisher(this, len); }
 public:
   /** Update finisher when spin_wait_delay is changing to or from 0. */
-  static void finisher_update();
+  static void finisher_update() noexcept;
+#ifdef UNIV_DEBUG
+  /** @return whether a finisher_update() call is unnecessary */
+  static bool finisher_validate() noexcept;
+#endif
 
   /** Decode the length of a record.
   @param l     log record

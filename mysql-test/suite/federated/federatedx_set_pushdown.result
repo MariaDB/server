@@ -1,0 +1,69 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+#
+# MDEV-40839: SET members from the 9th on were lost when a SET column
+# with more than 8 members was read through a select handler
+#
+connection default;
+set global federated_pushdown=1;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+Warnings:
+Note	1051	Unknown table 'federated.t1'
+CREATE TABLE federated.t1 (id int NOT NULL primary key, s set('a','b','c','d','e','f','g','h','i','j'));
+INSERT INTO federated.t1 VALUES (1,'a'),(2,'a,i'),(3,'h,i,j'),(4,'i'),(5,'a,b,c,d,e,f,g,h');
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+Warnings:
+Note	1051	Unknown table 'federated.t1'
+CREATE TABLE federated.t1 (id int NOT NULL primary key, s set('a','b','c','d','e','f','g','h','i','j'))
+ENGINE="FEDERATED"
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+# remote server (the truth)
+connection slave;
+select * from federated.t1 order by id;
+id	s
+1	a
+2	a,i
+3	h,i,j
+4	i
+5	a,b,c,d,e,f,g,h
+# federated, pushdown on
+connection master;
+select * from federated.t1 order by id;
+id	s
+1	a
+2	a,i
+3	h,i,j
+4	i
+5	a,b,c,d,e,f,g,h
+select id, s from federated.t1 where id > 0 order by id;
+id	s
+1	a
+2	a,i
+3	h,i,j
+4	i
+5	a,b,c,d,e,f,g,h
+# federated, pushdown off
+set global federated_pushdown=0;
+select * from federated.t1 order by id;
+id	s
+1	a
+2	a,i
+3	h,i,j
+4	i
+5	a,b,c,d,e,f,g,h
+set global federated_pushdown=0;
+DROP TABLE federated.t1;
+connection slave;
+DROP TABLE federated.t1;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

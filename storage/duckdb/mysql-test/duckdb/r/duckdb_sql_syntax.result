@@ -1,6 +1,7 @@
 CREATE TABLE t1 (id INT PRIMARY KEY, col1 INT, col2 INT);
 SELECT id, col1, col2 FROM t1 GROUP BY id, col1, col2 WITH ROLLUP;
 id	col1	col2
+NULL	NULL	NULL
 ALTER TABLE t1 ENGINE=DuckDB;
 SELECT id, col1, col2 FROM t1 GROUP BY id, col1, col2 WITH ROLLUP;
 id	col1	col2

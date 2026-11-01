@@ -546,4 +546,22 @@ SELECT MAX(c) FROM t1 GROUP BY c WITH ROLLUP limit 5;
 DROP TABLE t1;
 --echo # End of 10.11 tests
 
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+
+--echo #
+--echo # MDEV-41146: WHERE is not checked when every table is const and
+--echo # the query needs a temporary table
+--echo #
+
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+
+--echo # rand() < 0 is never true, so only the ROLLUP total row is returned.
+select distinct a from t1 where a=1 and rand() < 0 group by a with rollup;
+select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
+
+drop table t1;
+
+--echo # End of 11.4 tests
+
 --source include/test_db_charset_restore.inc

@@ -1,0 +1,18 @@
+--source include/have_gb2312.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+--disable_query_log
+SET @mask='^gb2312';
+SET @extra_collations_query=
+ 'INSERT INTO collations VALUES'
+ '(''gb2312_chinese_ci''),(''gb2312_chinese_nopad_ci''),'
+ '(''gb2312_bin''),(''gb2312_nopad_bin'')';
+
+--source include/ctype_tailoring_00.inc
+--enable_query_log
+
+--echo # End of 11.8 tests

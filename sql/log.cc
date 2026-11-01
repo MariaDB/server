@@ -4535,15 +4535,15 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
     Create an index file that will hold all file names uses for logging.
     Add new entries to the end of it.
   */
-  myf opt= MY_UNPACK_FILENAME;
+  myf opt= MY_UNPACK_FILENAME | MY_SAFE_PATH;
   if (!index_file_name_arg)
   {
     index_file_name_arg= log_name;    // Use same basename for index file
-    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT;
+    opt= MY_UNPACK_FILENAME | MY_REPLACE_EXT | MY_SAFE_PATH;
   }
-  fn_format(index_file_name, index_file_name_arg, mysql_data_home,
-            ".index", opt);
-  if ((index_file_nr= mysql_file_open(m_key_file_log_index,
+  if (!fn_format(index_file_name, index_file_name_arg, mysql_data_home,
+                ".index", opt) ||
+      (index_file_nr= mysql_file_open(m_key_file_log_index,
                                       index_file_name,
                                       O_RDWR | O_CREAT | O_BINARY | O_CLOEXEC,
                                       MYF(MY_WME))) < 0 ||
@@ -6591,6 +6591,16 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
 
 
 /*
+  Three parameter state object describes the exclusive rhs of the
+  purgeable range (left is the past). The state modification is
+  guarded by LOCK_index.
+*/
+static bool waiting_for_slave_to_change_binlog= 0;
+static ulonglong purge_sending_new_binlog_file= 0;
+static char purge_binlog_name[FN_REFLEN];
+static bool purge_warning_given= 0;
+
+/*
   @param  log_file_name_arg  Name of log file to check
   @param  interactive        True if called by a PURGE BINLOG command.
 
@@ -6607,12 +6617,6 @@ MYSQL_BIN_LOG::engine_purge_logs_by_size(ulonglong max_total_size)
   sending_new_binlog_file, cached in purge_sending_new_binlog_file,
   is incremented every time a slave changes to use a new binary log.
 */
-
-static bool waiting_for_slave_to_change_binlog= 0;
-static ulonglong purge_sending_new_binlog_file= 0;
-static char purge_binlog_name[FN_REFLEN];
-static bool purge_warning_given= 0;
-
 bool
 MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
                              bool interactive)
@@ -6621,12 +6625,24 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name_arg,
   const char *reason;
 
   DBUG_ASSERT(is_relay_log || !opt_binlog_engine_hton);
-  if (is_active(log_file_name_arg) ||
-      (!is_relay_log && waiting_for_slave_to_change_binlog &&
-       purge_sending_new_binlog_file == sending_new_binlog_file &&
-       !strcmp(log_file_name_arg, purge_binlog_name)))
+  mysql_mutex_assert_owner(&LOCK_index);
+
+  if (is_active(log_file_name_arg))
   {
     reason= "it is the current active binlog";
+    goto error;
+  }
+  /*
+    If purge_sending_new_binlog_file == sending_new_binlog_file then
+    no dump thread has changed the state since we last computed it,
+    and we can re-use that state for the check.
+  */
+  if (!interactive && !is_relay_log && waiting_for_slave_to_change_binlog &&
+      purge_sending_new_binlog_file == sending_new_binlog_file &&
+      !strcmp(log_file_name_arg, purge_binlog_name))
+  {
+    reason= "it is in use by a slave thread or less than "
+      "'slave_connections_needed_for_purge' slaves have processed it";
     goto error;
   }
 
@@ -8427,13 +8443,18 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, binlog_cache_data *cache_data,
   if (opt_binlog_engine_hton)
   {
     DBUG_ASSERT(cache_data != nullptr);
-    uint32_t avail= (uint32_t)(dest->write_end - dest->write_pos);
+    uint64_t total= my_b_tell(dest);
+    uint32_t avail=
+      unlikely(total >= binlog_max_spill_size) ? 0 :
+      MY_MIN((uint32_t)(dest->write_end - dest->write_pos),
+             (uint32_t)(binlog_max_spill_size - total));
     if (unlikely(avail < Gtid_log_event::max_size) &&
         avail < gtid_event.get_size())
     {
       /*
-        The GTID event doesn't fit in the cache, so we have to spill the
-        contents as oob event data.
+        The GTID event doesn't fit in the cache (or within
+        binlog_max_spill_size), so we have to spill the contents as oob event
+        data.
       */
       if (my_b_flush_io_cache(dest, 0))
         DBUG_RETURN(true);
@@ -8597,7 +8618,6 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
                           handler_binlog_reader *reader)
 {
   String packet;
-  Format_description_log_event fd_event(4);
 
   if (reader)
   {
@@ -8617,8 +8637,7 @@ binlog_recover_gtid_state(rpl_binlog_state_base *state,
       uchar flags2;
       if (Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                BINLOG_CHECKSUM_ALG_OFF, &gtid.domain_id,
-                               &gtid.server_id, &gtid.seq_no, &flags2,
-                               &fd_event))
+                               &gtid.server_id, &gtid.seq_no, &flags2))
         return true;
       state->update_nolock(&gtid);
     }
@@ -9046,7 +9065,7 @@ err:
         mysql_mutex_unlock(&LOCK_commit_ordered);
         cache_mngr->last_commit_pos_file.engine_file_no=
           engine_context->out_file_no;
-        cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+        cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
         if (unlikely((*opt_binlog_engine_hton->binlog_write_direct)
                      (file, engine_context, commit_gtid)))
@@ -9115,7 +9134,8 @@ err:
         mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
         mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-        if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+        if (likely(!error) &&
+            repl_semisync_master.wait_after_sync(log_file_name, offset))
         {
           error=1;
           /* error is already printed inside hook */
@@ -10657,7 +10677,7 @@ MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct() later. */
           cache_mngr->need_write_direct= TRUE;
@@ -11164,7 +11184,7 @@ void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
         {
           cache_mngr->last_commit_pos_file.engine_file_no=
             engine_context->out_file_no;
-          cache_mngr->last_commit_pos_offset= engine_context->out_file_no;
+          cache_mngr->last_commit_pos_offset= engine_context->out_offset;
 
           /* Mark to call binlog_write_direct later. */
           cache_mngr->need_write_direct= TRUE;

@@ -3030,6 +3030,8 @@ static void flush_bits(void)
   int bits;
   ulonglong bit_buffer;
 
+  if (file_buffer.bits == BITS_SAVED)           /* Nothing to write */
+    return;
   bits= file_buffer.bits & ~7;
   bit_buffer= file_buffer.bitbucket >> bits;
   bits= BITS_SAVED - bits;

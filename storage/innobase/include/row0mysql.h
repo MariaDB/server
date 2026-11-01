@@ -576,7 +576,28 @@ struct row_prebuilt_t {
 					updated */
 	dtuple_t*	clust_ref;	/*!< prebuilt dtuple used in
 					sel/upd/del */
-	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, or LOCK_X */
+	lock_mode	select_lock_type;/*!< LOCK_NONE, LOCK_S, LOCK_X, or
+					LOCK_X_BY_TABLE */
+
+	/** @return the lock mode to request for records and tables:
+	select_lock_type, with LOCK_X_BY_TABLE mapped to LOCK_X */
+	lock_mode real_lock_mode() const
+	{
+		return static_cast<lock_mode>(select_lock_type & LOCK_MODE_MASK);
+	}
+
+	/** @return the table lock to request for a locking read: LOCK_IS or
+	LOCK_IX, or the stronger LOCK_S or LOCK_X when full_table_scan makes
+	a single table lock replace the record locks.
+	select_lock_type must be LOCK_S, LOCK_X or LOCK_X_BY_TABLE. */
+	lock_mode table_lock_mode() const
+	{
+		ut_ad(select_lock_type == LOCK_S || select_lock_type == LOCK_X
+		      || select_lock_type == LOCK_X_BY_TABLE);
+		return static_cast<lock_mode>(
+			select_lock_type & (1U | unsigned{full_table_scan} << 1));
+	}
+
 	bool		skip_locked;	/*!< TL_{READ,WRITE}_SKIP_LOCKED */
 	lock_mode	stored_select_lock_type;/*!< this field is used to
 					remember the original select_lock_type

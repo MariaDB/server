@@ -3545,6 +3545,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select distinct 1, row_number() over (order by 1) from t1 where a=0 group by a with rollup;
 1	row_number() over (order by 1)
+1	1
 drop table t1;
 explain
 SELECT DISTINCT BIT_OR(100) OVER () FROM dual
@@ -4879,6 +4880,30 @@ SET @@sql_mode= @save_sql_mode;
 DROP TABLE t1;
 #
 # End of 10.11 tests
+#
+#
+# MDEV-41146: WHERE is not checked when every table is const and
+# the query needs a temporary table
+#
+create table t1 (a int primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (b int);
+insert into t2 values (1),(10);
+# rand() < 0 is never true, so the result is empty.
+select a, row_number() over () from t1 where a=1 and rand() < 0;
+a	row_number() over ()
+select a, row_number() over () from t1 where a=1 and rand() >= 0;
+a	row_number() over ()
+1	1
+# t2.b > 5 is true only for the row where t2.b is 10.
+select b, (select row_number() over () from t1 where t1.a=1 and t2.b > 5) x
+from t2;
+b	x
+1	NULL
+10	1
+drop table t1, t2;
+#
+# End of 11.4 tests
 #
 #
 # MDEV-23867: select crash in compute_window_func

@@ -20,6 +20,8 @@ MIN(f1) >= 1000	COUNT(*) = 20	COUNT(DISTINCT f1) = 20
 1	1	1
 connection node_1;
 ALTER TABLE t1 AUTO_INCREMENT = 5;
+Warnings:
+Note	4190	ALTER TABLE is implicitly changing the value of 'AUTO_INCREMENT' from '5' to '1039'
 INSERT INTO t1 (f2) SELECT 1 FROM ten;
 connection node_2;
 INSERT INTO t1 (f2) SELECT 1 FROM ten;

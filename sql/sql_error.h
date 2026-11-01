@@ -1082,7 +1082,11 @@ public:
 
   bool is_disabled() const { return m_status == DA_DISABLED; }
 
-  void set_bulk_execution(bool bulk) { is_bulk_execution= bulk; }
+  void set_bulk_execution(bool bulk)
+  {
+    is_bulk_execution= bulk;
+    m_bulk_status= DA_EMPTY;
+  }
 
   bool is_bulk_op() const { return is_bulk_execution; }
 
@@ -1132,6 +1136,20 @@ public:
   uint unsafe_statement_warn_count() const
   {
     return m_statement_warn_count;
+  }
+
+  /*
+    Warnings of a bulk operation executed for every set of parameters are
+    the warnings before the execution and the warnings of the execution.
+    Warnings pushed while the status is DA_OK_BULK or DA_EOF_BULK are
+    counted by both increment_warning() and set_ok_status() or
+    set_eof_status(), so the sum is recomputed.
+  */
+  void set_bulk_warn_count(uint before)
+  {
+    DBUG_ASSERT(is_bulk_op());
+    if (m_status == DA_OK_BULK || m_status == DA_EOF_BULK)
+      m_statement_warn_count= before + uint(current_statement_warn_count());
   }
 
   /**
@@ -1330,6 +1348,12 @@ private:
   uint	     m_statement_warn_count;
 
   enum_diagnostics_status m_status;
+
+  /*
+    DA_EMPTY until the bulk operation sets m_status to DA_OK_BULK or
+    DA_EOF_BULK, reset by set_bulk_execution()
+  */
+  enum_diagnostics_status m_bulk_status;
 
   my_bool is_bulk_execution;
 

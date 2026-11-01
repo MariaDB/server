@@ -1077,7 +1077,8 @@ static MY_CASEFOLD_INFO my_casefold_sjis=
 {
   0xFFFF,
   my_casefold_pages_sjis,
-  NULL /* ws */
+  NULL, /* ws */
+  FALSE
 };
 
 
@@ -34018,6 +34019,30 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 
 
 /*
+  sjis_bin and sjis_nopad_bin reorder ASCII punctuation characters
+  over _bin collations.
+  So a special virtual function is needed.
+*/
+/*
+  No irregularities on the ALNUM and IDENT ranges.
+  ASCII punctuation characters are reordered.
+*/
+static LEX_CSTRING my_tailoring_sjis_bin(CHARSET_INFO *self,
+                                         my_repertoire_t repertoire)
+{
+  const MY_TAILORING_SET set=
+  {
+    my_tailoring_str_digits, /* DIGITS */
+    my_tailoring_str_minus_dot_digits, /* MINUS_DOT_DIGITS */
+    my_tailoring_str_alnum_09_AZ_az, /* ALNUM */
+    my_tailoring_str_ident_09_AZ_underscore_az, /* IDENT */
+    {0,0} /* ASCII */
+  };
+  return my_tailoring_by_set_and_repertoire(&set, repertoire);
+}
+
+
+/*
   sjis_chinese_ci and sjis_bin sort character blocks in this order:
   1. [00..7F]                - 7BIT characters (ASCII)
   2. [81..9F][40..7E,80..FC] - MB2 characters, part1
@@ -34075,7 +34100,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_ident_caseup_ci_generic
 };
 
 
@@ -34096,7 +34122,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_sjis_bin
 };
 
 
@@ -34117,7 +34144,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_nopad_ci=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_ident_caseup_ci_generic
 };
 
 
@@ -34138,7 +34166,8 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_nopad_bin=
   my_max_str_mb_simple,
   my_ci_get_id_generic,
   my_ci_get_collation_name_generic,
-  my_ci_eq_collation_generic
+  my_ci_eq_collation_generic,
+  my_tailoring_sjis_bin
 };
 
 

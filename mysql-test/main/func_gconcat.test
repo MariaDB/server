@@ -292,7 +292,7 @@ drop table t2;
 # Cannot convert the charset of a GROUP_CONCAT result
 #
 CREATE TABLE t1 (a CHAR(10) CHARACTER SET cp850);
-INSERT INTO t1 VALUES ('À');
+INSERT INTO t1 VALUES ('ï¿½');
 SELECT a FROM t1;
 SELECT GROUP_CONCAT(a) FROM t1;
 DROP TABLE t1;
@@ -574,8 +574,8 @@ DROP TABLE t1, t2, t3;
 #
 set names latin1;
 create table t1 (id int, name varchar(20)) DEFAULT CHARSET=utf8;
-insert into t1 (id, name) values (1, "óra");
-insert into t1 (id, name) values (2, "óra");
+insert into t1 (id, name) values (1, "ï¿½ra");
+insert into t1 (id, name) values (2, "ï¿½ra");
 select b.id, group_concat(b.name) from t1 a, t1 b group by b.id;
 drop table t1;
 
@@ -1137,3 +1137,18 @@ disconnect u;
 connection default;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # Beginning of 10.11 tests
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(1024) NOT NULL);
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+
+SET SQL_MODE= '';
+
+SELECT GROUP_CONCAT( IF( id, '', a ), MID( a, 10, 0 ) ) AS f FROM t1;
+
+DROP TABLE t1;
+
+--echo # End of 10.11 test

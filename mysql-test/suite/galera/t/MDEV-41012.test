@@ -1,0 +1,40 @@
+#
+# MDEV-41012: BF-BF conflict when applying a child INSERT and a parent UPDATE
+#             in parallel, for a foreign key on a fixed binary data type.
+#
+# The test sends two write sets having access with the same primary key of fixed
+# binary data type, the transactions are:
+#  * INSERT into the child table havinga reference key for the parent row
+#  * UPDATE of the parent row having the parent's primary key,
+#
+# The test orders appliers so that the child INSERT is parked before it
+# is applied, the parent UPDATE is replicated after it, and we verify that the
+# UPDATE has to wait for the INSERT instead of being applied in parallel.
+#
+# All three Field_fbt types (UUID, INET4 and INET6) are covered.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/galera_have_debug_sync.inc
+
+--echo #
+--echo # UUID
+--echo #
+--let $fbt_type = UUID
+--let $fbt_value = 'c0a8016b-9e4d-4f7a-b3d2-6a1e8f9c0d1b'
+--source MDEV-41012.inc
+
+--echo #
+--echo # INET6
+--echo #
+--let $fbt_type = INET6
+--let $fbt_value = '2001:db8::c0a8:16b'
+--source MDEV-41012.inc
+
+--echo #
+--echo # INET4
+--echo #
+--let $fbt_type = INET4
+--let $fbt_value = '192.168.1.107'
+--source MDEV-41012.inc

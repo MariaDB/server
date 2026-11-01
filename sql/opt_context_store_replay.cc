@@ -784,7 +784,7 @@ bool store_optimizer_context(THD *thd)
   {
     return false;
   }
-  String sql_script;
+  StringBuffer<1024> sql_script;
   res= thd->opt_ctx_recorder->dump_sql_script(thd, sql_script);
   clean_captured_ctx(thd);
 
@@ -821,8 +821,8 @@ bool store_optimizer_context(THD *thd)
 
 bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
 {
-  String qry_ctx_script;
-  String sys_vars_script;
+  StringBuffer<1024> qry_ctx_script;
+  StringBuffer<1024> sys_vars_script;
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
   Json_writer_array context_list(&ctx_writer, "tables");
@@ -867,7 +867,7 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   List_iterator li(tables_list);
   for (TABLE_LIST *tbl= li++; !res && tbl; tbl= li++)
   {
-    String ddl;
+    StringBuffer<1024> ddl;
     StringBuffer<256> full_tbl_name;
     LEX_CSTRING *tbl_name_key= nullptr;
     append_table_or_view_name(tbl, &full_tbl_name);
@@ -1101,7 +1101,7 @@ end:
 table_context_for_store *
 Optimizer_context_recorder::get_table_context(const TABLE *table)
 {
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(table, &tbl_name);
   table_context_for_store *table_ctx=
       search((uchar *) tbl_name.c_ptr_safe(), tbl_name.length());
@@ -1280,8 +1280,8 @@ void Optimizer_context_recorder::record_records_in_range(
     return; // OOM
 
   rec_in_range_ctx->keynr= keynr;
-  String min_key;
-  String max_key;
+  StringBuffer<256> min_key;
+  StringBuffer<256> max_key;
   print_records_in_range_keys(tbl, key_part, keynr, min_range, max_range,
                               &min_key, &max_key);
 
@@ -1382,7 +1382,7 @@ static void append_table_or_view_name(const TABLE_LIST *tbl, String *buf)
 class index_context_for_replay : public Sql_alloc
 {
 public:
-  index_context_for_replay() : rec_per_key(current_thd->mem_root) {}
+  index_context_for_replay(MEM_ROOT *mem_root) : rec_per_key(mem_root) {}
   char *idx_name= NULL;
   Mem_root_dynamic_array<double> rec_per_key;
   static index_context_for_replay *parse(MEM_ROOT *mem_root,
@@ -1495,6 +1495,14 @@ public:
       if (read_double(je , name, err_buf, val))
         return 1;
 
+      /* Index_statistics stores it multiplied by 100000 in a ulonglong */
+      if (val < 0 || val > 1e14)
+      {
+        err_buf->append(name, strlen(name));
+        err_buf->append(STRING_WITH_LEN(" value is out of range"));
+        return 1;
+      }
+
       if (list_values->append(val) || json_scan_next(je))
         return 1;
     }
@@ -1582,7 +1590,7 @@ index_context_for_replay*
 index_context_for_replay::parse(MEM_ROOT *mem_root, json_engine_t *je,
                                 String *err_buf)
 {
-  auto index_ctx= new (mem_root) index_context_for_replay;
+  auto index_ctx= new (mem_root) index_context_for_replay(mem_root);
   if (!index_ctx)
     return NULL;
 
@@ -1615,7 +1623,7 @@ Multi_range_read_const_call_record *
 Multi_range_read_const_call_record::parse(MEM_ROOT *mem_root, json_engine_t *je,
                                           String *err_buf)
 {
-  auto out= new Multi_range_read_const_call_record;
+  auto out= new (mem_root) Multi_range_read_const_call_record;
   if (!out)
     return NULL;
 
@@ -1766,7 +1774,8 @@ records_in_range_call_record::parse(MEM_ROOT *mem_root,
   return out;
 }
 
-Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg) : thd(thd_arg)
+Optimizer_context_replay::Optimizer_context_replay(THD *thd_arg)
+    : thd(thd_arg), mem_root(thd_arg->mem_root)
 {
   parse(); // TODO: error handling?
 }
@@ -1783,6 +1792,17 @@ static bool sql_command_uses_opt_context(enum_sql_command sql_command)
 
 void init_optimizer_context_replay_if_needed(THD *thd)
 {
+  /*
+    Sub-statements use the replay object of the top-level statement, which
+    restores the infused statistics of all their tables and frees it.
+    Statements of a stored procedure are not replayed.
+  */
+  if (thd->spcont || thd->in_sub_stmt)
+    return;
+
+  // Replay is cleaned up after query in THD::cleanup_after_query()
+  DBUG_ASSERT(!thd->opt_ctx_replay);
+
   /* If @@optimizer_replay_context is not empty, start the replay  */
   if (thd->variables.optimizer_replay_context &&
       strlen(thd->variables.optimizer_replay_context) > 0 &&
@@ -1857,7 +1877,7 @@ bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -1870,9 +1890,9 @@ bool Optimizer_context_replay::infuse_ha_scan_time(const TABLE *tbl,
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      tbl_name.c_ptr_safe(), "list of table contexts");
+      ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe());
   return true;
 }
 
@@ -1905,7 +1925,7 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
   range_seq_t seq_it;
   List<Multi_range_read_const_call_record> mrr_const_calls;
   store_range_contexts(table, idx_name, &mrr_const_calls);
-  String act_ranges;
+  StringBuffer<256> act_ranges;
   seq_it= seq_if->init((void *) seq, 0, 0);
   act_ranges.append(STRING_WITH_LEN("["));
   List<char> text_ranges;
@@ -1961,21 +1981,13 @@ bool Optimizer_context_replay::infuse_multi_range_read_info_const(
       }
     }
 
-    String arg1;
-    String arg2;
-    String tbl_name;
+    StringBuffer<128> tbl_name;
     append_base_table_name(table, &tbl_name);
-    arg1.append(STRING_WITH_LEN("the given list of ranges i.e. "));
-    arg1.append(act_ranges);
-    arg2.append(STRING_WITH_LEN("the list of ranges for table_name "));
-    arg2.append(tbl_name);
-    arg2.append(STRING_WITH_LEN(" and index_name "));
-    arg2.append(idx_name, strlen(idx_name));
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
-        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-        arg1.c_ptr_safe(), arg2.c_ptr_safe());
+        ER_JSON_OPTIMIZER_REPLAY_RANGES_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_RANGES_MATCH_FAILED),
+        act_ranges.c_ptr_safe(), tbl_name.c_ptr_safe(), idx_name);
   }
   return true;
 }
@@ -1998,7 +2010,7 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
   KEY *keyinfo= tbl->key_info + keynr;
   const char *idx_name= keyinfo->name.str;
@@ -2020,19 +2032,11 @@ bool Optimizer_context_replay::infuse_cost_for_index_read(const TABLE *tbl,
     }
   }
 
-  String warn_msg(256);
-  warn_msg.append(tbl_name);
-  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
-  warn_msg.append(STRING_WITH_LEN(", records:"));
-  warn_msg.q_append_int64(records);
-  warn_msg.append(STRING_WITH_LEN(", eq_ref:"));
-  warn_msg.append(eq_ref);
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "cost_for_index_read_calls");
+      ER_JSON_OPTIMIZER_REPLAY_COST_INDEX_READ_CALLS_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_COST_INDEX_READ_CALLS_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), keynr, (ulonglong) records, (int) eq_ref);
   return true;
 }
 
@@ -2048,14 +2052,14 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
   if (!has_records() || !is_base_table(table->pos_in_table_list))
     return;
 
-  Saved_table_stats *saved_ts= new Saved_table_stats();
+  Saved_table_stats *saved_ts= new (mem_root) Saved_table_stats();
 
   if (unlikely(!saved_ts))
     return; // OOM
 
   saved_ts->table= table;
 
-  if (saved_table_stats.push_back(saved_ts))
+  if (saved_table_stats.push_front(saved_ts, mem_root))
     return;
 
   KEY *key_info, *key_info_end;
@@ -2068,7 +2072,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     if (!index_freq_list || !index_freq_list->size())
       continue;
 
-    Saved_index_stats *saved_is= new Saved_index_stats();
+    Saved_index_stats *saved_is= new (mem_root) Saved_index_stats();
 
     if (unlikely(!saved_is))
       return; // OOM
@@ -2077,16 +2081,18 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     Index_statistics *original_read_stats= key_info->read_stats;
     bool original_is_statistics_from_stat_tables=
         key_info->is_statistics_from_stat_tables;
-    Index_statistics *new_read_stats= new Index_statistics();
+    Index_statistics *new_read_stats= new (mem_root) Index_statistics();
 
     if (unlikely(!new_read_stats))
       return; // OOM
 
+    size_t frequencies_size= sizeof(ulonglong) * num_key_parts;
     ulonglong *frequencies=
-        (ulonglong *) thd->alloc(sizeof(ulonglong) * num_key_parts);
+        (ulonglong *) alloc_root(mem_root, frequencies_size);
 
     if (unlikely(!frequencies))
       return; // OOM
+    bzero(frequencies, frequencies_size);
 
     new_read_stats->init_avg_frequency(frequencies);
     key_info->read_stats= new_read_stats;
@@ -2104,7 +2110,7 @@ void Optimizer_context_replay::infuse_table_stats(TABLE *table)
     saved_is->original_is_statistics_from_stat_tables=
         original_is_statistics_from_stat_tables;
     saved_is->original_read_stats= original_read_stats;
-    saved_ts->saved_index_stats.push_back(saved_is);
+    saved_ts->saved_index_stats.push_back(saved_is, mem_root);
   }
 }
 
@@ -2115,9 +2121,9 @@ bool Optimizer_context_replay::infuse_records_in_range(
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String min_key;
-  String max_key;
-  String tbl_name;
+  StringBuffer<256> min_key;
+  StringBuffer<256> max_key;
+  StringBuffer<128> tbl_name;
   print_records_in_range_keys(tbl, key_part, keynr, min_range, max_range,
                               &min_key, &max_key);
   append_base_table_name(tbl, &tbl_name);
@@ -2138,19 +2144,11 @@ bool Optimizer_context_replay::infuse_records_in_range(
     }
   }
 
-  String warn_msg(256);
-  warn_msg.append(tbl_name);
-  warn_msg.append(STRING_WITH_LEN(" with key_number:"));
-  warn_msg.q_append(keynr);
-  warn_msg.append(STRING_WITH_LEN(" with min_key:"));
-  warn_msg.append(min_key);
-  warn_msg.append(STRING_WITH_LEN(" with max_key:"));
-  warn_msg.append(max_key);
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      warn_msg.c_ptr_safe(), "records_in_range_calls");
+      ER_JSON_OPTIMIZER_REPLAY_REC_RANGE_CALLS_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_REC_RANGE_CALLS_MATCH_FAILED),
+      tbl_name.c_ptr_safe(), keynr, min_key.c_ptr_safe(), max_key.c_ptr_safe());
   return true;
 }
 
@@ -2158,6 +2156,11 @@ bool Optimizer_context_replay::infuse_records_in_range(
   @brief
     restore the saved stats for the tables, and indexes that were
     earlier recorded using infuse_table_stats()
+
+  @detail
+    A table can be infused more than once per statement, then only its
+    first save holds the original stats. saved_table_stats is in the
+    reverse order of saving, so that one is restored last.
 */
 void Optimizer_context_replay::restore_modified_table_stats()
 {
@@ -2173,6 +2176,7 @@ void Optimizer_context_replay::restore_modified_table_stats()
       key->read_stats= saved_is->original_read_stats;
     }
   }
+  saved_table_stats.empty();
 }
 
 /*
@@ -2193,9 +2197,9 @@ bool Optimizer_context_replay::parse()
 {
   json_engine_t je;
   char *context= NULL;
-  String str;
+  StringBuffer<256> str;
   String *value;
-  String err_buf;
+  StringBuffer<256> err_buf;
   user_var_entry *var;
   char *var_name= thd->variables.optimizer_replay_context;
   LEX_CSTRING varname= {var_name, strlen(var_name)};
@@ -2203,7 +2207,7 @@ bool Optimizer_context_replay::parse()
   Read_named_member members[]=
   {
     {"tables",
-      Read_object_array<table_context_for_replay>(thd->mem_root, &ctx_list,
+      Read_object_array<table_context_for_replay>(mem_root, &ctx_list,
                                                  table_context_for_replay::parse),
       false
     },
@@ -2262,7 +2266,7 @@ err:
       thd, Sql_condition::WARN_LEVEL_WARN,
       ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED,
       ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_PARSE_FAILED),
-      err_buf.c_ptr_safe(), err_offset);
+      err_buf.c_ptr_safe(), (longlong) err_offset);
   DBUG_RETURN(true);
 }
 
@@ -2381,7 +2385,7 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return true;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -2397,9 +2401,9 @@ bool Optimizer_context_replay::infuse_table_rows(TABLE *tbl)
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      tbl_name.c_ptr_safe(), "list of table contexts");
+      ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_TABLE_CONTEXT_MATCH_FAILED),
+      tbl_name.c_ptr_safe());
   return true;
 }
 
@@ -2415,8 +2419,8 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
   if (!has_records() || !is_base_table(tbl->pos_in_table_list))
     return NULL;
 
-  String tbl_name;
-    append_base_table_name(tbl, &tbl_name);
+  StringBuffer<128> tbl_name;
+  append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
           find_table_context(tbl_name.c_ptr_safe()))
@@ -2431,16 +2435,16 @@ Optimizer_context_replay::get_index_rec_per_key_list(const TABLE *tbl,
     }
   }
 
-  String name;
+  StringBuffer<256> name;
   name.append(tbl_name);
   name.append(STRING_WITH_LEN("."));
   name.append(idx_name, strlen(idx_name));
 
   push_warning_printf(
       thd, Sql_condition::WARN_LEVEL_WARN,
-      ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-      name.c_ptr_safe(), "list of index contexts");
+      ER_JSON_OPTIMIZER_REPLAY_INDEX_CONTEXT_MATCH_FAILED,
+      ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_INDEX_CONTEXT_MATCH_FAILED),
+      name.c_ptr_safe());
   return NULL;
 }
 
@@ -2456,7 +2460,7 @@ void Optimizer_context_replay::store_range_contexts(
   if (!has_records() || !out)
     return;
 
-  String tbl_name;
+  StringBuffer<128> tbl_name;
   append_base_table_name(tbl, &tbl_name);
 
   if (table_context_for_replay *tbl_ctx=
@@ -2473,15 +2477,15 @@ void Optimizer_context_replay::store_range_contexts(
 
   if (out->is_empty())
   {
-    String name;
+    StringBuffer<256> name;
     name.append(tbl_name);
     name.append(STRING_WITH_LEN("."));
     name.append(idx_name, strlen(idx_name));
     push_warning_printf(
         thd, Sql_condition::WARN_LEVEL_WARN,
-        ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED,
-        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_CONTEXT_MATCH_FAILED),
-        name.c_ptr_safe(), "list of range contexts");
+        ER_JSON_OPTIMIZER_REPLAY_RANGE_CONTEXT_MATCH_FAILED,
+        ER_THD(thd, ER_JSON_OPTIMIZER_REPLAY_RANGE_CONTEXT_MATCH_FAILED),
+        name.c_ptr_safe());
   }
 }
 

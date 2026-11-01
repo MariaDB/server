@@ -151,8 +151,7 @@ public:
   int discard_or_import_tablespace(my_bool discard) override;
   bool auto_repair(int error) const override
   { return file->auto_repair(error); }
-  int repair(THD* thd, HA_CHECK_OPT* check_opt) override
-  { return file->repair(thd, check_opt); }
+  int repair(THD* thd, HA_CHECK_OPT* check_opt) override;
   bool check_and_repair(THD *thd) override
   { return file->check_and_repair(thd); }
   bool is_crashed() const override

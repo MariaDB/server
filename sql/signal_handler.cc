@@ -220,7 +220,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   {
     my_safe_printf_stderr("%s",
       "The information page at "
-      "https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding/how-to-produce-a-full-stack-trace-for-mariadbd"
+      "https://mariadb.com/docs/server/reference/product-development/mariadb-fault-finding/how-to-produce-a-full-stack-trace-for-mariadbd\n"
       "contains instructions to obtain a better version of the backtrace below.\n"
       "Following these instructions will help MariaDB developers provide a fix quicker.\n\n"
       "Attempting backtrace. Include this in the bug report.\n"

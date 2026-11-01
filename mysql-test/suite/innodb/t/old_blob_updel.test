@@ -1,0 +1,118 @@
+--source include/have_innodb.inc
+--source include/have_innodb_max_16k.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38056 As innodb.old_blob, but the version is rebuilt from the undo
+--echo # log record of an update of a record that another, committed transaction
+--echo # delete-marked. Such a record stores only the 20-byte reference, so the
+--echo # frozen purge_sys.view is the only thing that can keep the dereference
+--echo # valid. Reaching that version needs a batch to be still in progress.
+--echo #
+
+--source include/wait_all_purged.inc
+
+CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=COMPRESSED;
+
+INSERT INTO t VALUES (1, CONCAT('x', REPEAT('x', @@innodb_page_size)));
+
+# Filler rows keep the delete-marked 'x...' entry off the leaf page holding the
+# live 'z...' entry, which the reader latches; purge would block on it otherwise.
+INSERT INTO t
+SELECT 100 + seq, CONCAT('y~', LPAD(seq, 3, '0'), REPEAT('-', 800))
+FROM seq_60_to_1;
+
+# The counters are cumulative over the lifetime of the server.
+SET GLOBAL innodb_monitor_reset_all='purge_del_mark_records';
+SET GLOBAL innodb_monitor_reset_all='purge_upd_exist_or_extern_records';
+SET GLOBAL innodb_monitor_enable='purge_del_mark_records';
+SET GLOBAL innodb_monitor_enable='purge_upd_exist_or_extern_records';
+
+# Pin purge so that the DELETE below stays unpurged until we choose.
+connect (purge_control,localhost,root,,);
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+connection default;
+# T1 delete-marks the row; the 'x...' BLOB is still owned by the record.
+DELETE FROM t WHERE a = 1;
+
+# T2 re-inserts the same PRIMARY KEY: an update of a record that T1
+# delete-marked, so the undo log record stores only the reference, no prefix.
+connect (victim,localhost,root,,);
+BEGIN;
+INSERT INTO t VALUES (1, CONCAT('z', REPEAT('z', @@innodb_page_size)));
+
+# Hold the batch below open once it has purged T1, which is the window in which
+# purge_sys.end_view still presents that history as reconstructible.
+connection default;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug='+d,purge_hold_cleanup';
+
+# Let purge see T1 and remove the delete-marked 'x...' entry: nobody holds the
+# clustered index leaf yet. T2 is still active, so purge stops there.
+disconnect purge_control;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR purge_batch_parked TIMEOUT 60';
+
+# The batch is parked, so its last purged record is behind it and the counter is
+# final. It removed the delete-marked 'x...' entry.
+SELECT count > 0 AS del_mark_records_purged
+FROM information_schema.innodb_metrics WHERE name = 'purge_del_mark_records';
+
+# The reader references the active T2. end_view cannot see T1, so it rebuilds the
+# delete-marked 'x...' version and parks before dereferencing it.
+connect (reader,localhost,root,,);
+SET DEBUG_SYNC='row_vers_impl_x_locked_row_build SIGNAL parked WAIT_FOR resume';
+--send SELECT a FROM t FORCE INDEX(b) WHERE b LIKE 'z%' FOR UPDATE
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR parked TIMEOUT 60';
+# The reader has descended, so the batch may finish. The next one cannot start
+# before the reader is done anyway, the reader holding the freeze. Clear
+# purge_hold_cleanup first, so that the next batch does not park.
+SET GLOBAL debug_dbug= @old_dbug;
+SET DEBUG_SYNC='now SIGNAL purge_batch_resume';
+
+# T2 commits, making purgeable the undo log record that disowned the 'x...' BLOB,
+# and then waits for the reference the parked reader holds.
+connection victim;
+--send COMMIT
+
+connection default;
+--source suite/innodb/include/assert_blob_not_purged.inc
+
+SET DEBUG_SYNC='now SIGNAL resume';
+
+connection victim;
+--reap
+connection reader;
+--reap
+
+connection default;
+disconnect reader;
+disconnect victim;
+SET DEBUG_SYNC='RESET';
+
+# Once the reader is done, purge advances and frees that BLOB, which confirms
+# that only the frozen view held it back.
+let $wait_condition=
+  SELECT count >= 1 FROM information_schema.innodb_metrics
+  WHERE name = 'purge_upd_exist_or_extern_records';
+--source include/wait_condition.inc
+
+SELECT a FROM t FORCE INDEX(b) WHERE b LIKE 'zz%';
+CHECK TABLE t;
+DROP TABLE t;
+SET GLOBAL innodb_monitor_disable='purge_del_mark_records';
+SET GLOBAL innodb_monitor_disable='purge_upd_exist_or_extern_records';
+SET GLOBAL innodb_monitor_reset_all='purge_del_mark_records';
+SET GLOBAL innodb_monitor_reset_all='purge_upd_exist_or_extern_records';
+--disable_warnings
+SET GLOBAL innodb_monitor_enable=default;
+SET GLOBAL innodb_monitor_disable=default;
+SET GLOBAL innodb_monitor_reset_all=default;
+--enable_warnings

@@ -50,15 +50,11 @@ struct Vers_part_info : public Sql_alloc
     hist_part(NULL)
   {
   }
-  Vers_part_info& operator= (const Vers_part_info &src)
-  {
-    interval= src.interval;
-    limit= src.limit;
-    auto_hist= src.auto_hist;
-    now_part= src.now_part;
-    hist_part= src.hist_part;
-    return *this;
-  }
+  /*
+    now_part and hist_part point to partition_element of a specific
+    partition_info, they must not be copied to another one.
+  */
+  Vers_part_info& operator= (const Vers_part_info &src)= delete;
   bool initialized()
   {
     if (now_part)
@@ -83,6 +79,10 @@ struct Vers_part_info : public Sql_alloc
     {
       /* TODO: equivalent intervals like 1 hour and 60 mins should be considered equal */
       return start == rhs.start && type == rhs.type && !memcmp(&step, &rhs.step, sizeof(INTERVAL));
+    }
+    bool operator!=(const interval_t &rhs) const
+    {
+      return !(*this == rhs);
     }
   } interval;
   ulonglong limit;

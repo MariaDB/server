@@ -1029,7 +1029,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   my_max_str_mb_simple,
   my_ci_get_id_uca,
   my_ci_get_collation_name_uca,
-  my_ci_eq_collation_uca
+  my_ci_eq_collation_uca,
+  my_tailoring_uca
 };
 
 
@@ -1055,7 +1056,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   my_max_str_mb_simple,
   my_ci_get_id_uca,
   my_ci_get_collation_name_uca,
-  my_ci_eq_collation_uca
+  my_ci_eq_collation_uca,
+  my_tailoring_uca
 };
 
 
@@ -1079,7 +1081,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   my_max_str_mb_simple,
   my_ci_get_id_uca,
   my_ci_get_collation_name_uca,
-  my_ci_eq_collation_uca
+  my_ci_eq_collation_uca,
+  my_tailoring_uca
 };
 
 
@@ -1103,7 +1106,8 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   my_max_str_mb_simple,
   my_ci_get_id_uca,
   my_ci_get_collation_name_uca,
-  my_ci_eq_collation_uca
+  my_ci_eq_collation_uca,
+  my_tailoring_uca
 };
 
 

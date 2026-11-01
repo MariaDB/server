@@ -1,0 +1,26 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+log-bin=mysqld-bin
+log-slave-updates
+gtid_strict_mode=1
+wsrep-debug=1
+
+[mysqld.1]
+wsrep_gtid_mode=1
+wsrep_gtid_domain_id=16
+gtid_domain_id=11
+wsrep-slave-threads=4
+slave-parallel-threads=4
+slave-parallel-mode=aggressive
+
+[mysqld.2]
+wsrep_gtid_mode=1
+wsrep_gtid_domain_id=16
+gtid_domain_id=11
+wsrep-slave-threads=4
+slave-parallel-threads=4
+slave-parallel-mode=aggressive
+
+[mysqld.3]
+gtid_domain_id=3

@@ -102,16 +102,6 @@ INSERT INTO t1  VALUES (_koi8r x'C1C2C3C4C5'), (NULL);
 DROP TABLE t1;
 
 --echo #
---echo # Bug#2634 mysqldump in --compatible=mysql4
---echo #
-
-CREATE TABLE t1 (a int) ENGINE=MYISAM;
-INSERT INTO t1 VALUES (1), (2);
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --compatible=mysql40 test t1
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-comments --compatible=mysql323 test t1
-DROP TABLE t1;
-
---echo #
 --echo # Bug#2592 mysqldump doesn't quote "tricky" names correctly
 --echo #
 
@@ -159,7 +149,7 @@ create database mysqldump_test_db character set latin2 collate latin2_bin;
 drop database mysqldump_test_db;
 
 --echo #
---echo # Bug#7020 mysqldump --compatible=mysql40 should set --skip-set-charset --default-char...
+--echo # Bug#7020 mysqldump --compatible should set --skip-set-charset --default-char...
 --echo # Check that we don't dump in UTF8 in compatible mode by default,
 --echo # but use the default compiled values, or the values given in
 --echo # --default-character-set=xxx. However, we should dump in UTF8
@@ -178,9 +168,11 @@ INSERT INTO t1  VALUES (_latin1 'ÄÖÜß');
 --echo #
 
 #--exec $MYSQL_DUMP --default-character-set=utf8mb4 --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --compatible=mysql323 test t1
---exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --compatible=mysql323 --default-character-set=cp850 test t1
---exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=cp850 --compatible=mysql323 test t1
---exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=utf8 --compatible=mysql323 test t1
+--exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=cp850 test t1
+--exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=utf8 test t1
+--exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --compatible=ansi --default-character-set=cp850 test t1
+--exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=cp850 --compatible=ansi test t1
+--exec $MYSQL_DUMP --character-sets-dir=$MYSQL_SHAREDIR/charsets --skip-comments --default-character-set=utf8 --compatible=ansi test t1
 DROP TABLE t1;
 
 --echo #
@@ -2362,7 +2354,7 @@ CREATE FUNCTION `straÃŸe` ( c1 CHAR(20))
   RETURNS CHAR(50) DETERMINISTIC
 RETURN CONCAT(']]>, ', c1, '!');
 
---exec $MYSQL_DUMP --default-character-set=utf8mb4 --character-sets-dir=$CHARSETSDIR --skip-comments --default-character-set=utf8 --compatible=mysql323 -R -X BUG52792
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --character-sets-dir=$CHARSETSDIR --skip-comments --default-character-set=utf8 -R -X BUG52792
 
 DROP DATABASE BUG52792;
 
@@ -3381,6 +3373,58 @@ DROP DATABASE test1;
 --exec $MYSQL_DUMP --skip-comments -L -B  a% 2>&1
 --replace_result mariadb-dump.exe mariadb-dump
 --exec $MYSQL_DUMP --skip-comments --databases --wildcards=ON perf% 2>&1
+
+--echo #
+--echo # MDEV-30295 mysqldump produces syntactically incorrect statement
+--echo #
+
+USE test;
+CREATE TABLE t (a INT);
+CREATE TRIGGER /* here */ tr AFTER INSERT ON t FOR EACH ROW SET @a=1;
+--exec $MYSQL_DUMP --skip-comments test > $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--cat_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+DROP TABLE t;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+--replace_column 7 #
+SHOW CREATE TRIGGER tr;
+DROP TABLE t;
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest1.sql
+
+--echo # Routines, events and views must survive a dump/restore round trip
+CREATE TABLE t (a INT);
+--delimiter |
+CREATE PROCEDURE p() BEGIN /* here */ SELECT 1; END|
+CREATE EVENT e ON SCHEDULE AT '2030-01-01 00:00:00' ON COMPLETION PRESERVE DISABLE
+  DO BEGIN /* here */ SET @a=1; END|
+--delimiter ;
+CREATE DEFINER=root@localhost VIEW v AS SELECT a FROM t WHERE a>0
+  WITH CASCADED CHECK OPTION;
+--exec $MYSQL_DUMP --skip-comments --routines --events test > $MYSQLTEST_VARDIR/tmp/dumptest2.sql
+DROP VIEW v;
+DROP EVENT e;
+DROP PROCEDURE p;
+DROP TABLE t;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/dumptest2.sql
+SHOW CREATE PROCEDURE p;
+SHOW CREATE EVENT e;
+SHOW CREATE VIEW v;
+DROP VIEW v;
+DROP EVENT e;
+DROP PROCEDURE p;
+DROP TABLE t;
+--remove_file $MYSQLTEST_VARDIR/tmp/dumptest2.sql
+
+--echo # --compatible=mysql40 and mysql323 are accepted and do nothing
+CREATE TABLE t1 (a INT);
+--exec $MYSQL_DUMP --skip-comments --compatible=mysql40 test t1
+--exec $MYSQL_DUMP --skip-comments --compatible=mysql323 test t1
+--echo # An ignored mode does not reset an earlier one
+--exec $MYSQL_DUMP --compact --compatible=ansi --compatible=mysql40 test t1
+--exec $MYSQL_DUMP --compact --compatible=mysql40,ansi test t1
+DROP TABLE t1;
+
+--echo # SHOW CREATE DATABASE has no version comments
+SHOW CREATE DATABASE IF NOT EXISTS test;
 
 --echo # End of 13.1 tests
 

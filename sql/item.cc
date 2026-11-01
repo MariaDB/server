@@ -1004,7 +1004,11 @@ bool Item_field::check_field_expression_processor(void *arg)
 bool Item_field::update_vcol_processor(void *arg)
 {
   MY_BITMAP *map= (MY_BITMAP *) arg;
-  if (field->vcol_info &&
+  /*
+    Stored vcols are not recomputed: the caller must have their values
+    in the record (the engine fills them as base columns).
+  */
+  if (!field->stored_in_db() &&
       !bitmap_fast_test_and_set(map, field->field_index))
   {
     field->vcol_info->expr->walk(&Item::update_vcol_processor, arg, 0);
@@ -2531,14 +2535,122 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
           left->collation->mbminlen == right->collation->mbminlen)))))
     return TRUE;
   /* Allow convert from ASCII */
-  if (right->repertoire == MY_REPERTOIRE_ASCII &&
+  if (right->repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
       (left->derivation < right->derivation ||
        (left->derivation == right->derivation &&
-        !(left->repertoire == MY_REPERTOIRE_ASCII))))
+        !left->repertoire_is_subset_of(MY_REPERTOIRE_ASCII))))
     return TRUE;
   /* Disallow conversion otherwise */
   return FALSE;
 }
+
+
+/*
+  Choose an algorithmically simpler collation for use in
+  collation aggregation.
+*/
+static bool
+left_is_algorithmically_simpler(const DTCollation &left,
+                                const DTCollation &right)
+{
+  /*
+    If only left is a character set which cannot store all ASCII characters
+    (e.g. swe7, see CHARSET_INFO::is_ascii_superset()),
+    then choose the other side even if the other side is multi-byte.
+    Rationale:
+    The constructor Item_func_conv_charset sets Item_func_conv_charset::safe
+    to false if conversion is done to such a character set,
+    even on ALNUM and IDENT repertoires.
+    So choosing such a side would raise "Illegal mix of collations".
+  */
+  const bool left_ascii_superset= left.collation->is_ascii_superset();
+  const bool right_ascii_superset= right.collation->is_ascii_superset();
+  if (left_ascii_superset != right_ascii_superset)
+    return left_ascii_superset;
+  /*
+    - Between a single byte character set and a multibyte character set
+      choose the single byte one
+    - Between a simple collation (one-to-one mapping) and
+      a complex collation (with contractions and expansions) choose
+      the simple one
+  */
+  if (left.collation->mbmaxlen != right.collation->mbmaxlen)
+    return left.collation->mbmaxlen < right.collation->mbmaxlen;
+  return left.collation->strxfrm_multiply < right.collation->strxfrm_multiply;
+}
+
+
+/*
+  Handle a special case:
+  if both collations have equal collation rules (tailoring) on
+  the cumulative repertoire of all aggregated arguments
+  (e.g. MY_REPERTOIRE_ASCII_{ALNUM|IDENT|ASCII}),
+  then it does not matter which side collation to use for comparison -
+  the result will be equal.
+  Note, the repertoires of the two sides are not compared with each other:
+  both tailorings are requested on the same cumulative_repertoire.
+  Examples:
+    SELECT _latin1'a' = _latin2'a';
+
+  @param dt                     the collation to aggregate with
+  @param flags                  MY_COLL_XXX flags;
+                                MY_COLL_ALLOW_BY_TAILORING must be set,
+                                otherwise this method does nothing
+  @param cumulative_repertoire  the OR-ed repertoires of all arguments
+                                being aggregated
+
+  @retval false  The collations are compatible on cumulative_repertoire.
+                 Either "this" or "dt" was chosen (see
+                 left_is_algorithmically_simpler()). Only the collation
+                 and the derivation are set, the repertoire is not changed:
+                 the caller merges the repertoires of both sides.
+  @retval true   The special case is not applicable, "this" is not changed.
+                 Note, the return value is inverted: true means failure.
+*/
+bool DTCollation::aggregate_by_tailoring(const DTCollation &dt, uint flags,
+                                         my_repertoire_t cumulative_repertoire)
+{
+  // Collation equality should have been handled earlier in the caller
+  DBUG_ASSERT(collation != dt.collation);
+  if ((flags & MY_COLL_ALLOW_BY_TAILORING) &&
+     /*
+       Explicit COLLATE clause with different collations
+       on both sides is an error in the SQL standard.
+       A side with DERIVATION_NONE is an earlier unresolved conflict
+       which can only be resolved by an explicit COLLATE clause.
+     */
+      derivation != DERIVATION_EXPLICIT &&
+      dt.derivation != DERIVATION_EXPLICIT &&
+      derivation != DERIVATION_NONE &&
+      dt.derivation != DERIVATION_NONE &&
+      my_collations_equal_on_repertoire(collation, dt.collation,
+                                        cumulative_repertoire))
+  {
+    /*
+      Collations are compatible on the given repertoire.
+      It does not matter which side to choose for comparison, both will work
+      and produce the same comparison result. Let's try to choose
+      the algorithmically simplest one, to be more deterministic.
+    */
+    /*
+      Do not use set(dt) here: it would also replace the repertoire.
+      The repertoire is not changed here, the caller
+      merges the repertoires of both sides in the common ending
+      of DTCollation::aggregate().
+      If "this" is chosen (i.e. the left side in case of a comparison
+      operator), then nothing needs to be done.
+    */
+    if (left_is_algorithmically_simpler(dt, *this))
+    {
+      // dt is simpler
+      collation= dt.collation;
+      derivation= dt.derivation;
+    }
+    return false;
+  }
+  return true;
+}
+
 
 /**
   Aggregate two collations together taking
@@ -2557,6 +2669,11 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
   Currently processed flags are:
   MY_COLL_ALLOW_SUPERSET_CONV  - allow conversion to a superset
   MY_COLL_ALLOW_COERCIBLE_CONV - allow conversion of a coercible value
+  MY_COLL_ALLOW_BY_TAILORING   - if none of the above chose a winner,
+  allow choosing either side's collation without conversion when both
+  collations have equal comparison rules (tailoring) on the
+  cumulative_repertoire, see aggregate_by_tailoring().
+  Only comparison operators pass this flag.
   - two EXPLICIT collations produce an error, e.g. this is wrong:
   CONCAT(expr1 collate latin1_swedish_ci, expr2 collate latin1_german_ci)
   - the side with smaller derivation value wins,
@@ -2571,10 +2688,27 @@ left_is_superset(const DTCollation *left, const DTCollation *right)
               latin1_german1_ci_column,
               expr COLLATE latin1_german2_ci)
   @endcode
+
+  @param dt                     the collation to aggregate with
+  @param flags                  MY_COLL_XXX flags, see above
+  @param cumulative_repertoire  the OR-ed repertoires of all arguments
+                                being aggregated (not only of the two
+                                collations aggregated at this step).
+                                It is used to compare tailorings
+                                if MY_COLL_ALLOW_BY_TAILORING is set.
+
+  @return false on success, true if the collations cannot be aggregated
 */
 
-bool DTCollation::aggregate(const DTCollation &dt, uint flags)
+bool DTCollation::aggregate(const DTCollation &dt, uint flags,
+                            my_repertoire_t cumulative_repertoire)
 {
+  /*
+    set(dt) replaces the repertoire of "this" with the repertoire of dt.
+    The repertoire of the result must include the repertoires of both sides,
+    otherwise it can be too narrow for the following aggregation steps.
+  */
+  const my_repertoire_t merged_repertoire= repertoire | dt.repertoire;
   if (!my_charset_same(collation, dt.collation))
   {
     /*
@@ -2623,6 +2757,20 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
     {
       set(dt);
     }
+    /*
+     Here we have:
+      - Different character sets
+      - None of the sides is BINARY/VARBINARY/BLOB
+      - Super-set + derivation based aggregation did not find the winner
+      - Coercible-conversion (derivation) aggregation did not find the winner
+    */
+    else if (!aggregate_by_tailoring(dt, flags, cumulative_repertoire))
+    {
+      /*
+        Both sides have equal tailoring on the OR-ed repertoires.
+        The repertoires are merged in the common ending of this function.
+      */
+    }
     else
     {
       // Cannot apply conversion
@@ -2656,21 +2804,44 @@ bool DTCollation::aggregate(const DTCollation &dt, uint flags)
           dt.collation->state & MY_CS_BINSORT)
         return 1;
       if (collation->state & MY_CS_BINSORT)
+      {
+        repertoire= merged_repertoire;
         return 0;
+      }
       if (dt.collation->state & MY_CS_BINSORT)
       {
         set(dt);
+        repertoire= merged_repertoire;
         return 0;
       }
-      THD *thd = current_thd;
-      myf utf8_flag= thd ? thd->get_utf8_flag()
-        : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
-      CHARSET_INFO *bin= get_charset_by_csname(collation->cs_name.str,
-                                               MY_CS_BINSORT,MYF(utf8_flag));
-      set(bin, DERIVATION_NONE);
+      /*
+        Here we have:
+        - Equal character sets
+        - Equal non-explicit collation derivation
+        - Different collations, both non-binary
+      */
+      /*
+        If both sides have equal tailoring on the OR-ed repertoires,
+        then aggregate_by_tailoring() chooses the collation, and the
+        repertoires are merged in the common ending of this function.
+      */
+      if (aggregate_by_tailoring(dt, flags, cumulative_repertoire))
+      {
+        /*
+          Postpone the decision to the upper level which may have
+          an explicit COLLATE clause. Set the collation to the binary
+          collation of this character set with DERIVATION_NONE.
+        */
+        THD *thd = current_thd;
+        myf utf8_flag= thd ? thd->get_utf8_flag()
+          : global_system_variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3;
+        CHARSET_INFO *bin= get_charset_by_csname(collation->cs_name.str,
+                                                 MY_CS_BINSORT,MYF(utf8_flag));
+        set(bin, DERIVATION_NONE);
+      }
     }
   }
-  repertoire|= dt.repertoire;
+  repertoire= merged_repertoire;
   return 0;
 }
 
@@ -2720,11 +2891,14 @@ bool Type_std_attributes::agg_item_collations(DTCollation &c,
   uint i;
   Item **arg;
   bool unknown_cs= 0;
+  my_repertoire_t cumulative_repertoire= av[0]->collation.repertoire;
+  for (i= 1, arg= &av[item_sep]; i < count; i++, arg+= item_sep)
+    cumulative_repertoire|= arg[0]->collation.repertoire;
 
   c.set(av[0]->collation);
   for (i= 1, arg= &av[item_sep]; i < count; i++, arg+= item_sep)
   {
-    if (c.aggregate((*arg)->collation, flags))
+    if (c.aggregate((*arg)->collation, flags, cumulative_repertoire))
     {
       if (c.derivation == DERIVATION_NONE &&
           c.collation == &my_charset_bin)
@@ -2986,13 +3160,29 @@ Item_sp::func_name_cstring(THD *thd, bool is_package_function) const
   return { qname.c_ptr_safe(), qname.length() };
 }
 
+/*
+  Free the context of a stored function call.
+
+  note: The items on the call arena are allocated on sp_mem_root, so they
+        have to be destroyed before the memory root they live in is freed.
+*/
+
+void
+Item_sp::free_call_ctx()
+{
+  delete func_ctx;
+  func_ctx= NULL;
+  sp_query_arena->free_items();
+  free_root(&sp_mem_root, MYF(0));
+  memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+}
+
+
 void
 Item_sp::cleanup()
 {
   m_sp= NULL;
-  delete func_ctx;
-  func_ctx= NULL;
-  free_root(&sp_mem_root, MYF(0));
+  free_call_ctx();
   dummy_table->alias.free();
 }
 
@@ -3186,11 +3376,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   if (err_status || func_ctx->quit_func)
   {
     /* Free Items allocated during function execution. */
-    delete func_ctx;
-    func_ctx= NULL;
-    sp_query_arena->free_items();
-    free_root(&sp_mem_root, MYF(0));
-    memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+    free_call_ctx();
   }
   thd->restore_sub_statement_state(&statement_state);
 
@@ -4409,6 +4595,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
   m_empty_string_is_null(false),
+  m_changing_value(false),
   indicator(STMT_INDICATOR_NONE),
   m_out_param_info(NULL),
   /*
@@ -4432,6 +4619,52 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   set_maybe_null();
   with_flags= with_flags | item_with_t::PARAM;
   collation= DTCollation(&my_charset_bin, DERIVATION_IGNORABLE);
+}
+
+
+/*
+  Binding sets only the statement's parameters and their m_clones, so the copy
+  keeps its value. Its strings point into the original's buffer without owning
+  it, which is safe because copies are dropped before the next EXECUTE.
+*/
+Item_param::Item_param(THD *thd, const Item_param &item):
+  Item_basic_value(item),
+  Settable_routine_parameter(item),
+  Rewritable_query_parameter(item),
+  Type_handler_hybrid_field_type(item),
+  state(item.state),
+  m_empty_string_is_null(item.m_empty_string_is_null),
+  m_changing_value(item.m_changing_value),
+  value(item.value),
+  indicator(item.indicator),
+  m_out_param_info(item.m_out_param_info),
+  m_is_settable_routine_parameter(item.m_is_settable_routine_parameter),
+  m_clones(thd->mem_root),
+  m_associated_field(item.m_associated_field),
+  m_default_field(item.m_default_field)
+{}
+
+
+Item *Item_param::shallow_copy(THD *thd) const
+{
+  switch (state) {
+  case NULL_VALUE:
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+  {
+    /* We can clone only if the item's lifetime will be single PS execution */
+    DBUG_ASSERT(thd->mem_root != thd->stmt_arena->mem_root);
+    Item *copy= new (thd->mem_root) Item_param(thd, *this);
+    if (likely(copy))
+      copy->register_in(thd);
+    return copy;
+  }
+  case NO_VALUE:
+  case DEFAULT_VALUE:
+  case IGNORE_VALUE:
+    break;
+  }
+  return nullptr;
 }
 
 
@@ -4470,6 +4703,7 @@ void Item_param::sync_clones()
 
     c->state= state;
     c->m_empty_string_is_null= m_empty_string_is_null;
+    c->m_changing_value= m_changing_value;
 
     c->value.PValue_simple::operator=(value);
     c->value.Type_handler_hybrid_field_type::operator=(value);
@@ -5194,14 +5428,22 @@ bool Item_param::convert_str_value(THD *thd)
 }
 
 
+void Item_param::set_changing_value(bool changing)
+{
+  m_changing_value= changing;
+  for (Item_param **c= m_clones.begin(); c < m_clones.end(); c++)
+    (*c)->m_changing_value= changing;
+}
+
+
 bool Item_param::basic_const_item() const
 {
   switch (state) {
   case LONG_DATA_VALUE:
   case NULL_VALUE:
-    return true;
+    return !m_changing_value;
   case SHORT_DATA_VALUE:
-    return type_handler()->cmp_type() != TIME_RESULT;
+    return !m_changing_value && type_handler()->cmp_type() != TIME_RESULT;
   case DEFAULT_VALUE:
   case IGNORE_VALUE:
     invalid_default_param();
@@ -7615,7 +7857,7 @@ Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
 {
   append(str->str, (uint32) str->length);
   set_name(thd, &str_value);
-  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  if (collation.repertoire_is_subset_of(MY_REPERTOIRE_ASCII))
   {
     // If the string has been pure ASCII so far, check the new part.
     CHARSET_INFO *cs= thd->variables.collation_connection;
@@ -7637,7 +7879,7 @@ Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
 {
   Item_literal *res;
   const Type_handler *h;
-  if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+  if (collation.repertoire_is_subset_of(MY_REPERTOIRE_ASCII) &&
       str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4 &&
       (h= Type_handler::odbc_literal_type_handler(typestr)) &&
       (res= h->create_literal_item(thd, val_str(NULL), false)))
@@ -10865,6 +11107,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
       set_field(tmp_field);
       // the index is important when read bits set
       tmp_field->field_index= field_arg->field->field_index;
+      tmp_field->vcol_info= field_arg->field->vcol_info;
     }
   }
   return FALSE;
@@ -12580,10 +12823,16 @@ void Item_direct_ref_to_item::change_item(THD *thd, Item *i)
 
 bool Item::cleanup_excluding_immutables_processor (void *arg)
 {
-  if (!(get_extraction_flag() == MARKER_IMMUTABLE))
-    return cleanup_processor(arg);
-  else
+  /*
+    basic_const_item() is also true for an Item_ref wrapping a constant,
+    e.g. a reference to a constant select list item of a merged derived
+    table. Such a ref is never marked with MARKER_IMMUTABLE, but the
+    function enclosing it is, so it is not cleaned up here, and
+    fix_fields() does not descend into items that are already fixed.
+  */
+  if (basic_const_item() || get_extraction_flag() == MARKER_IMMUTABLE)
     return false;
+  return cleanup_processor(arg);
 }
 
 
@@ -12632,26 +12881,42 @@ void Item::dbug_check_shallow_copy_type(THD *thd) const
       return;
   }
 
-  Item *item_copy= shallow_copy(thd);
-  if (!item_copy)
-    return; /* This item cannot be cloned */
-
   /*
-    We don't want cleanup() to be called for the item_copy, as it is not
-    fixed.
-    To achieve this, unlink it from thd->free_list and delete ourselves.
-    item_copy is the last item that was created, so it is the first in
-    thd->free_list.
+    Items can be freed outside of statement execution (e.g. a prepared
+    statement is destroyed), but shallow_copy() may be called only during
+    an execution (see Item_param::shallow_copy()), so make the copy as in
+    an execution: on a temporary MEM_ROOT, separate from the statement one.
   */
-  DBUG_ASSERT(thd->free_list == item_copy);
-  if (thd->free_list == item_copy)
-    thd->free_list= item_copy->next;
-  if (typeid(*item_copy) != typeid(*this))
+  MEM_ROOT copy_root, *save_mem_root= thd->mem_root;
+  Query_arena *save_stmt_arena= thd->stmt_arena;
+  Query_arena stmt_arena(save_mem_root, Query_arena::STMT_EXECUTED);
+  init_sql_alloc(PSI_NOT_INSTRUMENTED, &copy_root, 1024, 0, MYF(0));
+  thd->stmt_arena= &stmt_arena;
+  thd->mem_root= &copy_root;
+  Item *item_copy= shallow_copy(thd);
+  thd->mem_root= save_mem_root;
+  thd->stmt_arena= save_stmt_arena;
+
+  if (item_copy) /* NULL if this item cannot be cloned */
   {
-    fprintf(stderr, "SHALLOW_COPY_TYPE_MISMATCH: %s copied as %s\n",
-            typeid(*this).name(), typeid(*item_copy).name());
-    DBUG_ASSERT(0);
+    /*
+      We don't want cleanup() to be called for the item_copy, as it is not
+      fixed.
+      To achieve this, unlink it from thd->free_list and delete ourselves.
+      item_copy is the last item that was created, so it is the first in
+      thd->free_list.
+    */
+    DBUG_ASSERT(thd->free_list == item_copy);
+    if (thd->free_list == item_copy)
+      thd->free_list= item_copy->next;
+    if (typeid(*item_copy) != typeid(*this))
+    {
+      fprintf(stderr, "SHALLOW_COPY_TYPE_MISMATCH: %s copied as %s\n",
+              typeid(*this).name(), typeid(*item_copy).name());
+      DBUG_ASSERT(0);
+    }
+    delete item_copy;
   }
-  delete item_copy;
+  free_root(&copy_root, MYF(0));
 }
 #endif

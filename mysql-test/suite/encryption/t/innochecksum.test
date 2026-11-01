@@ -301,6 +301,16 @@ if (0 && $have_debug) { # these messages sometimes fail to appear
 
 --source include/start_mysqld.inc
 
+# The check of pages_old needs old pages in the buffer pool LRU list.
+# They exist only when the list holds at least BUF_LRU_OLD_MIN_LEN pages.
+# Without the asynchronous load of the buffer pool dump, the list can be
+# shorter than that.
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 33) = 'Buffer pool(s) load completed at '
+  FROM information_schema.global_status
+  WHERE LOWER(variable_name) = 'innodb_buffer_pool_load_status';
+--source include/wait_condition.inc
+
 --echo # Trigger AHI and test pages_hashed, pages_old as non zero from sys view
 
 SELECT STRAIGHT_JOIN COUNT(t6a.a)

@@ -4783,7 +4783,8 @@ static bool
 purge_adjust_limit_file_no(handler_binlog_purge_info *purge_info, LF_PINS *pins)
 {
   uint64_t limit_file_no= purge_info->limit_file_no;
-  if (limit_file_no == ~(uint64_t)0)
+  if (limit_file_no == ~(uint64_t)0 ||
+      limit_file_no <= earliest_binlog_file_no)
     return false;
 
   uint64_t referenced_file_no;

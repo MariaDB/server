@@ -23,6 +23,50 @@ change_user 'user1';
 reset_connection;
 --disconnect node_1a
 
+#
+# MDEV-41385: connection must remain a wsrep client connection after
+# COM_CHANGE_USER and COM_RESET_CONNECTION. THD::cleanup() used to clear
+# THD::wsrep_client_thread, which silently disabled wsrep_sync_wait and
+# other client-only wsrep checks for the rest of the session.
+#
+# Session variables are reset by both commands, so wsrep_sync_wait is
+# set again each time. A causal read is detected by the provider's
+# wsrep_causal_reads status counter.
+#
+--connection node_1
+GRANT SELECT ON test.t1 TO user1;
+
+--connect node_1a, 127.0.0.1, root, , test, $MYPORT_NODE_1
+--echo # Fresh connection
+SET SESSION wsrep_sync_wait = 1;
+--let $causal_reads_before = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+SELECT COUNT(*) FROM test.t1;
+--let $causal_reads_after = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+--let $assert_text = SELECT did a causal read on a fresh connection
+--let $assert_cond = $causal_reads_after > $causal_reads_before
+--source include/assert.inc
+
+--echo # After COM_CHANGE_USER
+change_user 'user1';
+SET SESSION wsrep_sync_wait = 1;
+--let $causal_reads_before = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+SELECT COUNT(*) FROM test.t1;
+--let $causal_reads_after = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+--let $assert_text = SELECT did a causal read after COM_CHANGE_USER
+--let $assert_cond = $causal_reads_after > $causal_reads_before
+--source include/assert.inc
+
+--echo # After COM_RESET_CONNECTION
+reset_connection;
+SET SESSION wsrep_sync_wait = 1;
+--let $causal_reads_before = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+SELECT COUNT(*) FROM test.t1;
+--let $causal_reads_after = query_get_value(SHOW STATUS LIKE 'wsrep_causal_reads', Value, 1)
+--let $assert_text = SELECT did a causal read after COM_RESET_CONNECTION
+--let $assert_cond = $causal_reads_after > $causal_reads_before
+--source include/assert.inc
+--disconnect node_1a
+
 --connection node_1
 DROP TABLE t1;
 DROP USER user1;

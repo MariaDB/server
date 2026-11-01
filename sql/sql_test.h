@@ -52,6 +52,9 @@ const char *dbug_print_row(TABLE *table, const uchar *rec);
 bool dbug_is_mem_on_mem_root(const MEM_ROOT *mem_root, void *ptr);
 const char *dbug_which_mem_root(THD *thd, void *ptr);
 
+/* Return how much memory was malloc'ed for this mem_root */
+size_t dbug_get_mem_root_alloc_size(const MEM_ROOT *mem_root);
+
 #else
 // A dummy implementation is used in release builds
 inline const char *dbug_print_item(Item *item) { return NULL; }

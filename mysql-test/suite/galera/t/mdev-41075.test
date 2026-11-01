@@ -1,0 +1,72 @@
+#
+# Stress the store_gtid_event() in_ddl path: DDL carrying a foreign domain
+# GTID, applied as TOI on a Galera node whose mysql.gtid_slave_pos is InnoDB,
+# so record_gtid() runs against a transactional table.
+#
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/galera_cluster.inc
+
+--connect primary, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='gtid_slave_pos' AND ENGINE='InnoDB';
+--source include/wait_condition.inc
+--connection node_2
+--source include/wait_condition.inc
+
+--connection node_1
+--disable_query_log
+--eval CHANGE MASTER TO master_host='127.0.0.1', master_user='root', master_port=$NODE_MYPORT_3, master_use_gtid=slave_pos;
+--enable_query_log
+START SLAVE;
+
+--echo # Many foreign-domain DDLs, each applied as TOI on node_2
+--connection primary
+--disable_query_log
+CREATE TABLE base (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+--let $i= 0
+while ($i < 150)
+{
+  --eval CREATE TABLE d$i (f1 INT PRIMARY KEY) ENGINE=InnoDB
+  --eval INSERT INTO base VALUES ($i, $i)
+  --eval ALTER TABLE d$i ADD COLUMN f2 INT
+  --eval DROP TABLE d$i
+  --inc $i
+}
+--enable_query_log
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 150 FROM base;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_150 FROM base;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 150 FROM base;
+--source include/wait_condition.inc
+
+--connection primary
+DROP TABLE base;
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='base';
+--source include/wait_condition.inc
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+SET GLOBAL gtid_slave_pos = "";
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='base';
+--source include/wait_condition.inc
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+SET GLOBAL gtid_slave_pos = "";
+--connection primary
+RESET MASTER;
+--connection node_1
+--disconnect primary
+--source include/galera_end.inc
+--echo # End of test

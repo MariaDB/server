@@ -1,4 +1,3 @@
---source include/not_msan.inc
 --echo #
 --echo # DuckDB UPDATE operations test
 --echo #

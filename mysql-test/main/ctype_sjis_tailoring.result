@@ -1,0 +1,1317 @@
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+#
+# ASCII digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+sjis_bin                        	sjis_bin                        	0	0	000 cl1 = cl2
+sjis_japanese_ci                	sjis_japanese_ci                	0	0	000 cl1 = cl2
+sjis_japanese_nopad_ci          	sjis_japanese_nopad_ci          	0	0	000 cl1 = cl2
+sjis_nopad_bin                  	sjis_nopad_bin                  	0	0	000 cl1 = cl2
+sjis_bin                        	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_bin                        	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_japanese_ci                	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_ci                	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	sjis_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_ci                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+sjis_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+sjis_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin1_nopad_bin                	sjis_bin                        	1	1	030 nopad vs pad
+latin1_nopad_bin                	sjis_japanese_ci                	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_bin                      	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_general_cs               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin5_bin                      	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin5_turkish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_nopad_bin                  	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_general_cs               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_japanese_ci                	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_japanese_ci                	1	1	030 nopad vs pad
+hp8_english_ci                  	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_general_cs               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_general_cs               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_turkish_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_bin                        	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_bin                        	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_japanese_ci                	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_bin                        	0	0	100 equal tailoring
+hp8_english_ci                  	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin1_bin                      	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_general_cs               	sjis_bin                        	0	0	100 equal tailoring
+latin1_general_cs               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin5_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin5_bin                      	sjis_japanese_ci                	0	0	100 equal tailoring
+latin5_turkish_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin5_turkish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+sjis_bin                        	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_bin                        	latin1_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin1_general_cs               	0	0	100 equal tailoring
+sjis_bin                        	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_bin                        	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_bin                        	latin5_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin5_turkish_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_general_cs               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin5_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	latin5_turkish_ci               	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	0	0	100 equal tailoring
+#
+# ASCII minus, dot and digits repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+sjis_bin                        	sjis_bin                        	0	0	000 cl1 = cl2
+sjis_japanese_ci                	sjis_japanese_ci                	0	0	000 cl1 = cl2
+sjis_japanese_nopad_ci          	sjis_japanese_nopad_ci          	0	0	000 cl1 = cl2
+sjis_nopad_bin                  	sjis_nopad_bin                  	0	0	000 cl1 = cl2
+sjis_bin                        	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_bin                        	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_japanese_ci                	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_ci                	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	sjis_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_ci                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+sjis_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+sjis_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin1_nopad_bin                	sjis_bin                        	1	1	030 nopad vs pad
+latin1_nopad_bin                	sjis_japanese_ci                	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_bin                      	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_general_cs               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin5_bin                      	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin5_turkish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_nopad_bin                  	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_general_cs               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_turkish_ci               	1	1	030 nopad vs pad
+sjis_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_japanese_ci                	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_japanese_ci                	1	1	030 nopad vs pad
+hp8_english_ci                  	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_bin                      	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_general_cs               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_general_cs               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin5_bin                      	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin5_turkish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_turkish_ci               	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_bin                        	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_bin                        	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_japanese_ci                	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_bin                        	0	0	100 equal tailoring
+hp8_english_ci                  	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin1_bin                      	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_general_cs               	sjis_bin                        	0	0	100 equal tailoring
+latin1_general_cs               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin5_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin5_bin                      	sjis_japanese_ci                	0	0	100 equal tailoring
+latin5_turkish_ci               	sjis_bin                        	0	0	100 equal tailoring
+latin5_turkish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+sjis_bin                        	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_bin                        	latin1_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin1_general_cs               	0	0	100 equal tailoring
+sjis_bin                        	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_bin                        	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_bin                        	latin5_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin5_turkish_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_general_cs               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin5_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	latin5_turkish_ci               	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	0	0	100 equal tailoring
+#
+# ALNUM repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+sjis_bin                        	sjis_bin                        	0	0	000 cl1 = cl2
+sjis_japanese_ci                	sjis_japanese_ci                	0	0	000 cl1 = cl2
+sjis_japanese_nopad_ci          	sjis_japanese_nopad_ci          	0	0	000 cl1 = cl2
+sjis_nopad_bin                  	sjis_nopad_bin                  	0	0	000 cl1 = cl2
+sjis_bin                        	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_bin                        	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_japanese_ci                	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_ci                	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	sjis_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_ci                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+sjis_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+sjis_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	sjis_bin                        	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_japanese_ci                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_japanese_nopad_ci          	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_bin                        	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_japanese_ci                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_japanese_nopad_ci          	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin1_bin                      	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+latin5_bin                      	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin5_bin                      	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+sjis_bin                        	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+sjis_bin                        	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_general_cs               	1	1	030 diffCS bin vs cs
+sjis_nopad_bin                  	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	sjis_bin                        	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin5_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin1_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin5_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	sjis_bin                        	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_general_cs               	1	1	030 diffCS ci vs cs
+sjis_japanese_nopad_ci          	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	sjis_bin                        	1	1	030 diffCS cs vs bin
+latin1_general_cs               	sjis_nopad_bin                  	1	1	030 diffCS cs vs bin
+latin1_general_cs               	sjis_japanese_ci                	1	1	030 diffCS cs vs ci
+latin1_general_cs               	sjis_japanese_nopad_ci          	1	1	030 diffCS cs vs ci
+latin1_nopad_bin                	sjis_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_japanese_ci                	1	1	030 nopad vs pad
+hp8_english_ci                  	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_bin                        	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_japanese_ci                	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin5_bin                      	sjis_bin                        	0	0	100 equal tailoring
+sjis_bin                        	latin1_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin5_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+#
+# IDENT repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+sjis_bin                        	sjis_bin                        	0	0	000 cl1 = cl2
+sjis_japanese_ci                	sjis_japanese_ci                	0	0	000 cl1 = cl2
+sjis_japanese_nopad_ci          	sjis_japanese_nopad_ci          	0	0	000 cl1 = cl2
+sjis_nopad_bin                  	sjis_nopad_bin                  	0	0	000 cl1 = cl2
+sjis_bin                        	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_bin                        	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_japanese_ci                	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_ci                	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	sjis_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_ci                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+sjis_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+sjis_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+latin5_turkish_ci               	sjis_bin                        	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_japanese_ci                	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_japanese_nopad_ci          	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin5_turkish_ci               	sjis_nopad_bin                  	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_bin                        	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_japanese_ci                	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_japanese_nopad_ci          	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+sjis_nopad_bin                  	latin5_turkish_ci               	1	1	010 latin5_turkish_ci reorders ASCII letters: I<i<J
+latin1_bin                      	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin1_bin                      	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+latin5_bin                      	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+latin5_bin                      	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+sjis_bin                        	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+sjis_bin                        	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	hp8_english_ci                  	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_german1_ci               	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_swedish_ci               	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	030 diffCS bin vs ci
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	sjis_japanese_ci                	1	1	030 diffCS bin vs ci
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	1	1	030 diffCS bin vs ci
+sjis_bin                        	latin1_general_cs               	1	1	030 diffCS bin vs cs
+sjis_nopad_bin                  	latin1_general_cs               	1	1	030 diffCS bin vs cs
+hp8_english_ci                  	sjis_bin                        	1	1	030 diffCS ci vs bin
+hp8_english_ci                  	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_german1_ci               	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_ci               	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	sjis_bin                        	1	1	030 diffCS ci vs bin
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin5_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin1_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	latin5_bin                      	1	1	030 diffCS ci vs bin
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	sjis_bin                        	1	1	030 diffCS ci vs bin
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	1	1	030 diffCS ci vs bin
+sjis_japanese_ci                	latin1_general_cs               	1	1	030 diffCS ci vs cs
+sjis_japanese_nopad_ci          	latin1_general_cs               	1	1	030 diffCS ci vs cs
+latin1_general_cs               	sjis_bin                        	1	1	030 diffCS cs vs bin
+latin1_general_cs               	sjis_nopad_bin                  	1	1	030 diffCS cs vs bin
+latin1_general_cs               	sjis_japanese_ci                	1	1	030 diffCS cs vs ci
+latin1_general_cs               	sjis_japanese_nopad_ci          	1	1	030 diffCS cs vs ci
+latin1_nopad_bin                	sjis_bin                        	1	1	030 nopad vs pad
+latin1_swedish_nopad_ci         	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	hp8_english_ci                  	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_german1_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	latin1_swedish_ci               	1	1	030 nopad vs pad
+sjis_japanese_nopad_ci          	sjis_japanese_ci                	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin1_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	latin5_bin                      	1	1	030 nopad vs pad
+sjis_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_nopad_bin                  	sjis_bin                        	1	1	030 nopad vs pad
+swe7_swedish_nopad_ci           	sjis_japanese_ci                	1	1	030 nopad vs pad
+hp8_english_ci                  	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+latin1_german1_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin1_swedish_ci               	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+latin5_bin                      	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	latin1_nopad_bin                	1	1	030 pad vs nopad
+sjis_bin                        	sjis_nopad_bin                  	1	1	030 pad vs nopad
+sjis_bin                        	swe7_nopad_bin                  	1	1	030 pad vs nopad
+sjis_japanese_ci                	latin1_swedish_nopad_ci         	1	1	030 pad vs nopad
+sjis_japanese_ci                	sjis_japanese_nopad_ci          	1	1	030 pad vs nopad
+sjis_japanese_ci                	swe7_swedish_nopad_ci           	1	1	030 pad vs nopad
+hp8_english_ci                  	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_bin                      	sjis_bin                        	0	0	100 equal tailoring
+latin1_german1_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_nopad_bin                	sjis_nopad_bin                  	0	0	100 equal tailoring
+latin1_swedish_ci               	sjis_japanese_ci                	0	0	100 equal tailoring
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+latin5_bin                      	sjis_bin                        	0	0	100 equal tailoring
+sjis_bin                        	latin1_bin                      	0	0	100 equal tailoring
+sjis_bin                        	latin5_bin                      	0	0	100 equal tailoring
+sjis_japanese_ci                	hp8_english_ci                  	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_german1_ci               	0	0	100 equal tailoring
+sjis_japanese_ci                	latin1_swedish_ci               	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	0	0	100 equal tailoring
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	0	0	100 equal tailoring
+sjis_nopad_bin                  	latin1_nopad_bin                	0	0	100 equal tailoring
+sjis_nopad_bin                  	swe7_nopad_bin                  	0	0	100 equal tailoring
+swe7_nopad_bin                  	sjis_nopad_bin                  	0	0	100 equal tailoring
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	0	0	100 equal tailoring
+#
+# Entire ASCII-7 repertoire
+#
+cl1	cl2	is_error	is_error_expected	expected_reason
+cl1	cl2	is_error	is_error_expected	expected_reason
+sjis_bin                        	sjis_bin                        	0	0	000 cl1 = cl2
+sjis_japanese_ci                	sjis_japanese_ci                	0	0	000 cl1 = cl2
+sjis_japanese_nopad_ci          	sjis_japanese_nopad_ci          	0	0	000 cl1 = cl2
+sjis_nopad_bin                  	sjis_nopad_bin                  	0	0	000 cl1 = cl2
+sjis_bin                        	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_bin                        	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_ci                	0	0	002 LEFT sameCS_bin
+sjis_nopad_bin                  	sjis_japanese_nopad_ci          	0	0	002 LEFT sameCS_bin
+sjis_japanese_ci                	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_ci                	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_bin                        	0	0	002 RIGHT sameCS_bin
+sjis_japanese_nopad_ci          	sjis_nopad_bin                  	0	0	002 RIGHT sameCS_bin
+utf32_uca1400_as_cs             	sjis_bin                        	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_ci                	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf32_uca1400_as_cs             	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_0900_as_cs              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_bin                     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_general_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_nopad_bin               	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_ai_ci           	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_uca1400_nopad_ai_ci     	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_ci              	sjis_nopad_bin                  	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_bin                        	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_ci                	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	003 LEFT superset
+utf8mb4_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	003 LEFT superset
+sjis_bin                        	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_bin                        	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_ci                	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf32_uca1400_as_cs             	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_0900_as_cs              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_bin                     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_general_nopad_ci        	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_nopad_bin               	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_ai_ci           	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_uca1400_nopad_ai_ci     	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_ci              	0	0	003 RIGHT superset
+sjis_nopad_bin                  	utf8mb4_unicode_nopad_ci        	0	0	003 RIGHT superset
+utf8mb3_bin                     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_bin                     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_general_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_nopad_bin               	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_ai_cs           	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_uca1400_nopad_ai_cs     	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_ci              	sjis_nopad_bin                  	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_bin                        	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_ci                	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_japanese_nopad_ci          	0	0	004 LEFT superset
+utf8mb3_unicode_nopad_ci        	sjis_nopad_bin                  	0	0	004 LEFT superset
+sjis_bin                        	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_bin                        	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_ci                	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_japanese_nopad_ci          	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_bin                     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_general_nopad_ci        	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_nopad_bin               	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_ai_cs           	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_uca1400_nopad_ai_cs     	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_ci              	0	0	004 RIGHT superset
+sjis_nopad_bin                  	utf8mb3_unicode_nopad_ci        	0	0	004 RIGHT superset
+hp8_english_ci                  	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+hp8_english_ci                  	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_bin                      	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_bin                      	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_general_cs               	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_general_cs               	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_german1_ci               	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_german1_ci               	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_nopad_bin                	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_ci               	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_ci               	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_nopad_ci         	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_bin                      	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_bin                      	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_turkish_ci               	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+latin5_turkish_ci               	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	hp8_english_ci                  	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_general_cs               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_german1_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_nopad_bin                	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_swedish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin1_swedish_nopad_ci         	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin5_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	latin5_turkish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	swe7_nopad_bin                  	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_ci                	swe7_swedish_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	hp8_english_ci                  	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_general_cs               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_german1_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_swedish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin5_bin                      	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	latin5_turkish_ci               	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	1	1	010 no tailoring on the entire ASCII repertoire
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_nopad_bin                  	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_swedish_nopad_ci           	sjis_japanese_ci                	1	1	010 no tailoring on the entire ASCII repertoire
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	1	1	010 no tailoring on the entire ASCII repertoire
+hp8_english_ci                  	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_bin                      	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_general_cs               	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_german1_ci               	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_nopad_bin                	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_swedish_ci               	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin1_swedish_nopad_ci         	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin5_bin                      	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+latin5_turkish_ci               	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	hp8_english_ci                  	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_bin                      	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_general_cs               	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_german1_ci               	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_nopad_bin                	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_swedish_ci               	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin1_swedish_nopad_ci         	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin5_bin                      	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	latin5_turkish_ci               	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	sjis_nopad_bin                  	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	swe7_nopad_bin                  	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_bin                        	swe7_swedish_nopad_ci           	1	1	010 sjis_bin reorders ASCII punctuation
+sjis_nopad_bin                  	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+swe7_nopad_bin                  	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+swe7_swedish_nopad_ci           	sjis_bin                        	1	1	010 sjis_bin reorders ASCII punctuation
+hp8_english_ci                  	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_bin                      	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_general_cs               	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_german1_ci               	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_nopad_bin                	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_swedish_ci               	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin5_bin                      	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+latin5_turkish_ci               	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	hp8_english_ci                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_bin                      	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_general_cs               	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_german1_ci               	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_nopad_bin                	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_swedish_ci               	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin5_bin                      	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	latin5_turkish_ci               	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	swe7_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+swe7_nopad_bin                  	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	1	1	010 sjis_nopad_bin reorders ASCII punctuation
+#
+# Collation pairs having different results on different repertoires
+#
+cl1	cl2	is_error_all
+hp8_english_ci                  	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_bin                      	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_german1_ci               	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_nopad_bin                	sjis_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_swedish_ci               	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin1_swedish_nopad_ci         	sjis_japanese_nopad_ci          	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+latin5_bin                      	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_bin                        	latin1_bin                      	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_bin                        	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_japanese_ci                	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_japanese_ci                	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_japanese_ci                	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_japanese_nopad_ci          	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_japanese_nopad_ci          	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_nopad_bin                  	latin1_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+sjis_nopad_bin                  	swe7_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+swe7_nopad_bin                  	sjis_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+swe7_swedish_nopad_ci           	sjis_japanese_nopad_ci          	0_digits0,1_minus_dot_digits0,A_alnum0,B_ident0,C_ascii1
+hp8_english_ci                  	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_bin                      	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_general_cs               	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_german1_ci               	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_nopad_bin                	sjis_japanese_nopad_ci          	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_ci               	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin1_swedish_nopad_ci         	sjis_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_bin                      	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	sjis_bin                        	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+latin5_turkish_ci               	sjis_japanese_ci                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_bin                        	hp8_english_ci                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_bin                        	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_bin                        	latin1_german1_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_bin                        	latin1_swedish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_bin                        	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_ci                	latin1_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_ci                	latin1_general_cs               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_ci                	latin5_bin                      	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_ci                	latin5_turkish_ci               	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_nopad_ci          	latin1_nopad_bin                	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_japanese_nopad_ci          	swe7_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_nopad_bin                  	latin1_swedish_nopad_ci         	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+sjis_nopad_bin                  	swe7_swedish_nopad_ci           	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_nopad_bin                  	sjis_japanese_nopad_ci          	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+swe7_swedish_nopad_ci           	sjis_nopad_bin                  	0_digits0,1_minus_dot_digits0,A_alnum1,B_ident1,C_ascii1
+# End of 11.8 tests

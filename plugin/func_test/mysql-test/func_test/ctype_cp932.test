@@ -1,0 +1,11 @@
+--source include/have_cp932.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET @character_set_name='cp932';
+--source ctype_collation_tailoring_00.inc
+SET @character_set_name=NULL;
+
+--echo # End of 11.8 tests

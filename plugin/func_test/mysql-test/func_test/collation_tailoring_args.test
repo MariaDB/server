@@ -1,0 +1,42 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo # Arguments of collation_tailoring(): the repertoire can be passed
+--echo # as a name or as a number
+--echo #
+
+--echo # The numeric repertoire gives the same result as the named one
+SELECT
+  collation_tailoring('latin1_swedish_ci', 0) =
+    collation_tailoring('latin1_swedish_ci', 'none') AS none_ok,
+  collation_tailoring('latin1_swedish_ci', 1) =
+    collation_tailoring('latin1_swedish_ci', 'ascii_digits') AS digits_ok,
+  collation_tailoring('latin1_swedish_ci', 193) =
+    collation_tailoring('latin1_swedish_ci', 'ascii_minus_dot_digits')
+    AS minus_dot_digits_ok,
+  collation_tailoring('latin1_swedish_ci', 7) =
+    collation_tailoring('latin1_swedish_ci', 'ascii_alnum') AS alnum_ok,
+  collation_tailoring('latin1_swedish_ci', 15) =
+    collation_tailoring('latin1_swedish_ci', 'ascii_ident') AS ident_ok,
+  collation_tailoring('latin1_swedish_ci', 223) =
+    collation_tailoring('latin1_swedish_ci', 'ascii') AS ascii_ok;
+SELECT collation_tailoring('latin1_swedish_ci', 1) AS digits,
+       collation_tailoring('latin1_swedish_ci', 193) AS minus_dot_digits,
+       collation_tailoring('latin1_swedish_ci', 7) AS alnum,
+       collation_tailoring('latin1_swedish_ci', 15) AS ident;
+
+--echo # An unknown repertoire name returns NULL with a warning
+SELECT collation_tailoring('latin1_swedish_ci', 'unknown') IS NULL AS r1;
+SELECT collation_tailoring('latin1_swedish_ci', '') IS NULL AS r2;
+
+--echo # A repertoire number with unknown bits returns NULL with a warning
+SELECT collation_tailoring('latin1_swedish_ci', 1000) IS NULL AS r1;
+SELECT collation_tailoring('latin1_swedish_ci', -1) IS NULL AS r2;
+
+--echo # An unknown collation name returns NULL with a warning
+SELECT collation_tailoring('unknown_collation', 'ascii') IS NULL AS r1;
+
+--echo # A NULL argument returns NULL without a warning
+SELECT collation_tailoring('latin1_swedish_ci', NULL) IS NULL AS r1,
+       collation_tailoring(NULL, 'ascii') IS NULL AS r2;
+
+--echo # End of 11.8 tests

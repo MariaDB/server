@@ -78,19 +78,9 @@ enum options_client
 };
 
 /**
-  First mysql version supporting the information schema.
-*/
-#define FIRST_INFORMATION_SCHEMA_VERSION 50003
-
-/**
   Name of the information schema database.
 */
 #define INFORMATION_SCHEMA_DB_NAME "information_schema"
-
-/**
-  First mysql version supporting the performance schema.
-*/
-#define FIRST_PERFORMANCE_SCHEMA_VERSION 50503
 
 /**
   Name of the performance schema database.

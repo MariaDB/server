@@ -36,14 +36,6 @@ INSERT INTO t1 VALUES (100);
 INSERT INTO t2 VALUES (100, 'xyzzy');
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(2048)) ENGINE=InnoDB;
-SET @old_min_slaves= @@GLOBAL.slave_connections_needed_for_purge;
-SET GLOBAL slave_connections_needed_for_purge= 1;
-PURGE BINARY LOGS TO 'binlog-000001.ibb';
-ERROR HY000: A purgeable log is in use, will not purge
-SHOW WARNINGS;
-Level	Code	Message
-Note	1375	Binary log 'binlog-000000.ibb' is not purged because less than 'slave_connections_needed_for_purge' slaves have processed it
-Error	1378	A purgeable log is in use, will not purge
 SET GLOBAL slave_connections_needed_for_purge= 0;
 PURGE BINARY LOGS TO 'binlog-000001.ibb';
 ERROR HY000: A purgeable log is in use, will not purge

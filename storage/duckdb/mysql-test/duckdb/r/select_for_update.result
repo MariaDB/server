@@ -1,0 +1,7 @@
+CREATE TABLE t (id INT PRIMARY KEY, v INT) ENGINE=DuckDB;
+INSERT INTO t VALUES (1, 1),(2, 2);
+SELECT v FROM t WHERE id=1 FOR UPDATE;
+ERROR 42000: This version of MariaDB doesn't yet support 'locking SELECT'
+SELECT v FROM t WHERE id=1 LOCK IN SHARE MODE;
+ERROR 42000: This version of MariaDB doesn't yet support 'locking SELECT'
+DROP TABLE t;

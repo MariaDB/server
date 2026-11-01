@@ -1,5 +1,4 @@
 --source ../include/have_duckdb.inc
---source include/not_msan.inc
 
 --disable_query_log
 --disable_warnings

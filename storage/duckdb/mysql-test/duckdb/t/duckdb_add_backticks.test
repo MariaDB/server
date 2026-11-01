@@ -1,4 +1,3 @@
---source include/not_msan.inc
 SET GLOBAL duckdb_require_primary_key=OFF;
 
 --echo #

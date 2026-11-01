@@ -1,0 +1,99 @@
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+--echo # Some collations are declared to sort the ASCII digits (and, optionally,
+--echo # the minus and the dot) in the code point order:
+--echo # the tailorings on the repertoires ASCII_DIGITS
+--echo # and ASCII_MINUS_DOT_DIGITS. This test verifies the declarations:
+--echo # all pairs of the declared characters must be compared in the code
+--echo # point order (for PAD collations, also the space is checked),
+--echo # and a shorter string must be less than a longer string with
+--echo # the same prefix.
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE ascii_chars (n INT PRIMARY KEY);
+INSERT INTO ascii_chars VALUES (32),(45),(46),(48),(49),(50),(51),(52),(53),
+                               (54),(55),(56),(57);
+
+CREATE TABLE tmp_collations (cs VARCHAR(64), cl VARCHAR(64), claim VARCHAR(8),
+                             nopad INT);
+INSERT INTO tmp_collations
+SELECT character_set_name, full_collation_name,
+       CASE WHEN collation_tailoring(full_collation_name,
+                                     'ascii_minus_dot_digits') IS NOT NULL
+            THEN 'mdd'
+            WHEN collation_tailoring(full_collation_name,
+                                     'ascii_digits') IS NOT NULL
+            THEN 'digits'
+       END,
+       collation_tailoring(full_collation_name, 'none') LIKE '[nopad]%'
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY;
+DELETE FROM tmp_collations WHERE claim IS NULL;
+
+CREATE TABLE tmp_violations (cl VARCHAR(64), violations INT);
+
+DELIMITER $$;
+CREATE PROCEDURE check_digits()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_cs, v_cl VARCHAR(64);
+  DECLARE v_claim VARCHAR(8);
+  DECLARE v_nopad INT;
+  DECLARE c CURSOR FOR SELECT cs, cl, claim, nopad FROM tmp_collations;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=1;
+  OPEN c;
+  read_loop: LOOP
+    FETCH c INTO v_cs, v_cl, v_claim, v_nopad;
+    IF done THEN LEAVE read_loop; END IF;
+    -- The characters covered by the claim, and the space for PAD collations
+    SET @cond= CONCAT(
+      '(a.n BETWEEN 48 AND 57 OR ',
+      IF(v_claim='mdd', 'a.n IN (45,46) OR ', ''),
+      IF(v_nopad, '0', 'a.n=32'), ') AND ',
+      '(b.n BETWEEN 48 AND 57 OR ',
+      IF(v_claim='mdd', 'b.n IN (45,46) OR ', ''),
+      IF(v_nopad, '0', 'b.n=32'), ')');
+    SET @q= CONCAT(
+      'INSERT INTO tmp_violations SELECT ''', v_cl, ''', COUNT(*) FROM ',
+      'ascii_chars a, ascii_chars b WHERE ', @cond, ' AND ',
+      '((CONVERT(CHAR(a.n USING ascii) USING ', v_cs, ') COLLATE ', v_cl, ' < ',
+      'CONVERT(CHAR(b.n USING ascii) USING ', v_cs, ') COLLATE ', v_cl, ') <> ',
+      '(a.n < b.n))');
+    PREPARE stmt FROM @q;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+    -- A shorter string is less than a longer string with the same prefix
+    SET @q= CONCAT(
+      'INSERT INTO tmp_violations SELECT ''', v_cl, ''', ',
+      '(CONVERT(''1'' USING ', v_cs, ') COLLATE ', v_cl, ' >= ',
+      'CONVERT(''10'' USING ', v_cs, ') COLLATE ', v_cl, ') + ',
+      IF(v_claim='mdd',
+         CONCAT('(CONVERT(''-1'' USING ', v_cs, ') COLLATE ', v_cl, ' >= ',
+                'CONVERT(''-1.5'' USING ', v_cs, ') COLLATE ', v_cl, ') + ',
+                '(CONVERT(''1.5'' USING ', v_cs, ') COLLATE ', v_cl, ' >= ',
+                'CONVERT(''1.50'' USING ', v_cs, ') COLLATE ', v_cl, ')'),
+         '0'));
+    PREPARE stmt FROM @q;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+
+CALL check_digits();
+
+--echo # Number of the collations with the declarations (checked)
+SELECT claim, COUNT(*) AS checked FROM tmp_collations GROUP BY claim;
+
+--echo # Violations (must be empty)
+SELECT cl, SUM(violations) AS violations FROM tmp_violations
+GROUP BY cl HAVING violations > 0 ORDER BY cl;
+
+DROP PROCEDURE check_digits;
+DROP TABLE tmp_violations, tmp_collations, ascii_chars;
+
+--echo # End of 11.8 tests

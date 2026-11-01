@@ -125,6 +125,16 @@ UPDATE t3 SET b = 'tmp' WHERE id = 1;
 UPDATE t3 SET a = REPEAT('y', 65535);
 UPDATE t3 SET b = 'wic';
 COMMIT;
+
+# MDEV-41442: Too large mtr when trx is larger than InnoDB max mtr size but
+# smaller than binlog_cache_size.
+
+# Use MINIMAL just to make the trx size not depend on old table data.
+# We want > ~1MB but smaller than binlog_cache_size to trigger the
+# bug condition.
+SET binlog_row_image=MINIMAL;
+UPDATE t3 SET a = REPEAT('y', 15000);
+
 --disconnect my_con1
 --connection master
 SET GLOBAL binlog_cache_size= @old_cache_size;

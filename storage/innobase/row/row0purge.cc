@@ -686,7 +686,8 @@ nochange_index:
 					  rec_offs_comp(clust_offsets))) {
 			row_ext_t*	ext;
 
-			/* The stack of versions is locked by mtr.
+			/* The stack of versions is locked by mtr, and
+			purge_sys.view is frozen for the whole batch.
 			Thus, it is safe to fetch the prefixes for
 			externally stored columns. */
 			row = row_build(ROW_COPY_POINTERS, clust_index,
@@ -1519,8 +1520,8 @@ inline void purge_sys_t::reset_worker_thd(THD *thd) const noexcept
   purge_node_t->tables. These TABLE* objects must remain open until
   the entire purge batch completes. Coordinator thread could
   close the tables prematurely if it calls reset_thd()
-  The coordinator handles cleanup centrally in trx_purge() after all
-  purge_node_t entries are processed. Worker threads have their own
+  The coordinator calls reset_thd() in trx_purge_close_tables() once
+  all purge_node_t entries are processed. Worker threads have their own
   THD lifecycle and must call reset_thd() to clean up their
   thread-local resources. */
   if (thd != coordinator_thd)

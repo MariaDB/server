@@ -79,8 +79,7 @@ Usage: $0 db_name[./table_regex/] [new_db_name | directory]
   -h, --host=#         hostname for local server when connecting over TCP/IP
   -P, --port=#         port to use when connecting to local server with TCP/IP
   -S, --socket=#       socket to use when connecting to local server
-      --old_server     connect to old MySQL-server (before v5.5) which
-                       doesn't have FLUSH TABLES WITH READ LOCK fully implemented.
+      --old_server     does nothing, kept for compatibility
 
   --allowold           don\'t abort if target dir already exists (rename it _old)
   --addtodest          don\'t rename target dir if it exists, just add files to it
@@ -148,6 +147,9 @@ GetOptions( \%opt,
     "dryrun|n",
     "chroot=s",
 ) or usage("Invalid option");
+
+warn "$0: --old_server does nothing and will be removed in a future release\n"
+  if $opt{old_server};
 
 # @db_desc
 # ==========
@@ -511,56 +513,38 @@ if ( $opt{checkpoint} || $opt{record_log_pos} ) {
 my $hc_started = time;	# count from time lock is granted
 
 if ( $opt{dryrun} ) {
-    if ( $opt{old_server} ) {
-        print "LOCK TABLES $hc_locks\n";
-        print "FLUSH TABLES /*!32323 $hc_tables */\n";
-    }
-    else {
-        # Lock base tables and views separately.
-        print "FLUSH TABLES $hc_base_tables WITH READ LOCK\n"
-          if ( $hc_base_tables );
-        print "LOCK TABLES $hc_views READ\n" if ( $hc_views );
-    }
-    
+    # Lock base tables and views separately.
+    print "FLUSH TABLES $hc_base_tables WITH READ LOCK\n"
+      if ( $hc_base_tables );
+    print "LOCK TABLES $hc_views READ\n" if ( $hc_views );
+
     print "FLUSH LOGS\n" if ( $opt{flushlog} );
     print "RESET MASTER\n" if ( $opt{resetmaster} );
     print "RESET SLAVE\n" if ( $opt{resetslave} );
 }
 else {
     my $start = time;
-    if ( $opt{old_server} ) {
-        $dbh->do("LOCK TABLES $hc_locks");
-        printf "Locked $num_tables tables in %d seconds.\n", time-$start unless $opt{quiet};
-        $hc_started = time;	# count from time lock is granted
+    # Lock base tables and views separately, as 'FLUSH TABLES <tbl_name>
+    # ... WITH READ LOCK' would fail for views.
+    # Also, flush tables to make on-disk copy up to date
+    $dbh->do("FLUSH TABLES $hc_base_tables WITH READ LOCK")
+      if ( $hc_base_tables );
+    printf "Flushed $num_base_tables tables with read lock ($hc_base_tables) in %d seconds.\n",
+           time-$start unless $opt{quiet};
 
-        # flush tables to make on-disk copy up to date
-        $start = time;
-        $dbh->do("FLUSH TABLES /*!32323 $hc_tables */");
-        printf "Flushed tables ($hc_tables) in %d seconds.\n", time-$start unless $opt{quiet};
-    }
-    else {
-        # Lock base tables and views separately, as 'FLUSH TABLES <tbl_name>
-        # ... WITH READ LOCK' (introduced in 5.5) would fail for views.
-        # Also, flush tables to make on-disk copy up to date
-        $dbh->do("FLUSH TABLES $hc_base_tables WITH READ LOCK")
-          if ( $hc_base_tables );
-        printf "Flushed $num_base_tables tables with read lock ($hc_base_tables) in %d seconds.\n",
-               time-$start unless $opt{quiet};
+    $start = time;
+    $dbh->do("LOCK TABLES $hc_views READ") if ( $hc_views );
+    printf "Locked $num_views views ($hc_views) in %d seconds.\n",
+           time-$start unless $opt{quiet};
 
-        $start = time;
-        $dbh->do("LOCK TABLES $hc_views READ") if ( $hc_views );
-        printf "Locked $num_views views ($hc_views) in %d seconds.\n",
-               time-$start unless $opt{quiet};
-
-        $hc_started = time;	# count from time lock is granted
-    }
+    $hc_started = time;	# count from time lock is granted
     $dbh->do( "FLUSH LOGS" ) if ( $opt{flushlog} );
     $dbh->do( "RESET MASTER" ) if ( $opt{resetmaster} );
     $dbh->do( "RESET SLAVE" ) if ( $opt{resetslave} );
 
     if ( $opt{record_log_pos} ) {
 	record_log_pos( $dbh, $opt{record_log_pos} );
-	$dbh->do("FLUSH TABLES /*!32323 $hc_tables */");
+	$dbh->do("FLUSH TABLES $hc_tables");
     }
 }
 
@@ -1082,7 +1066,7 @@ UNIX domain socket to use when connecting to local server.
 
 =item --old_server
 
-Use old server (pre v5.5) commands.
+Does nothing, kept for compatibility.
 
 =item  --noindices          
 

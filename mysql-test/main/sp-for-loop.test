@@ -248,3 +248,145 @@ DROP PROCEDURE forIterateBug;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # MDEV-37563 Crash on a FOR loop with a row comparison in the upper bound
+--echo #
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE i INT;
+  FOR i IN 0..((1,'b1')=(1,'b1')) DO
+    SELECT i;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+CALL p1;
+DROP PROCEDURE p1;
+
+--echo # The same for a cursor FOR loop parameter
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p2()
+BEGIN
+  DECLARE c CURSOR (p INT) FOR SELECT p;
+  FOR r IN c((1,'b1')=(1,'b1')) DO
+    SELECT r.p;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p2;
+CALL p2;
+DROP PROCEDURE p2;
+
+--echo # The same for a cursor FOR loop with more than one parameter
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p3()
+BEGIN
+  DECLARE c CURSOR (a INT, b INT) FOR SELECT a, b;
+  FOR r IN c(1, (1,'b1')=(1,'b1')) DO
+    SELECT r.a, r.b;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p3;
+CALL p3;
+DROP PROCEDURE p3;
+
+--echo # The same with a row comparison in more than one parameter
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p4()
+BEGIN
+  DECLARE c CURSOR (p1 INT, p2 INT, p3 INT) FOR SELECT p1, p2, p3;
+  FOR r IN c((1,'a')=(1,'a'), 7, (2,'b')=(2,'c')) DO
+    SELECT r.p1, r.p2, r.p3;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p4;
+CALL p4;
+DROP PROCEDURE p4;
+
+--echo # The same with a row comparison in a derived table of the lower bound
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p5()
+BEGIN
+  FOR i IN 0+(SELECT z FROM (SELECT (1,'b1')=(1,'b1') AS z) dt)..2 DO
+    SELECT i;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p5;
+CALL p5;
+DROP PROCEDURE p5;
+
+--echo # The same for a REVERSE loop, whose target bound is the left one
+
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p6()
+BEGIN
+  FOR i IN REVERSE 0+((1,'b1')=(1,'b1'))..2 DO
+    SELECT i;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+CALL p6;
+CALL p6;
+DROP PROCEDURE p6;
+
+--echo # A trigger re-parses the upper bound after ALTER TABLE
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1);
+DELIMITER $$;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  FOR i IN 0..(SELECT NEW.a + COUNT(*) FROM t2) DO
+    SET @x= i;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t2 ADD COLUMN c INT;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+SELECT @x;
+DROP TABLE t1, t2;
+
+--echo # A trigger with NEW fields in more than one cursor parameter
+
+CREATE TABLE t1 (a INT, b INT);
+DELIMITER $$;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW
+BEGIN
+  DECLARE c CURSOR (p1 INT, p2 INT) FOR SELECT p1, p2;
+  FOR r IN c(NEW.a, NEW.b + ((NEW.a,'x')=(NEW.a,'x'))) DO
+    SET @x= CONCAT(r.p1, ',', r.p2);
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t1 VALUES (1, 10);
+SELECT @x;
+INSERT INTO t1 VALUES (2, 20);
+SELECT @x;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

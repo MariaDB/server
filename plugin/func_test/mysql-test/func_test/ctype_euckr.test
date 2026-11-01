@@ -1,0 +1,11 @@
+--source include/have_euckr.inc
+
+--echo #
+--echo # MDEV-41246 "Illegal mix of collations" on the mysql.user view
+--echo #
+
+SET @character_set_name='euckr';
+--source ctype_collation_tailoring_00.inc
+SET @character_set_name=NULL;
+
+--echo # End of 11.8 tests

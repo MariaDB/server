@@ -386,6 +386,7 @@
         <import source="latin1_swedish_ci"/>
       </rules>
     </collation>
+    <collation name="latin1_space_after_letters_ci" id="335"/>
   </charset>
 
   <charset name="utf8mb3">

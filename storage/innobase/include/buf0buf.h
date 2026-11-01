@@ -639,7 +639,12 @@ public:
   void init(uint32_t state, page_id_t id, uint16_t ssize) noexcept
   {
     ut_ad(state < REMOVE_HASH || state >= UNFIXED);
-    ut_ad(!lock.is_locked_or_waiting());
+    /* A latch would mean that some thread is still using the block under
+    its previous identity. The exception is rtr_init_match(): the MEMORY
+    block that it re-initializes is private to the current thread, which
+    is holding page.lock on it so that lock_rec_lock() can be invoked on
+    the records that were copied into it. */
+    ut_ad(!lock.is_locked_or_waiting() || (state == MEMORY && lock.have_x()));
     id_= id;
     oldest_modification_= 0;
     ut_d(in_free_list= false);
@@ -1189,7 +1194,7 @@ public:
   /** The minimum allowed innodb_buffer_pool_size in garbage_collect() */
   size_t size_in_bytes_auto_min;
 #endif
-#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind
+#if SIZEOF_SIZE_T < 8 || defined _AIX || defined HAVE_valgrind || defined __SANITIZE_THREAD__
   /* In constrained environments, innodb_buffer_pool_size_max
    will default to the initial innodb_buffer_pool_size, that is,
    by default, it will not be possible to increase innodb_buffer_pool_size.
@@ -1198,7 +1203,12 @@ public:
    allocation would be backed by one or more copies of shadow bits of the
    same size that could be allocated and initialized even for dummy
    mappings created by mmap(2) with PROT_NONE. We do not want significant
-   overhead beyond the actual innodb_buffer_pool_size. */
+   overhead beyond the actual innodb_buffer_pool_size.
+
+   The ThreadSanitizer in GCC 16.2.0 targeting AMD64 is allocating
+   more than 100 TiB of virtual address space, which would make the
+   InnoDB 8 TiB allocation fail.
+  */
   static constexpr size_t size_in_bytes_max_default{0},
     size_in_bytes_max_minimum{0};
 #else
@@ -1600,6 +1610,13 @@ public:
 
   /** number of index page splits */
   Atomic_counter<ulint> pages_split;
+  /** the maximum modify_clock of any block that shrink() withdrew;
+  resize() initializes the modify_clock of the blocks that it adds to
+  one more than this, so that the modify_clock at a block descriptor
+  address never repeats an earlier value and a stale
+  btr_pcur_t::restore_position() cannot succeed optimistically;
+  protected by mutex */
+  uint64_t withdrawn_modify_clock;
 
   /** @name Page flushing algorithm fields */
   /* @{ */

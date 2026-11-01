@@ -80,6 +80,53 @@ SELECT 'p1-e' AS stage, refs(0,5) AS refs;
 DROP PROCEDURE p1;
 
 
+--echo #
+--echo # MDEV-41530 A field of an assoc array element as OUT parameter crashes
+--echo # the server
+--echo #
+--echo # A SYS_REFCURSOR field of a ROW variable passed to an OUT parameter.
+--echo # The other fields of the ROW variable must not be destructed.
+--echo #
+
+DELIMITER /;
+CREATE PROCEDURE p_out(OUT c SYS_REFCURSOR)
+BEGIN
+  OPEN c FOR SELECT 12;
+END;
+/
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r ROW(m0 SYS_REFCURSOR, m1 SYS_REFCURSOR);
+  DECLARE v0 INT;
+  DECLARE v1 INT;
+  BEGIN
+    DECLARE c0 SYS_REFCURSOR;
+    DECLARE c1 SYS_REFCURSOR;
+    OPEN c0 FOR SELECT 10;
+    OPEN c1 FOR SELECT 11;
+    SET r= ROW(c0, c1);
+  END;
+  SELECT 'p1-1' AS stage, refs(0,4) AS refs;
+  CALL p_out(r.m0);
+  SELECT 'p1-2' AS stage, refs(0,4) AS refs;
+  BEGIN
+    DECLARE c0 SYS_REFCURSOR DEFAULT r.m0;
+    DECLARE c1 SYS_REFCURSOR DEFAULT r.m1;
+    FETCH c0 INTO v0;
+    FETCH c1 INTO v1;
+    SELECT 'p1-3' AS stage, v0, v1;
+  END;
+END;
+/
+DELIMITER ;/
+--disable_column_names
+CALL p1;
+SELECT 'p1-e' AS stage, refs(0,4) AS refs;
+--enable_column_names
+DROP PROCEDURE p1;
+DROP PROCEDURE p_out;
+
+
 --disable_query_log
 --source type_sys_refcursor-helper_routines-debug-drop.inc
 --enable_query_log

@@ -40,7 +40,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 disconnect con1;
 
 connection default;
---echo # FIXME: Block this with ER_TABLE_DEF_CHANGED
+--error ER_TABLE_DEF_CHANGED
 SELECT * FROM t1;
 COMMIT;
 SELECT * FROM t1;

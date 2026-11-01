@@ -1,6 +1,5 @@
 --source ../include/have_duckdb.inc
 --source include/have_partition.inc
---source include/not_msan.inc
 
 # MDEV-40651: keep DuckDB DDL atomic and preserve implicit defaults.
 CREATE TABLE t (c1 INT KEY) ENGINE=DuckDB;

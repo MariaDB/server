@@ -1,0 +1,16 @@
+--- main/x509_oneline_separators.result
++++ main/x509_oneline_separators.reject
+@@ -6,10 +6,10 @@
+ # Default old_mode: only one grant matches, library-dependent
+ #
+ # connect as escaped_user
+-connect_test
+-escaped_user@localhost connected
++ERROR 1045 (28000): Access denied for user 'escaped_user'@'localhost' (using password: NO)
+ # connect as raw_user
+-ERROR 1045 (28000): Access denied for user 'raw_user'@'localhost' (using password: NO)
++connect_test
++raw_user@localhost connected
+ #
+ # old_mode=X509_LENIENT_COMPARE: both grants now match
+ #

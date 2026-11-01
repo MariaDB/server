@@ -675,7 +675,7 @@ AbstractCallback::init(
 	/* Clear the DATA_DIR flag, which is basically garbage. */
 	m_space_flags &= ~(1U << FSP_FLAGS_POS_RESERVED);
 	m_zip_ssize = fil_space_t::full_crc32(m_space_flags)
-		? 0 : FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags);
+		? 0 : uint16_t(FSP_FLAGS_GET_ZIP_SSIZE(m_space_flags));
 	const ulint logical_size = fil_space_t::logical_size(m_space_flags);
 	const ulint physical_size = fil_space_t::physical_size(m_space_flags);
 
@@ -4772,7 +4772,6 @@ row_import_for_mysql(
 	ut_ad(!table->is_readable());
 	ut_ad(prebuilt->table == table);
 
-#ifdef BTR_CUR_HASH_ADAPT
 	/* On DISCARD TABLESPACE, we did not drop any adaptive hash
 	index entries. If we replaced the discarded tablespace with a
 	smaller one here, there could still be some adaptive hash
@@ -4784,9 +4783,12 @@ row_import_for_mysql(
 	false positives are not tolerated. */
 	for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes); index;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
+		/* IMPORT TABLESPACE invalidates old read view snapshots. */
+		index->trx_id = trx->id;
+#ifdef BTR_CUR_HASH_ADAPT
 		index = index->clone_if_needed();
-	}
 #endif /* BTR_CUR_HASH_ADAPT */
+	}
 	UT_LIST_GET_FIRST(table->indexes)->clear_instant_alter();
 
 	/* Assign an undo segment for the transaction, so that the

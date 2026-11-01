@@ -4744,6 +4744,14 @@ bool Item_func_user_var::check_vcol_func_processor(void *arg)
   return mark_unsupported_function("@", name.str, arg, VCOL_NON_DETERMINISTIC);
 }
 
+Item *Item_func_user_var::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
+{
+  if (const_item())
+    return Item::safe_charset_converter(thd, tocs);
+  /* always convert, ignore 'conv->safe' as we don't know the charset yet  */
+  return new (thd->mem_root) Item_func_conv_charset(thd, this, tocs, 0);
+}
+
 #define extra_size sizeof(double)
 
 user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,
@@ -4847,9 +4855,17 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   if (!m_var_entry->charset() || !null_item)
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
                              &my_charset_numeric : args[0]->collation.collation);
+  /*
+    A user variable assignment (e.g. @p:=expr) must expose the same collation
+    derivation as reading the variable back with Item_func_get_user_var, which
+    uses DERIVATION_USERVAR (see MDEV-35041). Using DERIVATION_COERCIBLE here
+    made the assignment as strong as a string literal, causing "Illegal mix of
+    collations" conflicts against literals that carry the (possibly different)
+    connection collation (MDEV-39530).
+  */
   collation.set(m_var_entry->charset(),
                 args[0]->collation.derivation == DERIVATION_NUMERIC ?
-                DERIVATION_NUMERIC : DERIVATION_COERCIBLE);
+                DERIVATION_NUMERIC : DERIVATION_USERVAR);
   switch (args[0]->result_type()) {
   case STRING_RESULT:
   case TIME_RESULT:

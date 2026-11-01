@@ -18,137 +18,125 @@ create definer=definer@localhost view mysqltest3.v3nt as select 1;
 create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
 /*M!999999\- enable the sandbox mode */ 
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest1` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest1` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `mysqltest1`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8mb4 */;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8mb4;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
+SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest2` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest2` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `mysqltest2`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v2` AS SELECT
- NULL AS `a` */;
+CREATE VIEW `v2` AS SELECT
+ NULL AS `a`;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `mysqltest3` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci */;
+CREATE DATABASE IF NOT EXISTS `mysqltest3` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 
 USE `mysqltest3`;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v3` AS SELECT
- NULL AS `a` */;
+CREATE VIEW `v3` AS SELECT
+ NULL AS `a`;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v3i` AS SELECT
- NULL AS `a` */;
+CREATE VIEW `v3i` AS SELECT
+ NULL AS `a`;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v3is` AS SELECT
- NULL AS `schema_name` */;
+CREATE VIEW `v3is` AS SELECT
+ NULL AS `schema_name`;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v3nt` AS SELECT
- NULL AS `1` */;
+CREATE VIEW `v3nt` AS SELECT
+ NULL AS `1`;
 SET character_set_client = @saved_cs_client;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v3ps` AS SELECT
- NULL AS `user` */;
+CREATE VIEW `v3ps` AS SELECT
+ NULL AS `user`;
 SET character_set_client = @saved_cs_client;
 
 USE `mysqltest1`;
 
 USE `mysqltest2`;
-/*!50001 DROP VIEW IF EXISTS `v2`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v2` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
+DROP VIEW IF EXISTS `v2`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
 
 USE `mysqltest3`;
-/*!50001 DROP VIEW IF EXISTS `v3`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v3` AS select `v2`.`a` AS `a` from `mysqltest2`.`v2` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP VIEW IF EXISTS `v3i`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY INVOKER */
-/*!50001 VIEW `v3i` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP VIEW IF EXISTS `v3is`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v3is` AS select `information_schema`.`schemata`.`SCHEMA_NAME` AS `schema_name` from `information_schema`.`schemata` order by `information_schema`.`schemata`.`SCHEMA_NAME` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP VIEW IF EXISTS `v3nt`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v3nt` AS select 1 AS `1` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
-/*!50001 DROP VIEW IF EXISTS `v3ps`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`definer`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v3ps` AS select `performance_schema`.`users`.`USER` AS `user` from `performance_schema`.`users` where `performance_schema`.`users`.`CURRENT_CONNECTIONS` > 0 order by `performance_schema`.`users`.`USER` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
+DROP VIEW IF EXISTS `v3`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `v2`.`a` AS `a` from `mysqltest2`.`v2`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
+DROP VIEW IF EXISTS `v3i`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY INVOKER VIEW `v3i` AS select `mysqltest1`.`t1`.`a` AS `a` from `mysqltest1`.`t1`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
+DROP VIEW IF EXISTS `v3is`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `v3is` AS select `information_schema`.`schemata`.`SCHEMA_NAME` AS `schema_name` from `information_schema`.`schemata` order by `information_schema`.`schemata`.`SCHEMA_NAME`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
+DROP VIEW IF EXISTS `v3nt`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `v3nt` AS select 1 AS `1`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
+DROP VIEW IF EXISTS `v3ps`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`definer`@`localhost` SQL SECURITY DEFINER VIEW `v3ps` AS select `performance_schema`.`users`.`USER` AS `user` from `performance_schema`.`users` where `performance_schema`.`users`.`CURRENT_CONNECTIONS` > 0 order by `performance_schema`.`users`.`USER`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
 connect inv,localhost,invoker;
 lock table mysqltest3.v3 write;
 ERROR 42000: Access denied for user 'invoker'@'localhost' to database 'mysqltest3'
@@ -238,22 +226,20 @@ connection default;
 /*M!999999\- enable the sandbox mode */ 
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8mb4;
-/*!50001 CREATE VIEW `v1` AS SELECT
- NULL AS `id` */;
+CREATE VIEW `v1` AS SELECT
+ NULL AS `id`;
 SET character_set_client = @saved_cs_client;
-/*!50001 DROP VIEW IF EXISTS `v1`*/;
-/*!50001 SET @saved_cs_client          = @@character_set_client */;
-/*!50001 SET @saved_cs_results         = @@character_set_results */;
-/*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = latin1 */;
-/*!50001 SET character_set_results     = latin1 */;
-/*!50001 SET collation_connection      = latin1_swedish_ci */;
-/*!50001 CREATE ALGORITHM=UNDEFINED */
-/*!50013 DEFINER=`u1`@`localhost` SQL SECURITY DEFINER */
-/*!50001 VIEW `v1` AS select `dt`.`id` AS `id` from (select `t1`.`id` AS `id` from `t1`) `dt` */;
-/*!50001 SET character_set_client      = @saved_cs_client */;
-/*!50001 SET character_set_results     = @saved_cs_results */;
-/*!50001 SET collation_connection      = @saved_col_connection */;
+DROP VIEW IF EXISTS `v1`;
+SET @saved_cs_client          = @@character_set_client;
+SET @saved_cs_results         = @@character_set_results;
+SET @saved_col_connection     = @@collation_connection;
+SET character_set_client      = latin1;
+SET character_set_results     = latin1;
+SET collation_connection      = latin1_swedish_ci;
+CREATE ALGORITHM=UNDEFINED DEFINER=`u1`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `dt`.`id` AS `id` from (select `t1`.`id` AS `id` from `t1`) `dt`;
+SET character_set_client      = @saved_cs_client;
+SET character_set_results     = @saved_cs_results;
+SET collation_connection      = @saved_col_connection;
 drop view v1;
 drop table t1;
 drop user u1@localhost;

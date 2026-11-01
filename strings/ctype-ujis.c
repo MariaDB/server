@@ -67141,7 +67141,8 @@ static MY_CASEFOLD_INFO my_casefold_info_ujis=
 {
   0x0FFFF,
   my_casefold_pages_ujis,
-  NULL /* ws */
+  NULL, /* ws */
+  FALSE
 };
 
 
@@ -67261,7 +67262,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_ci_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_ascii_caseup_ci_generic
 };
 
 
@@ -67282,7 +67284,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_bin_generic
 };
 
 
@@ -67303,7 +67306,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_nopad_ci_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_ascii_caseup_ci_generic
 };
 
 
@@ -67324,7 +67328,8 @@ static MY_COLLATION_HANDLER my_collation_ujis_nopad_bin_handler =
     my_max_str_mb_simple,
     my_ci_get_id_generic,
     my_ci_get_collation_name_generic,
-    my_ci_eq_collation_generic
+    my_ci_eq_collation_generic,
+    my_tailoring_bin_generic
 };
 
 

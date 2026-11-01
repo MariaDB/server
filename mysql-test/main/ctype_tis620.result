@@ -4497,3 +4497,21 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-41246 "Illegal mix of collations" on the mysql.user view
+#
+SET NAMES tis620 COLLATE tis620_thai_ci;
+# tis620_thai_ci sorts the underscore before the letters, so it is
+# compatible only on the ALNUM repertoire.
+SELECT c FROM v_tailoring WHERE c='Y';
+c
+Y
+SELECT c FROM v_tailoring WHERE c<>'Y_';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (tis620_thai_ci,COERCIBLE) for operation '<>'
+SELECT c FROM v_tailoring WHERE c<>'Y+';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (tis620_thai_ci,COERCIBLE) for operation '<>'
+SET NAMES tis620 COLLATE tis620_bin;
+SELECT c FROM v_tailoring WHERE c='Y';
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (tis620_bin,COERCIBLE) for operation '='
+SET NAMES DEFAULT;
+# End of 11.8 tests

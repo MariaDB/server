@@ -1,6 +1,7 @@
 /*
   Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
-  Copyright (c) 2020 MariaDB Foundation
+  Copyright (c) 2020 MariaDB Foundation.
+  Copyright (c) 2026 MariaDB plc.
 
 
    This program is free software; you can redistribute it and/or modify
@@ -134,11 +135,11 @@ static inline bool read_variable_length(const uchar *data, size_t data_length,
     JSON document.
   */
   const size_t MAX_BYTES= MY_MIN(data_length, 5);
-  size_t len= 0;
+  ulonglong len= 0;
   for (size_t i= 0; i < MAX_BYTES; i++)
   {
     /* Get the next 7 bits of the length. */
-    len|= (data[i] & 0x7f) << (7 * i);
+    len|= (data[i] & 0x7full) << (7 * i);
     if ((data[i] & 0x80) == 0)
     {
       /* The length shouldn't exceed 32 bits. */
@@ -147,7 +148,7 @@ static inline bool read_variable_length(const uchar *data, size_t data_length,
 
       /* This was the last byte. Return successfully. */
       *num= i + 1;
-      *length= len;
+      *length= static_cast<size_t>(len);
       return false;
     }
   }
@@ -288,8 +289,8 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
     size_t UNINIT_VAR(blob_length), length_bytes;
     const uchar *blob_start;
 
-    if (read_variable_length(data + 1, len, &blob_length, &length_bytes) ||
-        len < length_bytes + blob_length)
+    if (read_variable_length(data + 1, len - 1, &blob_length, &length_bytes) ||
+        len < length_bytes + 1 + blob_length)
       return true;
     blob_start= data + length_bytes + 1;
 
@@ -308,6 +309,10 @@ static bool parse_mysql_scalar(String *buffer, size_t value_json_type,
 
       const int precision= blob_start[0];
       const int scale= blob_start[1];
+
+      if (precision <= 0 || scale > precision ||
+          precision > DECIMAL_MAX_PRECISION)
+        return true;
 
       my_decimal d;
 
@@ -419,9 +424,11 @@ static bool parse_array_or_object(String *buffer, const uchar *data, size_t len,
   */
   const size_t element_count= read_offset_or_size(data, large);
   const size_t bytes= read_offset_or_size(data + offset_size, large);
+  const size_t header_size= 2*offset_size + element_count *
+                        (value_size(large) + key_size(large)*handle_as_object);
 
   /* The value can't have more bytes than what's available in the buffer. */
-  if (bytes > len)
+  if (header_size > bytes || bytes > len)
     return true;
 
   if (buffer->append(handle_as_object ? '{' : '['))

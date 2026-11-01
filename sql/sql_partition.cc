@@ -5286,8 +5286,12 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       {
         MEM_ROOT *old_root= thd->mem_root;
         thd->mem_root= &thd->locked_tables_list.m_locked_tables_root;
+        DBUG_EXECUTE_IF("prep_alter_part_table_get_clone_oom",
+                        DBUG_SET("+d,simulate_out_of_memory"););
         saved_part_info= tab_part_info->get_clone(thd);
         thd->mem_root= old_root;
+        if (!saved_part_info)
+          goto err;
         saved_part_info->read_partitions= tab_part_info->read_partitions;
         saved_part_info->lock_partitions= tab_part_info->lock_partitions;
         saved_part_info->bitmaps_are_initialized= tab_part_info->bitmaps_are_initialized;
@@ -6153,12 +6157,20 @@ the generated partition syntax in a correct manner.
           tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
           part_info->num_parts == 0)
       {
-        if (part_info->vers_info->interval.is_set() && (
-            !tab_part_info->vers_info->interval.is_set() ||
-            part_info->vers_info->interval == tab_part_info->vers_info->interval))
+        if (alter_info->flags ||
+            (part_info->vers_info->interval.is_set() &&
+             (!tab_part_info->vers_info->interval.is_set() ||
+              part_info->vers_info->interval !=
+                tab_part_info->vers_info->interval)))
         {
-          /* If interval is changed we can not do fast alter */
-          tab_part_info= tab_part_info->get_clone(thd);
+          /*
+            Fast alter changes only partitioning options. It cannot be done
+            if the interval is changed or the table definition is changed.
+          */
+          DBUG_EXECUTE_IF("prep_alter_part_table_get_clone_oom",
+                          DBUG_SET("+d,simulate_out_of_memory"););
+          if (!(tab_part_info= tab_part_info->get_clone(thd)))
+            DBUG_RETURN(TRUE);
         }
         else
         {
@@ -6166,7 +6178,10 @@ the generated partition syntax in a correct manner.
           *fast_alter_table= true;
           table->mark_table_for_reopen();
         }
-        *tab_part_info->vers_info= *part_info->vers_info;
+        /* Keep now_part and hist_part of the existing partitions */
+        tab_part_info->vers_info->interval= part_info->vers_info->interval;
+        tab_part_info->vers_info->limit= part_info->vers_info->limit;
+        tab_part_info->vers_info->auto_hist= part_info->vers_info->auto_hist;
         thd->work_part_info= part_info= tab_part_info;
         *partition_changed= true;
       }
@@ -7099,21 +7114,19 @@ error:
 
   SYNOPSIS
     write_log_completed()
-    lpt                      Struct containing parameters
+    log_state                DDL log entries
+    dont_crash               Not used
   RETURN VALUES
-    TRUE                     Error
-    FALSE                    Success
+    NONE
 */
 
 /*
   TODO: Partitioning atomic DDL refactoring: this should be replaced with
         ddl_log_complete().
 */
-static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                bool dont_crash)
+static void write_log_completed(DDL_LOG_STATE *log_state, bool dont_crash)
 {
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry= part_info->execute_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry= log_state->execute_entry;
   DBUG_ENTER("write_log_completed");
 
   DBUG_ASSERT(log_entry);
@@ -7129,11 +7142,11 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
     */
     ;
   }
-  release_part_info_log_entries(part_info->list);
-  release_part_info_log_entries(part_info->execute_entry);
+  release_part_info_log_entries(log_state->list);
+  release_part_info_log_entries(log_state->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->execute_entry= NULL;
-  part_info->list= NULL;
+  log_state->execute_entry= NULL;
+  log_state->list= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -7142,7 +7155,7 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
    Release all log entries
    SYNOPSIS
      release_log_entries()
-     part_info                  Partition info struct
+     log_state                  DDL log entries
    RETURN VALUES
      NONE
 */
@@ -7151,14 +7164,14 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
   TODO: Partitioning atomic DDL refactoring: this should be replaced with
         ddl_log_release_entries().
 */
-static void release_log_entries(partition_info *part_info)
+static void release_log_entries(DDL_LOG_STATE *log_state)
 {
   mysql_mutex_lock(&LOCK_gdl);
-  release_part_info_log_entries(part_info->list);
-  release_part_info_log_entries(part_info->execute_entry);
+  release_part_info_log_entries(log_state->list);
+  release_part_info_log_entries(log_state->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= NULL;
-  part_info->execute_entry= NULL;
+  log_state->list= NULL;
+  log_state->execute_entry= NULL;
 }
 
 
@@ -7252,16 +7265,11 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
                                     bool reopen)
 {
   THD *thd= lpt->thd;
-  partition_info *part_info= lpt->part_info->get_clone(thd);
+  /* Closing the table may free lpt->part_info, keep its DDL log entries */
+  DDL_LOG_STATE log_state= *lpt->part_info;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
   DBUG_ASSERT(table->needs_reopen());
-
-  /*
-    TABLE is going to be released, we should not access old part_info
-    anymore
-  */
-  lpt->part_info= part_info;
 
   /*
     All instances of this table needs to be closed.
@@ -7302,15 +7310,14 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   if (!reopen)
     DBUG_VOID_RETURN;
 
-  if (part_info->list &&
-      ddl_log_execute_entry(thd, part_info->list->entry_pos))
+  if (log_state.list &&
+      ddl_log_execute_entry(thd, log_state.list->entry_pos))
   {
     /*
       We couldn't recover from error, most likely manual interaction
       is required.
     */
-    write_log_completed(lpt, FALSE);
-    release_log_entries(part_info);
+    write_log_completed(&log_state, FALSE);
     if (!action_completed)
     {
       if (drop_partition)
@@ -7376,7 +7383,7 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
   }
   else
   {
-    release_log_entries(part_info);
+    release_log_entries(&log_state);
     if (!action_completed)
     {
       /*
@@ -7727,7 +7734,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("drop_partition_7") ||
         mysql_drop_partitions(lpt) ||
         ERROR_INJECT("drop_partition_8") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt->part_info, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||
@@ -7897,7 +7904,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT("add_partition_9") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt->part_info, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||
@@ -7990,7 +7997,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("change_partition_10") ||
         mysql_rename_partitions(lpt) ||
         ERROR_INJECT("change_partition_11") ||
-        (write_log_completed(lpt, FALSE), FALSE) ||
+        (write_log_completed(lpt->part_info, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||

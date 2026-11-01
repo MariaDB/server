@@ -298,7 +298,8 @@ fts_zip_init(
 dberr_t fts_index_fetch_nodes(FTSQueryExecutor *executor, dict_index_t *index,
                               const fts_string_t *word, void *user_arg,
                               FTSRecordProcessor processor,
-                              AuxCompareMode compare_mode) noexcept
+                              AuxCompareMode compare_mode,
+                              CHARSET_INFO *collation) noexcept
 {
   dberr_t error= DB_SUCCESS;
   trx_t *trx= executor->trx();
@@ -311,6 +312,7 @@ dberr_t fts_index_fetch_nodes(FTSQueryExecutor *executor, dict_index_t *index,
     AuxRecordReader reader= processor
 	  ? AuxRecordReader(user_arg, processor, compare_mode)
 	  : AuxRecordReader(user_arg, &total_memory, compare_mode);
+    if (collation) reader.set_collation(collation);
     error= executor->read_aux(selected, word, reader);
     if (UNIV_LIKELY(error == DB_SUCCESS || error == DB_RECORD_NOT_FOUND))
     {
@@ -1319,16 +1321,18 @@ void fts_optimize_words(FTSQueryExecutor *executor, fts_optimize_t *optim,
     ut_a(ib_vector_size(optim->words) == 0);
     /* Read the index records to optimize. */
     dberr_t error= fts_index_fetch_nodes(
-      executor, index, word, optim->words, nullptr, AuxCompareMode::EQUAL);
-    if (error == DB_SUCCESS)
+      executor, index, word, optim->words, nullptr, AuxCompareMode::EQUAL,
+      fts_index_get_charset(index));
+    if (error == DB_SUCCESS && ib_vector_size(optim->words) > 0)
     {
-      /* There must be some nodes to read. */
-      ut_a(ib_vector_size(optim->words) > 0);
       /* Optimize the nodes that were read and write back to DB. */
       error = fts_optimize_compact(executor, optim, index, start_time);
       if (error == DB_SUCCESS) fts_sql_commit(optim->trx);
       else fts_sql_rollback(optim->trx);
     }
+    /* The fetch can find nothing, because the word read from the zip
+    buffer was already optimized together with an earlier spelling
+    that is equal under the index collation. */
     ib_vector_reset(optim->words);
 
     if (error == DB_SUCCESS)

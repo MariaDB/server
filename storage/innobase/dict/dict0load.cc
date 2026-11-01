@@ -687,6 +687,9 @@ dict_sys_tables_rec_read(
 	if (rec_get_deleted_flag(rec, 0)) {
 		ut_ad(id);
 		if (trx_id) {
+			if (heap) {
+				mem_heap_free(heap);
+			}
 			return READ_NOT_FOUND;
 		}
 	}
@@ -2021,6 +2024,17 @@ dberr_t dict_load_indexes(mtr_t *mtr, dict_table_t *table, bool uncommitted,
 			goto next_rec;
 		} else {
 			const trx_id_t id = trx_read_trx_id(rec + 8 + 8);
+			/* dict_index_t::trx_id is not persisted. Restore
+			it from SYS_INDEXES, so that an older read view
+			cannot use an index whose data was replaced.
+			RENAME INDEX also updates the record, so after a
+			reload an older read view cannot use a renamed
+			index either. A discarded tablespace cannot be
+			read anyway, and IMPORT TABLESPACE will assign
+			the field. */
+			if (!(table->flags2 & DICT_TF2_DISCARDED)) {
+				index->trx_id = id;
+			}
 			if (id > table->def_trx_id) {
 				table->def_trx_id = id;
 			}
@@ -2176,7 +2190,8 @@ Do not load any columns or indexes.
 @param[in]	rec		SYS_TABLES record
 @param[out,own]	table		table, or nullptr
 @return	error message
-@retval	nullptr on success */
+@retval	nullptr on success, or if the record is not visible, in
+which case *table will be nullptr */
 const char *dict_load_table_low(mtr_t *mtr, bool uncommitted,
                                 const rec_t *rec, dict_table_t **table)
 {

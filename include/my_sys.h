@@ -96,8 +96,9 @@ C_MODE_START
 #define MY_ROOT_USE_VMEM 0x20000U /* init_alloc_root: use my_virtual_mem_commit */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
-#define MY_TRACK 0x80000U             /* Track tmp usage */
-#define MY_TRACK_WITH_LIMIT 0x100000U /* Give error if over tmp_file_usage */
+#define MY_TRY_LARGE_PAGES 0x80000U /* try to allocate large pages */
+#define MY_TRACK 0x100000U            /* Track tmp usage */
+#define MY_TRACK_WITH_LIMIT 0x200000U /* Give error if over tmp_file_usage */
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
@@ -180,14 +181,19 @@ extern void my_free(void *ptr);
 extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
 extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
-extern my_bool my_use_large_pages;
+/**
+  0, or MY_TRY_LARGE_PAGES to request large pages from my_large_malloc(),
+  my_large_virtual_alloc(), or the my_virtual_mem_*() functions. Set once
+  by my_init_large_pages(), does not change thereafter.
+*/
+extern myf my_large_pages_flag;
 
 int my_init_large_pages(void);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 #ifdef _WIN32
 /* On Windows, use my_virtual_mem_reserve() and my_virtual_mem_commit(). */
 #else
-char *my_large_virtual_alloc(size_t *size);
+char *my_large_virtual_alloc(size_t *size, myf my_flags);
 #endif
 void my_large_free(void *ptr, size_t size);
 void my_large_page_truncate(size_t *size);
@@ -959,6 +965,7 @@ extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);
+/* There is also dbug_get_mem_root_alloc_size() in sql/sql_test.cc */
 extern void move_root(MEM_ROOT *to, MEM_ROOT *from);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,

@@ -70,3 +70,17 @@ SELECT * FROM once;
 SELECT * FROM twice;
 SELECT * FROM thrice;
 DROP TABLE empty, once, twice, thrice;
+
+--echo #
+--echo #  MDEV-40319 Instant ALTER TABLE rollback corrupts virtual column 
+--echo #
+call mtr.add_suppression("InnoDB: Cannot add field .* in table");
+SET SESSION innodb_strict_mode=OFF;
+CREATE TABLE t1 (a INT, b1 TEXT, b2 TEXT, b3 TEXT, b4 TEXT,
+                 b5 TEXT, b6 TEXT, b7 TEXT, b8 TEXT, b9 TEXT,
+                 b10 TEXT, b11 TEXT, v INT AS (a) VIRTUAL)
+                 ENGINE=InnoDB ROW_FORMAT=COMPACT;
+SET SESSION innodb_strict_mode=ON;
+--error ER_TOO_BIG_ROWSIZE
+ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=INSTANT;
+DROP TABLE t1;

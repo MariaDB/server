@@ -37,11 +37,16 @@
 eval SET @@session.default_storage_engine = 'InnoDB';
 
 ##### Workarounds for known open engine specific bugs
-#     none
+# MDEV-38758: background stats recalc races with INSERT and makes
+# table_rows in information_schema.partitions nondeterministic
+set @save_stats_auto_recalc= @@global.innodb_stats_auto_recalc;
+set global innodb_stats_auto_recalc= off;
 
 #------------------------------------------------------------------------------#
 # Execute the tests to be applied to all storage engines
 --source inc/vcol_partition.inc
+
+set global innodb_stats_auto_recalc= @save_stats_auto_recalc;
 
 #------------------------------------------------------------------------------#
 # Execute storage engine specific tests

@@ -1165,7 +1165,7 @@ json_norm_parse(struct json_norm_value *root, json_engine_t *je, MEM_ROOT *curre
 
 json_norm_parse_end:
   dynstr_free(&key);
-  return err;
+  return err || je->s.error;
 }
 
 static int
@@ -1200,6 +1200,10 @@ json_norm_build(struct json_norm_value *root,
     {
       return err;
     }
+  }
+  else
+  {
+    while(json_scan_next(je) == 0) /*no-op*/;
   }
 
   return err;
@@ -1253,15 +1257,10 @@ json_normalize(DYNAMIC_STRING *result,
     in_size= strlen(s_utf8);
   }
 
-
-  if ((json_valid(in, in_size, &my_charset_utf8mb4_bin, temp_je) == 0))
-  {
-    err= 1;
-    goto json_normalize_end;
-  }
-
   err= json_norm_build(&root, in, in_size,
                     &my_charset_utf8mb4_bin, current_mem_root, temp_je, stack);
+  if (root.type == JSON_VALUE_UNINITIALIZED || temp_je->s.error)
+    err= 1;
   if (err)
     goto json_normalize_end;
 

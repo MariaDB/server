@@ -1,0 +1,128 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-40123 Assertion failure after lock wait is unblocked in SKIP LOCKED
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b INT, KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,1),(2,2,2),(3,3,3);
+
+connect con1,localhost,root;
+connect con2,localhost,root;
+
+--echo # The lock on the clustered index record is granted after the wait
+connection con1;
+BEGIN;
+SELECT b FROM t1 WHERE pk=1 FOR UPDATE;
+
+connection con2;
+BEGIN;
+SET DEBUG_SYNC='lock_trx_handle_wait_enter SIGNAL waiting WAIT_FOR go';
+send SELECT b FROM t1 FORCE INDEX (a) ORDER BY a FOR UPDATE SKIP LOCKED;
+
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con2;
+reap;
+connection con1;
+SELECT pk FROM t1 WHERE pk=1 FOR UPDATE SKIP LOCKED;
+connection con2;
+COMMIT;
+
+--echo # The granted lock covers a row whose non-key column was updated
+connection con1;
+BEGIN;
+UPDATE t1 SET b=10 WHERE pk=1;
+
+connection con2;
+BEGIN;
+SET DEBUG_SYNC='lock_trx_handle_wait_enter SIGNAL waiting WAIT_FOR go';
+send SELECT b FROM t1 FORCE INDEX (a) ORDER BY a FOR UPDATE SKIP LOCKED;
+
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con2;
+reap;
+connection con1;
+SELECT pk FROM t1 WHERE pk=1 FOR UPDATE SKIP LOCKED;
+connection con2;
+COMMIT;
+
+--echo # The lock on the delete-marked secondary index record is granted
+connection con1;
+BEGIN;
+DELETE FROM t1 WHERE pk=1;
+
+connection con2;
+BEGIN;
+SET DEBUG_SYNC='lock_trx_handle_wait_enter SIGNAL waiting WAIT_FOR go';
+send SELECT b FROM t1 FORCE INDEX (a) ORDER BY a FOR UPDATE SKIP LOCKED;
+
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+COMMIT;
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con2;
+reap;
+COMMIT;
+
+--echo # The lock is still held: the record is skipped
+connection con1;
+BEGIN;
+SELECT b FROM t1 WHERE pk=2 FOR UPDATE;
+
+connection con2;
+BEGIN;
+SELECT b FROM t1 FORCE INDEX (a) ORDER BY a FOR UPDATE SKIP LOCKED;
+COMMIT;
+
+connection con1;
+COMMIT;
+
+--echo # A deadlock is reported while waiting for the lock
+CREATE TABLE t2 (x INT) ENGINE=InnoDB;
+connection con1;
+BEGIN;
+# Make con1 heavier than con2, so that con2 is chosen as the deadlock victim
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5);
+SELECT b FROM t1 WHERE pk=2 FOR UPDATE;
+
+connection con2;
+BEGIN;
+SET DEBUG_SYNC='lock_trx_handle_wait_enter SIGNAL waiting WAIT_FOR go';
+send SELECT b FROM t1 FORCE INDEX (a) ORDER BY a FOR UPDATE SKIP LOCKED;
+
+connection con1;
+SET DEBUG_SYNC='now WAIT_FOR waiting';
+SET DEBUG_SYNC='deadlock_report_before_lock_releasing SIGNAL deadlock';
+send SELECT pk FROM t1 FORCE INDEX (a) WHERE a=2 FOR UPDATE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR deadlock';
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con2;
+--error ER_LOCK_DEADLOCK
+reap;
+
+connection con1;
+reap;
+
+disconnect con2;
+connection con1;
+COMMIT;
+disconnect con1;
+
+connection default;
+SET DEBUG_SYNC='RESET';
+DROP TABLE t1, t2;
+
+--echo # End of 11.4 tests

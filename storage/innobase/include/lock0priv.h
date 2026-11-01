@@ -73,6 +73,7 @@ ib_lock_t::print(std::ostream& out) const
   static_assert(LOCK_IX == 1, "compatibility");
   static_assert(LOCK_S == 2, "compatibility");
   static_assert(LOCK_X == 3, "compatibility");
+  static_assert((LOCK_X_BY_TABLE & LOCK_MODE_MASK) == LOCK_X, "compatibility");
   static_assert(LOCK_AUTO_INC == 4, "compatibility");
   static_assert(LOCK_NONE == 5, "compatibility");
   static_assert(LOCK_NONE_UNSET == 7, "compatibility");
