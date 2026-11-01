@@ -1599,7 +1599,8 @@ public:
     return (next_select() == 0 && group_list.elements == 0 &&
             having == 0 && with_sum_func == 0 && with_rownum == 0 &&
             table_list.elements >= 1 && !(options & SELECT_DISTINCT) &&
-            limit_params.select_limit == 0);
+            limit_params.select_limit == 0 &&
+            limit_params.offset_limit == 0);
   }
   void mark_as_belong_to_derived(TABLE_LIST *derived);
   void increase_derived_records(ha_rows records);
