@@ -1,0 +1,86 @@
+--echo MariaDB frm parser test - Comments
+--echo Testing field-level and table-level comments
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+
+# Test basic field comments
+CREATE TABLE t_field_comments (
+  id INT COMMENT 'Primary key identifier',
+  name VARCHAR(100) COMMENT 'Full name of the user',
+  email VARCHAR(255) COMMENT 'User email address (must be unique)',
+  age INT COMMENT 'Age in years',
+  salary DECIMAL(10,2) COMMENT 'Annual salary in USD',
+  is_active BOOLEAN COMMENT 'Whether the user account is active',
+  created_at TIMESTAMP COMMENT 'When the record was created'
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_field_comments.frm
+DROP TABLE t_field_comments;
+
+# Test table-level comments
+CREATE TABLE t_table_comment (
+  id INT,
+  data VARCHAR(50)
+) COMMENT = 'This is a sample table for testing table-level comments';
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_table_comment.frm
+DROP TABLE t_table_comment;
+
+# Test both field and table comments
+CREATE TABLE t_mixed_comments (
+  user_id INT COMMENT 'Unique identifier for each user',
+  username VARCHAR(50) COMMENT 'Login username (alphanumeric only)',
+  password_hash VARCHAR(255) COMMENT 'Hashed password using bcrypt',
+  email VARCHAR(255) COMMENT 'Primary email address',
+  phone VARCHAR(20) COMMENT 'Contact phone number',
+  status ENUM('active', 'suspended', 'deleted') COMMENT 'Current account status',
+  last_login DATETIME COMMENT 'Timestamp of last successful login',
+  failed_attempts INT COMMENT 'Number of consecutive failed login attempts',
+  created_by INT COMMENT 'User ID of the admin who created this account'
+) COMMENT = 'User accounts table - stores authentication and basic user information';
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_mixed_comments.frm
+DROP TABLE t_mixed_comments;
+
+# Test comments with special characters
+CREATE TABLE t_special_char_comments (
+  id INT COMMENT 'ID with "quotes" and \'apostrophes\'',
+  data TEXT COMMENT 'Data field with newlines\nand tabs\tand backslashes\\',
+  json_field JSON COMMENT 'JSON data: {"key": "value", "number": 123}',
+  unicode_field VARCHAR(100) COMMENT 'Unicode: café, naïve, résumé, 你好',
+  emoji_field VARCHAR(200) COMMENT 'Emoji support: 😀 🎉 👍 ⭐ 🔥'
+) COMMENT = 'Table with special characters in comments: "quotes", \'apostrophes\', and 中文';
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_special_char_comments.frm
+DROP TABLE t_special_char_comments;
+
+# Test long comments
+CREATE TABLE t_long_comments (
+  id INT COMMENT 'This is a very long comment that exceeds the typical short comment length to test how the FRM parser handles extended comment text that might span multiple lines or exceed certain buffer limits in the parsing logic',
+  description TEXT COMMENT 'Another long comment: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris.',
+  notes VARCHAR(500) COMMENT 'Even longer comment with detailed explanation: This field is used to store additional notes about the record. It can contain up to 500 characters and should be used for storing metadata, processing instructions, or other supplementary information that doesn\'t fit in other fields. Please ensure proper validation before storing data here.'
+) COMMENT = 'This table has exceptionally long comments to test the FRM parser\'s ability to handle extended comment text. The table is designed to store various types of textual data with comprehensive documentation for each field. This comment itself is quite lengthy to ensure proper parsing and display of table-level comments that exceed typical lengths.';
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_long_comments.frm
+DROP TABLE t_long_comments;
+
+# Test empty comments
+CREATE TABLE t_empty_comments (
+  id INT COMMENT '',
+  name VARCHAR(50) COMMENT '',
+  data TEXT
+) COMMENT = '';
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_empty_comments.frm
+DROP TABLE t_empty_comments;
+
+
+
+--echo Comments test completed

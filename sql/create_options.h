@@ -107,6 +107,9 @@ class Create_field;
 
 bool resolve_sysvar_table_options(ha_create_table_option *rules);
 void free_sysvar_table_options(ha_create_table_option *rules);
+extern bool (*parse_engine_table_options_hook)(THD *thd, handlerton *ht, TABLE_SHARE *share);
+extern bool (*engine_table_options_frm_read_hook)(const uchar *buff, size_t length, TABLE_SHARE *share);
+
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool parse_engine_part_options(THD *thd, TABLE *table);

@@ -1,0 +1,304 @@
+MariaDB frm parser test - Sequence Default Expressions
+Testing sequence integration in DEFAULT expressions and various contexts
+CREATE SEQUENCE seq_basic START WITH 1000 INCREMENT BY 1;
+CREATE TABLE t_basic_sequence (
+id INT DEFAULT NEXTVAL(seq_basic) PRIMARY KEY,
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE `t_basic_sequence` (
+  `id` int(11) NOT NULL DEFAULT nextval(`test`.`seq_basic`),
+  `name` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_basic_sequence;
+DROP SEQUENCE seq_basic;
+CREATE SEQUENCE seq_custom START WITH 5000 INCREMENT BY 10 MINVALUE 1000 MAXVALUE 999999;
+CREATE TABLE t_custom_sequence (
+order_id INT DEFAULT NEXTVAL(seq_custom),
+batch_id INT DEFAULT NEXTVAL(seq_custom),
+item_code VARCHAR(50),
+quantity INT DEFAULT 1
+);
+CREATE TABLE `t_custom_sequence` (
+  `order_id` int(11) DEFAULT nextval(`test`.`seq_custom`),
+  `batch_id` int(11) DEFAULT nextval(`test`.`seq_custom`),
+  `item_code` varchar(50) DEFAULT NULL,
+  `quantity` int(11) DEFAULT 1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_custom_sequence;
+DROP SEQUENCE seq_custom;
+CREATE SEQUENCE seq_orders START WITH 10000 INCREMENT BY 1;
+CREATE SEQUENCE seq_items START WITH 50000 INCREMENT BY 5;
+CREATE SEQUENCE seq_batches START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_multiple_sequences (
+order_id INT DEFAULT NEXTVAL(seq_orders),
+item_id INT DEFAULT NEXTVAL(seq_items),
+batch_id INT DEFAULT NEXTVAL(seq_batches),
+description TEXT,
+price DECIMAL(10,2) DEFAULT 0.00
+);
+CREATE TABLE `t_multiple_sequences` (
+  `order_id` int(11) DEFAULT nextval(`test`.`seq_orders`),
+  `item_id` int(11) DEFAULT nextval(`test`.`seq_items`),
+  `batch_id` int(11) DEFAULT nextval(`test`.`seq_batches`),
+  `description` text DEFAULT NULL,
+  `price` decimal(10,2) DEFAULT 0.00
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_multiple_sequences;
+DROP SEQUENCE seq_orders;
+DROP SEQUENCE seq_items;
+DROP SEQUENCE seq_batches;
+CREATE SEQUENCE seq_computed START WITH 100 INCREMENT BY 2;
+CREATE TABLE t_computed_sequence (
+id INT,
+base_number INT DEFAULT NEXTVAL(seq_computed),
+doubled_value INT AS (base_number * 2) VIRTUAL,
+formatted_id VARCHAR(20) AS (CONCAT('ID-', LPAD(base_number, 6, '0'))) STORED,
+is_even BOOLEAN AS (base_number % 2 = 0) VIRTUAL,
+range_category VARCHAR(20) AS (
+CASE 
+WHEN base_number < 200 THEN 'LOW'
+      WHEN base_number < 500 THEN 'MEDIUM'
+      ELSE 'HIGH'
+    END
+) VIRTUAL
+);
+DROP TABLE t_computed_sequence;
+DROP SEQUENCE seq_computed;
+CREATE SEQUENCE seq_cycle START WITH 1 INCREMENT BY 1 MAXVALUE 5 CYCLE;
+CREATE TABLE t_cycle_sequence (
+id INT AUTO_INCREMENT PRIMARY KEY,
+cycle_value INT DEFAULT NEXTVAL(seq_cycle),
+data VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE `t_cycle_sequence` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `cycle_value` int(11) DEFAULT nextval(`test`.`seq_cycle`),
+  `data` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_cycle_sequence;
+DROP SEQUENCE seq_cycle;
+CREATE SEQUENCE seq_cached START WITH 1000 INCREMENT BY 1 CACHE 20;
+CREATE TABLE t_cached_sequence (
+transaction_id INT DEFAULT NEXTVAL(seq_cached),
+reference_id INT DEFAULT NEXTVAL(seq_cached),
+amount DECIMAL(15,2),
+currency VARCHAR(3) DEFAULT 'USD'
+);
+CREATE TABLE `t_cached_sequence` (
+  `transaction_id` int(11) DEFAULT nextval(`test`.`seq_cached`),
+  `reference_id` int(11) DEFAULT nextval(`test`.`seq_cached`),
+  `amount` decimal(15,2) DEFAULT NULL,
+  `currency` varchar(3) DEFAULT 'USD'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_cached_sequence;
+DROP SEQUENCE seq_cached;
+CREATE SEQUENCE seq_mixed START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_mixed_sequence_defaults (
+id INT DEFAULT NEXTVAL(seq_mixed),
+uuid_val VARCHAR(36) DEFAULT (UUID()),
+random_val INT DEFAULT (FLOOR(RAND() * 1000)),
+timestamp_val TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+computed_val INT AS (id * 100 + random_val) STORED,
+formatted_key VARCHAR(50) AS (CONCAT('KEY-', id, '-', SUBSTRING(uuid_val, 1, 8))) VIRTUAL
+);
+DROP TABLE t_mixed_sequence_defaults;
+DROP SEQUENCE seq_mixed;
+CREATE SEQUENCE seq_bigint START WITH 9223372036854775800 INCREMENT BY 1;
+CREATE TABLE t_sequence_datatypes (
+tiny_seq TINYINT DEFAULT (NEXTVAL(seq_bigint) % 127),
+small_seq SMALLINT DEFAULT (NEXTVAL(seq_bigint) % 32767),
+int_seq INT DEFAULT (NEXTVAL(seq_bigint) % 2147483647),
+bigint_seq BIGINT DEFAULT NEXTVAL(seq_bigint),
+decimal_seq DECIMAL(20,2) DEFAULT (NEXTVAL(seq_bigint) / 100.0),
+float_seq FLOAT DEFAULT (NEXTVAL(seq_bigint) * 0.001)
+);
+CREATE TABLE `t_sequence_datatypes` (
+  `tiny_seq` tinyint(4) DEFAULT nextval(`test`.`seq_bigint`) MOD 127,
+  `small_seq` smallint(6) DEFAULT nextval(`test`.`seq_bigint`) MOD 32767,
+  `int_seq` int(11) DEFAULT nextval(`test`.`seq_bigint`) MOD 2147483647,
+  `bigint_seq` bigint(20) DEFAULT nextval(`test`.`seq_bigint`),
+  `decimal_seq` decimal(20,2) DEFAULT nextval(`test`.`seq_bigint`) / 100.0,
+  `float_seq` float DEFAULT nextval(`test`.`seq_bigint`) * 0.001
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_sequence_datatypes;
+DROP SEQUENCE seq_bigint;
+CREATE SEQUENCE seq_conditional START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_conditional_sequence (
+id INT,
+priority INT DEFAULT (
+CASE 
+WHEN NEXTVAL(seq_conditional) % 10 = 0 THEN 3
+WHEN NEXTVAL(seq_conditional) % 5 = 0 THEN 2
+ELSE 1
+END
+),
+sequence_val INT DEFAULT NEXTVAL(seq_conditional),
+status VARCHAR(20) DEFAULT (
+CASE 
+WHEN sequence_val % 3 = 0 THEN 'APPROVED'
+      WHEN sequence_val % 3 = 1 THEN 'PENDING'
+      ELSE 'REJECTED'
+    END
+)
+);
+CREATE TABLE `t_conditional_sequence` (
+  `id` int(11) DEFAULT NULL,
+  `priority` int(11) DEFAULT case when nextval(`test`.`seq_conditional`) MOD 10 = 0 then 3 when nextval(`test`.`seq_conditional`) MOD 5 = 0 then 2 else 1 end,
+  `sequence_val` int(11) DEFAULT nextval(`test`.`seq_conditional`),
+  `status` varchar(20) DEFAULT case when `sequence_val` MOD 3 = 0 then 'APPROVED' when `sequence_val` MOD 3 = 1 then 'PENDING' else 'REJECTED' end
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_conditional_sequence;
+DROP SEQUENCE seq_conditional;
+CREATE SEQUENCE seq_math START WITH 10 INCREMENT BY 3;
+CREATE TABLE t_sequence_math (
+base_val INT DEFAULT NEXTVAL(seq_math),
+squared_val BIGINT AS (base_val * base_val) VIRTUAL,
+cubed_val BIGINT AS (base_val * base_val * base_val) STORED,
+factorial_approx DOUBLE AS (
+CASE 
+WHEN base_val <= 1 THEN 1
+WHEN base_val <= 10 THEN POWER(base_val, base_val/2)
+ELSE POWER(base_val, LOG(base_val))
+END
+) VIRTUAL,
+fibonacci_approx INT AS (
+CASE 
+WHEN base_val <= 2 THEN 1
+ELSE FLOOR(POWER(((1 + SQRT(5))/2), base_val) / SQRT(5) + 0.5)
+END
+) VIRTUAL,
+prime_check BOOLEAN AS (
+base_val > 1 AND (
+base_val = 2 OR base_val = 3 OR base_val = 5 OR base_val = 7 OR
+(base_val % 2 != 0 AND base_val % 3 != 0 AND base_val % 5 != 0 AND base_val % 7 != 0)
+)
+) VIRTUAL
+);
+DROP TABLE t_sequence_math;
+DROP SEQUENCE seq_math;
+CREATE SEQUENCE seq_string START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_sequence_string (
+id INT DEFAULT NEXTVAL(seq_string),
+padded_id VARCHAR(10) AS (LPAD(id, 8, '0')) VIRTUAL,
+hex_id VARCHAR(20) AS (CONCAT('0x', HEX(id))) VIRTUAL,
+binary_id VARCHAR(64) AS (BIN(id)) VIRTUAL,
+encoded_id VARCHAR(50) AS (TO_BASE64(CONCAT('ID:', id))) STORED,
+checksum_id VARCHAR(50) AS (SHA2(CONCAT('prefix:', id, ':suffix'), 256)) VIRTUAL
+);
+DROP TABLE t_sequence_string;
+DROP SEQUENCE seq_string;
+CREATE SEQUENCE seq_datetime START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_sequence_datetime (
+seq_id INT DEFAULT NEXTVAL(seq_datetime),
+base_date DATE DEFAULT CURRENT_DATE,
+computed_date DATE AS (DATE_ADD(base_date, INTERVAL seq_id DAY)) VIRTUAL,
+computed_timestamp DATETIME AS (DATE_ADD(NOW(), INTERVAL seq_id MINUTE)) VIRTUAL,
+week_offset DATE AS (DATE_ADD(base_date, INTERVAL seq_id WEEK)) STORED,
+year_offset YEAR AS (YEAR(DATE_ADD(base_date, INTERVAL seq_id YEAR))) VIRTUAL,
+time_based VARCHAR(20) AS (
+CASE (seq_id % 4)
+WHEN 0 THEN 'MORNING'
+      WHEN 1 THEN 'AFTERNOON'  
+WHEN 2 THEN 'EVENING'
+      ELSE 'NIGHT'
+    END
+) VIRTUAL
+);
+DROP TABLE t_sequence_datetime;
+DROP SEQUENCE seq_datetime;
+CREATE SEQUENCE seq_nested START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_nested_sequence_expressions (
+primary_seq INT DEFAULT NEXTVAL(seq_nested),
+nested_calc INT AS (
+CASE 
+WHEN primary_seq <= 10 THEN primary_seq * 2
+WHEN primary_seq <= 100 THEN (
+CASE 
+WHEN primary_seq % 10 = 0 THEN primary_seq / 10
+ELSE primary_seq
+END
+)
+ELSE FLOOR(SQRT(primary_seq))
+END
+) STORED,
+multi_level_check BOOLEAN AS (
+(primary_seq > 0) AND 
+(nested_calc > 0) AND
+(CASE 
+WHEN primary_seq < 50 THEN (nested_calc < primary_seq)
+ELSE (nested_calc > primary_seq)
+END)
+) VIRTUAL,
+formatted_result VARCHAR(100) AS (
+CONCAT(
+'SEQ:', primary_seq, 
+'|CALC:', nested_calc,
+'|RATIO:', ROUND(nested_calc/primary_seq, 2),
+'|VALID:', IF(multi_level_check, 'YES', 'NO')
+)
+) VIRTUAL
+);
+DROP TABLE t_nested_sequence_expressions;
+DROP SEQUENCE seq_nested;
+CREATE SEQUENCE seq_json START WITH 1 INCREMENT BY 1 MAXVALUE 1000;
+CREATE TABLE t_sequence_json (
+id INT DEFAULT NEXTVAL(seq_json),
+metadata JSON DEFAULT (JSON_OBJECT(
+'seq_id', NEXTVAL(seq_json),
+'created_at', NOW(),
+'version', 1
+)),
+extracted_seq INT AS (JSON_EXTRACT(metadata, '$.seq_id')) VIRTUAL,
+seq_diff INT AS (id - JSON_EXTRACT(metadata, '$.seq_id')) STORED,
+enhanced_metadata JSON AS (
+JSON_SET(
+metadata,
+'$.computed.id_sum', id + JSON_EXTRACT(metadata, '$.seq_id'),
+'$.computed.id_product', id * JSON_EXTRACT(metadata, '$.seq_id'),
+'$.computed.relationship', 
+CASE 
+WHEN id > JSON_EXTRACT(metadata, '$.seq_id') THEN 'GREATER'
+        WHEN id < JSON_EXTRACT(metadata, '$.seq_id') THEN 'LESS'
+        ELSE 'EQUAL'
+      END
+)
+) VIRTUAL
+);
+DROP TABLE t_sequence_json;
+DROP SEQUENCE seq_json;
+CREATE SEQUENCE seq_negative START WITH 1000 INCREMENT BY -1 MINVALUE 1 MAXVALUE 1000;
+CREATE TABLE t_negative_sequence (
+countdown INT DEFAULT NEXTVAL(seq_negative),
+remaining_pct DECIMAL(5,2) AS ((countdown / 1000.0) * 100) VIRTUAL,
+status_level VARCHAR(10) AS (
+CASE 
+WHEN countdown > 800 THEN 'HIGH'
+      WHEN countdown > 500 THEN 'MEDIUM'
+      WHEN countdown > 200 THEN 'LOW'
+      ELSE 'CRITICAL'
+    END
+) STORED,
+is_milestone BOOLEAN AS (countdown % 100 = 0) VIRTUAL
+);
+DROP TABLE t_negative_sequence;
+DROP SEQUENCE seq_negative;
+CREATE SEQUENCE seq_complex_math START WITH 1 INCREMENT BY 1;
+CREATE TABLE t_complex_sequence_math (
+n INT DEFAULT NEXTVAL(seq_complex_math),
+harmonic_series DOUBLE AS (1.0/n) VIRTUAL,
+geometric_series DOUBLE AS (POWER(0.5, n)) VIRTUAL,
+log_series DOUBLE AS (CASE WHEN n > 0 THEN LOG(n) ELSE NULL END) VIRTUAL,
+trig_approx DOUBLE AS (SIN(n * PI()/180)) STORED,
+exponential_decay DOUBLE AS (EXP(-n/10.0)) VIRTUAL,
+polynomial_val DOUBLE AS (n*n*n - 3*n*n + 2*n + 1) VIRTUAL,
+modular_arithmetic INT AS ((n * n + 7*n + 12) % 1000) VIRTUAL
+);
+DROP TABLE t_complex_sequence_math;
+DROP SEQUENCE seq_complex_math;
+Sequence default expressions test completed
