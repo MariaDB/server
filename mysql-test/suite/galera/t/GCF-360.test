@@ -1,65 +1,197 @@
 #
-# GCF-360 Inconsistency voting: node goes non-prim on DDL that fails everywhere
+# GCF-360 Inconsistency voting: node goes non-prim on DDL that fails
+# everywhere else.
 #
-# We issue 400 DDLs in total to make this test more stressful#
+# Several different DDL statements, each made to succeed on node_1 only
+# (while failing on nodes 2, 3 and 4), demonstrate that inconsistency
+# voting ejects node_1 every time, regardless of DDL type. No loop: each
+# DDL is a separate, explicit round, with node_1 restarted and rejoined
+# between rounds.
+#
+# node_1 is the cluster's bootstrap node (wsrep_cluster_address=gcomm://
+# in the .cnf), so a plain restart would try to bootstrap a new cluster
+# rather than rejoin the existing one - the restart therefore overrides
+# wsrep_cluster_address to point at node_2. A full restart (rather than a
+# live SET GLOBAL wsrep_cluster_address) is required here: galera's
+# Certification object marks itself inconsistent on the first vote loss
+# and asserts if a second vote loss is processed without an intervening
+# provider re-init, which only a process restart performs.
 #
 
 --source include/galera_cluster.inc
 
---let $count = 100
-
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
---disable_query_log
---disable_result_log
-while ($count)
-{
-        --connection node_1
-        --send DROP TABLE nonexisting_table;
+--connection node_2
+--source include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
 
-        --connection node_2
-        --send DROP TABLE nonexisting_table;
-
-        --connection node_3
-        --send DROP TABLE nonexisting_table;
-
-        --connection node_4
-        --send DROP TABLE nonexisting_table;
-
-        --connection node_1
-        --error ER_BAD_TABLE_ERROR,ER_QUERY_INTERRUPTED
-        --reap
-
-        --connection node_2
-        --error ER_BAD_TABLE_ERROR,ER_QUERY_INTERRUPTED
-        --reap
-
-        --connection node_3
-        --error ER_BAD_TABLE_ERROR,ER_QUERY_INTERRUPTED
-        --reap
-
-        --connection node_4
-        --error ER_BAD_TABLE_ERROR,ER_QUERY_INTERRUPTED
-        --reap
-
-        --dec $count
-}
---enable_result_log
---enable_query_log
+--echo #
+--echo # Round 1: CREATE SCHEMA - fails on nodes 2, 3 and 4 (schema exists
+--echo # there), succeeds on node_1 (schema was dropped there only).
+--echo #
 
 --connection node_1
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+SET SESSION wsrep_on=ON;
 
 --connection node_2
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+--error ER_DB_CREATE_EXISTS
+CREATE SCHEMA test;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
 
 --connection node_3
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
 
 --connection node_4
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--disconnect node_1
+--connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1
+--source include/kill_galera.inc
+--let $start_mysqld_params = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_2
+--let $galera_wait_ready_timeout = 180
+--source include/start_mysqld.inc
+--let $start_mysqld_params =
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--echo #
+--echo # Round 2: DROP TABLE - succeeds on nodes 2, 3 and 4 (table exists
+--echo # there), fails to apply on node_1 (table was dropped there only).
+--echo #
+
+CREATE TABLE test.t1 (f1 INTEGER) ENGINE=InnoDB;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1';
+--source include/wait_condition.inc
+SET SESSION wsrep_on=OFF;
+DROP TABLE test.t1;
+SET SESSION wsrep_on=ON;
+
+--connection node_2
+DROP TABLE test.t1;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_4
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--disconnect node_1
+--connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1
+--source include/kill_galera.inc
+--let $start_mysqld_params = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_2
+--let $galera_wait_ready_timeout = 180
+--source include/start_mysqld.inc
+--let $start_mysqld_params =
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--echo #
+--echo # Round 3: ALTER TABLE - succeeds on nodes 2, 3 and 4 (column does
+--echo # not exist there yet), fails to apply on node_1 (column was added
+--echo # there only).
+--echo #
+
+CREATE TABLE test.t2 (f1 INTEGER) ENGINE=InnoDB;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't2';
+--source include/wait_condition.inc
+SET SESSION wsrep_on=OFF;
+ALTER TABLE test.t2 ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_on=ON;
+
+--connection node_2
+ALTER TABLE test.t2 ADD COLUMN f2 INTEGER;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_4
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--disconnect node_1
+--connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1
+--source include/kill_galera.inc
+--let $start_mysqld_params = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_2
+--let $galera_wait_ready_timeout = 180
+--source include/start_mysqld.inc
+--let $start_mysqld_params =
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait=15;
+DROP TABLE test.t2;
+
+--connection node_1
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on (.*) is inconsistent with group\\. Leaving cluster\\.");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
