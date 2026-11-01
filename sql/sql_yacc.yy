@@ -15993,6 +15993,7 @@ keyword_func_sp_var_and_label:
         | MAX_ROWS
         | MASTER_SYM
         | MASTER_HEARTBEAT_PERIOD_SYM
+        | MASTER_DEMOTE_TO_SLAVE_SYM
         | MASTER_GTID_POS_SYM
         | MASTER_HOST_SYM
         | MASTER_PORT_SYM
