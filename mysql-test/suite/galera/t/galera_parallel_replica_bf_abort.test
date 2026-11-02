@@ -1,0 +1,106 @@
+#
+# MGL-326: a cluster write set aborts the transaction of a parallel replica
+# worker while the worker waits for a row lock, before the transaction has
+# a write set. The worker retries the group. In debug builds the replica node
+# crashes with SIGSEGV in finish_event_group() ->
+# wait_for_commit::unregister_wait_for_prior_commit() after
+# "Parallel slave worker failed at wsrep_after_statement() hook".
+#
+# Node 3 is a native MariaDB server and the async master. Node 2 is a cluster
+# node and the replica, with slave_parallel_threads=2.
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/log_bin.inc
+--source include/force_restart.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_2a
+--source include/galera_cluster.inc
+
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+RESET MASTER;
+
+--connection node_2a
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0, MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--connection node_3
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'a'), (2, 'a');
+
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1;
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1;
+--source include/wait_condition.inc
+
+#
+# A local transaction of node 2 holds the lock of row 2.
+#
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+SET SESSION wsrep_sync_wait = 0;
+START TRANSACTION;
+UPDATE t1 SET f2 = 'x' WHERE f1 = 2;
+
+#
+# The async master updates both rows in one transaction. The parallel worker
+# of node 2 updates row 1, waits for the lock of row 2, and has no write set.
+#
+--connection node_3
+START TRANSACTION;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 1;
+UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
+COMMIT;
+
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.innodb_trx WHERE trx_state = 'LOCK WAIT'
+--source include/wait_condition.inc
+
+#
+# A write set of node 1 conflicts with the lock of the worker on row 1 and
+# aborts the transaction of the worker.
+#
+--connection node_1
+UPDATE t1 SET f2 = 'b' WHERE f1 = 1;
+
+--connection node_2b
+ROLLBACK;
+--disconnect node_2b
+
+#
+# The worker retries the group and node 2 ends with the values of the async
+# master.
+#
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 2 FROM test.t1 WHERE f2 = 'c';
+--source include/wait_condition.inc
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 15;
+SELECT * FROM t1;
+
+--connection node_2a
+STOP SLAVE;
+RESET SLAVE;
+SET GLOBAL gtid_slave_pos = "";
+
+DROP TABLE t1;
+
+--connection node_3
+--source include/kill_binlog_dump_threads.inc
+--source include/reset_master_slave.inc
+
+--connection node_1
+--disconnect node_2a
+--disconnect node_3
