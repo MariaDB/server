@@ -2015,6 +2015,7 @@ all_fail:
   mtr.commit();
   trx->clear_and_free();
   ut_free(pcur.old_rec_buf);
+  fil_crypt_threads_signal();
   ut_d(purge_sys.resume_FTS());
 }
 
@@ -10213,6 +10214,7 @@ wsrep_append_foreign_key(
 			}
 		}
 		dict_sys.unlock();
+		fil_crypt_threads_signal();
 	}
 
 	if ( !((referenced) ?
@@ -13557,7 +13559,11 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   if (!error)
     error= info.prepare_create_table(name, !trx);
   if (error)
+  {
+  func_exit:
+    fil_crypt_threads_signal();
     DBUG_RETURN(error);
+  }
 
   const bool own_trx= !trx;
   if (own_trx)
@@ -13621,7 +13627,7 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   else
     ref_length = form->key_info[form->s->primary_key].key_length;
 
-  DBUG_RETURN(error);
+  goto func_exit;
 }
 
 /** Create a new table to an InnoDB database.
@@ -14386,6 +14392,7 @@ int ha_innobase::truncate()
   if (!stats_failed)
     stats.close();
   mem_heap_free(heap);
+  fil_crypt_threads_signal();
   DBUG_RETURN(err);
 }
 
