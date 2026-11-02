@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq % 13 FROM seq_1_to_500;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;

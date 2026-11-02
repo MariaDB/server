@@ -20,6 +20,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+# the tables here are too small to repay the workers' setup cost; make the parallel scan free
+SET SESSION optimizer_parallel_setup_cost= 0;
 
 --disable_service_connection
 

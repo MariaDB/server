@@ -1,0 +1,120 @@
+#
+# MDEV-39492 Parallel Query: the optimizer costs the parallel scan.
+#
+# The join-order search prices the driving table's scan both ways -- serially,
+# and divided among parallel_worker_threads workers plus the cost of setting
+# them up -- and the plan is only run in the workers when the divided reading
+# won (parallel_scan_cost, position_cost_in_plan). Two things follow, and this
+# test pins both on the same pair of tables: a five-row dimension of which one
+# row matches, and a 20000-row fact table with a non-indexed filter.
+#
+# A scan too small to repay the setup is not divided. Everything here is too
+# small for the default setup cost, so with it the plan is the serial one and
+# runs serially, and the trace says why.
+#
+# A large scan can win the driving position. With a setup cost the data can
+# repay, the fact table first, scanned in parallel with the dimension looked up
+# per surviving row, is costed as one worker's share and beats the serial
+# dimension-first plan, which it would lose to serially. That is the plan the
+# workers divide. Forced to start at the dimension, the plan still runs
+# serially: dividing five rows, one of which survives the WHERE, puts the
+# whole fact-table join on one worker, and the scan cannot repay even that
+# setup. Only with no setup cost at all is it divided, which is what the
+# workers did with every such plan before the scan was costed.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE dim (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four'),(5,'five');
+
+CREATE TABLE fact (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+  ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 5 + 1, seq % 1000 FROM seq_1_to_20000;
+ANALYZE TABLE dim, fact PERSISTENT FOR ALL;
+
+SET @save_pwt= @@session.parallel_worker_threads;
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET @save_jcl= @@session.join_cache_level;
+SET @save_trace= @@optimizer_trace;
+# a join buffer is refused by the gate; keep the serial plan a plain ref join
+SET SESSION join_cache_level= 0;
+
+--echo #
+--echo # Serial plan: the five-row dimension drives the join.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+
+--echo #
+--echo # Default setup cost: nothing here is large enough to repay it, so the
+--echo # plan is the serial one, runs serially, and the trace says why.
+--echo #
+SET SESSION parallel_worker_threads= 4;
+SET SESSION optimizer_trace=1;
+--disable_result_log
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+--source include/parallel_query_why.inc
+--enable_result_log
+SET SESSION optimizer_trace=@save_trace;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # A setup cost the data can repay: the fact table takes the driving
+--echo # position and is the table the workers divide; the dimension is
+--echo # looked up per surviving row.
+--echo #
+SET SESSION optimizer_parallel_setup_cost= 100;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # Forced to start at the dimension, the plan is not worth dividing:
+--echo # five rows cannot repay the setup, so it runs serially.
+--echo #
+SET SESSION optimizer_trace=1;
+--disable_result_log
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+--source include/parallel_query_why.inc
+--enable_result_log
+SET SESSION optimizer_trace=@save_trace;
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # With no setup cost to repay, the same forced plan divides the
+--echo # dimension again, as it did before the scan was costed.
+--echo #
+SET SESSION optimizer_parallel_setup_cost= 0;
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+SET SESSION join_cache_level= @save_jcl;
+SET SESSION parallel_worker_threads= @save_pwt;
+DROP TABLE dim, fact;

@@ -1259,6 +1259,23 @@ public:
 
   /* number of rows that will be read from the table */
   double records_init;
+  /*
+    > 1.0 only for the driving table (idx == const_tables) when
+    best_access_path() costed its scan as divided among parallel workers:
+    read_time is then one worker's share of the scan plus the setup cost, and
+    this is the number of workers the rows that survive the table's own WHERE
+    are spread over, min(parallel_worker_threads, records_out). The join
+    optimizer divides the read_time of every later position by it, since each
+    worker joins only its own share of the driving rows. 1.0 = serial.
+  */
+  double parallel_divisor;
+  /*
+    The driving table's scan was costed as a parallel one (read_time is one
+    worker's share plus the setup cost). Not implied by parallel_divisor > 1:
+    a large table whose WHERE keeps a single row is still worth dividing, but
+    spreads nothing over the workers.
+  */
+  bool parallel_scan;
 
   /*
     Number of expected rows before applying the full WHERE clause. This
@@ -2045,6 +2062,22 @@ public:
     of optimization rather than as it stood in the middle of it.
   */
   bool worker_side_parallel{false};
+  /*
+    Set by choose_plan() for the duration of the join-order search when the
+    query's shape lets the workers run it, so best_access_path() may cost the
+    driving table's scan as a parallel one (see parallel_scan_cost()). Without
+    it the search never generates the parallel alternative, and a query the
+    gate would refuse anyway is costed as the serial plan it will run.
+  */
+  bool parallel_candidates_allowed{false};
+  /*
+    Set by choose_plan(): the plan it settled on has its driving table costed
+    as a parallel scan (best_positions[const_tables].parallel_divisor > 1).
+    parallel_join_check() runs the workers only for such a plan: one whose
+    driving table the optimizer found cheaper to divide than to read serially,
+    which a scan of a tiny table with a large join under it is not.
+  */
+  bool parallel_plan_chosen{false};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)

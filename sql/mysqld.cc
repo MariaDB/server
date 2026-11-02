@@ -5601,6 +5601,7 @@ static int init_server_components()
     process_optimizer_costs(adjust_optimizer_costs, 0);
     us_to_ms(global_system_variables.optimizer_where_cost);
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
+    us_to_ms(global_system_variables.optimizer_parallel_setup_cost);
   }
 
   /*

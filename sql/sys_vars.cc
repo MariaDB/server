@@ -7964,6 +7964,20 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));
 
+#ifndef EMBEDDED_LIBRARY
+/* No parallel query in the embedded server; see parallel_worker_threads. */
+static Sys_var_optimizer_cost Sys_optimizer_parallel_setup_cost(
+  "optimizer_parallel_setup_cost",
+  "Cost, per table in the join, of setting up parallel worker threads to "
+  "scan the driving table of a query. Charged against the parallel reading "
+  "of the scan when the optimizer compares it with the serial one; a scan too "
+  "small to repay it is read serially. In microseconds",
+  SESSION_VAR(optimizer_parallel_setup_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_PARALLEL_SETUP_COST),
+  COST_ADJUST(1000));
+#endif
+
 extern const char *block_encryption_mode_values[];
 static Sys_var_enum Sys_block_encryption_mode(
   "block_encryption_mode", "Default block encryption mode for "

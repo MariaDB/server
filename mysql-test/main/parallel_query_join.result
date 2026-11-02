@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE TABLE fact (id INT, dim1 INT, dim2 INT, val INT) ENGINE=InnoDB;
 INSERT INTO fact
 SELECT seq, seq % 50 + 1, seq % 20 + 1, seq * 3 FROM seq_1_to_5000;
