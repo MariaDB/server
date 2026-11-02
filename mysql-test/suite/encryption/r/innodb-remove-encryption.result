@@ -4,6 +4,7 @@ Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a fu
 call mtr.add_suppression("(mysqld|mariadbd).*: file-key-management-filename is not set");
 call mtr.add_suppression("Plugin 'file_key_management' init function returned error.");
 call mtr.add_suppression("Plugin 'file_key_management' registration as a ENCRYPTION failed.");
+call mtr.add_suppression("Plugin 'FILE_KEY_MANAGEMENT_KEYS' (init function returned error|registration.*failed)");
 flush tables;
 create table t1(a int not null primary key, b char(200)) engine=innodb;
 

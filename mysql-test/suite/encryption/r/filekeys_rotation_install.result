@@ -1,0 +1,32 @@
+call mtr.add_suppression("System key id 1 is missing");
+call mtr.add_suppression("Plugin '(file_key_management|FILE_KEY_MANAGEMENT_KEYS)' (init function returned error|registration.*failed)");
+# A key file without key id 1 makes the encryption plugin fail
+INSTALL SONAME 'file_key_management';
+ERROR HY000: System key id 1 is missing at MYSQLTEST_VARDIR/tmp/keys_install.txt line 1, column 1
+# Nothing from the library stays installed
+select name from mysql.plugin where dl like 'file_key_management%';
+name
+select plugin_name from information_schema.plugins
+where plugin_library like 'file_key_management%';
+plugin_name
+# With a valid key file both plugins are installed
+INSTALL SONAME 'file_key_management';
+Warnings:
+Note	1	Read from MYSQLTEST_VARDIR/tmp/keys_install.txt, read bytes: 67, max key file size: 1048576 bytes
+select name from mysql.plugin where dl like 'file_key_management%' order by name;
+name
+file_key_management
+FILE_KEY_MANAGEMENT_KEYS
+select plugin_name, plugin_status from information_schema.plugins
+where plugin_library like 'file_key_management%' order by plugin_name;
+plugin_name	plugin_status
+file_key_management	ACTIVE
+FILE_KEY_MANAGEMENT_KEYS	ACTIVE
+select * from information_schema.file_key_management_keys;
+KEY_ID	KEY_VERSION	KEY_LENGTH	IS_LATEST
+1	1	256	YES
+# Reset mysqld
+UNINSTALL SONAME 'file_key_management';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+# restart
