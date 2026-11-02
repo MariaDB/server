@@ -1684,6 +1684,40 @@ SET global general_log=0;
 SELECT argument FROM mysql.general_log
 WHERE argument LIKE 'select `federated`%' ORDER BY event_time;
 
+--echo #
+--echo # MDEV-41862: syntax error with a single-table DELETE/UPDATE
+--echo # with a subquery on the same table
+--echo #
+connection slave;
+DELETE FROM federated.t3;
+INSERT INTO federated.t3 VALUES (1,10), (2,20), (2,30), (NULL,40), (3,50);
+TRUNCATE TABLE mysql.general_log;
+SET global general_log=1;
+
+connection master;
+DELETE FROM t3 WHERE a IN (SELECT a FROM t3 WHERE a < 3);
+SELECT * FROM t3 ORDER BY b;
+INSERT INTO t3 VALUES (1,10), (2,20), (2,30);
+DELETE FROM t3 WHERE a IN (SELECT a FROM t3 WHERE a < 3) ORDER BY b LIMIT 2;
+SELECT * FROM t3 ORDER BY b;
+PREPARE stmt FROM 'DELETE FROM t3 WHERE a IN (SELECT a FROM t3 WHERE a < 4)';
+EXECUTE stmt;
+SELECT * FROM t3 ORDER BY b;
+INSERT INTO t3 VALUES (1,10), (2,20), (3,50);
+EXECUTE stmt;
+SELECT * FROM t3 ORDER BY b;
+DEALLOCATE PREPARE stmt;
+INSERT INTO t3 VALUES (1,11), (2,21), (3,31);
+UPDATE t3 SET b= b + 100 WHERE a IN (SELECT a FROM t3 WHERE a < 3);
+SELECT * FROM t3 ORDER BY b;
+
+connection slave;
+SET global general_log=0;
+--echo # the pushed down statements
+SELECT argument FROM mysql.general_log
+WHERE argument LIKE 'delete %' OR argument LIKE 'update %'
+ORDER BY event_time;
+
 connection slave;
 TRUNCATE TABLE mysql.general_log;
 SET global general_log= @old_general_log;

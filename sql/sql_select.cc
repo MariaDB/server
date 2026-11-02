@@ -33523,8 +33523,12 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
       str->append(get_explainable_cmd_name(sel_type));
       print_hints(thd, str);
     }
-    if (sel_type == DELETE_CMD)
+    if (sel_type == DELETE_CMD && top_join_list.elements)
     {
+      /*
+        This is a DELETE statement that has not originally been a single-table
+        DELETE. Print it as "DELETE FROM tbl1, tbl2 USING ..."
+      */
       str->append(STRING_WITH_LEN(" from "));
       bool first= true;
       for (TABLE_LIST *target_tbl= thd->lex->auxiliary_table_list.first;
@@ -33544,11 +33548,14 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
     }
     if (sel_type == UPDATE_CMD || sel_type == DELETE_CMD)
     {
-      if (join)
+      if (join && top_join_list.elements)
         print_join(thd, 0, str, &top_join_list, query_type);
       else
       {
+        /* This was originally a single-table UPDATE/DELETE. */
         bool first= true;
+        if (sel_type == DELETE_CMD)
+          str->append(STRING_WITH_LEN("from "));
         List_iterator_fast<TABLE_LIST> li(leaf_tables);
         TABLE_LIST *tbl;
         while ((tbl= li++))
