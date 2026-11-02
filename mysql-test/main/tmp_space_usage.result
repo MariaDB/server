@@ -238,3 +238,27 @@ INTERSECT ALL
 SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_VARIABLES JOIN seq_1_to_100;
 ERROR HY000: Local temporary space limit reached
 # End of 11.5 tests
+#
+# MDEV-37461 Limit tmp file usage by online alter
+#
+set max_tmp_session_space_usage= default;
+set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
+set global max_tmp_total_space_usage = 65536*5;
+create table t (x int) engine=innodb;
+set debug_sync= 'alter_table_copy_end SIGNAL ended WAIT_FOR end';
+insert t select * from seq_1_to_50000;
+alter table t add y int, lock=none, algorithm=copy;
+connect  con2, localhost, root,,;
+set sql_log_bin= 0;
+set debug_sync= 'now WAIT_FOR ended';
+start transaction ;
+update t set x = x + 200;
+commit;
+set debug_sync= 'now SIGNAL end';
+connection default;
+ERROR HY000: Global temporary space limit reached
+set @@global.max_tmp_total_space_usage= @save_max_tmp_total_space_usage;
+disconnect con2;
+set debug_sync= 'RESET';
+drop table t;
+# End of 11.8 tests
