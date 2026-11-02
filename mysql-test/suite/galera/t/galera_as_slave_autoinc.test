@@ -79,7 +79,9 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 --source include/wait_condition.inc
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 SET GLOBAL gtid_slave_pos = "";
 
 --connection node_3
