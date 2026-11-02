@@ -130,7 +130,9 @@ SELECT @@GLOBAL.gtid_slave_pos;
 
 --connection node_2
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 SET GLOBAL gtid_slave_pos = "";
 SET GLOBAL replicate_ignore_table='';
 
