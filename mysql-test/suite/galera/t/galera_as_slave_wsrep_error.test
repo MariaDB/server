@@ -1,0 +1,98 @@
+#
+# When a transaction applied by the async replication SQL thread fails
+# because of a Galera error, the SQL thread must stop *and* record the
+# reason in SHOW SLAVE STATUS.
+#
+# The reason used to be reported only when wsrep_ready had already turned
+# OFF. A writeset can however fail while the node still considers itself
+# ready: the writeset send fails as soon as group communication is gone,
+# while the server state is only changed to non-Primary once the new view
+# has been delivered. In that window the SQL thread stopped silently with
+# Last_SQL_Errno = 0 and an empty Last_SQL_Error, which is both useless to
+# the user and the reason galera_as_slave_nonprim failed sporadically.
+#
+# The failure is provoked here without depending on cluster membership
+# timing, by lowering wsrep_max_ws_size on the slave node only, so that the
+# replicated writeset is rejected while the node is still Primary and ready.
+#
+# The galera_2nodes_as_slave.cnf describes the setup of the nodes
+#
+
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+# As node #3 is not a Galera node, and galera_cluster.inc does not open
+# connection to it, we open the node_3 connection here
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--connection node_2
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_3
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1000)) ENGINE=InnoDB;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+# Step #1. Make any non-trivial writeset fail on this node only
+
+SET @@global.wsrep_max_ws_size = 1024;
+
+# Step #2. Force async replication to fail
+
+--connection node_3
+INSERT INTO t1 VALUES (1,REPEAT('a',1000)),(2,REPEAT('b',1000)),(3,REPEAT('c',1000));
+
+--connection node_2
+wait_for_slave_to_stop;
+
+# The node never left the cluster ...
+
+SELECT VARIABLE_VALUE = 'ON' AS wsrep_ready
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+SELECT VARIABLE_VALUE = 'Primary' AS wsrep_cluster_status
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+
+# ... but the reason for stopping must still be visible to the user
+
+--let $last_errno = query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1)
+--let $last_error = query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1)
+--echo Last_SQL_Errno = $last_errno
+--echo Last_SQL_Error = $last_error
+
+# Step #3. Restart replication and confirm that the events are applied
+
+SET @@global.wsrep_max_ws_size = default;
+
+START SLAVE;
+
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_3
+DROP TABLE t1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
+
+CALL mtr.add_suppression("Slave SQL: wsrep applying failed");
+CALL mtr.add_suppression("WSREP: transaction size limit");
+CALL mtr.add_suppression("WSREP: rbr write fail");
+
+--connection node_3
+RESET MASTER;

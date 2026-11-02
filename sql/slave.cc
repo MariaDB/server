@@ -4150,22 +4150,60 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
 	exec_res = 0;
         break;
       default:
+        {
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
           /*
-            async replication thread should be stopped, if failure was
-            not due to optimistic parallel applying or if node
-            has dropped from cluster
+            wsrep_ready can stay ON for a while after the node has
+            actually dropped, since group communication fails before
+            the non-Primary view is delivered - use the wsrep client
+            error state instead. Stop and report on node-dropped, or
+            a wsrep error not covered by optimistic/aggressive
+            parallel retrying. A wsrep error left to that retrying
+            still needs a MariaDB error raised here, or nothing
+            retries or reports it; ER_LOCK_DEADLOCK is a normal
+            temporary error.
            */
+          const bool node_dropped= !wsrep_ready_get();
+          const bool wsrep_failed=
+            thd->wsrep_cs().current_error() != wsrep::e_success;
+          const bool conservative_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE;
+          const bool optimistic_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode > SLAVE_PARALLEL_CONSERVATIVE;
+
+          WSREP_DEBUG("apply_event_and_update_pos_apply: thd %lld exec_res %d "
+                      "node_dropped %d wsrep_failed %d conservative_parallel %d "
+                      "optimistic_parallel %d wsrep_err %s wsrep_trx_state %s "
+                      "query: %s",
+                      thd->thread_id, exec_res, node_dropped, wsrep_failed,
+                      conservative_parallel, optimistic_parallel,
+                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                      wsrep_thd_transaction_state_str(thd),
+                      wsrep_thd_query(thd));
+
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
-              ((rli->mi->using_parallel() &&
-                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-                !wsrep_ready_get())) {
+              (conservative_parallel || node_dropped ||
+               (wsrep_failed && !optimistic_parallel))) {
             rli->abort_slave= 1;
-            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                        "Node has dropped from cluster");
+            if (node_dropped)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Node has dropped from cluster");
+            else if (wsrep_failed)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "wsrep applying failed: %s",
+                          wsrep::to_c_string(thd->wsrep_cs().current_error()));
+            else
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Failed to apply event, wsrep transaction state: %s",
+                          wsrep_thd_transaction_state_str(thd));
           }
+          else if (wsrep_failed && optimistic_parallel && !thd->is_error())
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
           break;
+        }
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
