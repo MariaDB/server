@@ -20877,6 +20877,106 @@ static void test_proxy_header_short()
 }
 
 
+static void recv_all(my_socket s, uchar *buf, size_t len)
+{
+  while (len)
+  {
+    int n= recv(s, (char *) buf, (int) len, 0);
+    if (n <= 0)
+      fprintf(stdout, "recv failed: %d, errno %d\n", n, (int) socket_errno);
+    DIE_UNLESS(n > 0);
+    buf+= n;
+    len-= n;
+  }
+}
+
+
+/* Read one packet from a raw socket, return the payload length */
+static size_t read_packet(my_socket s, uchar *buf, size_t size)
+{
+  size_t len;
+  recv_all(s, buf, NET_HEADER_SIZE);
+  len= uint3korr(buf);
+  DIE_UNLESS(len > 0 && len <= size);
+  recv_all(s, buf, len);
+  return len;
+}
+
+
+/*
+  MDEV-42002 PROXY header is only accepted as the very first data from the
+  client. Raw socket is used, the client library always sends it first.
+  Here it follows the handshake response, as the reply to auth switch request.
+*/
+static void test_proxy_header_after_first_packet()
+{
+  /* Handshake response, asking for a plugin the user does not have */
+  static const char response[]=
+    "\x3b\x00\x00"                      /* payload length, 59 */
+    "\x01"                              /* sequence number */
+    "\x01\x82\x08\x00"                  /* client flags, 0x00088201:
+                                           CLIENT_MYSQL 0x1 |
+                                           CLIENT_PROTOCOL_41 0x200 |
+                                           CLIENT_SECURE_CONNECTION 0x8000 |
+                                           CLIENT_PLUGIN_AUTH 0x80000 */
+    "\x00\x00\x00\x01"                  /* max packet size, 16 MiB */
+    "\x2e"                              /* utf8mb4_bin */
+    "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0" /* 23 reserved bytes */
+    "root\0"                            /* user name */
+    "\0"                                /* empty auth data */
+    "mysql_clear_password";             /* plugin name, ends with the NUL */
+  /* First payload byte of the packets read back, and the error code offset */
+  enum { AUTH_SWITCH_MARKER= 0xfe, ERROR_MARKER= 0xff, ERROR_CODE_OFFSET= 1 };
+  /* big enough for the greeting and the error packet */
+  uchar buf[1024];
+  uint errnum;
+  my_socket s;
+#ifndef DBUG_OFF
+  int rc;
+#endif
+
+  myheader("test_proxy_header_after_first_packet");
+
+#ifndef DBUG_OFF
+  /* The server asserts on out of order packets in debug builds */
+  rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "SET GLOBAL debug_dbug='+d,net_expect_protocol_errors'");
+  myquery(rc);
+#endif
+
+  compile_time_assert(sizeof(response) == NET_HEADER_SIZE + 0x3b);
+
+  s= connect_tcp();
+  DIE_UNLESS(send(s, response, sizeof(response), 0) == (int) sizeof(response));
+
+  /* Greeting, then the auth switch request */
+  read_packet(s, buf, sizeof(buf));
+  read_packet(s, buf, sizeof(buf));
+  DIE_UNLESS(buf[0] == AUTH_SWITCH_MARKER);
+
+  /*
+    Send only the first 4 bytes of the header, in place of the auth switch
+    reply. The server reads exactly 4 bytes for the packet header, so nothing
+    is left unread and the connection is closed cleanly after the error.
+  */
+  DIE_UNLESS(send(s, "PROX", 4, 0) == 4);
+  read_packet(s, buf, sizeof(buf));
+  closesocket(s);
+
+  DIE_UNLESS(buf[0] == ERROR_MARKER);
+  errnum= uint2korr(buf + ERROR_CODE_OFFSET);
+  printf("error %u\n", errnum);
+  DIE_UNLESS(errnum == ER_NET_PACKETS_OUT_OF_ORDER);
+
+#ifndef DBUG_OFF
+  rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif
+}
+
+
 #define MAX_IPV6_ADDR "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
 
 /*
@@ -21380,6 +21480,7 @@ static void test_proxy_header()
   test_proxy_header_limits();
   test_proxy_header_multiple();
   test_proxy_header_short();
+  test_proxy_header_after_first_packet();
   test_proxy_header_dbug_remote_connection();
   test_proxy_header_connect_errors_reset();
   test_proxy_header_proxy_host_connect_errors_reset();
