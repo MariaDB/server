@@ -723,6 +723,7 @@ static void buf_dump_load_func(void *)
 		if (buf_load_should_start) {
 			buf_load_should_start = false;
 			buf_load();
+			fil_crypt_threads_signal();
 		}
 
 		if (!buf_dump_should_start && !buf_load_should_start) {

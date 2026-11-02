@@ -644,8 +644,9 @@ err_exit:
 
 	if (space) {
 		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
+		ut_ad(node);
 
-		if (node && !strcmp(m_filepath, node->name)) {
+		if (!strcmp(m_filepath, node->name)) {
 ok_exit:
 			mysql_mutex_unlock(&fil_system.mutex);
 			return DB_SUCCESS;
