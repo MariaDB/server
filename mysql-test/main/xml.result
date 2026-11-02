@@ -1433,6 +1433,11 @@ ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stac
 SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
 ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 10.11 test
+#
+# MDEV-33843 follow-up: unary minus recursion must not overflow the stack
+#
+SELECT UPDATEXML(NULL, REPEAT('-', 100000), 1);
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # Start of 11.4 tests
 #
 # MDEV-36565 Assertion `src != ((void *)0)' failed in my_casedn_8bit
