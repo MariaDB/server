@@ -82,6 +82,7 @@ SET GLOBAL optimizer_key_lookup_cost=0.435777;
 SET GLOBAL optimizer_key_next_find_cost=0.082347;
 SET optimizer_max_sel_arg_weight=32000;
 SET optimizer_max_sel_args=16000;
+SET optimizer_parallel_setup_cost=2000.000000;
 SET optimizer_prune_level=2;
 SET GLOBAL optimizer_row_copy_cost=0.060866;
 SET GLOBAL optimizer_row_lookup_cost=0.130839;

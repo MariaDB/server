@@ -1,0 +1,121 @@
+CREATE TABLE dim (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four'),(5,'five');
+CREATE TABLE fact (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 5 + 1, seq % 1000 FROM seq_1_to_20000;
+ANALYZE TABLE dim, fact PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.dim	analyze	status	Engine-independent statistics collected
+test.dim	analyze	status	OK
+test.fact	analyze	status	Engine-independent statistics collected
+test.fact	analyze	status	OK
+SET @save_pwt= @@session.parallel_worker_threads;
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET @save_jcl= @@session.join_cache_level;
+SET @save_trace= @@optimizer_trace;
+SET SESSION join_cache_level= 0;
+#
+# Serial plan: the five-row dimension drives the join.
+#
+SET SESSION parallel_worker_threads= 0;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	ALL	PRIMARY	NULL	NULL	NULL	5	Using where
+1	SIMPLE	f	ALL	dim_id	NULL	NULL	NULL	20000	Using where
+#
+# Default setup cost: nothing here is large enough to repay it, so the
+# plan is the serial one, runs serially, and the trace says why.
+#
+SET SESSION parallel_worker_threads= 4;
+SET SESSION optimizer_trace=1;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+FROM information_schema.optimizer_trace;
+why
+["the optimizer costed the plan cheaper with its driving table read serially (see parallel_scan_cost)"]
+SET SESSION optimizer_trace=@save_trace;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	ALL	PRIMARY	NULL	NULL	NULL	5	Using where
+1	SIMPLE	f	ALL	dim_id	NULL	NULL	NULL	20000	Using where
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+COUNT(*)	SUM(f.val)
+200	4500
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+0
+#
+# A setup cost the data can repay: the fact table takes the driving
+# position and is the table the workers divide; the dimension is
+# looked up per surviving row.
+#
+SET SESSION optimizer_parallel_setup_cost= 100;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	f	ALL_parallel	dim_id	NULL	NULL	NULL	20000	Using where
+1	SIMPLE	d	eq_ref	PRIMARY	PRIMARY	4	test.f.dim_id	1	Using where
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+COUNT(*)	SUM(f.val)
+200	4500
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+#
+# Forced to start at the dimension, the plan is not worth dividing:
+# five rows cannot repay the setup, so it runs serially.
+#
+SET SESSION optimizer_trace=1;
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+FROM information_schema.optimizer_trace;
+why
+["the optimizer costed the plan cheaper with its driving table read serially (see parallel_scan_cost)"]
+SET SESSION optimizer_trace=@save_trace;
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	ALL	PRIMARY	NULL	NULL	NULL	5	Using where
+1	SIMPLE	f	ALL	dim_id	NULL	NULL	NULL	20000	Using where
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+COUNT(*)	SUM(f.val)
+200	4500
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+0
+#
+# With no setup cost to repay, the same forced plan divides the
+# dimension again, as it did before the scan was costed.
+#
+SET SESSION optimizer_parallel_setup_cost= 0;
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	ALL_parallel	PRIMARY	NULL	NULL	NULL	5	Using where
+1	SIMPLE	f	ALL	dim_id	NULL	NULL	NULL	20000	Using where
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50;
+COUNT(*)	SUM(f.val)
+200	4500
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+SET SESSION join_cache_level= @save_jcl;
+SET SESSION parallel_worker_threads= @save_pwt;
+DROP TABLE dim, fact;

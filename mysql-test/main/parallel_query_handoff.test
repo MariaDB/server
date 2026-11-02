@@ -3,6 +3,8 @@
 --source include/have_sequence.inc
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
+# the tables here are too small to repay the workers' setup cost; make the parallel scan free
+SET SESSION optimizer_parallel_setup_cost= 0;
 
 CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq % 5 FROM seq_1_to_1000;

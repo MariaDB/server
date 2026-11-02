@@ -171,6 +171,16 @@
 */
 #define DEFAULT_TABLE_SCAN_SETUP_COST 0.01          // 10 usec
 
+/*
+  Cost of setting up the parallel worker threads that divide the driving
+  table's scan among them, per table in the join (see parallel_scan_cost()).
+  Measured on a 150k-row InnoDB table: about 2 ms for a single-table scan and
+  about 8 ms when each worker opens a three-table join, dominated by creating
+  the worker threads with a THD each, opening every table once per worker, and
+  building and draining the result containers.
+*/
+#define DEFAULT_PARALLEL_SETUP_COST 2.0             // 2 ms per table
+
 /* Extra cost for doing a range scan. Used to prefer 'ref' over range */
 #define MULTI_RANGE_READ_SETUP_COST KEY_LOOKUP_COST
 

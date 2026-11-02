@@ -23,6 +23,8 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/not_embedded.inc
+# the tables here are too small to repay the workers' setup cost; make the parallel scan free
+SET SESSION optimizer_parallel_setup_cost= 0;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT, d INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, CONCAT('v', LPAD(5001 - seq, 4, '0')), seq % 13, seq

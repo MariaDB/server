@@ -2,6 +2,8 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/not_embedded.inc
+# the tables here are too small to repay the workers' setup cost; make the parallel scan free
+SET SESSION optimizer_parallel_setup_cost= 0;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,10),(2,20),(3,30);

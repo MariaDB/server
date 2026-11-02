@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 #
 # MDEV-39492 Parallel Query: OOM in worker error_to_queue surfaces a
 # single ER_OUTOFMEMORY warning so worker diagnostics aren't silently

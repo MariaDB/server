@@ -90,8 +90,15 @@ public:
   {
     if (found || !item->field)
       return;
-    for (uint j= join->const_tables; j < join->table_count; j++)
-      if (item->field->table == join->join_tab[j].table)
+    /*
+      By map rather than by position: before choose_plan() has run, when the
+      shape gate asks this, join_tab is make_join_statistics()'s array in
+      table-list order with the const tables wherever they fell, not the plan
+      order that puts them first.
+    */
+    for (uint j= 0; j < join->table_count; j++)
+      if (item->field->table == join->join_tab[j].table &&
+          !(join->join_tab[j].table->map & join->const_table_map))
         return;
     found= true;
   }
@@ -775,6 +782,120 @@ bool pwt_scan_only_enabled()
 }
 
 
+/**
+  @brief
+    The part of the worker gate that is known before the plan is: whether the
+    query's shape is one the workers could run.
+
+  @description
+    can_run_query_in_workers() asks this first, and so does choose_plan(),
+    before it lets best_access_path() cost a driving table's scan as a parallel
+    one (parallel_scan_cost()). The optimizer must not pay the parallel
+    discount for a query that will be refused on its shape anyway: the plan it
+    would pick on that discount is a serial plan it never meant to run.
+
+    Only what the query says is asked here, not what the plan does with it.
+    An aggregating query is admitted on the half of the pre-aggregation check
+    that needs no plan -- no ROLLUP, and aggregates whose partials merge -- and
+    whether the plan's terminal then gives the workers a group key to merge
+    through is left to pwt_preagg_shape() in the full gate, which has the plan.
+    So a query passing here can still be refused after the plan is built; one
+    refused here cannot run in the workers under any plan.
+
+  @return true if the workers could run a query of this shape.
+*/
+
+bool pwt_query_shape_allows_workers(JOIN *join, bool trace)
+{
+  SELECT_LEX *sl= join->select_lex;
+  const bool aggregating= (join->group_list || join->group ||
+                           sl->agg_func_used() || sl->with_sum_func);
+
+  /*
+    A row cap is enforced by the serial chain after the workers' partials are
+    merged (see can_run_query_in_workers), so only a query that does not
+    aggregate is refused for having one.
+  */
+  if (!join->unit->lim.is_unlimited() && !aggregating)
+    return pwt_decline(join, trace,
+                 "the select has a row limit -- a LIMIT clause, or the "
+                 "session's sql_select_limit -- which the drain does not "
+                 "enforce for a plan that does not pre-aggregate");
+  if (join->unit->lim.is_with_ties())
+    return pwt_decline(join, trace, "the select has FETCH ... WITH TIES");
+  if (join->select_options & OPTION_FOUND_ROWS)  // SQL_CALC_FOUND_ROWS
+    return pwt_decline(join, trace, "SQL_CALC_FOUND_ROWS");
+  if (join->procedure)
+    return pwt_decline(join, trace, "the select has a PROCEDURE");
+  if (sl->have_window_funcs())
+    return pwt_decline(join, trace,
+                 "the select has window functions, which read across rows");
+  if (join->select_distinct)
+    return pwt_decline(join, trace,
+                 "SELECT DISTINCT, which no worker can decide alone");
+  if (join->having || join->tmp_having)
+    return pwt_decline(join, trace, "the select has a HAVING clause");
+  if (join->outer_join)                             // no outer joins
+    return pwt_decline(join, trace,
+                 "the join has an outer join, whose null-complemented rows a "
+                 "worker cannot decide on its own");
+  if (aggregating)
+  {
+    if (join->rollup.state != ROLLUP::STATE_NONE)
+      return pwt_decline(join, trace,
+                         "grouped: WITH ROLLUP needs the groups in order");
+    if (!join->sum_funcs || !*join->sum_funcs)
+      return pwt_decline(join, trace,
+                         "the select groups but holds no aggregate, so "
+                         "there is no partial for a worker to ship");
+    if (!pwt_aggregates_can_be_merged(join, "shape", trace))
+      return false;
+    /*
+      The query's own GROUP BY, not the plan's group key: what the elements
+      are is known before the plan is, and the full gate asks the plan's key
+      the same questions again (pwt_grouped_preagg_supported). Taken from the
+      select when join->group_list is gone: make_aggr_tables_info() clears it
+      once the grouping lives in the aggregation table, and the full gate asks
+      this after that.
+    */
+    ORDER *group= join->group_list ? join->group_list
+                                   : join->select_lex->group_list.first;
+    for (ORDER *k= group; k; k= k->next)
+    {
+      Item *item= (*k->item)->real_item();
+      if (item->type() != Item::FIELD_ITEM || item->const_item())
+        return pwt_decline(join, trace,
+                           "grouped: a GROUP BY element that is not a plain "
+                           "column");
+    }
+    List_iterator_fast<Item> li(join->fields_list);
+    Item *it;
+    while ((it= li++))
+    {
+      if (it->const_item())
+        continue;
+      if (pwt_ungrouped_outside_aggregates(it, group))
+        return pwt_decline(join, trace,
+                 group
+                 ? "grouped: a select list item reads a column outside an "
+                   "aggregate that GROUP BY does not name, so its value is "
+                   "whichever row the terminal happened to hold"
+                 : "whole-table: a select list item reads a column outside "
+                   "an aggregate, so its value is whichever row the terminal "
+                   "happened to hold");
+    }
+  }
+  // select list safe for a worker to evaluate
+  List_iterator_fast<Item> li(join->fields_list);
+  Item *item;
+  while ((item= li++))
+    if (!pwt_item_is_worker_safe(join, item))
+      return pwt_decline(join, trace,
+                         "a select list item is not one a worker can evaluate");
+  return true;
+}
+
+
 bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
 {
   DBUG_ENTER("can_run_query_in_workers");
@@ -802,6 +923,14 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                    "reads the handler rather than the transport"));
     DBUG_RETURN(true);
   }
+  /*
+    WITH TIES, SQL_CALC_FOUND_ROWS, PROCEDURE, window functions, DISTINCT,
+    HAVING, outer joins, ROLLUP and aggregates whose partials do not merge:
+    the refusals that need no plan, shared with choose_plan() through
+    pwt_query_shape_allows_workers().
+  */
+  if (!pwt_query_shape_allows_workers(join, trace))
+    DBUG_RETURN(false);
   /*
     A GROUP BY the workers can pre-aggregate is the one query shape that is
     allowed to want a temporary table, hold aggregates, and group. Everything
@@ -845,21 +974,6 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                  "the select has a row limit -- a LIMIT clause, or the "
                  "session's sql_select_limit -- which the drain does not "
                  "enforce for a plan that does not pre-aggregate"));
-  /*
-    WITH TIES keeps sending past the limit while the ORDER BY values are
-    unchanged, which end_send() decides from join->order_fields. Left refused
-    until that is known to hold for a result this thread assembled rather than
-    read.
-  */
-  if (join->unit->lim.is_with_ties())
-    DBUG_RETURN(pwt_decline(join, trace, "the select has FETCH ... WITH TIES"));
-  if (join->select_options & OPTION_FOUND_ROWS)  // SQL_CALC_FOUND_ROWS
-    DBUG_RETURN(pwt_decline(join, trace, "SQL_CALC_FOUND_ROWS"));
-  if (join->procedure)
-    DBUG_RETURN(pwt_decline(join, trace, "the select has a PROCEDURE"));
-  if (sl->have_window_funcs())
-    DBUG_RETURN(pwt_decline(join, trace,
-                 "the select has window functions, which read across rows"));
   if ((sl->agg_func_used() || sl->with_sum_func) && !preagg)
     DBUG_RETURN(pwt_decline(join, trace,
                  "the select aggregates and the workers cannot pre-aggregate "
@@ -869,15 +983,6 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     DBUG_RETURN(pwt_decline(join, trace,
                             "the select groups and the workers cannot "
                             "pre-aggregate this plan"));
-  if (join->select_distinct)
-    DBUG_RETURN(pwt_decline(join, trace,
-                 "SELECT DISTINCT, which no worker can decide alone"));
-  if (join->having || join->tmp_having)
-    DBUG_RETURN(pwt_decline(join, trace, "the select has a HAVING clause"));
-  if (join->outer_join)                             // no outer joins
-    DBUG_RETURN(pwt_decline(join, trace,
-                 "the join has an outer join, whose null-complemented rows a "
-                 "worker cannot decide on its own"));
 
   // every non-const join table must be one the worker can scan / look up itself
   for (uint j= join->const_tables; j < join->table_count; j++)
@@ -3134,9 +3239,28 @@ void parallel_join_check(JOIN *join)
     jointab_can_be_parallel_scanned() of the driving tab, which in turn asks
     can_parallel_scan_jointab_access(). Asking those here as well would answer them
     twice and report each refusal twice.
+
+    Besides the gate, the plan itself has to have been chosen for it: the
+    join-order search costs the driving table's scan both ways
+    (parallel_scan_cost()) and parallel_plan_chosen says the divided reading
+    won. A plan it did not win -- a tiny driving table, or a scan too small to
+    repay the setup -- runs serially even though the gate would admit it. The
+    gate is asked first so that a query it refuses is reported for the reason
+    it refuses it, not for a costing that never came into question. The
+    scan-only prototype is exempt from the costing: it is a test of the layers
+    underneath the gate, not of the optimizer.
   */
+  bool chosen= false;
   if (join->thd->variables.parallel_worker_threads > 0 &&             //1
       can_run_query_in_workers(join, first, /*trace=*/ true))         //2
+  {
+    chosen= join->parallel_plan_chosen || pwt_scan_only_enabled();    //3
+    if (!chosen)
+      pwt_decline(join, /*trace=*/ true,
+                  "the optimizer costed the plan cheaper with its driving "
+                  "table read serially (see parallel_scan_cost)");
+  }
+  if (chosen)
   {
     first->use_parallel_scan= join->worker_side_parallel= true;
     if (unlikely(join->thd->trace_started()))
