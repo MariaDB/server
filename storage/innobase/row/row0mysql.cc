@@ -2904,6 +2904,7 @@ funct_exit:
 	}
 
 	trx->op_info = "";
+	fil_crypt_threads_signal();
 
 	return(err);
 }
