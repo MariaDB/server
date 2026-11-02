@@ -2728,7 +2728,7 @@ bool Item_sum_any_value::add()
 {
   DBUG_ENTER("Item_sum_any_value::add");
 
-  if (!has_value)
+  if (!has_value && filter_passed())
   {
     value->store(args[0]);
     value->cache_value();
@@ -2752,7 +2752,14 @@ void Item_sum_any_value::clear()
 }
 
 
-void Item_sum_any_value::update_field() {}
+void Item_sum_any_value::update_field()
+{
+  DBUG_ENTER("Item_sum_any_value::update_field");
+  DBUG_ASSERT(!has_value);
+  if (has_filter())
+    Item_sum_min_max::update_field();
+  DBUG_VOID_RETURN;
+}
 
 
 Item *Item_sum_any_value::copy_or_same(THD* thd)

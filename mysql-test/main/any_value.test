@@ -123,4 +123,16 @@ DROP TABLE t1;
 
 SET sql_mode=@save_sql_mode;
 
+--echo #
+--echo # MDEV-41985 ANY_VALUE ignores FILTER
+--echo #
+
+CREATE TABLE t (a INT, b INT, KEY(b));
+INSERT INTO t VALUES (10,1),(20,1),(15,2),(30,2),(NULL,2),(40,2);
+
+SELECT ANY_VALUE(a) FILTER (WHERE a=20) FROM t;
+SELECT b, ANY_VALUE(a) FILTER (WHERE a>15) FROM t GROUP BY b;
+
+DROP TABLE t;
+
 --echo # End of 13.2 tests.
