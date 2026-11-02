@@ -65,7 +65,9 @@ DROP TABLE t2, t3;
 --enable_query_log
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 # RESET SLAVE ALL does not clear gtid_slave_pos. node_1 resets its binlog
 # (RESET MASTER) below, so without clearing the slave position here node_3
 # would skip the next run's events (e.g. with --repeat) and time out waiting
