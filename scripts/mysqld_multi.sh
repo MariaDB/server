@@ -39,10 +39,12 @@ $opt_user          = "root";
 $opt_version       = 0;
 $opt_silent        = 0;
 $opt_verbose       = 0;
+$opt_print_commands= 0;
 $opt_wsrep_new_cluster = 0;
 
 my $my_print_defaults_exists= 1;
 my $logdir= undef();
+my %combined_groups;    # group -> all groups with the same number
 
 my ($mysqld, $mysqladmin, $groupids, $homedir, $my_progname);
 
@@ -108,16 +110,21 @@ sub main
     $_ = quote_shell_word($_);
   }
 
-  # Add [mysqld_multi] options to front of @ARGV, ready for GetOptions()
+  # Add [mysqld_multi] and [mariadbd_multi] options to front of @ARGV,
+  # ready for GetOptions(). Later options override earlier ones.
+  unshift @ARGV, defaults_for_group('mariadbd_multi');
   unshift @ARGV, defaults_for_group('mysqld_multi');
 
   # We've already handled --no-defaults, --defaults-file, etc.
-  if (!GetOptions("help", "example", "version", "mysqld=s", "mysqladmin=s",
+  if (!GetOptions("help", "example", "version",
+                  "mysqld|mariadbd=s", "mysqladmin|mariadb-admin=s",
                   "user=s", "password=s", "log=s", "no-log",
-                  "tcp-ip",  "silent", "verbose", "wsrep-new-cluster"))
+                  "tcp-ip",  "silent", "verbose", "print-commands",
+                  "wsrep-new-cluster"))
   {
     $flag_exit= 1;
   }
+
   usage() if ($opt_help);
 
   if ($opt_verbose && $opt_silent)
@@ -168,10 +175,10 @@ sub main
   {
     if (!defined(($mysqld= my_which($opt_mysqld))) && $opt_verbose)
     {
-      print "WARNING: Couldn't find the default mysqld binary.\n";
+      print "WARNING: Couldn't find the default mariadbd binary.\n";
       print "Tried: $opt_mysqld\n";
-      print "This is OK, if you are using option \"mysqld=...\" in ";
-      print "groups [mysqldN] separately for each.\n\n";
+      print "This is OK, if you are using option \"mariadbd=...\" in ";
+      print "groups [mariadbd#] separately for each.\n\n";
     }
     if ($ARGV[0] =~ m/^start$/i) {
       start_mysqlds();
@@ -183,10 +190,10 @@ sub main
   {
     if (!defined(($mysqladmin= my_which($opt_mysqladmin))) && $opt_verbose)
     {
-      print "WARNING: Couldn't find the default mysqladmin binary.\n";
+      print "WARNING: Couldn't find the default mariadb-admin binary.\n";
       print "Tried: $opt_mysqladmin\n";
-      print "This is OK, if you are using option \"mysqladmin=...\" in ";
-      print "groups [mysqldN] separately for each.\n\n";
+      print "This is OK, if you are using option \"mariadb-admin=...\" in ";
+      print "groups [mariadbd#] separately for each.\n\n";
     }
     if ($ARGV[0] =~ m/^report$/i)
     {
@@ -212,6 +219,17 @@ sub quote_shell_word
 }
 
 ####
+#### Run a shell command. Print it first if --print-commands is used
+####
+
+sub run_command
+{
+  my ($com)= @_;
+  print "Running: $com\n" if ($opt_print_commands);
+  return system($com);
+}
+
+####
 #### get options for a group
 ####
 
@@ -221,6 +239,9 @@ sub defaults_for_group
 
   return () unless $my_print_defaults_exists;
 
+  # Read all groups that use the same number (see find_groups())
+  $group= $combined_groups{$group} if (defined($combined_groups{$group}));
+
   my $com= join ' ', 'my_print_defaults', @defaults_options, $group;
   my @defaults = `$com`;
   chomp @defaults;
@@ -229,7 +250,7 @@ sub defaults_for_group
 
 ####
 #### Init log file. Check for appropriate place for log file, in the following
-#### order:  my_print_defaults mysqld datadir, @localstatedir@
+#### order:  my_print_defaults mariadbd datadir, @localstatedir@
 ####
 
 sub init_log
@@ -279,7 +300,7 @@ sub report_mysqlds
   {
     $com= get_mysqladmin_options($i, @groups);
     $com.= " ping >> /dev/null 2>&1";
-    system($com);
+    run_command($com);
     $pec = $? >> 8;
     if ($pec)
     {
@@ -351,13 +372,13 @@ sub start_mysqlds()
         if (! -d $datadir."/mysql") {
           if (-w $datadir) {
             print "\n\nInstalling new database in $datadir\n\n";
-            $install_cmd="@bindir@/mysql_install_db ";
+            $install_cmd="@bindir@/mariadb-install-db ";
             $install_cmd.="--user=mysql ";
             $install_cmd.="--datadir=$datadir";
-            system($install_cmd);
+            run_command($install_cmd);
           } else {
             print "\n";
-            print "FATAL ERROR: Tried to create mysqld under group [$groups[$i]],\n";
+            print "FATAL ERROR: Tried to create mariadbd under group [$groups[$i]],\n";
             print "but the data directory is not writable.\n";
             print "data directory used: $datadir\n";
             exit(1);
@@ -366,20 +387,23 @@ sub start_mysqlds()
 
         if (! -d $datadir."/mysql") {
           print "\n";
-          print "FATAL ERROR: Tried to start mysqld under group [$groups[$i]],\n";
+          print "FATAL ERROR: Tried to start mariadbd under group [$groups[$i]],\n";
           print "but no data directory was found or could be created.\n";
           print "data directory used: $datadir\n";
           exit(1);
         }
       }
 
-      if ("--mysqladmin=" eq substr($options[$j], 0, 13))
+      if ("--mysqladmin=" eq substr($options[$j], 0, 13) ||
+          "--mariadb-admin=" eq substr($options[$j], 0, 16))
       {
 	# catch this and ignore
       }
-      elsif ("--mysqld=" eq substr($options[$j], 0, 9))
+      elsif ("--mysqld=" eq substr($options[$j], 0, 9) ||
+             "--mariadbd=" eq substr($options[$j], 0, 11))
       {
 	$options[$j]=~ s/\-\-mysqld\=//;
+	$options[$j]=~ s/\-\-mariadbd\=//;
 	$com= $options[$j];
         $mysqld_found= 1;
       }
@@ -401,13 +425,13 @@ sub start_mysqlds()
 	$tmp.= " $options[$j]";
       }
     }
-    if ($opt_verbose && $com =~ m/\/(mariadbd-safe)$/ && !$info_sent)
+    if ($opt_verbose && $com =~ m/\/(mariadbd-safe|mysqld_safe)$/ && !$info_sent)
     {
       print "WARNING: $1 is being used to start mariadbd. In this case you ";
-      print "may need to pass\n\"ledir=...\" under groups [mysqldN] to ";
-      print "$1 in order to find the actual mysqld binary.\n";
+      print "may need to pass\n\"ledir=...\" under groups [mariadbd#] to ";
+      print "$1 in order to find the actual mariadbd binary.\n";
       print "ledir (library executable directory) should be the path to the ";
-      print "wanted mysqld binary.\n\n";
+      print "wanted mariadbd binary.\n\n";
       $info_sent= 1;
     }
 
@@ -428,9 +452,9 @@ sub start_mysqlds()
     if (!$mysqld_found)
     {
       print "\n";
-      print "FATAL ERROR: Tried to start mysqld under group [$groups[$i]], ";
-      print "but no mysqld binary was found.\n";
-      print "Please add \"mysqld=...\" in group [mysqld_multi], or add it to ";
+      print "FATAL ERROR: Tried to start mariadbd under group [$groups[$i]], ";
+      print "but no mariadbd binary was found.\n";
+      print "Please add \"mariadbd=...\" in group [mariadbd_multi], or add it to ";
       print "group [$groups[$i]] separately.\n";
       exit(1);
     }
@@ -439,7 +463,7 @@ sub start_mysqlds()
       $curdir=getcwd();
       chdir($basedir) or die "Can't change to datadir $basedir";
     }
-    system($com);
+    run_command($com);
     if ($basedir_found)
     {
       chdir($curdir) or die "Can't change back to original dir $curdir";
@@ -492,10 +516,10 @@ sub reload_mysqlds()
       }
     }
     $com = "killproc -p $pid_file -HUP $mysqld_server";
-    system($com);
+    run_command($com);
 
     $com = "touch $pid_file";
-    system($com);
+    run_command($com);
   }
   if (!$i && !$opt_no_log)
   {
@@ -527,7 +551,7 @@ sub stop_mysqlds()
     $com.= " shutdown";
     $com.= " >> $opt_log 2>&1" if (!$opt_no_log);
     $com.= " &";
-    system($com);
+    run_command($com);
   }
   if (!$i && !$opt_no_log)
   {
@@ -537,13 +561,13 @@ sub stop_mysqlds()
 }
 
 ####
-#### Sub function for mysqladmin option parsing
+#### Sub function for mariadb-admin option parsing
 ####
 
 sub get_mysqladmin_options
 {
   my ($i, @groups)= @_;
-  my ($mysqladmin_found, $com, $tmp, $j);
+  my ($mysqladmin_found, $com, $tmp, $j, $opt_socket, $opt_port);
 
   @options = defaults_for_group($groups[$i]);
 
@@ -560,24 +584,39 @@ sub get_mysqladmin_options
   $tmp.= $opt_tcp_ip ? " -h 127.0.0.1" : "";
   for ($j = 0; defined($options[$j]); $j++)
   {
-    if ("--mysqladmin=" eq substr($options[$j], 0, 13))
+    if ("--mysqladmin=" eq substr($options[$j], 0, 13) ||
+        "--mariadb-admin=" eq substr($options[$j], 0, 16))
     {
       $options[$j]=~ s/\-\-mysqladmin\=//;
+      $options[$j]=~ s/\-\-mariadb-admin\=//;
       $com= $options[$j];
       $mysqladmin_found= 1;
     }
-    elsif ((($options[$j] =~ m/^(\-\-socket\=)(.*)$/) && !$opt_tcp_ip) ||
-	   ($options[$j] =~ m/^(\-\-port\=)(.*)$/))
+    elsif (($options[$j] =~ m/^(\-\-socket\=)(.*)$/))
     {
-      $tmp.= " $options[$j]";
+        $opt_socket= $options[$j];
+    }
+    elsif (($options[$j] =~ m/^(\-\-port\=)(.*)$/))
+    {
+        $opt_port= $options[$j];
     }
   }
+  # Add socket or port. Socket is used if tcp_ip or port is not defined
+  if (defined($opt_socket) && (!$opt_tcp_ip || !defined($opt_port)))
+  {
+      $tmp.= " $opt_socket";
+  }
+  elsif (defined($opt_port))
+  {
+      $tmp.= " $opt_port";
+  }
+
   if (!$mysqladmin_found)
   {
     print "\n";
-    print "FATAL ERROR: Tried to use mysqladmin in group [$groups[$i]], ";
-    print "but no mysqladmin binary was found.\n";
-    print "Please add \"mysqladmin=...\" in group [mysqld_multi], or ";
+    print "FATAL ERROR: Tried to use mariadb-admin in group [$groups[$i]], ";
+    print "but no mariadb-admin binary was found.\n";
+    print "Please add \"mariadb-admin=...\" in group [mariadbd_multi], or ";
     print "in group [$groups[$i]].\n";
     exit(1);
   }
@@ -622,7 +661,7 @@ sub find_groups
   my ($raw_gids) = @_;
 
   my %gids;
-  my %seen_group;
+  my %group_names;      # number -> all groups with that number
   my @groups;
 
   if (defined($raw_gids))
@@ -656,14 +695,27 @@ sub find_groups
 
     while (<CONF>)
     {
-      if (/^\s*\[\s*(mysqld)(\d+)\s*\]\s*$/)
+      if (/^\s*\[\s*(mysqld|mariadbd)(\d+)\s*\]\s*$/)
       {
         #warn "Found a group: $1$2\n";
         # Use $2 + 0 to normalize numbers (002 + 0 -> 2)
-        if (not defined($raw_gids) or $gids{$2 + 0})
+        my ($name, $number)= ("$1$2", $2 + 0);
+        if (defined($group_names{$number}))
         {
-          push @groups, "$1$2" unless $seen_group{"$1$2"};
-          $seen_group{"$1$2"}=1;
+          # The number is already used. For compatibility with old
+          # configuration files, the options of all groups with this
+          # number are combined, later options overriding earlier ones.
+          print "WARNING: Group [$name] in $file reuses group number ".
+                "$number of [$group_names{$number}[0]]. The options of ".
+                "these groups are combined.\n" if (!$opt_silent);
+          push @{$group_names{$number}}, $name
+            unless grep { $_ eq $name } @{$group_names{$number}};
+          next;
+        }
+        $group_names{$number}= [ $name ];
+        if (not defined($raw_gids) or $gids{$number})
+        {
+          push @groups, $name;
         }
       }
       elsif (/^\s*!include\s+(\S.*?)\s*$/)
@@ -677,6 +729,10 @@ sub find_groups
     }
 
     close CONF;
+  }
+  foreach my $names (values %group_names)
+  {
+    $combined_groups{$names->[0]}= join(' ', @$names) if (@$names > 1);
   }
   return @groups;
 }
@@ -760,7 +816,7 @@ sub example
 #
 # 1.COMMON USER
 #
-#   Make sure that the MariaDB user, who is stopping the mysqld services, has
+#   Make sure that the MariaDB user, who is stopping the mariadbd services, has
 #   the same password to all MariaDB servers being accessed by $my_progname.
 #   This user needs to have the 'Shutdown_priv' -privilege, but for security
 #   reasons should have no other privileges. It is advised that you create a
@@ -771,7 +827,8 @@ sub example
 #
 #   You will need to apply the above to all MariaDB servers that are being
 #   controlled by $my_progname. 'multi_admin' will shutdown the servers
-#   using 'mysqladmin' -binary, when '$my_progname stop' is being called.
+#   using the 'mariadb-admin' -binary, when '$my_progname stop' is being
+#   called.
 #
 # 2.PID-FILE
 #
@@ -779,12 +836,12 @@ sub example
 #   MariaDB server has a separate pid-file. In order to use mariadbd-safe
 #   via $my_progname, you need to use two options:
 #
-#   mysqld=/path/to/mariadbd-safe
+#   mariadbd=/path/to/mariadbd-safe
 #   ledir=/path/to/mariadbd-binary/
 #
 #   ledir (library executable directory), is an option that only mariadbd-safe
-#   accepts, so you will get an error if you try to pass it to mysqld directly.
-#   For this reason you might want to use the above options within [mysqld#]
+#   accepts, so you will get an error if you try to pass it to mariadbd directly.
+#   For this reason you might want to use the above options within [mariadbd#]
 #   group directly.
 #
 # 3.DATA DIRECTORY
@@ -804,15 +861,15 @@ sub example
 #
 #   Every server requires one and it must be unique.
 #
-# 5.[mysqld#] Groups
+# 5.[mariadbd#] Groups
 #
-#   In the example below the first and the fifth mysqld group was
+#   In the example below the first and the fifth mariadbd group was
 #   intentionally left out. You may have 'gaps' in the config file. This
 #   gives you more flexibility.
 #
 # 6.MariaDB Server User
 #
-#   You can pass the user=... option inside [mysqld#] groups. This
+#   You can pass the user=... option inside [mariadbd#] groups. This
 #   can be very handy in some cases, but then you need to run $my_progname
 #   as UNIX root.
 #
@@ -828,19 +885,19 @@ sub example
 #   /etc/init.d/mysql.server script with it.
 #
 #   Before using, you must create a my.cnf file either in @prefix@/my.cnf
-#   or /root/.my.cnf and add the [mysqld_multi] and [mysqld#] groups.
+#   or /root/.my.cnf and add the [mariadbd_multi] and [mariadbd#] groups.
 #
 #   The script can be found from support-files/mysqld_multi.server.sh
 #   in MariaDB distribution. (Verify the script before using)
 #
 
-[mysqld_multi]
-mysqld     = @bindir@/mariadbd-safe
-mysqladmin = @bindir@/mariadb-admin
-user       = multi_admin
-password   = my_password
+[mariadbd_multi]
+mariadbd      = @bindir@/mariadbd-safe
+mariadb-admin = @bindir@/mariadb-admin
+user          = multi_admin
+password      = my_password
 
-[mysqld2]
+[mariadbd2]
 socket     = /tmp/mysql.sock2
 port       = 3307
 pid-file   = @localstatedir@2/hostname.pid2
@@ -848,18 +905,18 @@ datadir    = @localstatedir@2
 language   = @datadir@/mysql/english
 user       = unix_user1
 
-[mysqld3]
-mysqld     = /path/to/mariadbd-safe
-ledir      = /path/to/mariadbd-binary/
-mysqladmin = /path/to/mariadb-admin
-socket     = /tmp/mysql.sock3
-port       = 3308
-pid-file   = @localstatedir@3/hostname.pid3
-datadir    = @localstatedir@3
-language   = @datadir@/mysql/swedish
-user       = unix_user2
+[mariadbd3]
+mariadbd      = /path/to/mariadbd-safe
+ledir         = /path/to/mariadbd-binary/
+mariadb-admin = /path/to/mariadb-admin
+socket        = /tmp/mysql.sock3
+port          = 3308
+pid-file      = @localstatedir@3/hostname.pid3
+datadir       = @localstatedir@3
+language      = @datadir@/mysql/swedish
+user          = unix_user2
 
-[mysqld4]
+[mariadbd4]
 socket     = /tmp/mysql.sock4
 port       = 3309
 pid-file   = @localstatedir@4/hostname.pid4
@@ -867,7 +924,7 @@ datadir    = @localstatedir@4
 language   = @datadir@/mysql/estonia
 user       = unix_user3
  
-[mysqld6]
+[mariadbd6]
 socket     = /tmp/mysql.sock6
 port       = 3311
 pid-file   = @localstatedir@6/hostname.pid6
@@ -889,34 +946,45 @@ $my_progname version $VER by Jani Tolonen
 
 Description:
 $my_progname can be used to start, reload, or stop any number of separate
-mysqld processes running in different TCP/IP ports and UNIX sockets.
+mariadbd processes running in different TCP/IP ports and UNIX sockets.
 
-$my_progname can read group [mysqld_multi] from my.cnf file. You may
-want to put options mysqld=... and mysqladmin=... there.  Since
-version 2.10 these options can also be given under groups [mysqld#],
-which gives more control over different versions.  One can have the
-default mysqld and mysqladmin under group [mysqld_multi], but this is
-not mandatory. Please note that if mysqld or mysqladmin is missing
-from both [mysqld_multi] and [mysqld#], a group that is tried to be
-used, $my_progname will abort with an error.
+To support backward and forward compatibility one can use groups
+[mysqld_multi] and [mariadbd_multi] for main configurations and
+[mysqld#] and [mariadbd#] for server specific configuration.
+In this documentation we will mainly refer to the mariadb prefixed
+groups and options.
 
-$my_progname will search for groups named [mysqld#] from my.cnf (or
+$my_progname reads the group [mariadbd_multi] from the my.cnf files.
+You may want to put options mariadbd=... and mariadb-admin=... there,
+but this is not mandatory.  These options can also be given under the
+[mariadbd#] groups, which gives more control over different
+versions. Please note that if mariadbd or mariadb-admin is missing
+from both [mariadbd_multi] and [mariadbd#], for a group that is
+tried to be used, $my_progname will abort with an error.
+
+$my_progname will search for groups named [mariadbd#] from my.cnf (or
 the given --defaults-extra-file=...), where '#' can be any positive 
 integer starting from 1. These groups should be the same as the regular
-[mysqld] group, but with those port, socket and any other options
-that are to be used with each separate mysqld process. The number
+[mariadbd] group, but with those port, socket and any other options
+that are to be used with each separate mariadbd process. The number
 in the group name has another function; it can be used for starting,
-reloading, stopping, or reporting any specific mysqld server.
+reloading, stopping, or reporting any specific mariadbd server.
+Each number may only be used once, so one should not have two
+[mysqld2] or a [mysqld2] and a [mariadbd2]. For compatibility with
+old configuration files, a warning is given if a number is reused
+and the options of all groups with that number are combined, with
+later options overriding earlier ones.
 
 Usage: $my_progname [OPTIONS] {start|reload|stop|report} [GNR,GNR,GNR...]
 or     $my_progname [OPTIONS] {start|reload|stop|report} [GNR-GNR,GNR,GNR-GNR,...]
 
-The GNR means the group number. You can start, reload, stop or report any GNR,
-or several of them at the same time. (See --example) The GNRs list can
-be comma separated or a dash combined. The latter means that all the
-GNRs between GNR1-GNR2 will be affected. Without GNR argument all the
-groups found will either be started, reloaded, stopped, or reported. Note that
-syntax for specifying GNRs must appear without spaces.
+The GNR means the group number. You can start, reload, stop or report
+any GNR, or several of them at the same time. (See --example) The GNRs
+list can be comma separated or a dash combined. The latter means that
+all the GNRs between GNR1-GNR2 will be affected. Without GNR argument
+all the groups found will either be started, reloaded, stopped, or
+reported. Note that syntax for specifying GNRs must appear without
+spaces.
 
 Options:
 
@@ -930,32 +998,38 @@ Using:  @{[join ' ', @defaults_options]}
 
 --example          Give an example of a config file with extra information.
 --help             Print this help and exit.
---log=...          Log file. Full path to and the name for the log file. NOTE:
-                   If the file exists, everything will be appended.
+--log=...          Log file. Full path to and the name for the log file.
+                   NOTE: If the file exists, everything will be appended.
                    Using: $opt_log
---mysqladmin=...   mysqladmin binary to be used for a server shutdown.
-                   Since version 2.10 this can be given within groups [mysqld#]
-                   Using: $mysqladmin
---mysqld=...       mariadbd binary to be used. Note that you can give mariadbd-safe
-                   to this option also. The options are passed to mysqld. Just
-                   make sure you have mariadbd in your PATH or fix mariadbd-safe.
-                   Using: $mysqld
-                   Please note: Since mysqld_multi version 2.3 you can also
-                   give this option inside groups [mysqld#] in ~/.my.cnf,
-                   where '#' stands for an integer (number) of the group in
-                   question. This will be recognised as a special option and
-                   will not be passed to the mysqld. This will allow one to
-                   start different mysqld versions with mysqld_multi.
---no-log           Print to stdout instead of the log file. By default the log
-                   file is turned on.
---password=...     Password for mysqladmin user.
+--mariadb-admin=...  mariadb-admin binary to be used for a server
+                   shutdown.  This can also be given within groups
+                   [mariadbd#].  Using: $mysqladmin
+--mariadbd=...     mariadbd server binary to be used. Note that you can
+                   also use mariadbd-safe as an option. The options are
+                   passed to mariadbd. Just make sure you have mariadbd
+                   in your PATH.  Using: $mysqld
+                   You can also give this option inside groups
+                   [mariadbd#] in ~/.my.cnf, where '#' stands for an
+                   integer (number) of the group in question. This
+                   will be recognised as a special option and will not
+                   be passed to the mariadbd. This will allow one to
+                   start different mariadbd versions with mariadbd_multi.
+--mysqld=...       Same as --mariadbd=...
+--mysqladmin=...   Same as --mariadb-admin=...
+--no-log           Print to stdout instead of the log file. By default
+                   the log file is turned on.
+--password=...     Password for mariadb-admin user.
+--print-commands   Print all commands before they are executed. Use
+                   this for debugging, for example if 'stop' fails.
+                   WARNING: The mariadb-admin commands include the
+                   password, which will be printed!
 --silent           Disable warnings.
 --tcp-ip           Connect to the MariaDB server(s) via the TCP/IP port instead
                    of the UNIX socket. This affects stopping and reporting.
                    If a socket file is missing, the server may still be
                    running, but can be accessed only via the TCP/IP port.
                    By default connecting is done via the UNIX socket.
---user=...         mysqladmin user. Using: $opt_user
+--user=...         mariadb-admin user. Using: $opt_user
 --verbose          Be more verbose.
 --version          Print the version number and exit.
 --wsrep-new-cluster  Bootstrap a cluster.
