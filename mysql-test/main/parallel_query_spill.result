@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(200)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, CONCAT(REPEAT('x',180), seq) FROM seq_1_to_400;
 SET SESSION parallel_worker_threads=4;

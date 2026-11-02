@@ -7964,6 +7964,28 @@ static Sys_var_optimizer_cost Sys_optimizer_scan_cost(
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_TABLE_SCAN_SETUP_COST),
   COST_ADJUST(1000));
 
+static Sys_var_optimizer_cost Sys_optimizer_parallel_setup_cost(
+  "optimizer_parallel_setup_cost",
+  "Cost, per table in the join, of setting up parallel worker threads to "
+  "scan the driving table of a query. Charged against the parallel reading "
+  "of the scan when the optimizer compares it with the serial one; a scan too "
+  "small to repay it is read serially. In microseconds",
+  SESSION_VAR(optimizer_parallel_setup_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_PARALLEL_SETUP_COST),
+  COST_ADJUST(1000));
+
+static Sys_var_optimizer_cost Sys_optimizer_parallel_row_cost(
+  "optimizer_parallel_row_cost",
+  "Cost of one row the parallel workers ship to the thread running the "
+  "query, which receives every row by itself. Charged against the parallel "
+  "reading of a plan once per row it ships: every joined row of a query that "
+  "does not aggregate, the partial groups of one that does. In microseconds",
+  SESSION_VAR(optimizer_parallel_row_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_PARALLEL_ROW_COST),
+  COST_ADJUST(1000));
+
 extern const char *block_encryption_mode_values[];
 static Sys_var_enum Sys_block_encryption_mode(
   "block_encryption_mode", "Default block encryption mode for "

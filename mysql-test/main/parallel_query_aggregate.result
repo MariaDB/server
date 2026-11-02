@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE TABLE t1 (col1 INT, col2 INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq MOD 10, seq FROM seq_1_to_5000;
 #

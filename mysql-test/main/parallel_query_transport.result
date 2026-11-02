@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT, c VARCHAR(20)) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, seq MOD 7, CONCAT('row', seq MOD 5)
 FROM seq_1_to_5000;

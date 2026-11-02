@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 SET @save_trace= @@optimizer_trace;
 SET optimizer_trace='enabled=on';
 SET SESSION parallel_worker_threads=4;

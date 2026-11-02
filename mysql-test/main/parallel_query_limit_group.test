@@ -18,6 +18,8 @@
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 --source include/not_embedded.inc
+# the tables here are too small to repay the workers' setup cost; make the parallel scan free
+SET SESSION optimizer_parallel_setup_cost= 0;
 
 CREATE DATABASE dbt3_s001;
 

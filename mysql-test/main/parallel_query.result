@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 SET DEBUG_SYNC='RESET';
 #
 # MDEV-39492 Parallel Query: Study how to create worker threads
@@ -17,6 +18,7 @@ a
 2
 set session parallel_worker_threads=0;
 connect  killee, localhost, root, , ;
+SET SESSION optimizer_parallel_setup_cost= 0;
 # check that kill query on a parallel worker is passed to the manager
 connection killee;
 set session parallel_worker_threads=3;

@@ -477,6 +477,8 @@ POSITION::POSITION()
   table= 0;
   records_read= cond_selectivity= read_time= records_out= records_init= 0.0;
   prefix_record_count= 0.0;
+  parallel_divisor= 1.0;
+  parallel_scan= false;
   key= 0;
   forced_index= 0;
   use_join_buffer= 0;
@@ -8946,6 +8948,8 @@ struct best_plan
   uint max_key_part;
   table_map found_ref;
   bool use_join_buffer;
+  double parallel_divisor;               // see POSITION::parallel_divisor
+  bool parallel_scan;                    // scan costed as a parallel one
 };
 
 
@@ -8999,6 +9003,8 @@ best_access_path(JOIN      *join,
   best.records_out= MY_MIN(table->stat_records() * table->cond_selectivity,
                            table->opt_range_condition_rows);
   best.identical_keys= 0;
+  best.parallel_divisor= 1.0;
+  best.parallel_scan= false;
   best.filter= 0;
   best.key= 0;
   best.max_key_part= 0;
@@ -9010,7 +9016,17 @@ best_access_path(JOIN      *join,
   best.use_join_buffer= FALSE;
   best.spl_plan= 0;
 
-  disable_jbuf= disable_jbuf || idx == join->const_tables;
+  /*
+    Under a driving table costed as a parallel scan the plan is costed as a
+    worker runs it: a plain nested loop with no join buffer, no hash join and
+    no rowid filter, which are the plans the gate refuses
+    (can_run_query_in_workers). Costing them here would pick, on the parallel
+    discount, a plan the workers cannot run and the manager then runs
+    serially.
+  */
+  const bool parallel_chain= (idx > join->const_tables &&
+                              join_positions[join->const_tables].parallel_scan);
+  disable_jbuf= disable_jbuf || idx == join->const_tables || parallel_chain;
 
   trace_wrapper.add_table_name(s);
 
@@ -9610,7 +9626,7 @@ best_access_path(JOIN      *join,
         Check if we can use a filter.
         Records can be 0 in case of empty tables.
       */
-      if ((found_part & 1) && records &&
+      if ((found_part & 1) && records && !parallel_chain &&
           table->rowid_filter_can_be_applied_to_key(start_key->key))
       {
         /*
@@ -9997,7 +10013,8 @@ best_access_path(JOIN      *join,
                                  range->cost.setup_cost,
                                  s->quick->read_time));
 
-        if (table->rowid_filter_can_be_applied_to_key(key_no))
+        if (!parallel_chain &&
+            table->rowid_filter_can_be_applied_to_key(key_no))
         {
           filter= table->best_range_rowid_filter(key_no,
                                                  rows2double(range->rows),
@@ -10129,18 +10146,8 @@ best_access_path(JOIN      *join,
       }
     }
 
-    /*
-      A full table scan of the driving table can be shared across
-      parallel_worker_threads workers (see make_join_readinfo). Discount its
-      row-read/copy cost accordingly so the optimizer accounts for the
-      parallelism. Only the driving table (idx == const_tables) is ever
-      parallel-scanned, and 'cost' is a local copy, so the cached per-table
-      estimate is untouched.
-    */
-    if ((type == JT_ALL || type == JT_RANGE) &&
-        table_can_be_parallel_scanned(table) &&
-        idx == join->const_tables)
-      scale_cost_for_parallel_scan(thd, table, &cost);
+    double parallel_divisor= 1.0;
+    bool parallel_scan= false;
 
      /*
        Note: the condition checked here is very out of date and incorrect.
@@ -10163,6 +10170,40 @@ best_access_path(JOIN      *join,
       */
       cur_cost= file->cost_for_reading_multiple_times(record_count,
                                                       &cost);
+      /*
+        The driving table's scan may instead be divided among parallel
+        workers. parallel_scan_cost() prices that alternative -- one worker's
+        share of the scan plus the cost of setting the workers up -- and
+        says by how many workers the rows that survive this table's WHERE are
+        spread, which the join-order search then divides the cost of every
+        later table by. The cheaper of the two readings is kept, so a table
+        too small to repay the setup stays serial while a large one can win
+        the driving position over a tiny table it would lose to serially.
+      */
+      if (idx == join->const_tables && (type == JT_ALL || type == JT_RANGE) &&
+          join->parallel_candidates_allowed && !filter &&
+          (type == JT_RANGE || s->cached_covering_key == MAX_KEY))
+      {
+        /*
+          Not for a scan read through a rowid filter, which the gate refuses,
+          nor for a table scan that will be read as a covering index scan
+          (make_join_readinfo() turns that into type=index), which the workers
+          do not divide (see can_parallel_scan_jointab_access).
+        */
+        double parallel_cost;
+        if (parallel_scan_cost(join, table, cur_cost, best.records_out,
+                               &parallel_cost, &parallel_divisor))
+        {
+          if (unlikely(trace_access_scan.trace_started()))
+            trace_access_scan.
+              add("serial_cost", cur_cost).
+              add("parallel_scan_cost", parallel_cost).
+              add("parallel_divisor", parallel_divisor);
+          cur_cost= parallel_cost;
+          parallel_scan= true;
+          scan_type= "parallel_scan";
+        }
+      }
     }
     else
     {
@@ -10267,6 +10308,8 @@ best_access_path(JOIN      *join,
       best.refills= refills;
       best.spl_plan= 0;
       best.type= type;
+      best.parallel_divisor= parallel_divisor;
+      best.parallel_scan= parallel_scan;
       trace_access_scan.add("chosen", true);
     }
     else
@@ -10305,6 +10348,8 @@ best_access_path(JOIN      *join,
   pos->key_dependent= (best.type == JT_EQ_REF ? (table_map) 0 :
                        key_dependent & remaining_tables);
   pos->refills=  best.refills;
+  pos->parallel_divisor= best.parallel_divisor;
+  pos->parallel_scan= best.parallel_scan;
 
   loose_scan_opt.save_to_position(s, record_count, pos->records_out,
                                   loose_scan_pos);
@@ -10517,6 +10562,16 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   if (!emb_sjm_nest)
     choose_initial_table_order(join);
 
+  /*
+    Let best_access_path() cost the driving table's scan as a parallel one
+    (parallel_scan_cost()) while ordering the whole join -- not a semi-join
+    materialization nest, whose first table is not the query's driving table
+    -- and only for a query whose shape the workers could run at all.
+  */
+  join->parallel_candidates_allowed=
+    !emb_sjm_nest && thd->variables.parallel_worker_threads > 1 &&
+    pwt_query_shape_allows_workers(join);
+
   if (straight_join)
   {
     optimize_straight_join(join, join_tables);
@@ -10585,6 +10640,16 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
       join->join_record_count= limit_record_count;
     }
   }
+
+  /*
+    Whether the plan found has its driving table costed as a parallel scan.
+    parallel_join_check() runs the workers only then: a plan whose driving
+    table the optimizer found no cheaper to divide is run serially.
+  */
+  if (!emb_sjm_nest)
+    join->parallel_plan_chosen=
+      join->best_positions[join->const_tables].parallel_scan;
+  join->parallel_candidates_allowed= false;
 
   join->emb_sjm_nest= 0;
   DBUG_RETURN(FALSE);
@@ -10835,6 +10900,28 @@ determine_search_depth(JOIN *join)
     optimization process to finalize a QEP as it is.
 */
 
+/*
+  The cost of the table at 'idx' as the join-order search accumulates it.
+
+  position->read_time, divided by the driving table's parallel_divisor when
+  that table was costed as a parallel scan: each worker then joins only its
+  share of the driving rows, and the plan's cost is one worker's. The driving
+  table itself already carries one worker's share (see parallel_scan_cost()).
+*/
+
+static inline double
+position_cost_in_plan(JOIN *join, uint idx, const POSITION *position)
+{
+  if (idx > join->const_tables)
+  {
+    double divisor= join->positions[join->const_tables].parallel_divisor;
+    if (divisor > 1.0)
+      return position->read_time / divisor;
+  }
+  return position->read_time;
+}
+
+
 static void
 optimize_straight_join(JOIN *join, table_map remaining_tables)
 {
@@ -10865,7 +10952,7 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
 
     /* Compute the cost of the new plan extended with 's' */
     current_record_count= COST_MULT(record_count, position->records_out);
-    read_time= COST_ADD(read_time, position->read_time);
+    read_time= COST_ADD(read_time, position_cost_in_plan(join, idx, position));
     original_record_count= current_record_count;
     optimize_semi_joins(join, remaining_tables, idx, &current_record_count,
                         &read_time, &loose_scan_pos);
@@ -11138,7 +11225,8 @@ greedy_search(JOIN      *join,
 
     /* compute the cost of the new plan extended with 'best_table' */
     record_count= COST_MULT(record_count, join->positions[idx].records_read);
-    read_time= COST_ADD(read_time, join->positions[idx].read_time);
+    read_time= COST_ADD(read_time,
+                        position_cost_in_plan(join, idx, join->positions + idx));
 
     remaining_tables&= ~(best_table->table->map);
     --size_remain;
@@ -12347,8 +12435,22 @@ best_extension_by_limited_search(JOIN      *join,
     so continue expanding it further with the tables in 'remaining_tables'.
   */
   JOIN_TAB *s;
-  double best_record_count= DBL_MAX;
-  double best_read_time=    DBL_MAX;
+  /*
+    The pruning heuristics compare a partial plan with the best seen at this
+    depth, on rows and on cost, and drop one that is worse on both. A partial
+    plan whose driving table is a parallel scan is costed per worker and is
+    compared only with its own kind: next to the serial prefixes it has more
+    rows and a higher cost than a tiny first table, which is exactly the
+    prefix the heuristic exists to drop, and exactly the one that the cost of
+    the join under it, divided among the workers, can still win.
+  */
+  struct Prune_state
+  {
+    double best_record_count, best_read_time;
+    double min_rec_count, min_rec_count_read_time;
+    double min_cost, min_cost_record_count;
+  } prune_serial= {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX},
+    prune_parallel= prune_serial;
   enum_best_search best_res;
   uint tables_left= join->table_count - idx, found_tables;
   uint accepted_tables __attribute__((unused));
@@ -12446,11 +12548,6 @@ best_extension_by_limited_search(JOIN      *join,
               join->sort_positions + join->sort_space);
 
   accepted_tables= 0;
-  double min_rec_count= DBL_MAX;
-  double min_rec_count_read_time= DBL_MAX;
-
-  double min_cost= DBL_MAX;
-  double min_cost_record_count= DBL_MAX;
 
   for (SORT_POSITION *pos= sort ; pos < sort_end ; pos++)
   {
@@ -12474,10 +12571,18 @@ best_extension_by_limited_search(JOIN      *join,
       accepted_tables++;
       *position= *pos->position;                // Get stored result
       loose_scan_pos= pos->position+1;
+      /*
+        The driving table is join->positions[const_tables] -- this very
+        position when idx == const_tables -- so this picks by the candidate
+        itself at the first depth and by its prefix's driver below it.
+      */
+      Prune_state &prune= join->positions[join->const_tables].parallel_scan
+                          ? prune_parallel : prune_serial;
 
       /* Compute the cost of the new plan extended with 's' */
       current_record_count= COST_MULT(record_count, position->records_out);
-      current_read_time= COST_ADD(read_time, position->read_time);
+      current_read_time= COST_ADD(read_time,
+                                  position_cost_in_plan(join, idx, position));
 
       if (unlikely(trace_one_table.trace_started()))
       {
@@ -12535,23 +12640,23 @@ best_extension_by_limited_search(JOIN      *join,
             (!(position->key_dependent & allowed_tables) ||
              position->records_read < 2.0))
         {
-          if (current_record_count < min_rec_count)
+          if (current_record_count < prune.min_rec_count)
           {
-            min_rec_count= current_record_count;
-            min_rec_count_read_time= current_read_time;
+            prune.min_rec_count= current_record_count;
+            prune.min_rec_count_read_time= current_read_time;
             min_rec_hit= true;
           }
 
-          if (current_read_time < min_cost)
+          if (current_read_time < prune.min_cost)
           {
-            min_cost_record_count= current_record_count;
-            min_cost= current_read_time;
+            prune.min_cost_record_count= current_record_count;
+            prune.min_cost= current_read_time;
             min_cost_hit= true;
           }
         }
 
-        if (best_record_count > current_record_count ||
-            best_read_time > current_read_time ||
+        if (prune.best_record_count > current_record_count ||
+            prune.best_read_time > current_read_time ||
             (idx == join->const_tables &&  // 's' is the first table in the QEP
              s->table == join->sort_by_table))
         {
@@ -12563,21 +12668,21 @@ best_extension_by_limited_search(JOIN      *join,
             or we found an EQ_REF or REF key with less than 2
             matching records (good enough).
           */
-          if (best_record_count >= current_record_count &&
-              best_read_time >= current_read_time &&
+          if (prune.best_record_count >= current_record_count &&
+              prune.best_read_time >= current_read_time &&
               (!(position->key_dependent & join->allowed_tables) ||
                position->records_read < 2.0))
           {
-            best_record_count= current_record_count;
-            best_read_time=    current_read_time;
+            prune.best_record_count= current_record_count;
+            prune.best_read_time=    current_read_time;
           }
         }
         else
         {
           /*
              Typically, we get here if:
-               best_record_count < current_record_count &&
-               best_read_time < current_read_time
+               prune.best_record_count < current_record_count &&
+               prune.best_read_time < current_read_time
              That is, both record_count and read_time are worse than the best_
              ones. This plan doesn't look promising, prune it away.
           */
@@ -12594,13 +12699,13 @@ best_extension_by_limited_search(JOIN      *join,
 
         const char* prune_reason= NULL;
         if (!min_rec_hit &&
-            current_record_count >= min_rec_count &&
-            current_read_time >= min_rec_count_read_time)
+            current_record_count >= prune.min_rec_count &&
+            current_read_time >= prune.min_rec_count_read_time)
           prune_reason= "min_record_count";
 
         if (!min_cost_hit &&
-            current_record_count >= min_cost_record_count &&
-            current_read_time >= min_cost)
+            current_record_count >= prune.min_cost_record_count &&
+            current_read_time >= prune.min_cost)
           prune_reason= "min_read_time";
 
         if (prune_reason)

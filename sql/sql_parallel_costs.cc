@@ -34,48 +34,67 @@
 
 /**
   @brief
-    Discount a full-table-scan cost when the table is eligible to be scanned by
-    parallel workers.
+    Cost the driving table's scan as one divided among parallel workers.
 
   @description
-    Disabled for now, not only because it changes QEPs in our mtr suite, but
-    because it only discounts costs associated with the split table, not tables
-    further down the join in the workers.
+    Called by best_access_path() for the driving position (idx ==
+    const_tables) once it has the serial cost of a full or range scan of
+    'table'. The parallel reading of the same scan is priced as one worker's
+    share of it plus the cost of setting the workers up:
 
-    When parallel query is enabled the first non-const table can be scanned by
-    N worker threads, each reading a disjoint partition concurrently while the
-    manager runs the rest of the join. The wall-clock cost of reading and
-    copying the rows is therefore roughly 1/N of a serial scan, so the row
-    (full-scan) components of 'cost' -- I/O, CPU and row-copy -- are scaled by
-    1/N. The index components are left untouched: this only ever discounts a
-    full table scan.
+      serial_cost / N + optimizer_parallel_setup_cost * (tables in the join)
 
-    Eligibility mirrors the table-level half of the runtime gate exactly
-    (engine support, no blob-backed columns, not fulltext-searched, a real base
-    table, not partitioned), so the optimizer never discounts a scan that will
-    not actually run in parallel. The caller is responsible for invoking this
-    only for the driving table (idx == const_tables), the single position a
-    parallel scan applies to, and 'cost' must be the caller's local copy, not
-    the cached per-table estimate.
+    with N = parallel_worker_threads. The setup term is what a parallel
+    execution pays before and after the scan -- creating N worker threads with
+    a THD each, opening every non-const table once per worker, building and
+    draining the result containers -- and is charged per table because the
+    opening is the part of it that grows with the join. It is the term that
+    keeps a scan too small to repay it serial.
+
+    *divisor is by how many workers the rows that survive the table's own
+    WHERE are spread: min(N, rows_out). The join-order search divides the
+    read_time of every later position by it, because each worker joins only
+    its share of the driving rows and the plan's cost is one worker's. It is
+    capped by rows_out rather than fixed at N because a driving table that
+    yields fewer rows than there are workers cannot spread them any further: a
+    five-row table of which one row survives puts the whole join under it on
+    one worker, whatever N is, and crediting it with 1/N of that join is what
+    made the optimizer split exactly such tables.
+
+    Eligibility is the table-level half of the runtime gate
+    (table_can_be_parallel_scanned); the query-level half was asked by
+    choose_plan() before it allowed any parallel candidate at all.
+
+  @param join            the join being ordered
+  @param table           the driving table
+  @param serial_cost     best_access_path()'s cost of scanning it serially
+  @param rows_out        rows that survive the table's own WHERE
+  @param parallel_cost   [out] the cost of the parallel reading
+  @param divisor         [out] what later positions' costs are divided by
 
   @return
-    true   the cost was scaled (table is parallel-scan eligible)
-    false  no change (parallel scan disabled or table not eligible)
+    true   the parallel reading is cheaper: *parallel_cost and *divisor are set
+    false  parallel scan unavailable or no cheaper; outputs untouched
 */
 
-bool scale_cost_for_parallel_scan(THD *thd, TABLE *table, ALL_READ_COST *cost)
+bool parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
+                        double rows_out, double *parallel_cost,
+                        double *divisor)
 {
-#if 0
-  const uint n= thd->variables.parallel_worker_threads;
+  THD *thd= join->thd;
+  const uint n= (uint) thd->variables.parallel_worker_threads;
   if (n < 2 ||                                   // disabled, or no speed-up
       !table_can_be_parallel_scanned(table))
     return false;
 
-  const double factor= 1.0 / (double) n;
-  cost->row_cost.io  *= factor;
-  cost->row_cost.cpu *= factor;
-  cost->copy_cost    *= factor;
-#endif
+  const double setup= (thd->variables.optimizer_parallel_setup_cost *
+                       (join->table_count - join->const_tables));
+  const double cost= serial_cost / (double) n + setup;
+  if (cost + COST_EPS >= serial_cost)
+    return false;
+
+  *parallel_cost= cost;
+  *divisor= MY_MIN((double) n, MY_MAX(rows_out, 1.0));
   return true;
 }
 

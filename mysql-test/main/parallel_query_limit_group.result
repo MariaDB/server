@@ -1,3 +1,4 @@
+SET SESSION optimizer_parallel_setup_cost= 0;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
 SET SESSION default_storage_engine=InnoDB;
