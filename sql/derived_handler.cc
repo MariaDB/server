@@ -20,6 +20,15 @@
 #include "derived_handler.h"
 
 
+derived_handler::derived_handler(THD *thd_arg, handlerton *ht_arg)
+  : thd(thd_arg), ht(ht_arg), derived(0), table(0), tmp_table_param(0),
+    unit(0), select(0)
+{
+  /* Pushdown skips optimization, so don't freeze the mem_root */
+  thd_arg->lex->mark_pushed_down();
+}
+
+
 /**
   The methods of the Pushdown_derived class.
 
