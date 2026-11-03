@@ -2098,7 +2098,8 @@ String *Item_func_left::val_str(String *str)
       (res->length() <= (char_pos= res->charpos((int) length))))
     return res;
 
-  tmp_value.set(*res, 0, char_pos);
+  if (tmp_value.copy(res->ptr(), char_pos, res->charset()))
+    return make_empty_result(str);
   return &tmp_value;
 }
 
@@ -2147,7 +2148,9 @@ String *Item_func_right::val_str(String *str)
   if (start <= (uint) length)
     return res;
   start=res->charpos(start - (uint) length);
-  tmp_value.set(*res,start,res->length()-start);
+  if (tmp_value.copy(res->ptr() + start, res->length() - start,
+                     res->charset()))
+    return make_empty_result(str);
   return &tmp_value;
 }
 
@@ -2204,7 +2207,9 @@ String *Item_func_substr::val_str(String *str)
 
   if (!start && (longlong) res->length() == length)
     return res;
-  tmp_value.set(*res, (uint32) start, (uint32) length);
+  if (tmp_value.copy(res->ptr() + (uint32) start, (uint32) length,
+                     res->charset()))
+    return make_empty_result(str);
   return &tmp_value;
 }
 
