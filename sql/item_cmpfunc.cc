@@ -2657,6 +2657,30 @@ bool Item_func_nullif::walk(Item_processor processor,
   return (this->*processor)(arg);
 }
 
+bool Item_func_nullif::eq(const Item *item, const Eq_config &config) const
+{
+  if (Item_func::eq(item, config))
+    return true;
+  if (item->type() != FUNC_ITEM || (used_tables() & RAND_TABLE_BIT))
+    return false;
+
+  const Item_func *other= static_cast<const Item_func*>(item);
+  if (functype() != other->functype() || func_name() != other->func_name() ||
+      arg_count + other->argument_count() != 5)
+    return false;
+
+  /* During view analysis NULLIF can have two arguments; after fixing it has
+     a third argument that repeats the first for the return value. */
+  const Item_func_nullif *fixed= arg_count == 3 ? this :
+                                  static_cast<const Item_func_nullif*>(item);
+  const Item_func_nullif *unfixed= arg_count == 2 ? this :
+                                    static_cast<const Item_func_nullif*>(item);
+  return fixed->arg_count == 3 && unfixed->arg_count == 2 &&
+         fixed->args[0] == fixed->args[2] &&
+         fixed->args[0]->eq(unfixed->args[0], config) &&
+         fixed->args[1]->eq(unfixed->args[1], config);
+}
+
 
 void Item_func_nullif::update_used_tables()
 {
