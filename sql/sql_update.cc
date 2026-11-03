@@ -28,6 +28,7 @@
 #include "sql_parse.h"                          // cleanup_items
 #include "sql_partition.h"                   // partition_key_modified
 #include "sql_select.h"
+#include "opt_plan_refinement.h"
 #include "sql_view.h"                           // check_key_in_view
 #include "sp_head.h"
 #include "sql_trigger.h"
@@ -635,7 +636,15 @@ bool Sql_cmd_update::update_single_table(THD *thd)
       }
     }
   }
-  
+
+  /* Done after range analysis, which depends on the order of conjuncts */
+  if (select && select->cond)
+  {
+    move_expensive_args_last(thd, select->cond);
+    if (thd->is_error())
+      goto err;
+  }
+
   /* 
     Query optimization is finished at this point.
      - Save the decisions in the query plan

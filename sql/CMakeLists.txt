@@ -182,6 +182,7 @@ SET (SQL_SOURCE
                sql_sequence.cc sql_sequence.h ha_sequence.h
                sql_tvc.cc sql_tvc.h
                opt_split.cc
+               opt_plan_refinement.cc opt_plan_refinement.h
                rowid_filter.cc rowid_filter.h
                optimizer_costs.h optimizer_defaults.h
                opt_trace.cc

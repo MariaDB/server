@@ -4133,6 +4133,7 @@ static const char *new_mode_all_names[]=
   "FIX_DISK_TMPTABLE_COSTS",
   "FIX_INDEX_STATS_FOR_ALL_NULLS",
   "FIX_INDEX_LOOKUP_COST",
+  "REORDER_EXPENSIVE_CONDS",
   "TEST_WARNING1",                       // Default from here, See NEW_MODE_MAX
   "TEST_WARNING2",
   0
@@ -4140,8 +4141,8 @@ static const char *new_mode_all_names[]=
 
 static int new_mode_hidden_names[] =
 {
-  3,  // TEST_WARNING1
-  4,  // TEST_WARNING2
+  4,  // TEST_WARNING1
+  5,  // TEST_WARNING2
   -1  // End of list
 };
 
