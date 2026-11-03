@@ -1401,43 +1401,9 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 1000.010933,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "p",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 2,
-          "cost": 1000.010388,
-          "filtered": 100,
-          "attached_condition": "p.product_id is not null"
-        }
-      },
-      {
-        "table": {
-          "table_name": "<derived2>",
-          "access_type": "ref",
-          "possible_keys": ["key0"],
-          "key": "key0",
-          "key_length": "9",
-          "used_key_parts": ["product_id"],
-          "ref": ["federated.p.product_id"],
-          "loops": 2,
-          "rows": 1,
-          "cost": 0.000545388,
-          "filtered": 100,
-          "materialized": {
-            "query_block": {
-              "select_id": 2,
-              "table": {
-                "message": "Pushed derived"
-              }
-            }
-          }
-        }
-      }
-    ]
+    "table": {
+      "message": "Pushed update"
+    }
   }
 }
 update
@@ -1480,31 +1446,9 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 2000.022975,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 4,
-          "cost": 1000.010655,
-          "filtered": 100,
-          "attached_condition": "t2.`id` in (1,2)"
-        }
-      },
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 4,
-          "rows": 4,
-          "cost": 1000.012319,
-          "filtered": 100,
-          "attached_condition": "t1.`id` = t2.`id`"
-        }
-      }
-    ]
+    "table": {
+      "message": "Pushed update"
+    }
   }
 }
 update federated.t2 inner join federated.t1 on t2.id = t1.id
@@ -1534,31 +1478,9 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 2000.023025,
-    "nested_loop": [
-      {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "loops": 1,
-          "rows": 4,
-          "cost": 1000.010705,
-          "filtered": 100,
-          "attached_condition": "t2.op = 'updated'"
-        }
-      },
-      {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "loops": 4,
-          "rows": 4,
-          "cost": 1000.012319,
-          "filtered": 100,
-          "attached_condition": "t1.`id` = t2.`id`"
-        }
-      }
-    ]
+    "table": {
+      "message": "Pushed delete"
+    }
   }
 }
 delete federated.t2 from federated.t2 inner join federated.t1 on t2.id = t1.id and t2.op = 'updated';

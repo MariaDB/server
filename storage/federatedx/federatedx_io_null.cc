@@ -59,6 +59,7 @@ public:
   size_t max_query_size() const override;
 
   my_ulonglong affected_rows() const override;
+  my_ulonglong matched_rows() const override;
   my_ulonglong last_insert_id() const override;
 
   int error_code() override;
@@ -185,6 +186,12 @@ size_t federatedx_io_null::max_query_size() const
 
 
 my_ulonglong federatedx_io_null::affected_rows() const
+{
+  return 0;
+}
+
+
+my_ulonglong federatedx_io_null::matched_rows() const
 {
   return 0;
 }

@@ -32,9 +32,6 @@
 #include "sql_cte.h"
 #include "item_windowfunc.h"
 
-select_handler *find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
-                                            SELECT_LEX_UNIT *lex_unit);
-
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {

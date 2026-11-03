@@ -317,6 +317,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_show.h"                           // append_identifier()
 #include "tztime.h"                             // my_tz_find()
 #include "sql_select.h"
+#include <errmsg.h>                           // CR_MIN_ERROR, CR_MAX_ERROR
+
+/*
+  Only a server error code can be sent to the client as is. The errors of the
+  client library (e.g. CR_SERVER_GONE_ERROR) are in the range reserved for
+  the client side, and a libmariadb based client reports such a code in an
+  error packet as CR_MALFORMED_PACKET. They are to be reported as a failure
+  of the foreign data source instead.
+
+  @retval true   err was an error of the client library and has been reported
+  @retval false  err is a server error code, the caller reports it
+*/
+static bool report_client_library_error(int err, const char *errmsg)
+{
+  if (err < CR_MIN_ERROR || err > CR_MAX_ERROR)
+    return false;
+  my_error(ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), errmsg);
+  return true;
+}
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -420,6 +439,9 @@ create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
 static select_handler *
 create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
 
+static multi_upddel_handler *
+create_federatedx_multi_upddel_handler(THD *thd, LEX *lex);
+
 /*
   Federated doesn't need costs.disk_read_ratio as everything is one a remote
   server and nothing is cached locally
@@ -469,6 +491,8 @@ int federatedx_db_init(void *p)
   federatedx_hton->create_select= create_federatedx_select_handler;
   federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
   federatedx_hton->create_unit= create_federatedx_unit_handler;
+  federatedx_hton->create_multi_upddel=
+    create_federatedx_multi_upddel_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
@@ -3139,15 +3163,12 @@ int ha_federatedx::info(uint flag)
   DBUG_RETURN(0);
 
 error:
-  if (iop && *iop)
+  /* iop is set: the only way here is a failed table_metadata() on it */
   {
-    my_printf_error((*iop)->error_code(), "Received error: %d : %s", MYF(0),
-                    (*iop)->error_code(), (*iop)->error_str());
-  }
-  else if (remote_error_number != -1 /* error already reported */)
-  {
-    error_code= remote_error_number;
-    my_error(error_code, MYF(0), ER_THD(thd, error_code));
+    const int remote_errno= (*iop)->error_code();
+    if (!report_client_library_error(remote_errno, (*iop)->error_str()))
+      my_printf_error(remote_errno, "Received error: %d : %s", MYF(0),
+                      remote_errno, (*iop)->error_str());
   }
 fail:
   tmp_txn->release(&tmp_io);
