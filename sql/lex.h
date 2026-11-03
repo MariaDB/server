@@ -718,6 +718,7 @@ SYMBOL symbols[] = {
   { "VARCHAR",		SYM(VARCHAR)},
   { "VARCHARACTER",	SYM(VARCHAR)},
   { "VARCHAR2",         SYM(VARCHAR2_MARIADB_SYM)},
+  { "ANY_CS",           SYM(ANY_CS_SYM)},
   { "VARIABLES",	SYM(VARIABLES)},
   { "VARYING",		SYM(VARYING)},
   { "VIA",              SYM(VIA_SYM)},
