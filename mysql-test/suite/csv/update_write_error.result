@@ -1,0 +1,76 @@
+#
+# A failed write of the new version of a row during UPDATE keeps the
+# old version of the row
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @save_debug_dbug= @@debug_dbug;
+SET debug_dbug='+d,tina_update_row_short_write';
+UPDATE t1 SET v=v+10;
+ERROR HY000: Error writing file 'FILE' (Errcode: 28)
+SET debug_dbug= @save_debug_dbug;
+SELECT * FROM t1;
+v
+1
+2
+3
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# A failed write of the new version of the second row keeps the new
+# version of the first row and the old versions of the other rows
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+# f1() enables the short write while it computes the new value of row 2
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+IF x = 2 THEN
+SET debug_dbug='+d,tina_update_row_short_write';
+END IF;
+RETURN x + 10;
+END//
+UPDATE t1 SET v=f1(v);
+ERROR HY000: Error writing file 'FILE' (Errcode: 28)
+SET debug_dbug= @save_debug_dbug;
+SELECT * FROM t1;
+v
+11
+2
+3
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# A failed write of a new version that is longer than the rest of the
+# table leaves no part of that version in the data file
+#
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2);
+# f1() makes the write of the new version of row 2 fail
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+IF x = 2 THEN
+SET debug_dbug='+d,tina_update_row_full_write_error';
+RETURN 2000000;
+END IF;
+RETURN x + 10;
+END//
+UPDATE t1 SET v=f1(v);
+ERROR HY000: Error writing file 'FILE' (Errcode: 28)
+SET debug_dbug= @save_debug_dbug;
+# The next open reads the length of the data file
+FLUSH TABLES t1;
+SELECT * FROM t1;
+v
+11
+2
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP FUNCTION f1;
+DROP TABLE t1;
