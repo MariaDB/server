@@ -380,6 +380,21 @@ static inline bool is_hostname_valid(const char *hostname)
   return *p != '.';
 }
 
+/*
+  The getnameinfo_* injections overwrite the lookup result, so skip the lookup.
+  It can be slow, and on Linux without DNS it fails with a temporary error.
+*/
+static inline bool getnameinfo_is_faked()
+{
+  return DBUG_IF("getnameinfo_error_noname") ||
+         DBUG_IF("getnameinfo_error_again") ||
+         DBUG_IF("getnameinfo_fake_ipv4") ||
+         DBUG_IF("getnameinfo_fake_ipv6") ||
+         DBUG_IF("getnameinfo_format_ipv4") ||
+         DBUG_IF("getnameinfo_format_ipv6") ||
+         DBUG_IF("getnameinfo_fake_long_host");
+}
+
 /**
   Resolve IP-address to host name.
 
@@ -502,8 +517,11 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
   DBUG_PRINT("info", ("Resolving '%s'...", (const char *) ip_key));
 
-  err_code= vio_getnameinfo(ip, hostname_buffer, NI_MAXHOST, NULL, 0,
-                            NI_NAMEREQD);
+  if (getnameinfo_is_faked())
+    err_code= EAI_NONAME;
+  else
+    err_code= vio_getnameinfo(ip, hostname_buffer, NI_MAXHOST, NULL, 0,
+                              NI_NAMEREQD);
 
   /*
   ===========================================================================

@@ -21071,6 +21071,27 @@ static void test_proxy_header_dbug_remote_connection()
 
 
 /*
+  Make the server skip the DNS lookup of the test addresses, it can be slow
+  or, on Linux without DNS, fail with a temporary error.
+*/
+static void skip_dns(my_bool on)
+{
+#ifndef DBUG_OFF
+  int rc;
+  if (on)
+  {
+    rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+    myquery(rc);
+    rc= mysql_query(mysql,
+                    "SET GLOBAL debug_dbug='+d,getnameinfo_error_noname'");
+  }
+  else
+    rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif
+}
+
+/*
   Open a raw TCP connection and let the handshake fail (server reads EOF) to
   add one max_connect_errors error. With a header it counts against 'client_ip';
   with NULL no header is sent, so against the socket peer (the proxy host).
@@ -21296,9 +21317,11 @@ static void test_proxy_header_host_denied()
 
   myheader("test_proxy_header_host_denied");
 
+  skip_dns(TRUE);
   m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL);
   DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  skip_dns(FALSE);
 }
 
 /*
@@ -21364,17 +21387,21 @@ static void test_proxy_header_ssl_host_denied()
 
   myheader("test_proxy_header_ssl_host_denied");
 
+  skip_dns(TRUE);
   m= proxy_connect_as(client_ip, "root", "", TRUE, &conn_errno);
   DIE_UNLESS(m == NULL);
   DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  skip_dns(FALSE);
 }
 
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
+  skip_dns(TRUE);
   test_proxy_header_tcp("192.0.2.1",3333);
   test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
   test_proxy_header_tcp("::ffff:192.0.2.1",2222);
+  skip_dns(FALSE);
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
