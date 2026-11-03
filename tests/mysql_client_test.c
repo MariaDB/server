@@ -20689,14 +20689,20 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   for (; i < array_elements(header_data); i++)
   {
     MYSQL *m;
+    unsigned int err;
     m = mysql_client_init(NULL);
     DIE_UNLESS(m);
     mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data[i], header_lengths[i]);
     if (mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0))
       DIE(0);
-    printf("pass %zu error %i - %s\n", i, mysql_errno(m),
-           mysql_error(m));
-    DIE_IF(mysql_errno(m) != ER_UNKNOWN_ERROR);
+    err= mysql_errno(m);
+    printf("pass %zu error %u - %s\n", i, err, mysql_error(m));
+    /*
+      Cases 2 and 3 leave header bytes unread, so the close is a TCP reset,
+      which can drop the error before the client reads it.
+    */
+    DIE_IF(err != ER_UNKNOWN_ERROR &&
+           !(err == CR_SERVER_LOST && (i == 2 || i == 3)));
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20952,10 +20958,17 @@ static void test_proxy_header_limits()
     }
     else
     {
+      /*
+        Bytes after a NUL or past 107 stay unread, see test_proxy_header_tcp().
+      */
+      my_bool unread= len > 107 || memchr(cases[i].header, 0, len) != NULL;
       DIE_UNLESS(!conn);
       /* A rejected header must be the reason of the failure */
-      DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
-      DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+      if (!(unread && mysql_errno(m) == CR_SERVER_LOST))
+      {
+        DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
+        DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+      }
     }
     mysql_close(m);
   }
