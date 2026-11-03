@@ -1065,6 +1065,7 @@ INSERT INTO t1(id, a, b) VALUES
 
 SELECT id, a, b FROM t1;
 
+--sorted_result
 SELECT id, a, b FROM t1 WHERE a BETWEEN 'aaaa' AND 'bbbbbb';
 
 SELECT id, a FROM t1 WHERE a='bbbbbb';
@@ -2245,4 +2246,14 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.11 tests
+--echo #
+--echo # MDEV-39193 Truncated upper range bounds with expanding collations
+--echo #
+CREATE TABLE t1 (x VARCHAR(1) COLLATE utf8mb4_0900_ai_ci, KEY(x)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('ß');
+SELECT COUNT(*) FROM t1 WHERE x BETWEEN 'r' AND 'ss';
+SELECT COUNT(*) FROM t1 WHERE x < 'st';
+DROP TABLE t1;
+--echo #
+--echo # End of 11.4 tests
 --echo #
