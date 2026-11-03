@@ -135,4 +135,20 @@ SELECT b, ANY_VALUE(a) FILTER (WHERE a>15) FROM t GROUP BY b;
 
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-10426: ANY_VALUE to use constant substitution
+--echo #
+
+CREATE TABLE t (a INT, KEY(a));
+INSERT INTO t VALUES (NULL),(1),(2);
+
+--source include/analyze-format.inc
+EXPLAIN FORMAT=JSON SELECT ANY_VALUE(a) FROM t;
+SELECT ANY_VALUE(a) FROM t;
+
+--source include/analyze-format.inc
+EXPLAIN FORMAT=JSON SELECT ANY_VALUE(a) FILTER (WHERE a=2) FROM t;
+SELECT ANY_VALUE(a) FILTER (WHERE a=2) FROM t;
+
+DROP TABLE t;
 --echo # End of 13.2 tests.
