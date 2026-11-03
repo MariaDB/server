@@ -1025,3 +1025,59 @@ t2
 DROP FUNCTION mdev41241.f_ct2;
 DROP TEMPORARY TABLE IF EXISTS mdev41241.ttx;
 DROP DATABASE mdev41241;
+#
+# MDEV-41165: max_statement_time must not use the fast path
+#
+SET max_statement_time=100;
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mysql';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.01423506,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "TABLES",
+          "access_type": "ALL",
+          "key": "TABLE_SCHEMA",
+          "loops": 1,
+          "cost": 0.01423506,
+          "attached_condition": "information_schema.`TABLES`.TABLE_SCHEMA = 'mysql'",
+          "skip_open_table": true,
+          "scanned_databases": 1
+        }
+      }
+    ]
+  }
+}
+SET max_statement_time=DEFAULT;
+SET STATEMENT max_statement_time=0.5 FOR SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND SLEEP(1)=0;
+ERROR 70100: Query was interrupted: execution time limit 0.5 sec exceeded
+#
+# MDEV-41165: KILL QUERY while WHERE is evaluated on the fast path
+#
+CREATE TABLE t1 (a INT);
+connect  con41165,localhost,root,,;
+connection default;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection con41165;
+KILL QUERY $id;
+connection default;
+ERROR 70100: Query execution was interrupted
+disconnect con41165;
+DROP TABLE t1;
+#
+# MDEV-41165: KILL CONNECTION while WHERE is evaluated on the fast path
+#
+CREATE TABLE t1 (a INT);
+connect  victim41165,localhost,root,,;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection default;
+KILL CONNECTION $id;
+connection victim41165;
+ERROR HY000: Lost connection to server during query
+connection default;
+disconnect victim41165;
+DROP TABLE t1;
