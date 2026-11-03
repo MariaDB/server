@@ -1,0 +1,65 @@
+#
+# A subquery cache whose parameter is NULL for many rows fills its
+# in-memory table with rows that all have a NULL key.  A HEAP unique
+# index does not treat two NULLs as equal, so those rows are legal
+# there.  When the table outgrows the memory limit and is converted to
+# the on-disk temporary engine, the copy of the already stored rows
+# must not start rejecting them as duplicates.  The on-disk table can
+# take either shape - a real key, or a unique constraint over a row
+# hash when the key is too wide for the engine - and both have to keep
+# the NULL semantics the in-memory table was using.
+#
+# Neither cached query aborts on error, so a regression in either
+# shape is reported rather than hidden behind the other one.
+#
+SET @save_max_heap_table_size = @@max_heap_table_size;
+SET @save_optimizer_switch = @@optimizer_switch;
+#
+# A key narrow enough to stay a key on disk
+#
+CREATE TABLE t1 (a VARCHAR(64)) ENGINE=Aria;
+INSERT INTO t1 VALUES ('aaa');
+INSERT INTO t1 SELECT NULL FROM t1 LIMIT 200;
+SELECT COUNT(*), COUNT(a) FROM t1;
+COUNT(*)	COUNT(a)
+712	512
+SET max_heap_table_size = 16*1024;
+# The expected answer, established without the cache
+SET optimizer_switch = 'subquery_cache=off';
+SELECT COUNT(*) FROM t1 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+COUNT(*)
+512
+SET optimizer_switch = @save_optimizer_switch;
+# The same query with the cache on, which is what overflows and converts
+FLUSH STATUS;
+SELECT COUNT(*) FROM t1 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+COUNT(*)
+512
+# errno=0
+# converted to disk: 1
+DROP TABLE t1;
+#
+# A key too wide for the on-disk engine, which turns it into a unique
+# constraint over a row hash instead
+#
+CREATE TABLE t2 (a VARCHAR(700) CHARACTER SET utf8mb4) ENGINE=Aria;
+INSERT INTO t2 VALUES ('aaa');
+INSERT INTO t2 SELECT NULL FROM t2 LIMIT 200;
+SELECT COUNT(*), COUNT(a) FROM t2;
+COUNT(*)	COUNT(a)
+712	512
+# The expected answer, established without the cache
+SET optimizer_switch = 'subquery_cache=off';
+SELECT COUNT(*) FROM t2 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+COUNT(*)
+512
+SET optimizer_switch = @save_optimizer_switch;
+# The same query with the cache on
+FLUSH STATUS;
+SELECT COUNT(*) FROM t2 WHERE a NOT IN ( SELECT 'x' UNION SELECT 'xx' );
+COUNT(*)
+512
+# errno=0
+# converted to disk: 1
+DROP TABLE t2;
+SET max_heap_table_size = @save_max_heap_table_size;
