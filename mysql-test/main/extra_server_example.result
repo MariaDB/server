@@ -1,0 +1,20 @@
+include/start_extra_server.inc [server 1]
+connect  extra1, 127.0.0.1, root, , test, $EXTRA_SERVER_PORT;
+SELECT "Connected to extra server" AS status;
+status
+Connected to extra server
+include/assert.inc [the connection goes to the extra server, not the test one]
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT * FROM t1;
+id
+1
+2
+3
+connection default;
+SELECT "On default server" AS status;
+status
+On default server
+disconnect extra1;
+include/stop_extra_server.inc [server 1]
+Extra server 1 stopped

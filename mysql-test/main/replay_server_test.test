@@ -1,0 +1,45 @@
+# Exercise the replay-server mode of mysqltest: under mtr --replay-server the
+# EXPLAINs below are replayed on the replay server and its output is what ends
+# up in the result. The same .result serves a run without --replay-server,
+# where the test server answers them itself.
+--source include/not_embedded.inc
+
+# Test ReplayTest mode with EXPLAIN FORMAT=JSON
+CREATE TABLE t1 (a INT, b INT, KEY(a));
+INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
+analyze table t1;
+
+# This should trigger ReplayTest mode if REPLAY_SERVER_SOCKET is set
+--source include/explain-no-costs.inc
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE a = 1;
+
+--source include/explain-no-costs.inc
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1 WHERE a < 100;
+
+SELECT * FROM t1 WHERE a < 100;
+
+explain
+SELECT * FROM t1 WHERE a < 22;
+
+explain extended
+SELECT * FROM t1 WHERE a < 22;
+
+explain
+SELECT * FROM t1 WHERE b < 22;
+
+explain extended select LENGTH(CONCAT('aa','bbb'));
+
+#
+# Check if disable replay works
+#
+create function add1(i int) returns int deterministic
+  return i+1;
+
+# The following would give this error:
+#    ReplayTest: Query error: FUNCTION test.add1 does not exist
+--disable_replay next_query Don't support SPs.
+explain select * from t1 where b< add1(b);
+
+drop function add1;
+DROP TABLE t1;
