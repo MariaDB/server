@@ -474,6 +474,10 @@ struct LEX_MASTER_INFO
   LEX_CSTRING connection_name;
   /* Value in START SLAVE UNTIL master_gtid_pos=xxx */
   LEX_CSTRING gtid_pos_str;
+  /* Value in SHOW BINLOG EVENTS FROM 'gtid' */
+  LEX_CSTRING binlog_from_gtid;
+  /* Value in SHOW BINLOG EVENTS FROM 'gtid' TO 'gtid' */
+  LEX_CSTRING binlog_to_gtid;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
@@ -538,6 +542,8 @@ struct LEX_MASTER_INFO
     repl_ignore_server_ids_opt=
       repl_do_domain_ids_opt= repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_clex_str;
+    binlog_from_gtid= null_clex_str;
+    binlog_to_gtid= null_clex_str;
     sql_delay= -1;
     is_demotion_opt= 0;
     is_until_before_gtids= false;
