@@ -876,8 +876,11 @@ int close_thread_tables(THD *thd) noexcept
       /*
         For simple locking we cleanup it here because we don't close thread
         tables. For prelocking we close it when we do close thread tables.
+        Sub-statement does not cleanup: the outer statement may still use
+        the tables, and the top-level statement cleans up all locked tables
+        when it ends.
       */
-      if (thd->locked_tables_mode != LTM_PRELOCKED)
+      if (thd->locked_tables_mode != LTM_PRELOCKED && !thd->in_sub_stmt)
         table->vcol_cleanup_expr(thd);
     }
 
