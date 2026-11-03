@@ -1026,6 +1026,13 @@ DROP FUNCTION mdev41241.f_ct2;
 DROP TEMPORARY TABLE IF EXISTS mdev41241.ttx;
 DROP DATABASE mdev41241;
 #
+# MDEV-41165: ANALYZE SELECT on a schema that does not exist
+#
+ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	TABLES	ALL	NULL	TABLE_SCHEMA	NULL	NULL	NULL	0.00	NULL	100.00	Using where; Skip_open_table; Scanned 1 database
+#
 # MDEV-41165: max_statement_time must not use the fast path
 #
 SET max_statement_time=100;
@@ -1119,4 +1126,39 @@ WHERE TABLE_SCHEMA='test' LIMIT ROWS EXAMINED 2;
 TABLE_CATALOG
 Warnings:
 Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 2. The query result may be incomplete
+DROP TABLE t1, t2, t3;
+#
+# MDEV-41171: Rows_sent, Empty_queries and the slow log
+#
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+FLUSH STATUS;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SHOW SESSION STATUS LIKE 'Rows_sent';
+Variable_name	Value
+Rows_sent	3
+SHOW SESSION STATUS LIKE 'Empty_queries';
+Variable_name	Value
+Empty_queries	0
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+TABLE_NAME
+SHOW SESSION STATUS LIKE 'Empty_queries';
+Variable_name	Value
+Empty_queries	1
+SET @save_slow_query_log= @@global.slow_query_log;
+SET @save_log_output= @@global.log_output;
+SET GLOBAL slow_query_log=1, log_output='TABLE';
+SET SESSION slow_query_log=1, long_query_time=0;
+TRUNCATE mysql.slow_log;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SET SESSION long_query_time=DEFAULT;
+SELECT rows_sent, rows_examined FROM mysql.slow_log
+WHERE sql_text LIKE 'SELECT TABLE_NAME%';
+rows_sent	rows_examined
+3	3
+SET GLOBAL slow_query_log=@save_slow_query_log;
+SET GLOBAL log_output=@save_log_output;
+TRUNCATE mysql.slow_log;
 DROP TABLE t1, t2, t3;
