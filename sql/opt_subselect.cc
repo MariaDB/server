@@ -6984,7 +6984,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       in_subs->unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
       select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
     }
-    select_limit= 1;
+    /* EXCEPT needs complete operands before the final EXISTS row is read. */
+    select_limit= in_subs->has_except() ? HA_POS_ERROR : 1;
   }
   else
     DBUG_ASSERT(FALSE);
