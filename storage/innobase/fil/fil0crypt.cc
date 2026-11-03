@@ -1500,15 +1500,17 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
   if (it == end)
     return temp_space;
 
+  space= &*it;
+
   do
   {
-    space= &*it;
     if (space->acquire_if_not_stopped())
       return space;
     if (++it == end)
       return nullptr;
+    space= &*it;
   }
-  while (it->is_stopping());
+  while (space->is_stopping());
 
   return nullptr;
 }
