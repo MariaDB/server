@@ -2787,6 +2787,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init() noexcept
 /** Make a checkpoint. */
 ATTRIBUTE_COLD void log_make_checkpoint() noexcept
 {
+  ut_ad(!recv_recovery_is_on());
   buf_flush_sync_batch(0, true);
 }
 
