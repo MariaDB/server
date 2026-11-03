@@ -1721,6 +1721,7 @@ public:
                          const LEX_CSTRING *db_name,
                          const LEX_CSTRING *table_name);
   bool optimize_constant_subqueries();
+  void drop_order_window_funcs();
   void optimize_out_order_list();
 };
 typedef class st_select_lex SELECT_LEX;
