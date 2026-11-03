@@ -2540,6 +2540,22 @@ void Item_func_round::fix_length_and_dec_double(uint decimals_to_set)
 }
 
 
+Field *Item_func_round::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
+                                            Tmp_field_src *src,
+                                            const Tmp_field_param *param)
+{
+  Field *field= Item_func_hybrid_field_type::create_tmp_field_ex(root, table,
+                                                                 src, param);
+  if (field && !truncate && type_handler() == &type_handler_double)
+  {
+    // ROUND has already applied the requested scale. Its display width must
+    // not limit the range of a DOUBLE saved in an internal temporary field.
+    static_cast<Field_double *>(field)->not_fixed= true;
+  }
+  return field;
+}
+
+
 void Item_func_round::fix_arg_decimal()
 {
   if (args[1]->const_item())
