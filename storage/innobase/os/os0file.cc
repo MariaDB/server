@@ -1587,8 +1587,7 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 					      size - current_size);
 #  endif
 		}
-	} while (err == EINTR
-		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
+	} while (err == EINTR);
 
 	switch (err) {
 	case 0:
@@ -1598,7 +1597,6 @@ bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
 				" bytes for file %s failed with error %d",
 				size, name, err);
 		/* fall through */
-	case EINTR:
 		errno = err;
 		return false;
 	case EINVAL:
