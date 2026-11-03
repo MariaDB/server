@@ -24,3 +24,67 @@ connection default;
 reap;
 drop table t1, t2, t0;
 set debug_sync='reset';
+
+--echo #
+--echo # MDEV-19817 Server crashes in Multiupdate_prelocking_strategy::handle_end
+--echo # upon UPDATE with view and foreign key
+--echo #
+--echo # Like the backoff-and-retry test above, but with a materialized
+--echo # derived table in the join, left un-rebuilt by the backoff.
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t1 for each row insert t0 values (new.b);
+
+set debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR cont';
+send update t1 join (select c, d from t2 group by c) dt on (a=dt.c-4) set b=dt.d;
+
+connect con1, localhost, root;
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='mdl_acquire_lock_wait SIGNAL cont';
+lock table t1 write, t0 write;
+let $wait_condition= select count(*) from information_schema.processlist where state = 'Waiting for table metadata lock'
+source include/wait_condition.inc;
+disconnect con1;
+connection default;
+reap;
+select a, b from t1 order by a;
+select count(*) from t0;
+drop table t1, t2, t0;
+set debug_sync='reset';
+
+--echo #
+--echo # MDEV-19817, merged-view variant: an updatable (mergeable) view,
+--echo # never itself vulnerable to the bug above (a merged view has no
+--echo # TABLE of its own), covered here to confirm the fix leaves it correct.
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create view v2 as select * from t2;
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t1 for each row insert t0 values (new.b);
+
+set debug_sync='open_tables_after_open_and_process_table SIGNAL ready WAIT_FOR cont';
+send update t1 join v2 on (a=v2.c-4) set b=v2.d;
+
+connect con1, localhost, root;
+set debug_sync='now WAIT_FOR ready';
+set debug_sync='mdl_acquire_lock_wait SIGNAL cont';
+lock table t1 write, t0 write;
+let $wait_condition= select count(*) from information_schema.processlist where state = 'Waiting for table metadata lock'
+source include/wait_condition.inc;
+disconnect con1;
+connection default;
+reap;
+select a, b from t1 order by a;
+select count(*) from t0;
+drop view v2;
+drop table t1, t2, t0;
+set debug_sync='reset';
+
+--echo # End of 10.11 tests
