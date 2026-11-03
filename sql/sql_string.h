@@ -486,7 +486,7 @@ public:
     str_length+= (uint32) (end-buff);
   }
 
-  /* Mark variable thread specific it it's not allocated already */
+  /* Mark variable thread specific if it's not allocated already */
   inline void set_thread_specific()
   {
     if (!alloced)
@@ -698,7 +698,7 @@ public:
       return (char*) "";
     /*
       Here we assume that any buffer used to initalize String has
-      an end \0 or have at least an accessable character at end.
+      an end \0 or have at least an accessible character at end.
       This is to handle the case of String("Hello",5) and
       String("hello",5) efficiently.
 
