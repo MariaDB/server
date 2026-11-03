@@ -782,13 +782,14 @@ alter table procs_priv   modify User         char(128)  binary not null default 
 alter table proc         modify definer      varchar(384) collate utf8mb3_bin not null default '';
 alter table proxies_priv modify User         char(128)  COLLATE utf8mb3_bin not null default '', modify Host char(255) binary DEFAULT '';
 alter table proxies_priv modify Proxied_user char(128)  COLLATE utf8mb3_bin not null default '';
+alter table proxies_priv modify Proxied_host char(255)  binary not null default '';
 alter table proxies_priv modify Grantor      varchar(384) COLLATE utf8mb3_bin not null default '';
 alter table servers      modify Username     char(128)                   not null default '';
 alter table procs_priv   modify Grantor      varchar(384) COLLATE utf8mb3_bin not null default '';
 alter table tables_priv  modify Grantor      varchar(384) COLLATE utf8mb3_bin not null default '';
 # MDEV-33726 longer names from MDEV-24312 extension
 alter table if exists global_priv modify Host char(255) binary DEFAULT '', modify User char(128)  binary not null default '';
-alter table if exists roles_mapping modify Host char(255) binary not null DEFAULT '', modify User char(128)  binary not null default '';
+alter table if exists roles_mapping modify Host char(255) binary not null DEFAULT '', modify User char(128)  binary not null default '', modify Role char(128) binary not null default '';
 
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above
