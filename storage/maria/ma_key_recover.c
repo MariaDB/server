@@ -995,15 +995,21 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       break;
     case KEY_OP_SHIFT:                          /* 2 */
     {
-      int length= sint2korr(header);
+      int length;
+      if (unlikely((size_t) (header_end - header) < 2))
+        goto mark_crashed;
+      length= sint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_shift: %d", length));
-      DBUG_ASSERT(page_offset != 0 && page_offset <= page_length &&
-                  page_length + length <= max_page_size);
+      if (unlikely(page_offset == 0 || page_offset > page_length ||
+                   page_length + length > max_page_size))
+        goto mark_crashed;
 
       if (length < 0)
       {
-        DBUG_ASSERT(page_offset - length <= page_length);
+        /* Shifting down: the source must still be inside the used page */
+        if (unlikely(page_offset - length > page_length))
+          goto mark_crashed;
         bmove(buff + page_offset, buff + page_offset - length,
               page_length - page_offset + length);
       }
@@ -1015,9 +1021,16 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_CHANGE:                         /* 3 */
     {
-      uint length= uint2korr(header);
+      uint length;
+      if (unlikely((size_t) (header_end - header) < 2))
+        goto mark_crashed;
+      length= uint2korr(header);
       DBUG_PRINT("redo", ("key_op_change: %u", length));
-      DBUG_ASSERT(page_offset != 0 && page_offset + length <= page_length);
+
+      /* The data has to be inside the record and fit the used page */
+      if (unlikely((size_t) (header_end - header) < (size_t) length + 2 ||
+                   page_offset == 0 || page_offset + length > page_length))
+        goto mark_crashed;
 
       memcpy(buff + page_offset, header + 2 , length);
       page_offset+= length;           /* Put offset after changed length */
@@ -1026,13 +1039,19 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_ADD_PREFIX:                     /* 4 */
     {
-      uint insert_length= uint2korr(header);
-      uint changed_length= uint2korr(header+2);
+      uint insert_length, changed_length;
+      if (unlikely((size_t) (header_end - header) < 4))
+        goto mark_crashed;
+      insert_length= uint2korr(header);
+      changed_length= uint2korr(header+2);
       DBUG_PRINT("redo", ("key_op_add_prefix: %u  %u",
                           insert_length, changed_length));
 
-      DBUG_ASSERT(insert_length <= changed_length &&
-                  page_length + insert_length <= max_page_size);
+      if (unlikely((size_t) (header_end - header) < (size_t) changed_length + 4 ||
+                   keypage_header + changed_length > max_page_size ||
+                   page_length + insert_length > max_page_size ||
+                   insert_length > changed_length))
+        goto mark_crashed;
 
       bmove_upp(buff + page_length + insert_length, buff + page_length,
                 page_length - keypage_header);
@@ -1043,10 +1062,14 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_DEL_PREFIX:                     /* 5 */
     {
-      uint length= uint2korr(header);
+      uint length;
+      if (unlikely((size_t) (header_end - header) < 2))
+        goto mark_crashed;
+      length= uint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_del_prefix: %u", length));
-      DBUG_ASSERT(length <= page_length - keypage_header);
+      if (unlikely(keypage_header + length > page_length))
+        goto mark_crashed;
 
       bmove(buff + keypage_header, buff + keypage_header +
             length, page_length - keypage_header - length);
@@ -1057,9 +1080,16 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_ADD_SUFFIX:                     /* 6 */
     {
-      uint insert_length= uint2korr(header);
+      uint insert_length;
+      if (unlikely((size_t) (header_end - header) < 2))
+        goto mark_crashed;
+      insert_length= uint2korr(header);
       DBUG_PRINT("redo", ("key_op_add_suffix: %u", insert_length));
-      DBUG_ASSERT(page_length + insert_length <= max_page_size);
+
+      if (unlikely((size_t) (header_end - header) < (size_t) insert_length + 2 ||
+                   page_length + insert_length > max_page_size))
+        goto mark_crashed;
+
       memcpy(buff + page_length, header+2, insert_length);
 
       page_length+= insert_length;
@@ -1068,10 +1098,14 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     }
     case KEY_OP_DEL_SUFFIX:                     /* 7 */
     {
-      uint del_length= uint2korr(header);
+      uint del_length;
+      if (unlikely((size_t) (header_end - header) < 2))
+        goto mark_crashed;
+      del_length= uint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_del_suffix: %u", del_length));
-      DBUG_ASSERT(page_length - del_length >= keypage_header);
+      if (unlikely(keypage_header + del_length > page_length))
+        goto mark_crashed;
       page_length-= del_length;
       break;
     }
@@ -1137,12 +1171,19 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       const uchar *log_memcpy_end;
 
       DBUG_PRINT("redo", ("key_op_multi_copy"));
+      if (unlikely((size_t) (header_end - header) < 4))
+        goto mark_crashed;
       full_length= uint2korr(header);
       header+= 2;
       log_memcpy_length= uint2korr(header);
       header+= 2;
       log_memcpy_end= header + log_memcpy_length;
-      DBUG_ASSERT(full_length <= max_page_size);
+      /* Each (to,from) pair is 2+2 bytes, so the list length must be a
+         multiple of 4, anything else means the record is malformed. */
+      if (unlikely(full_length > max_page_size ||
+                   log_memcpy_end > header_end ||
+                   (log_memcpy_length & 3)))
+        goto mark_crashed;
       while (header < log_memcpy_end)
       {
         uint to, from;
@@ -1151,7 +1192,8 @@ uint _ma_apply_redo_index(MARIA_HA *info,
         from= uint2korr(header);
         header+= 2;
         /* "from" is a place in the existing page */
-        DBUG_ASSERT(MY_MAX(from, to) < max_page_size);
+        if (unlikely(MY_MAX(from, to) + full_length > max_page_size))
+          goto mark_crashed;
         memcpy(buff + to, buff + from, full_length);
       }
       break;
@@ -1201,6 +1243,9 @@ uint _ma_apply_redo_index(MARIA_HA *info,
   push_dynamic(&info->pinned_pages, (void*) &page_link);
   DBUG_RETURN(0);
 
+mark_crashed:
+  DBUG_ASSERT(!maria_assert_if_crashed_table);
+  result= mark_crashed= 1;
 err:
   pagecache_unlock_by_link(share->pagecache, page_link.link,
                            PAGECACHE_LOCK_WRITE_UNLOCK,
