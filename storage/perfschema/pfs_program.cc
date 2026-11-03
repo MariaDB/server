@@ -178,6 +178,24 @@ static LF_PINS* get_program_hash_pins(PFS_thread *thread)
   return thread->m_program_hash_pins;
 }
 
+/**
+  Package routines differ from standalone routines only by the object type
+  in PFS_program_key. Everywhere else, e.g. in SETUP_OBJECTS and in the
+  OBJECT_TYPE columns, they are FUNCTION and PROCEDURE.
+*/
+static enum_object_type program_public_type(enum_object_type object_type)
+{
+  switch (object_type)
+  {
+  case OBJECT_TYPE_PACKAGE_FUNCTION:
+    return OBJECT_TYPE_FUNCTION;
+  case OBJECT_TYPE_PACKAGE_PROCEDURE:
+    return OBJECT_TYPE_PROCEDURE;
+  default:
+    return object_type;
+  }
+}
+
 PFS_program*
 find_or_create_program(PFS_thread *thread,
                       enum_object_type object_type,
@@ -187,6 +205,7 @@ find_or_create_program(PFS_thread *thread,
                       uint schema_name_length)
 {
   bool is_enabled, is_timed;
+  enum_object_type public_type= program_public_type(object_type);
 
   LF_PINS *pins= get_program_hash_pins(thread);
   if (unlikely(pins == NULL))
@@ -226,7 +245,7 @@ search:
     First time while inserting this record to program array we need to
     find out if it is enabled and timed.
   */
-  lookup_setup_object(thread, object_type,
+  lookup_setup_object(thread, public_type,
                       schema_name, schema_name_length,
                       object_name, object_name_length,
                       &is_enabled, &is_timed);
@@ -238,7 +257,7 @@ search:
     /* Do the assignments. */
     memcpy(pfs->m_key.m_hash_key, key.m_hash_key, key.m_key_length);
     pfs->m_key.m_key_length= key.m_key_length;
-    pfs->m_type= object_type;
+    pfs->m_type= public_type;
 
     pfs->m_object_name= pfs->m_key.m_hash_key + 1;
     pfs->m_object_name_length= object_name_length;
@@ -279,6 +298,56 @@ search:
   return NULL;
 }
 
+/**
+  Drops records of the routines of a package body.
+  They have package routine types in the key and are named
+  "<package>.<routine>" in the package schema, or just "<package>"
+  if the name is truncated to COL_OBJECT_NAME_SIZE.
+  Names are compared in the lower-cased form of PFS_program_key.
+*/
+class Proc_drop_package_routines
+  : public PFS_buffer_processor<PFS_program>
+{
+public:
+  Proc_drop_package_routines(LF_PINS *pins,
+                             const char *name, uint name_length,
+                             const char *schema, uint schema_length)
+    : m_pins(pins), m_name(name), m_name_length(name_length),
+      m_schema(schema), m_schema_length(schema_length)
+  {}
+
+  void operator()(PFS_program *pfs) override
+  {
+    uint type= (uchar) pfs->m_key.m_hash_key[0];
+    uint length= pfs->m_object_name_length;
+    if ((type != OBJECT_TYPE_PACKAGE_PROCEDURE &&
+         type != OBJECT_TYPE_PACKAGE_FUNCTION) ||
+        length < m_name_length ||
+        (length > m_name_length ? pfs->m_object_name[m_name_length] != '.' :
+                                  length != COL_OBJECT_NAME_SIZE) ||
+        memcmp(pfs->m_object_name, m_name, m_name_length) ||
+        uint(pfs->m_schema_name_length) != m_schema_length ||
+        memcmp(pfs->m_schema_name, m_schema, m_schema_length))
+      return;
+
+    /*
+      Not in the hash yet means find_or_create_program() still owns it.
+      Concurrent creation of the same key is not possible: routines of
+      the package are loaded under MDL of the package body.
+    */
+    if (!lf_hash_delete(&program_hash, m_pins,
+                        pfs->m_key.m_hash_key, pfs->m_key.m_key_length))
+      global_program_container.deallocate(pfs);
+  }
+
+private:
+  LF_PINS *m_pins;
+  const char *m_name;
+  uint m_name_length;
+  const char *m_schema;
+  uint m_schema_length;
+};
+
 void drop_program(PFS_thread *thread,
                  enum_object_type object_type,
                  const char *object_name,
@@ -312,7 +381,15 @@ void drop_program(PFS_thread *thread,
   }
 
   lf_hash_search_unpin(pins);
-  return;
+
+  if (object_type == OBJECT_TYPE_PACKAGE_BODY)
+  {
+    const char *name= key.m_hash_key + 1;
+    Proc_drop_package_routines proc(pins, name, object_name_length,
+                                    name + object_name_length + 1,
+                                    schema_name_length);
+    global_program_container.apply(proc);
+  }
 }
 
 void PFS_program::refresh_setup_object_flags(PFS_thread *thread)

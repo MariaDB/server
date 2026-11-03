@@ -187,3 +187,138 @@ SET default_storage_engine = performance_schema;
 CREATE TEMPORARY TABLE t1 (t int);
 ERROR HY000: Table storage engine 'PERFORMANCE_SCHEMA' does not support the create option 'TEMPORARY'
 SET @@default_storage_engine = @default_storage_engine_old;
+#
+# MDEV-34817 Performance schema is not cleared of removed package routines
+#
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode=ORACLE;
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+CREATE PACKAGE db1.pkg1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+$$
+CREATE PACKAGE db2.pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+CREATE PROCEDURE db1.pkg1x AS BEGIN NULL; END;
+$$
+CALL db1.pkg1.p1;
+SELECT db1.pkg1.f1();
+db1.pkg1.f1()
+1
+CALL db2.pkg1.p1;
+CALL db1.pkg1x;
+# Routines executed in another connection must be removed as well
+connect con1,localhost,root;
+CALL db1.pkg1.p1;
+disconnect con1;
+connection default;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1.f1	1
+db1	pkg1.p1	2
+db1	pkg1x	1
+db2	pkg1.p1	1
+DROP PACKAGE BODY db1.PKG1;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1x	1
+db2	pkg1.p1	1
+# Statistics of the re-created routines start from zero
+CREATE PACKAGE BODY db1.pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+$$
+CALL db1.pkg1.p1;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1.f1	0
+db1	pkg1.p1	1
+db1	pkg1x	1
+db2	pkg1.p1	1
+# CREATE OR REPLACE PACKAGE BODY
+CREATE OR REPLACE PACKAGE BODY db1.pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+FUNCTION f1 RETURN INT AS BEGIN RETURN 2; END;
+END;
+$$
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1x	1
+db2	pkg1.p1	1
+# DROP PACKAGE
+CALL db1.pkg1.p1;
+DROP PACKAGE db1.pkg1;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1x	1
+db2	pkg1.p1	1
+# DROP DATABASE
+CREATE PACKAGE db1.pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+CALL db1.pkg1.p1;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db1	pkg1.p1	1
+db1	pkg1x	1
+db2	pkg1.p1	1
+DROP DATABASE db1;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+db2	pkg1.p1	1
+DROP DATABASE db2;
+SELECT object_schema, object_name, count_star
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+object_schema IN ('db1','db2')
+ORDER BY object_schema, object_name;
+object_schema	object_name	count_star
+SET sql_mode= @save_sql_mode;
+# End of 10.11 tests
