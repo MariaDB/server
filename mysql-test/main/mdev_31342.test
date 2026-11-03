@@ -484,3 +484,29 @@ reap;
 connection default;
 disconnect victim41165;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41171: @@sql_select_limit, FOUND_ROWS(), ROWNUM() and
+--echo # LIMIT ROWS EXAMINED on the fast path
+--echo #
+CREATE TABLE t1(i INT);
+CREATE TABLE t2(i INT);
+CREATE TABLE t3(i INT);
+SET @@session.sql_select_limit=2;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SET @@session.sql_select_limit=DEFAULT;
+# FOUND_ROWS() depends on the previous statement, which these protocols change.
+--disable_ps_protocol
+--disable_view_protocol
+SELECT 1;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SELECT FOUND_ROWS();
+--enable_view_protocol
+--enable_ps_protocol
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND ROWNUM()+0=1;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND ROWNUM()+0<=2;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' LIMIT ROWS EXAMINED 2;
+DROP TABLE t1, t2, t3;

@@ -4321,6 +4321,18 @@ static bool is_simple_is_query(THD *thd)
     DBUG_PRINT("info", ("has SQL_CALC_FOUND_ROWS, using fallback path"));
     return false;
   }
+  /* ROWNUM() counts rows of the join, not of the streamed result. */
+  if (sel->with_rownum)
+  {
+    DBUG_PRINT("info", ("has ROWNUM(), using fallback path"));
+    return false;
+  }
+  /* LIMIT ROWS EXAMINED is enforced by the join, not by the I_S scan. */
+  if (thd->lex->limit_rows_examined)
+  {
+    DBUG_PRINT("info", ("has LIMIT ROWS EXAMINED, using fallback path"));
+    return false;
+  }
   /* The statement timer can interrupt the scan, use the regular path. */
   if (thd->variables.max_statement_time)
   {
