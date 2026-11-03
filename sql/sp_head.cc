@@ -2490,6 +2490,9 @@ sp_head::bind_input_param(THD *thd,
       DBUG_RETURN(TRUE);
     }
 
+    if (srp->check_settable(thd))
+      DBUG_RETURN(TRUE);
+
     if (is_function)
     {
       /*
