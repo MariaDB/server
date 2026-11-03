@@ -918,10 +918,20 @@ void free_key_master_info(void *mi_)
    1 error
 */
 
-bool check_master_connection_name(LEX_CSTRING *name)
+bool check_master_connection_name(const LEX_CSTRING *name)
 {
   if (name->length >= MAX_CONNECTION_NAME)
     return 1;
+  /*
+    Limitation of `multi-master.info`'s format:
+    Cannot have certain characterss in the name
+  */
+  for (size_t i= 0; i < name->length; ++i)
+    switch (name->str[i]) {
+    case '\0':
+    case '\n':
+      return 1;
+    }
   return 0;
 }
  
