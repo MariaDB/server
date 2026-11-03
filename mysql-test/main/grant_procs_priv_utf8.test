@@ -1,0 +1,29 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # GRANT on a routine stored the user name in mysql.procs_priv re-encoded
+--echo # from latin1, so a non-ASCII account lost the grant at the next
+--echo # FLUSH PRIVILEGES and DROP of the routine left the row behind.
+--echo #
+set names utf8mb3;
+create user 'юзер'@'localhost';
+create function f() returns int deterministic return 1;
+create procedure p() select 1;
+grant execute on function test.f to 'юзер'@'localhost';
+grant execute on procedure test.p to 'юзер'@'localhost';
+grant select on test.* to 'юзер'@'localhost';
+--echo # The stored bytes must equal the bytes of the name, as in mysql.db
+select hex(User) = hex('юзер') as ok, Routine_name from mysql.procs_priv where User like 'юзер' order by Routine_name;
+select hex(User) = hex('юзер') as ok from mysql.db where User like 'юзер';
+select hex(Grantor) = hex('root@localhost') as grantor_ok from mysql.procs_priv where User like 'юзер' limit 1;
+--echo # The routine grants must survive a reload of the privilege tables
+flush privileges;
+show grants for 'юзер'@'localhost';
+--echo # DROP of the routine must remove its row
+drop function f;
+select count(*) from mysql.procs_priv where User like 'юзер';
+revoke all privileges, grant option from 'юзер'@'localhost';
+select count(*) from mysql.procs_priv where User like 'юзер';
+drop procedure p;
+drop user 'юзер'@'localhost';
+set names default;
