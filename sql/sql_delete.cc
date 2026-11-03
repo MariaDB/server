@@ -33,6 +33,7 @@
 #include "filesort.h"             // filesort
 #include "sql_handler.h"          // mysql_ha_rm_tables
 #include "sql_select.h"
+#include "opt_plan_refinement.h"
 #include "sp_head.h"
 #include "sql_trigger.h"
 #include "sql_statistics.h"
@@ -735,6 +736,14 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
       if (!query_plan.using_filesort)
         query_plan.scanned_rows= scanned_limit;
     }
+  }
+
+  /* Done after range analysis, which depends on the order of conjuncts */
+  if (select && select->cond)
+  {
+    move_expensive_args_last(thd, select->cond);
+    if (thd->is_error())
+      goto got_error;
   }
 
   query_plan.select= select;

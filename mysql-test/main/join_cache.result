@@ -6085,7 +6085,7 @@ count(*)
 1
 select @counter;
 @counter
-2
+1
 drop table t1,t2,t3;
 set expensive_subquery_limit=@save_expensive_subquery_limit;
 # 
