@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --echo # MDEV-31342: Test I_S fast path optimization
 #
 # On Windows (lower_case_table_names=1) EXPLAIN may print `tables`
@@ -436,3 +437,50 @@ WHERE TABLE_SCHEMA='mdev41241' AND mdev41241.f_ct2(TABLE_CATALOG)=1;
 DROP FUNCTION mdev41241.f_ct2;
 DROP TEMPORARY TABLE IF EXISTS mdev41241.ttx;
 DROP DATABASE mdev41241;
+
+--echo #
+--echo # MDEV-41165: max_statement_time must not use the fast path
+--echo #
+SET max_statement_time=100;
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mysql';
+SET max_statement_time=DEFAULT;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=0.5 FOR SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND SLEEP(1)=0;
+
+--echo #
+--echo # MDEV-41165: KILL QUERY while WHERE is evaluated on the fast path
+--echo #
+CREATE TABLE t1 (a INT);
+let $id= `SELECT CONNECTION_ID()`;
+connect (con41165,localhost,root,,);
+connection default;
+send SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection con41165;
+let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state='User sleep';
+--source include/wait_condition.inc
+evalp KILL QUERY $id;
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con41165;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41165: KILL CONNECTION while WHERE is evaluated on the fast path
+--echo #
+CREATE TABLE t1 (a INT);
+connect (victim41165,localhost,root,,);
+let $id= `SELECT CONNECTION_ID()`;
+send SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection default;
+let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state='User sleep';
+--source include/wait_condition.inc
+evalp KILL CONNECTION $id;
+connection victim41165;
+--error 2013
+reap;
+connection default;
+disconnect victim41165;
+DROP TABLE t1;
