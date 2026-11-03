@@ -96,7 +96,7 @@ sanity_checks() {
   # and this should fall back to a sane default value
   if [ -z "$datadir" ]
   then
-    datadir="/var/lib/mysql"
+    datadir="/var/lib/mariadb"
   fi
 
   # Verify the datadir location exists
@@ -170,8 +170,15 @@ case "${1:-''}" in
    log_progress_msg "already running"
    log_end_msg 0
   else
+    # Drop temporary symlink to /run/mysqld from mariadb-common when
+    # transitioning from /run/mysqld to /run/mariadbd.
+    if [ -L /run/mariadbd ] && [ ! -d /run/mariadbd ]
+    then
+      rm -f /run/mariadbd
+    fi
+
     # Could be removed during boot
-    test -e /run/mysqld || install -m 755 -o mysql -g root -d /run/mysqld
+    test -e /run/mariadbd || install -m 755 -o mysql -g root -d /run/mariadbd
 
     # Start MariaDB!
     /usr/bin/mariadbd-safe "${@:2}" 2>&1 >/dev/null | $ERR_LOGGER &
