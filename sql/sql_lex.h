@@ -1059,6 +1059,7 @@ public:
   unit_common_op common_op();
 
   bool explainable() const;
+  bool is_derived_eliminated() const;
 
   void reset_distinct();
   void fix_distinct();
@@ -1077,7 +1078,6 @@ public:
 
 private:
   bool exec_inner();
-  bool is_derived_eliminated() const;
   bool set_direct_union_result(select_result *sel_result);
   bool prepare_pushdown(bool use_direct_union_result,
                         select_result *sel_result);
