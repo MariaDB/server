@@ -236,7 +236,7 @@ static int get_index_max_value(TABLE *table, TABLE_REF *ref, uint range_fl,
 
 
 /**
-  Substitutes constants for some COUNT(), MIN() and MAX() functions.
+  Substitutes constants for some COUNT, ANY_VALUE, MIN and MAX functions.
 
   @param thd                   thread handler
   @param tables                list of leaves of join table tree
@@ -390,6 +390,7 @@ int opt_sum_query(THD *thd,
         break;
       case Item_sum::MIN_FUNC:
       case Item_sum::MAX_FUNC:
+      case Item_sum::ANY_VALUE_FUNC:
       {
         /*
           Do not attempt MIN/MAX constant replacement if a FILTER clause
