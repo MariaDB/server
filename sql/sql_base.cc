@@ -4974,6 +4974,19 @@ error:
   {
     (*table_to_open)->table= NULL;
   }
+  /*
+    The prelocking set that was being built may be incomplete. Throw it
+    away, so that the next execution of the statement (e.g. in a stored
+    procedure) builds it again instead of taking it as complete.
+  */
+  if (unlikely(error) && !has_prelocking_list &&
+      thd->lex->requires_prelocking())
+  {
+    if (thd->lex->first_not_own_table() == *start)
+      *start= NULL;
+    thd->lex->chop_off_not_own_tables();
+    sp_remove_not_own_routines(thd->lex);
+  }
   DBUG_PRINT("open_tables", ("returning: %d", (int) error));
   DBUG_RETURN(error);
 }
@@ -5161,11 +5174,12 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
+  DBUG_EXECUTE_IF("fk_list_fail", my_error(ER_OUT_OF_RESOURCES, MYF(0)););
   if (unlikely(thd->is_error()))
   {
     if (arena)
       thd->restore_active_arena(arena, &backup);
-    return TRUE;
+    DBUG_RETURN(TRUE);
   }
 
   *need_prelocking= TRUE;
@@ -5186,7 +5200,14 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
           lock_type))
       continue;
 
+    DBUG_EXECUTE_IF("fk_prelocking_alloc_fail",
+                    DBUG_SET("+d,simulate_out_of_memory"););
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    if (!tl)
+    {
+      error= TRUE;
+      break;
+    }
     tl->init_one_table_for_prelocking(fk->foreign_db,
         fk->foreign_table,
         NULL, lock_type,
@@ -5274,20 +5295,20 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
       if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
 
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->trg_event_map))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
   else if (table_list->slave_fk_event_map)
   {
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->slave_fk_event_map))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
 
   /* Open any tables used by DEFAULT (like sequence tables) */

@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-41434 Missing DBUG_RETURN on error exits of
+--echo # DML_prelocking_strategy::handle_table() and prepare_fk_prelocking_list()
+--echo #
+--echo # A replica that fails to read the foreign keys that reference a
+--echo # table stops with an error when it applies a row event for that
+--echo # table, and applies the event once the failure is gone. This is
+--echo # checked both with and without slave_run_triggers_for_rbr, which
+--echo # take different paths to the foreign key list.
+--echo #
+connection slave;
+call mtr.add_suppression("Slave( SQL)?: .*Out of memory");
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET @save_run_triggers= @@GLOBAL.slave_run_triggers_for_rbr;
+
+connection master;
+CREATE TABLE p (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE c1 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+                 ON DELETE CASCADE) ENGINE=InnoDB;
+CREATE TABLE c2 (a INT, FOREIGN KEY (a) REFERENCES p(a)
+                 ON DELETE SET NULL) ENGINE=InnoDB;
+INSERT INTO p VALUES (1), (2), (3), (4);
+INSERT INTO c1 VALUES (1), (2), (3);
+INSERT INTO c2 VALUES (1), (2), (3);
+--sync_slave_with_master
+
+--let $a= 1
+while ($a <= 2)
+{
+  --let $run_triggers= `SELECT ELT($a, 'NO', 'YES')`
+  --echo # slave_run_triggers_for_rbr= $run_triggers
+  --eval SET GLOBAL slave_run_triggers_for_rbr= $run_triggers
+  SET GLOBAL debug_dbug= '+d,fk_list_fail';
+
+  connection master;
+  --eval DELETE FROM p WHERE a = $a
+
+  connection slave;
+  --let $slave_sql_errno= 1041
+  --source include/wait_for_slave_sql_error.inc
+  SELECT * FROM p ORDER BY a;
+  SET GLOBAL debug_dbug= @save_dbug;
+  --source include/start_slave.inc
+
+  connection master;
+  --sync_slave_with_master
+  SELECT * FROM p ORDER BY a;
+  SELECT * FROM c1 ORDER BY a;
+  SELECT * FROM c2 ORDER BY a;
+  --inc $a
+}
+
+SET GLOBAL slave_run_triggers_for_rbr= @save_run_triggers;
+
+connection master;
+DROP TABLE c2, c1, p;
+
+--source include/rpl_end.inc
