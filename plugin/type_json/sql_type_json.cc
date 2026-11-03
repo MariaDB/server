@@ -257,17 +257,10 @@ enum_conv_type Field_json::rpl_conv_type_from(const Conv_source &source,
                                               const Relay_log_info *rli,
                                               const Conv_param &param) const
 {
-  const Type_handler *th= source.type_handler();
-  if (th == &type_handler_tiny_blob || th == &type_handler_medium_blob ||
-      th == &type_handler_long_blob || th == &type_handler_blob ||
-      th == &type_handler_blob_compressed || th == &type_handler_string ||
-      th == &type_handler_var_string || th == &type_handler_varchar ||
-      th == &type_handler_varchar_compressed)
-  {
-    return CONV_TYPE_PRECISE;
-  }
+  if (source.type_handler() == &type_handler_long_blob)
+    return rpl_conv_type_from_same_data_type(source.metadata(), rli, param);
 
-  return CONV_TYPE_IMPOSSIBLE;
+  return Field_blob::rpl_conv_type_from(source, rli, param);
 }
 
 /***************************************************/

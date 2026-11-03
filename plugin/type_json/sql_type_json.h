@@ -111,6 +111,18 @@ public:
   {
     return &type_handler_json;
   }
+  Copy_func *get_copy_func(const Field *from) const override
+  {
+    // Other blob types may have the same layout but still need JSON validation.
+    if (from->type_handler() != type_handler())
+      return do_conv_blob;
+    return Field_blob::get_copy_func(from);
+  }
+  bool memcpy_field_possible(const Field *from) const override
+  {
+    return from->type_handler() == type_handler() &&
+           Field_blob::memcpy_field_possible(from);
+  }
   using Field_blob::store;
   int store(const char *to, size_t length, CHARSET_INFO *charset) override;
   void sql_type(String &str) const override;
