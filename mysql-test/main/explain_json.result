@@ -445,7 +445,7 @@ EXPLAIN
           "rows": 10,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "t0.a > (subquery#2) or t0.a < 3"
+          "attached_condition": "t0.a < 3 or t0.a > (subquery#2)"
         }
       }
     ],
