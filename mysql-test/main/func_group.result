@@ -2589,3 +2589,215 @@ def					AVG(1)	253	7	7	Y	0	39	8
 1	1	1.00000
 one	max	avg
 # End of 10.11 tests
+#
+# MDEV-40258: Filter a grouped NULL variance
+#
+CREATE TABLE a (d INT,f DOUBLE);
+INSERT INTO a VALUES (1,1),(2,NULL);
+CREATE VIEW v0 AS SELECT d AS g,VARIANCE(f) AS h,COUNT(DISTINCT d) AS cd FROM a GROUP BY 1;
+SELECT h FROM v0 WHERE h IS NULL;
+h
+NULL
+DROP VIEW v0;
+DROP TABLE a;
+#
+# Start of 11.4 tests
+#
+# MDEV-40251 Wrong result with STDDEV aggregate through VIEW/CTE: NULL returned instead of 0.0000
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET @save_sql_mode=@@sql_mode;
+SET @save_default_storage_engine=@@default_storage_engine;
+SET @save_character_set_client=@@character_set_client;
+SET @save_character_set_results=@@character_set_results;
+SET @save_character_set_connection=@@character_set_connection;
+SET @save_collation_connection=@@collation_connection;
+CREATE DATABASE bug_40251 CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE bug_40251;
+SET sql_mode=DEFAULT;
+SET optimizer_switch=DEFAULT;
+SET default_storage_engine=InnoDB;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE a (b TINYINT);
+INSERT INTO a VALUES (5);
+SELECT STDDEV(b) AS c FROM a HAVING c IS NOT NULL;
+c
+0.0000
+PREPARE regression_stmt FROM 'SELECT STDDEV(b) AS c FROM a HAVING c IS NOT NULL;';
+EXECUTE regression_stmt;
+c
+0.0000
+EXECUTE regression_stmt;
+c
+0.0000
+DEALLOCATE PREPARE regression_stmt;
+SELECT STDDEV(b) AS c FROM a;
+c
+0.0000
+SELECT STDDEV_POP(b) AS c FROM a HAVING c IS NOT NULL;
+c
+0.0000
+SELECT STDDEV(b) AS c FROM a HAVING NOT (NOT (c IS NOT NULL));
+c
+0.0000
+SELECT c FROM (SELECT STDDEV(b) AS c FROM a) AS aggregate_result WHERE c IS NOT NULL;
+c
+0.0000
+SELECT STDDEV(b) AS c FROM a HAVING CASE WHEN c IS NOT NULL THEN c IS NOT NULL ELSE c IS NOT NULL END;
+c
+0.0000
+SELECT c FROM (SELECT STDDEV(b) AS c FROM a) AS d WHERE c IS NOT NULL;
+c
+0.0000
+USE test;
+DROP DATABASE bug_40251;
+CREATE DATABASE bug_40251 CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE bug_40251;
+SET sql_mode=DEFAULT;
+SET optimizer_switch=DEFAULT;
+SET default_storage_engine=InnoDB;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE a (c0 TEXT);
+INSERT INTO a VALUES ('');
+CREATE TEMPORARY TABLE temp_t AS SELECT 1 AS wf_0,ROW_NUMBER() OVER () AS d FROM a;
+SELECT f FROM (SELECT d DIV 10 AS g,VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE f IS NOT NULL AND g=0;
+f
+0.0000
+PREPARE regression_stmt FROM 'SELECT f FROM (SELECT d DIV 10 AS g,VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE f IS NOT NULL AND g=0;';
+EXECUTE regression_stmt;
+f
+0.0000
+EXECUTE regression_stmt;
+f
+0.0000
+DEALLOCATE PREPARE regression_stmt;
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE g = 0;
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE g = 0 AND f IS NOT NULL;
+f
+0.0000
+WITH x AS (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) SELECT f FROM x WHERE f IS NOT NULL AND g = 0;
+f
+0.0000
+SELECT f FROM (SELECT f, g, (f IS NOT NULL AND g = 0) AS passes_filter FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x) AS y WHERE passes_filter;
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g HAVING f IS NOT NULL AND g = 0) AS x;
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE NOT (NOT (f IS NOT NULL AND g = 0));
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE NOT (f IS NULL) AND g = 0;
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x WHERE NOT NOT (f IS NOT NULL AND g = 0);
+f
+0.0000
+SELECT f FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g HAVING VAR_POP(wf_0) IS NOT NULL AND g = 0) AS x;
+f
+0.0000
+SELECT f FROM (SELECT g, f, (f IS NOT NULL AND g = 0) AS keep_row FROM (SELECT d DIV 10 AS g, VAR_POP(wf_0) AS f FROM temp_t GROUP BY g) AS x) AS y WHERE keep_row;
+f
+0.0000
+USE test;
+DROP DATABASE bug_40251;
+CREATE DATABASE bug_40251 CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE bug_40251;
+SET sql_mode=DEFAULT;
+SET optimizer_switch=DEFAULT;
+SET default_storage_engine=InnoDB;
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+CREATE TABLE t (g INT,x DOUBLE);
+INSERT INTO t VALUES (1,NULL),(2,4),(3,2),(3,4),(4,NULL),(4,6);
+SELECT g,VAR_POP(x),VAR_SAMP(x) FROM t GROUP BY g ORDER BY g;
+g	VAR_POP(x)	VAR_SAMP(x)
+1	NULL	NULL
+2	0	NULL
+3	1	2
+4	0	NULL
+PREPARE regression_stmt FROM 'SELECT g,VAR_POP(x),VAR_SAMP(x) FROM t GROUP BY g ORDER BY g;';
+EXECUTE regression_stmt;
+g	VAR_POP(x)	VAR_SAMP(x)
+1	NULL	NULL
+2	0	NULL
+3	1	2
+4	0	NULL
+EXECUTE regression_stmt;
+g	VAR_POP(x)	VAR_SAMP(x)
+1	NULL	NULL
+2	0	NULL
+3	1	2
+4	0	NULL
+DEALLOCATE PREPARE regression_stmt;
+SELECT g,VAR_POP(x) IS NULL,VAR_SAMP(x) IS NULL,STDDEV_POP(x) IS NULL,STDDEV_SAMP(x) IS NULL FROM t GROUP BY g ORDER BY g;
+g	VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1	1
+2	0	1	0	1
+3	0	0	0	0
+4	0	1	0	1
+PREPARE regression_stmt FROM 'SELECT g,VAR_POP(x) IS NULL,VAR_SAMP(x) IS NULL,STDDEV_POP(x) IS NULL,STDDEV_SAMP(x) IS NULL FROM t GROUP BY g ORDER BY g;';
+EXECUTE regression_stmt;
+g	VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1	1
+2	0	1	0	1
+3	0	0	0	0
+4	0	1	0	1
+EXECUTE regression_stmt;
+g	VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1	1
+2	0	1	0	1
+3	0	0	0	0
+4	0	1	0	1
+DEALLOCATE PREPARE regression_stmt;
+SELECT VAR_POP(x) IS NULL,VAR_SAMP(x) IS NULL,STDDEV_POP(x) IS NULL,STDDEV_SAMP(x) IS NULL FROM t WHERE 0;
+VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1
+PREPARE regression_stmt FROM 'SELECT VAR_POP(x) IS NULL,VAR_SAMP(x) IS NULL,STDDEV_POP(x) IS NULL,STDDEV_SAMP(x) IS NULL FROM t WHERE 0;';
+EXECUTE regression_stmt;
+VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1
+EXECUTE regression_stmt;
+VAR_POP(x) IS NULL	VAR_SAMP(x) IS NULL	STDDEV_POP(x) IS NULL	STDDEV_SAMP(x) IS NULL
+1	1	1	1
+DEALLOCATE PREPARE regression_stmt;
+SELECT g FROM (SELECT g,VAR_POP(x) AS v FROM t GROUP BY g) AS d WHERE v IS NULL;
+g
+1
+PREPARE regression_stmt FROM 'SELECT g FROM (SELECT g,VAR_POP(x) AS v FROM t GROUP BY g) AS d WHERE v IS NULL;';
+EXECUTE regression_stmt;
+g
+1
+EXECUTE regression_stmt;
+g
+1
+DEALLOCATE PREPARE regression_stmt;
+SELECT g FROM (SELECT g,VAR_SAMP(x) AS v FROM t GROUP BY g) AS d WHERE v IS NULL;
+g
+1
+2
+4
+PREPARE regression_stmt FROM 'SELECT g FROM (SELECT g,VAR_SAMP(x) AS v FROM t GROUP BY g) AS d WHERE v IS NULL;';
+EXECUTE regression_stmt;
+g
+1
+2
+4
+EXECUTE regression_stmt;
+g
+1
+2
+4
+DEALLOCATE PREPARE regression_stmt;
+USE test;
+DROP DATABASE bug_40251;
+SET optimizer_switch=@save_optimizer_switch;
+SET sql_mode=@save_sql_mode;
+SET default_storage_engine=@save_default_storage_engine;
+SET character_set_client=@save_character_set_client;
+SET character_set_results=@save_character_set_results;
+SET character_set_connection=@save_character_set_connection;
+SET collation_connection=@save_collation_connection;
+#
+# End of 11.4 tests
