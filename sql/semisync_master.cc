@@ -586,6 +586,16 @@ void Repl_semi_sync_master::remove_slave()
     DBUG_ASSERT(m_active_tranxs);
     m_active_tranxs->clear_active_tranx_nodes(NULL, 0,
                                               signal_waiting_transaction);
+    /*
+      A transaction that registered its entry before this point but has not
+      yet re-checked its wait condition in commit_trx() will find its entry
+      gone. Bump rpl_semi_sync_master_off_times, mirroring switch_off(), so
+      that such a waiter recognizes this as an off/on-style transition
+      (e.g. via a slave reconnecting before it re-checks) instead of hitting
+      the DBUG_ASSERT in commit_trx() that assumes only switch_off() can
+      remove an entry out from under a waiter.
+    */
+    rpl_semi_sync_master_off_times++;
   }
   unlock();
 }

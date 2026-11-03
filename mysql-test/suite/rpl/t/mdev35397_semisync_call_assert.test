@@ -1,0 +1,61 @@
+#
+# MDEV-35397: Assertion `rpl_semi_sync_master_off_times >
+# thd->expected_semi_sync_offs' failed in Repl_semi_sync_master::commit_trx()
+# during a CALL statement.
+#
+# Literal repro from the ticket, run under a real master-slave setup (rather
+# than a standalone server) so that Rpl_semi_sync_master_status stays ON via
+# real, fast ACKs instead of self-healing via the wait timeout -- a no-slave
+# repro doesn't hit the race because the timeout's own switch_off() masks it.
+#
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc
+
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--connection master
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 1;
+
+--connection slave
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 1;
+--source include/start_slave.inc
+
+--connection master
+--let $status_var= Rpl_semi_sync_master_status
+--let $status_var_value= ON
+--source include/wait_for_status_var.inc
+
+CREATE TABLE t (c INT);
+--sync_slave_with_master
+--connection master
+
+FLUSH STATUS;
+CREATE OR REPLACE TABLE t (c INT);
+--sync_slave_with_master
+--connection master
+
+START TRANSACTION;
+INSERT INTO t (c) VALUES (1);
+SET GLOBAL rpl_semi_sync_master_enabled=0;
+SET GLOBAL rpl_semi_sync_master_enabled=1;
+--error ER_SP_DOES_NOT_EXIST
+CALL foo();
+
+# This DROP is what actually flushes the pending INSERT's transaction
+# (implicit commit) -- this is where the ticket says the assertion fires.
+# The server must still be fully alive and responsive here.
+DROP TABLE t;
+SELECT 1;
+
+--sync_slave_with_master
+--connection master
+
+--echo # Cleanup
+SET @@GLOBAL.rpl_semi_sync_master_enabled= 0;
+--connection slave
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= 0;
+
+--connection master
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
