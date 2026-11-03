@@ -4422,6 +4422,7 @@ bool schema_table_store_record(THD *thd, TABLE *table)
         (e.g. TABLE_CATALOG) and is built before HAVING pushdown in some
         cases. full_cond is the complete condition and must be checked.
       */
+      thd->inc_examined_row_count(1);
       if (plan->full_cond && !plan->full_cond->val_bool())
         return 0;
       /* Honour LIMIT / @@sql_select_limit; do not count filtered rows. */
