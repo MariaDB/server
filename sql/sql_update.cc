@@ -1305,7 +1305,12 @@ update_end:
     }
   }
   if (!binlogged)
-    table->mark_as_not_binlogged();
+  {
+    if (!thd->transaction->stmt.modified_non_trans_table && !updated)
+      thd->tmp_table_binlog_handled= 1;
+    else
+      table->mark_as_not_binlogged();
+  }
 
   DBUG_ASSERT(transactional_table || !updated || thd->transaction->stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
@@ -2564,9 +2569,17 @@ void multi_update::abort_result_set()
 {
   TABLE_LIST *cur_table;
 
-  /* the error was handled or nothing deleted and no side effects return */
-  if (unlikely(error_handled ||
-               (!thd->transaction->stmt.modified_non_trans_table && !updated)))
+  /*
+    Nothing was updated and there are no side effects: no temporary table
+    was changed, so they all stay up to date in the binary log.
+  */
+  if (unlikely(!thd->transaction->stmt.modified_non_trans_table && !updated))
+  {
+    thd->tmp_table_binlog_handled= 1;
+    return;
+  }
+  /* The error was already handled */
+  if (unlikely(error_handled))
     goto end;
 
   /****************************************************************************
