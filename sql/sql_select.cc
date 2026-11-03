@@ -865,10 +865,11 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
 
   /*
     Remove GROUP BY if there are no aggregate functions and no HAVING
-    clause
+    clause and no GROUPING() functions
   */
   if (subq_select_lex->group_list.elements &&
-      !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
+      !subq_select_lex->with_sum_func && !subq_select_lex->join->having &&
+      subq_select_lex->grouping_func_list.is_empty())
   {
     /*
       Temporary workaround for MDEV-28621: Do not remove GROUP BY expression
@@ -1959,6 +1960,8 @@ bool JOIN::prepare_stage2()
   }
 #endif
   if (select_lex->olap == ROLLUP_TYPE && rollup_init())
+    goto err;
+  if (rollup_setup_grouping_funcs())
     goto err;
   if (alloc_func_list() ||
       make_sum_func_list(all_fields, fields_list, false))
@@ -5081,6 +5084,12 @@ int JOIN::exec_inner()
 
   if (zero_result_cause)
   {
+    /*
+      If zero results, WITH ROLLUP will still return a summary row for the
+      empty grouping set. Rollup level is set to 0 so that GROUPING() behaves
+      correctly.
+    */
+    rollup_set_level(0);
     if (select_lex->have_window_funcs() && send_row_on_empty_set())
     {
       /*
@@ -18272,7 +18281,9 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> *tables,
   {
     bool send_error= FALSE;
     if (send_row)
+    {
       send_error= result->send_data_with_check(*fields, join->unit, 0) > 0;
+    }
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
@@ -22610,6 +22621,16 @@ TABLE *Create_tmp_table::start(THD *thd,
 }
 
 
+/**
+  Return TRUE if 'item' is a GROUPING() function.
+*/
+static inline bool is_grouping_func(const Item *item)
+{
+  return item->type() == Item::FUNC_ITEM &&
+         ((Item_func *) item)->functype() == Item_func::GROUPING_FUNC;
+}
+
+
 bool Create_tmp_table::add_fields(THD *thd,
                                   TABLE *table,
                                   TMP_TABLE_PARAM *param,
@@ -22665,7 +22686,8 @@ bool Create_tmp_table::add_fields(THD *thd,
     }
     if (not_all_columns)
     {
-      if (item->with_sum_func() && type != Item::SUM_FUNC_ITEM)
+      if (item->with_sum_func() && type != Item::SUM_FUNC_ITEM &&
+          !is_grouping_func(item))
       {
         if (item->used_tables() & OUTER_REF_TABLE_BIT)
           item->update_used_tables();
@@ -25081,6 +25103,7 @@ do_select(JOIN *join, Procedure *procedure)
     else if (join->send_row_on_empty_set())
     {
       table_map cleared_tables= (table_map) 0;
+      join->rollup_set_level(0);
       if (end_select == end_send_group)
       {
         /*
@@ -27199,9 +27222,13 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	  {
 	    if (join->do_send_rows)
             {
+              if (empty_set_send_rollup_total)
+                join->rollup_set_level(0);
 	      error= join->result->send_data_with_check(*fields,
                                                         join->unit,
                                                         join->send_records);
+              if (empty_set_send_rollup_total)
+                join->rollup_set_level(join->send_group_parts);
               if (unlikely(error < 0))
               {
                 /* Duplicate row, don't count */
@@ -27615,7 +27642,11 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
                        join->sum_funcs_end[send_group_parts]);
 	if (!join_tab->having || join_tab->having->val_bool())
 	{
+          if (empty_set_send_rollup_total)
+            join->rollup_set_level(0);
           int error= table->file->ha_write_tmp_row(table->record[0]);
+          if (empty_set_send_rollup_total)
+            join->rollup_set_level(join->send_group_parts);
           bool is_duplicate;
           if (unlikely(error) &&
               create_internal_tmp_table_from_heap(join->thd, table,
@@ -31054,8 +31085,9 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
       temporary table.
     */
     enum Item::Type item_type= item->type();
-    if ((item->with_sum_func() && item_type != Item::SUM_FUNC_ITEM) ||
-       item->with_window_func())
+    if (((item->with_sum_func() && item_type != Item::SUM_FUNC_ITEM &&
+          !is_grouping_func(item)) ||
+         item->with_window_func()))
       item_field= item;
     else if (item_type == Item::FIELD_ITEM ||
              item_type == Item::DEFAULT_VALUE_ITEM)
@@ -31549,7 +31581,8 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
          arg != arg_end; arg++)
     {
       Item *item= *arg;
-      if (item->type() == Item::FIELD_ITEM || item->type() == Item::REF_ITEM)
+      bool matched= false;
+      if (item->type() == Item::FIELD_ITEM || item->type() == Item::REF_ITEM || item->type() == Item::FUNC_ITEM)
       {
         ORDER *group_tmp;
         for (group_tmp= group_list; group_tmp; group_tmp= group_tmp->next)
@@ -31564,10 +31597,12 @@ static bool change_group_ref(THD *thd, Item_func *expr, ORDER *group_list,
               return 1;                                 // fatal_error is set
             thd->change_item_tree(arg, new_item);
             arg_changed= TRUE;
+            matched= true;
+            break;
           }
         }
       }
-      else if (item->type() == Item::FUNC_ITEM)
+      if (!matched && item->type() == Item::FUNC_ITEM)
       {
         if (change_group_ref(thd, (Item_func *) item, group_list, &arg_changed))
           return 1;
@@ -31856,6 +31891,33 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
   return 0;
 }
 
+
+bool JOIN::rollup_setup_grouping_funcs()
+{
+  List_iterator<Item_func_grouping> it(select_lex->grouping_func_list);
+  Item_func_grouping *item;
+  while ((item= it++))
+  {
+    if (item->resolve_args(thd, group_list))
+      return true;
+  }
+  return false;
+}
+
+
+void JOIN::rollup_set_level(uint level)
+{
+  List_iterator<Item_func_grouping> it(select_lex->grouping_func_list);
+  Item_func_grouping *grouping;
+  while ((grouping= it++))
+  {
+    grouping->set_current_rollup_level(level);
+    if (grouping->result_field)
+      grouping->save_in_result_field(1);
+  }
+}
+
+
 /**
   Send all rollup levels higher than the current one to the client.
 
@@ -31880,6 +31942,7 @@ int JOIN::rollup_send_data(uint idx)
   uint i;
   for (i= send_group_parts ; i-- > idx ; )
   {
+    rollup_set_level(i);
     int res= 0;
     /* Get reference pointers to sum functions in place */
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
@@ -31893,6 +31956,7 @@ int JOIN::rollup_send_data(uint idx)
         send_records++;
     }
   }
+  rollup_set_level(send_group_parts);
   /* Restore ref_pointer_array */
   set_items_ref_array(current_ref_ptrs);
   return 0;
@@ -31924,6 +31988,7 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
   uint i;
   for (i= send_group_parts ; i-- > idx ; )
   {
+    rollup_set_level(i);
     /* Get reference pointers to sum functions in place */
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
     if ((!having || having->val_bool()))
@@ -31950,6 +32015,7 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
       }
     }
   }
+  rollup_set_level(send_group_parts);
   /* Restore ref_pointer_array */
   set_items_ref_array(current_ref_ptrs);
   return 0;
