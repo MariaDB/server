@@ -456,3 +456,19 @@ ALTER TABLE db.t FORCE, RENAME to test.t;
 # Cleanup
 DROP DATABASE db;
 DROP TABLE IF EXISTS test.t;
+
+--echo #
+--echo # MDEV-41751 A FULLTEXT index added later misses rows when the first
+--echo # one was added to an empty table
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, a VARCHAR(200), b VARCHAR(200)) ENGINE=InnoDB;
+ALTER TABLE t ADD FULLTEXT INDEX fa (a);
+INSERT INTO t VALUES (1, 'spoken', 'United Kingdom'),
+  (2, 'Anglo-Saxon kingdoms', 'United Kingdom'),
+  (3, 'roots from Latin', 'lingua franca'), (4, 'other', 'text');
+ALTER TABLE t ADD FULLTEXT INDEX fab (a, b);
+--sorted_result
+SELECT id FROM t WHERE MATCH (a, b) AGAINST ('+kingdom' IN BOOLEAN MODE);
+--sorted_result
+SELECT id FROM t WHERE MATCH (a, b) AGAINST ('kingdom');
+DROP TABLE t;

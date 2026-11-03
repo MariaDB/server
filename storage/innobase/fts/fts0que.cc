@@ -2419,7 +2419,9 @@ fts_query_phrase_split(
 			ib_vector_push(tokens, NULL));
 		fts_string_dup(token, &result_str, heap);
 
-		if (fts_check_token(
+		if (query->parser
+		    ? fts_token_fits(&result_str)
+		    : fts_check_token(
 			   &result_str,
 			   cache->stopword_info.cached_stopword, cs)) {
 			/* Add the word to the RB tree so that we can

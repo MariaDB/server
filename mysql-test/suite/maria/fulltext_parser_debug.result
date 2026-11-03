@@ -1,0 +1,64 @@
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+# Keep the durable repair result without replaying it
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES
+('abc-def'), ('abcd-efgh'), ('plain words'), ('other text'), ('more rows');
+FLUSH TABLES t1;
+SET SESSION debug_dbug='+d,maria_crash_after_repair_log';
+REPAIR TABLE t1;
+# restart
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd') ORDER BY a;
+a
+abc-def
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# Recover changes committed after a bulk-insert repair record
+CREATE TABLE t_src (a TEXT) ENGINE=Aria;
+INSERT INTO t_src VALUES
+('abcd-efgh'), ('keep-one'), ('keep-two'),
+('update-before'), ('delete-before');
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+CREATE TABLE t_flush (a INT) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t_flush VALUES (0);
+# restart
+connect  bulk,localhost,root,,test;
+SET DEBUG_SYNC=
+'maria_before_repair_log SIGNAL repair_ready WAIT_FOR log_advanced';
+INSERT INTO t1 SELECT a FROM t_src;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR repair_ready';
+INSERT INTO t_flush VALUES (1);
+SET DEBUG_SYNC= 'now SIGNAL log_advanced';
+connection bulk;
+SET DEBUG_SYNC= 'RESET';
+INSERT INTO t1 VALUES ('commit-one'), ('commit-two');
+UPDATE t1 SET a= 'update-after' WHERE a= 'update-before';
+DELETE FROM t1 WHERE a= 'delete-before';
+connection default;
+INSERT INTO t_flush VALUES (2);
+# restart
+disconnect bulk;
+SELECT a FROM t1 ORDER BY a;
+a
+abcd-efgh
+commit-one
+commit-two
+keep-one
+keep-two
+update-after
+SELECT a FROM t1
+WHERE MATCH(a) AGAINST('abcd-efgh commit-one update-after update-before')
+ORDER BY a;
+a
+abcd-efgh
+commit-one
+update-after
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1, t_src, t_flush;
+UNINSTALL PLUGIN simple_parser;
