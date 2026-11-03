@@ -96,6 +96,7 @@ public:
                                       const LEX_CSTRING &func_name);
 
   table_map not_null_tables_cache= 0;
+  uint m_exec_stack_size= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -1191,12 +1192,14 @@ public:
   {
     aggregate_numeric_attributes_real(args, arg_count);
     max_length= float_length(decimals);
+    m_exec_stack_size= sizeof(double);
   }
   void fix_length_and_dec_decimal()
   {
     unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
     result_precision();
     fix_decimals();
+    m_exec_stack_size= sizeof(VDec2_lazy);
   }
   void fix_length_and_dec_int()
   {
@@ -1204,6 +1207,7 @@ public:
     result_precision();
     decimals= 0;
     set_handler(type_handler_long_or_longlong());
+    m_exec_stack_size= sizeof(longlong);
   }
   void fix_length_and_dec_temporal(bool downcast_decimal_to_int)
   {
