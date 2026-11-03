@@ -38,6 +38,15 @@ CREATE TABLE t1(
   KEY (a) 
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t1 values (1,1,1),(2,2,2);
+
+# MDEV-20266: memtable row estimates are random and make the plan unstable
+--disable_query_log
+set global rocksdb_force_flush_memtable_now=1;
+--disable_result_log
+analyze table t1;
+--enable_result_log
+--enable_query_log
+
 --replace_column 9 #
 explain select a from t1 where a <'zzz';
 
@@ -48,6 +57,14 @@ CREATE TABLE t2(
   KEY (a)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t2 values (1,1,1),(2,2,2);
+
+--disable_query_log
+set global rocksdb_force_flush_memtable_now=1;
+--disable_result_log
+analyze table t2;
+--enable_result_log
+--enable_query_log
+
 --replace_column 9 #
 explain select a from t2 where a <'zzz';
 
