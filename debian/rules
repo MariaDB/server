@@ -55,6 +55,17 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
+# Directory for the MariaDB configuration files. If empty, /etc/mysql is
+# used. cmake updates all references in debian/ to the given directory.
+# When changing it, set SYSCONFDIR_MOVE_VERSION to the first package
+# version that uses the new directory
+SYSCONFDIR = /etc/mariadb
+SYSCONFDIR_MOVE_VERSION = 1:14.0.0~
+ifneq (,$(SYSCONFDIR))
+    CMAKEFLAGS += -DDEFAULT_SYSCONFDIR=$(SYSCONFDIR)
+    CMAKEFLAGS += -DDEB_SYSCONFDIR_MOVE_VERSION=$(SYSCONFDIR_MOVE_VERSION)
+endif
+
 # Add support for verbose builds
 MAKEFLAGS += VERBOSE=1
 

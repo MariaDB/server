@@ -1,12 +1,12 @@
-debian/additions/debian-start etc/mysql
+debian/additions/debian-start etc/mariadb
 debian/additions/debian-start.inc.sh usr/share/mariadb
 debian/additions/echo_stderr usr/share/mariadb
-debian/additions/mariadb.conf.d/50-server.cnf etc/mysql/mariadb.conf.d
+debian/additions/mariadb.conf.d/50-server.cnf etc/mariadb/mariadb.conf.d
 debian/additions/source_mariadb.py usr/share/apport/package-hooks
 etc/apparmor.d/usr.sbin.mariadbd
 etc/logrotate.d/mariadb
 etc/security/user_map.conf
-support-files/rpm/enable_encryption.preset etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset
+support-files/rpm/enable_encryption.preset etc/mariadb/mariadb.conf.d/99-enable-encryption.cnf.preset
 usr/bin/aria_chk
 usr/bin/aria_dump_log
 usr/bin/aria_ftdump
