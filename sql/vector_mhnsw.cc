@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2024, 2025, MariaDB plc
+   Copyright (c) 2024, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -102,7 +102,7 @@ static MYSQL_THDVAR_UINT(ef_search, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_UINT(default_m, PLUGIN_VAR_RQCMDARG,
        "Larger values mean slower SELECTs and INSERTs, larger index size "
        "and higher memory consumption but more accurate results",
-       nullptr, nullptr, 6, 3, 200, 1);
+       nullptr, nullptr, 6, 3, 127, 1);
 
 enum metric_type : uint { EUCLIDEAN, COSINE };
 static const char *distance_names[]= { "euclidean", "cosine", nullptr };
@@ -1038,7 +1038,8 @@ int FVectorNode::load_from_record(TABLE *graph)
     if (unlikely(ptr >= end))
       return my_errno= HA_ERR_CRASHED;
     size_t grefs= *ptr++;
-    if (unlikely(ptr + grefs * gref_len() > end))
+    if (unlikely(grefs > ctx->max_neighbors(i)
+                 || ptr + grefs * gref_len() > end))
       return my_errno= HA_ERR_CRASHED;
     neighbors[i].num= grefs;
     for (size_t j=0; j < grefs; j++, ptr+= gref_len())

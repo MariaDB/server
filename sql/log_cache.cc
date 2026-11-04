@@ -51,8 +51,6 @@ void binlog_cache_data::detach_temp_file()
   reset();
 }
 
-extern void ignore_db_dirs_append(const char *dirname_arg);
-
 bool init_binlog_cache_dir()
 {
   size_t length;
@@ -102,8 +100,6 @@ bool init_binlog_cache_dir()
     memset(binlog_cache_dir, 0, sizeof(binlog_cache_dir));
     return false;
   }
-
-  ignore_db_dirs_append(BINLOG_CACHE_DIR);
 
   if (!dir_info)
   {

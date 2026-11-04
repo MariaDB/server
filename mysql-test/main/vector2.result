@@ -715,4 +715,17 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t2 values (vec_fromtext('[1]'));
 DROP TABLE t1, t2;
+#
+# MDEV-39822 MHNSW index returns wrong results for M >= 128
+#
+create table t (v vector(1) not null, vector (v) m=200);
+ERROR HY000: Incorrect value '200' for option 'm'
+call mtr.add_suppression('Index for table ''t1'' is corrupt; try to repair it');
+create table t1 (v vector(1) not null, vector index (v) m=100);
+create table t2 (v vector(1) not null, vector index (v) m=3);
+insert into t1 select vec_fromtext(concat('[', seq, ']')) from seq_1_to_20;
+flush tables;
+select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+drop table t1, t2;
 # End of 11.8 tests

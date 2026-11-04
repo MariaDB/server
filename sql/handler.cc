@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -127,8 +127,8 @@ ulong total_ha_2pc= 0;
 */
 ulong failed_ha_2pc= 0;
 #endif
-/* size of savepoint storage area (see ha_init) */
-ulong savepoint_alloc_size= 0;
+/* size of SAVEPOINT plus all engines' savepoint storage areas */
+ulong savepoint_alloc_size= sizeof(SAVEPOINT);
 
 static const Lex_ident_engine sys_table_aliases[]=
 {
@@ -853,7 +853,6 @@ int ha_init()
     counting total_ha)
   */
   opt_using_transactions= total_ha > (ulong) opt_bin_log;
-  savepoint_alloc_size+= sizeof(SAVEPOINT);
   DBUG_RETURN(error);
 }
 
@@ -3391,7 +3390,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
     transaction_participant *ht= ha_info->ht();
     DBUG_ASSERT(ht);
     DBUG_ASSERT(ht->savepoint_set != 0);
-    if ((err= ht->savepoint_rollback(thd, (uchar *)(sv+1)+ht->savepoint_offset)))
+    if ((err= ht->savepoint_rollback(thd, (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
@@ -3475,7 +3474,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
       break;
     }
-    if ((err= ht->savepoint_set(thd, (uchar *)(sv+1)+ht->savepoint_offset)))
+    if ((err= ht->savepoint_set(thd, (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
@@ -3508,7 +3507,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
     DBUG_ASSERT(ht);
     if (!ht->savepoint_release)
       continue;
-    if ((err= ht->savepoint_release(thd, (uchar *)(sv+1) + ht->savepoint_offset)))
+    if ((err= ht->savepoint_release(thd, (uchar *)sv + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
@@ -5579,7 +5578,7 @@ bool handler::check_old_types() const
 
 static bool update_frm_version(TABLE *table)
 {
-  char path[FN_REFLEN];
+  char path[FN_REFLEN + 1];
   File file;
   int result= 1;
   DBUG_ENTER("update_frm_version");
@@ -9046,28 +9045,38 @@ static
 int del_global_index_stats_for_table(THD *thd, uchar* cache_key, size_t cache_key_length)
 {
   int res = 0;
-  uint to_delete_counter= 0;
+  uint to_delete_counter;
   INDEX_STATS *index_stats_to_delete[MAX_INDEXES];
   DBUG_ENTER("del_global_index_stats_for_table");
 
   mysql_mutex_lock(&LOCK_global_index_stats);
 
-  for (uint i= 0; i < global_index_stats.records; i++)
+  /*
+    Statistics of renamed indexes stay under their old names, so a table
+    can have more than MAX_INDEXES entries. Delete them in batches.
+  */
+  do
   {
-    INDEX_STATS *index_stats =
-      (INDEX_STATS*) my_hash_element(&global_index_stats, i);
-
-    /* We search correct db\0table_name\0 string */
-    if (index_stats &&
-	index_stats->index_name_length >= cache_key_length &&
-	!memcmp(index_stats->index, cache_key, cache_key_length))
+    to_delete_counter= 0;
+    for (uint i= 0; i < global_index_stats.records &&
+                    to_delete_counter < MAX_INDEXES; i++)
     {
-      index_stats_to_delete[to_delete_counter++]= index_stats;
-    }
-  }
+      INDEX_STATS *index_stats =
+        (INDEX_STATS*) my_hash_element(&global_index_stats, i);
 
-  for (uint i= 0; i < to_delete_counter; i++)
-    res= my_hash_delete(&global_index_stats, (uchar*)index_stats_to_delete[i]);
+      /* We search correct db\0table_name\0 string */
+      if (index_stats &&
+          index_stats->index_name_length >= cache_key_length &&
+          !memcmp(index_stats->index, cache_key, cache_key_length))
+      {
+        index_stats_to_delete[to_delete_counter++]= index_stats;
+      }
+    }
+
+    for (uint i= 0; i < to_delete_counter; i++)
+      res= my_hash_delete(&global_index_stats,
+                          (uchar*)index_stats_to_delete[i]);
+  } while (to_delete_counter == MAX_INDEXES);
 
   mysql_mutex_unlock(&LOCK_global_index_stats);
   DBUG_RETURN(res);

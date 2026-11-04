@@ -219,5 +219,4 @@ call mtr.add_suppression('Slave I/O: Fatal error: .* Connection attempt terminat
 reset slave all;
 Warnings:
 Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
-change master to master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 # End of 10.6 tests
