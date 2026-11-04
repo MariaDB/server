@@ -3,9 +3,9 @@
 
 #
 # Galera library version with the graceful shutdown on an interrupted state
-# transfer (MDEV-31517), which this test expects
+# transfer (MDEV-42000), which this test expects
 #
---let $galera_version=26.4.25
+--let $galera_version=26.4.29
 source ../wsrep/include/check_galera_version.inc;
 
 # Suppress expected warnings:
