@@ -349,8 +349,8 @@ next_rec:
 }
 
 /* SQL equivalent:
-     SELECT * FROM <table> WHERE <pk> >= <search_tuple> FOR UPDATE;
-Positions m_pcur on the first record at or after the search key,
+     SELECT * FROM <table> WHERE <pk> = <search_tuple> FOR UPDATE;
+Positions m_pcur on the record matching the search key,
 X-locks it via row_search_mvcc<InnoDBDMLPolicy>(), and leaves the
 mtr open so a caller can chain update_record() / delete-mark
 before commit_mtr().
@@ -395,7 +395,7 @@ dberr_t QueryExecutor::select_for_update(dict_table_t *table,
 
   if (callback)
     err= row_search_mvcc_callback_dml(
-           callback, PAGE_CUR_GE, m_prebuilt, 0, 0);
+           callback, PAGE_CUR_GE, m_prebuilt, ROW_SEL_EXACT, 0);
   else
     err= row_search_mvcc<InnoDBDMLPolicy>(nullptr, PAGE_CUR_GE,
                                           m_prebuilt, 1, 0);

@@ -37,6 +37,11 @@ Created 12/19/1997 Heikki Tuuri
 #include "row0mysql.h"
 #include "row0query.h"
 
+#ifdef UNIV_DEBUG
+/** Internal record visits counted by fts_count_callback_records. */
+extern Atomic_counter<uint64_t> row_search_callback_records;
+#endif /* UNIV_DEBUG */
+
 /*********************************************************************//**
 Creates a select node struct.
 @return own: select node struct */
@@ -149,8 +154,9 @@ It also has optimization such as pre-caching the rows, using AHI, etc.
 				Note: if this is != 0, then prebuilt must has a
 				pcur with stored position! In opening of a
 				cursor 'direction' should be 0.
-@return DB_SUCCESS, DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK,
-DB_LOCK_TABLE_FULL, DB_CORRUPTION, or DB_TOO_BIG_RECORD */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC on callback STOP,
+DB_RECORD_NOT_FOUND, DB_END_OF_INDEX, DB_DEADLOCK, DB_LOCK_TABLE_FULL,
+DB_CORRUPTION, or DB_TOO_BIG_RECORD */
 template<typename Callback = MySQLRowCallback>
 dberr_t
 row_search_mvcc(
@@ -169,7 +175,7 @@ manages its own mini-transaction lifecycle.
 @param prebuilt  prebuilt structure
 @param match_mode match mode
 @param direction search direction
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC on callback STOP, or error code */
 inline dberr_t row_search_mvcc_callback(
 	RecordCallback*	callback,
 	page_cur_mode_t	mode,
@@ -195,7 +201,7 @@ across select_for_update() and update_record()).
 @param prebuilt  prebuilt structure with external mtr set
 @param match_mode match mode
 @param direction search direction
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC on callback STOP, or error code */
 inline dberr_t row_search_mvcc_callback_dml(
 	RecordCallback*	callback,
 	page_cur_mode_t	mode,

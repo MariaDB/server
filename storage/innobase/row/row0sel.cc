@@ -56,6 +56,10 @@ Created 12/19/1997 Heikki Tuuri
 #include "mysql/service_wsrep.h" /* For wsrep_thd_skip_locking */
 #endif
 
+#ifdef UNIV_DEBUG
+Atomic_counter<uint64_t> row_search_callback_records{0};
+#endif /* UNIV_DEBUG */
+
 /* Maximum number of rows to prefetch; MySQL interface has another parameter */
 #define SEL_MAX_N_PREFETCH	16
 
@@ -4402,6 +4406,15 @@ struct InnoDBPolicy
     if (!callback)
       return DB_SUCCESS;
 
+#ifdef UNIV_DEBUG
+    /* Count internal record visits for regression tests, excluding
+    unrelated background reads. */
+    DBUG_EXECUTE_IF("fts_count_callback_records",
+      if (prebuilt->trx->mysql_thd)
+        ++row_search_callback_records;
+    );
+#endif /* UNIV_DEBUG */
+
     RecordCompareAction action= callback->compare_record(
       prebuilt->search_tuple, rec, index, offsets);
 
@@ -4434,7 +4447,7 @@ It also has optimization such as pre-caching the rows, using AHI, etc.
 				Note: if this is != 0, then prebuilt must has a
 				pcur with stored position! In opening of a
 				cursor 'direction' should be 0.
-@return DB_SUCCESS or error code */
+@return DB_SUCCESS, DB_SUCCESS_LOCKED_REC on callback STOP, or error code */
 template<typename Callback>
 dberr_t
 row_search_mvcc(
@@ -5855,10 +5868,11 @@ use_covering_index:
 
 			if (err == DB_FTS_EXCEED_RESULT_CACHE_LIMIT) {
 				goto normal_return;
-			}  else if (err == DB_RECORD_NOT_FOUND) {
+			} else if (err == DB_SUCCESS_LOCKED_REC) {
+				goto idx_cond_failed;
+			} else if (err == DB_RECORD_NOT_FOUND) {
 				goto next_rec;
-			} else if (err != DB_SUCCESS &&
-			           err != DB_SUCCESS_LOCKED_REC) {
+			} else if (err != DB_SUCCESS) {
 				goto lock_wait_or_error;
 			}
 		}
@@ -5915,7 +5929,8 @@ use_covering_index:
 			if (err == DB_FTS_EXCEED_RESULT_CACHE_LIMIT) {
 				goto normal_return;
 			} else if (err == DB_SUCCESS_LOCKED_REC) {
-				err= DB_SUCCESS;
+				/* Preserve the callback's STOP signal for the
+				QueryExecutor read loop. */
 				goto idx_cond_failed;
 			} else if (err == DB_RECORD_NOT_FOUND) {
 				goto next_rec;
