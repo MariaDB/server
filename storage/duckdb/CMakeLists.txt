@@ -1,3 +1,6 @@
+# Disable DuckDB here to built them out-of-core.
+return()
+
 IF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
   MESSAGE_ONCE(duckdb "DuckDB: not Linux, skipping")
   return()
