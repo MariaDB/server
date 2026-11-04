@@ -20,3 +20,32 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-40874 Difference in affected row count when using InnoDB vs Aria
+--echo #            on UPDATE
+--echo #
+--echo # A NULL row set back to its NULL default is unchanged and must report
+--echo # Changed: 0, identically for every engine.  compare_record() used to
+--echo # compare the undefined data bytes of a NULL field, so stale bytes made
+--echo # the row look changed.
+
+--enable_info
+create table t1 (c decimal(8,3)) engine=InnoDB;
+insert into t1 values (null);
+update t1 set c=default;
+drop table t1;
+
+create table t1 (c decimal(8,3)) engine=Aria;
+insert into t1 values (null);
+update t1 set c=default;
+--echo # A real change is still detected
+update t1 set c=1.5;
+--echo # Setting DEFAULT (NULL) over a non-NULL value is a change
+update t1 set c=default;
+--disable_info
+drop table t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
