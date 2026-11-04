@@ -3603,6 +3603,10 @@ void IORequest::fake_read_complete(os_offset_t offset) const noexcept
           f == buf_page_t::UNFIXED || f == buf_page_t::REINIT);
     bpage->lock.x_unlock(true);
   }
+  else
+    /* The page was evicted. Prevent the completion of recovery,
+    so that a checkpoint will not discard the log. */
+    log_set_corrupt();
   recs.being_processed= -1;
   ut_ad(mtr.has_committed());
 
