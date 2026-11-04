@@ -12,6 +12,7 @@ INSERT INTO t VALUES (1, CONCAT('x', REPEAT('x', @@innodb_page_size)));
 INSERT INTO t
 SELECT 100 + seq, CONCAT('y~', LPAD(seq, 3, '0'), REPEAT('-', 800))
 FROM seq_60_to_1;
+InnoDB		0 transactions not purged
 SET GLOBAL innodb_monitor_reset_all='purge_del_mark_records';
 SET GLOBAL innodb_monitor_reset_all='purge_upd_exist_or_extern_records';
 SET GLOBAL innodb_monitor_enable='purge_del_mark_records';
