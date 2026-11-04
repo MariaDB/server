@@ -164,3 +164,18 @@ set @@global.connect_exact_info=OFF;
 #--remove_file $MYSQLD_DATADIR/test/part1.fnx
 #--remove_file $MYSQLD_DATADIR/test/part2.fnx
 #--remove_file $MYSQLD_DATADIR/test/part3.fnx
+
+--echo #
+--echo # MDEV-41946 CONNECT: table option value used as printf format string, crash in ha_connect::GetRealString
+--echo #
+CREATE TABLE t1 (id INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=CSV
+  FILE_NAME='P[%p-%d-%n-%%]-%s-%s.csv'
+  PARTITION BY RANGE(id) (PARTITION p1 VALUES LESS THAN(10),
+                          PARTITION p2 VALUES LESS THAN(MAXVALUE));
+INSERT INTO t1 VALUES (1),(20);
+SELECT * FROM t1;
+--list_files $MARIADB_DATADIR/test P*
+DROP TABLE t1;
+--remove_files_wildcard $MARIADB_DATADIR/test P*
+
+--echo # End of 10.11 tests
