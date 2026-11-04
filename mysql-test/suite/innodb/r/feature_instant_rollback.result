@@ -1,0 +1,68 @@
+#
+# Test: Instant Rollback (IRB) - crash recovery scenario
+#
+CREATE TABLE t1 (
+a INT NOT NULL,
+b INT DEFAULT NULL,
+c INT DEFAULT NULL,
+d INT DEFAULT NULL,
+PRIMARY KEY (a),
+KEY sidx_b (b),
+UNIQUE KEY uniq_c (c)
+) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+INSERT INTO t1 VALUES (1,1,1,1);
+INSERT INTO t1 VALUES (2,2,2,2);
+INSERT INTO t1 VALUES (3,3,3,3);
+BEGIN;
+UPDATE t1 SET d=10 WHERE a=1;
+UPDATE t1 SET d=20 WHERE a=2;
+# Kill and restart: --debug_dbug=+d,pause_rollback_on_recovery --innodb_instant_rollback_enabled=ON --innodb_instant_rollback_threshold=0 --loose-thread-pool-enabled=OFF
+SELECT @@transaction_isolation;
+@@transaction_isolation
+REPEATABLE-READ
+SELECT * FROM t1 ORDER BY a;
+a	b	c	d
+1	1	1	1
+2	2	2	2
+3	3	3	3
+SET GLOBAL debug_dbug= '-d,pause_rollback_on_recovery';
+INSERT INTO t2 SELECT * FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	b	c	d
+1	1	1	1
+2	2	2	2
+3	3	3	3
+SELECT COUNT(*) FROM information_schema.innodb_trx WHERE trx_state = 'ROLLING BACK';
+COUNT(*)
+0
+DROP TABLE t2;
+#
+# Test: Instant Rollback (IRB) - explicit rollback scenario
+#
+SET GLOBAL innodb_instant_rollback_enabled=ON;
+SET GLOBAL innodb_instant_rollback_threshold=0;
+connect con1,localhost,root,,test;
+SET DEBUG_SYNC='trx_after_rollback_row SIGNAL explicit_rollback_started WAIT_FOR explicit_rollback_continue';
+BEGIN;
+SELECT * FROM t1 WHERE a=3 FOR UPDATE;
+a	b	c	d
+3	3	3	3
+UPDATE t1 SET d=d + 10 WHERE a IN (1,2);
+ROLLBACK;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR explicit_rollback_started';
+SET SESSION innodb_lock_wait_timeout=1;
+UPDATE t1 SET d=300 WHERE a=3;
+SET DEBUG_SYNC='now SIGNAL explicit_rollback_continue';
+connection con1;
+SET DEBUG_SYNC='RESET';
+disconnect con1;
+connection default;
+SELECT * FROM t1 ORDER BY a;
+a	b	c	d
+1	1	1	1
+2	2	2	2
+3	3	3	300
+SET DEBUG_SYNC='RESET';
+DROP TABLE t1;
