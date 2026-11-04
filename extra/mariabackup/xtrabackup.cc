@@ -5377,6 +5377,9 @@ class BackupStages {
 			DBUG_EXECUTE_IF("emulate_ddl_on_intermediate_table",
 				dbug_emulate_ddl_on_intermediate_table_thread =
 				dbug_start_query_thread(
+					/* One statement, the client stays until all of it ran */
+					"BEGIN NOT ATOMIC "
+					"DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;"
 					"SET debug_sync='copy_data_between_tables_after_set_backup_lock "
 					"SIGNAL copy_started';"
 					"SET debug_sync='copy_data_between_tables_before_reset_backup_lock "
@@ -5384,7 +5387,8 @@ class BackupStages {
 					"SET debug_sync='alter_table_after_temp_table_drop "
 					"SIGNAL temp_table_dropped';"
 					"SET SESSION lock_wait_timeout = 1;"
-					"ALTER TABLE test.t1 ADD COLUMN col1_copy INT, ALGORITHM = COPY;",
+					"ALTER TABLE test.t1 ADD COLUMN col1_copy INT, ALGORITHM = COPY;"
+					"END",
 					NULL, 0, 0);
 					xb_mysql_query(mysql_connection,
 						"SET debug_sync='now WAIT_FOR copy_started'", false, true);
