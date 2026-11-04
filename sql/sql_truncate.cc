@@ -483,19 +483,19 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     if (WSREP(thd) && wsrep_thd_is_local(thd))
     {
       wsrep::key_array keys;
-      /* Do not start TOI if table is not found */
-      if (!wsrep_append_fk_parent_table(thd, table_ref, &keys))
+      if (wsrep_append_fk_parent_table(thd, table_ref, &keys))
+        DBUG_RETURN(TRUE);
+
+      if (keys.empty())
       {
-        if (keys.empty())
-        {
-          if (wsrep_to_isolation_begin(thd, table_ref->db.str, table_ref->table_name.str, NULL))
-            DBUG_RETURN(TRUE);
-        }
-        else
-        {
-          if (wsrep_to_isolation_begin(thd, NULL, NULL, table_ref, NULL, &keys))
-            DBUG_RETURN(TRUE);
-        }
+        if (wsrep_to_isolation_begin(thd, table_ref->db.str,
+                                     table_ref->table_name.str, NULL))
+          DBUG_RETURN(TRUE);
+      }
+      else
+      {
+        if (wsrep_to_isolation_begin(thd, NULL, NULL, table_ref, NULL, &keys))
+          DBUG_RETURN(TRUE);
       }
     }
 #endif /* WITH_WSREP */
