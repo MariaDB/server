@@ -183,6 +183,7 @@ bool
 Item_func_trt_trx_sees::val_bool()
 {
   THD *thd= current_thd;
+  DBUG_ENTER("trans_sees");
   DBUG_ASSERT(thd);
 
   DBUG_ASSERT(arg_count > 1);
@@ -192,5 +193,7 @@ Item_func_trt_trx_sees::val_bool()
 
   TR_table trt(thd);
   null_value= trt.query_sees(result, trx_id1, trx_id0);
-  return result;
+  DBUG_PRINT("vers_trx_id", ("%llu %s %llu, null_value: %d, accept_eq: %d",
+                             trx_id1, (result ? "sees" : "sees NOT"), trx_id0, null_value, accept_eq));
+  DBUG_RETURN(result);
 }
