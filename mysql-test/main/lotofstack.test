@@ -243,4 +243,17 @@ SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
 
 SELECT ST_IsValid(@g);
 
+--echo #
+--echo # MDEV-40826 Server Crash in JSON_SCHEMA_VALID on a Deeply Nested Schema
+--echo #
+
+# Validating "items" takes more stack per nesting level than parsing
+# the schema. The depth, scaled by thread_stack, is past what validation
+# fits in the stack, but short of where parsing the schema overruns it.
+let $stack= `select @@thread_stack`;
+let $depth= $(($stack / 450));
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp SELECT JSON_SCHEMA_VALID('$(repeat('{"items":', $depth)){}$(repeat('}', $depth))', '$(repeat('[', $depth))$(repeat(']', $depth))');
+
 --echo # End of 12.3 tests

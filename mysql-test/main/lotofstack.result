@@ -162,4 +162,9 @@ SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
 SELECT ST_IsValid(@g);
 ST_IsValid(@g)
 0
+#
+# MDEV-40826 Server Crash in JSON_SCHEMA_VALID on a Deeply Nested Schema
+#
+SELECT JSON_SCHEMA_VALID('$(repeat('{"items":', $depth)){}$(repeat('}', $depth))', '$(repeat('[', $depth))$(repeat(']', $depth))');
+ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
 # End of 12.3 tests
