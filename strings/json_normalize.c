@@ -1,4 +1,5 @@
-/* Copyright (c) 2021 Eric Herman and MariaDB Foundation.
+/* Copyright (c) 2021, Eric Herman and MariaDB Foundation.
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -336,10 +337,12 @@ json_norm_value_string_init(struct json_norm_value *val,
   return json_norm_string_init(&val->value.string, str, len);
 }
 
+struct qsort_param { uint recurse_level; int err; };
 
-static int json_norm_kv_comp(const void *a_, const void *b_);
+static int json_norm_kv_comp(void *param, const void *a_, const void *b_);
 
-static int json_norm_value_comp(const struct json_norm_value *a,
+static int json_norm_value_comp(struct qsort_param *param,
+                                const struct json_norm_value *a,
                                 const struct json_norm_value *b)
 {
   if (a->type != b->type)
@@ -355,15 +358,18 @@ static int json_norm_value_comp(const struct json_norm_value *a,
     if (ao->elements != bo->elements)
       return ao->elements < bo->elements ? -1 : 1;
 
+    if (my_string_stack_guard && my_string_stack_guard(param->recurse_level++))
+      return param->err= 1;
     for (size_t i= 0; i < ao->elements; ++i)
     {
       const struct json_norm_kv *akv=
         dynamic_element(ao, i, struct json_norm_kv*);
       const struct json_norm_kv *bkv=
         dynamic_element(bo, i, struct json_norm_kv*);
-      if ((ret= json_norm_kv_comp(akv, bkv)))
+      if ((ret= json_norm_kv_comp(param, akv, bkv)))
         return ret;
     }
+    param->recurse_level--;
     return 0;
   }
   case JSON_VALUE_ARRAY:
@@ -375,15 +381,18 @@ static int json_norm_value_comp(const struct json_norm_value *a,
     if (aa->elements != ba->elements)
       return aa->elements < ba->elements ? -1 : 1;
 
+    if (my_string_stack_guard && my_string_stack_guard(param->recurse_level++))
+      return param->err= 1;
     for (size_t i= 0; i < aa->elements; ++i)
     {
       const struct json_norm_value *aval=
         dynamic_element(aa, i, struct json_norm_value*);
       const struct json_norm_value *bval=
         dynamic_element(ba, i, struct json_norm_value*);
-      if ((ret= json_norm_value_comp(aval, bval)))
+      if ((ret= json_norm_value_comp(param, aval, bval)))
         return ret;
     }
+    param->recurse_level--;
     return 0;
   }
   case JSON_VALUE_STRING:
@@ -415,14 +424,17 @@ static int json_norm_value_comp(const struct json_norm_value *a,
 }
 
 
-static int json_norm_kv_comp(const void *a_, const void *b_)
+static int json_norm_kv_comp(void *param_, const void *a_, const void *b_)
 {
   const struct json_norm_kv *a= a_, *b= b_;
+  struct qsort_param *param= param_;
   int ret;
+  if (param->err)
+    return 0;
   if (!(ret= my_strnncoll(&my_charset_utf8mb4_bin,
                           (const uchar *)a->key.str, a->key.length,
                           (const uchar *)b->key.str, b->key.length)))
-    return json_norm_value_comp(&a->value, &b->value);
+    return json_norm_value_comp(param, &a->value, &b->value);
   return ret;
 }
 
@@ -432,7 +444,7 @@ static int json_norm_kv_comp(const void *a_, const void *b_)
   sorts the key-value iteratively. Arrays are only traversed, only
   objects are sorted.
 */
-static void json_normalize_sort(struct json_norm_value *root)
+static int json_normalize_sort(struct json_norm_value *root)
 {
   DYNAMIC_ARRAY stack;
   struct json_norm_frame frame, child;
@@ -440,7 +452,7 @@ static void json_normalize_sort(struct json_norm_value *root)
   size_t i;
 
   if (json_norm_init_dynamic_array(sizeof(struct json_norm_frame), &stack))
-    return;
+    return 1;
 
   frame.val= root;
   frame.index= 0;
@@ -459,9 +471,16 @@ static void json_normalize_sort(struct json_norm_value *root)
     {
       if (val->type == JSON_VALUE_OBJECT)
       {
-        my_qsort(dynamic_element(&val->value.object.kv_pairs, 0,
-                 struct json_norm_kv*), val->value.object.kv_pairs.elements,
-                 sizeof(struct json_norm_kv), json_norm_kv_comp);
+        struct qsort_param param= {0, 0};
+        my_qsort2(dynamic_element(&val->value.object.kv_pairs, 0,
+                  struct json_norm_kv*), val->value.object.kv_pairs.elements,
+                  sizeof(struct json_norm_kv), json_norm_kv_comp,
+                  &param);
+        if (param.err)
+        {
+          delete_dynamic(&stack);
+          return 1;
+        }
       }
       continue;
     }
@@ -508,7 +527,7 @@ static void json_normalize_sort(struct json_norm_value *root)
 
   delete_dynamic(&stack);
 
-  return;
+  return 0;
 }
 
 
@@ -1264,9 +1283,7 @@ json_normalize(DYNAMIC_STRING *result,
   if (err)
     goto json_normalize_end;
 
-  json_normalize_sort(&root);
-
-  err= json_norm_to_string(result, &root);
+  err= json_normalize_sort(&root) || json_norm_to_string(result, &root);
 
 json_normalize_end:
   json_norm_value_free(&root);

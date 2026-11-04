@@ -256,4 +256,19 @@ let $depth= $(($stack / 450));
 --error ER_STACK_OVERRUN_NEED_MORE
 evalp SELECT JSON_SCHEMA_VALID('$(repeat('{"items":', $depth)){}$(repeat('}', $depth))', '$(repeat('[', $depth))$(repeat(']', $depth))');
 
+--echo #
+--echo # MDEV-42048 stack overrun on normalizing deeply nested json
+--echo #
+set @inner = concat(repeat('{"a":', 7500), '1', repeat('}', 7500));
+set @json = concat('{"a":', @inner, ',"a":', @inner, '}');
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+select json_normalize(@json);
+
+set @inner = concat(repeat('[1,', 7500), '2', repeat(']', 7500));
+set @json = concat('{"a":', @inner, ',"a":', @inner, '}');
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+--error ER_STACK_OVERRUN_NEED_MORE
+select json_normalize(@json);
+
 --echo # End of 12.3 tests
