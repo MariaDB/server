@@ -235,9 +235,56 @@ bool Item_func_not_all::empty_underlying_subquery()
           (test_sub_item && !test_sub_item->any_value()));
 }
 
+/* Whether the ALL/ANY subquery item was not replaced by a comparison */
+bool Item_func_not_all::has_original_allany() const
+{
+  Item *item= args[0];
+  if (item->type() == FUNC_ITEM &&
+      static_cast<Item_func*>(item)->functype() == IN_OPTIMIZER_FUNC)
+    item= static_cast<Item_func*>(item)->arguments()[1];
+  if (item->type() != SUBSELECT_ITEM)
+    return false;
+  Item_subselect::subs_type type= static_cast<Item_subselect*>(item)->substype();
+  return type == Item_subselect::ALL_SUBS || type == Item_subselect::ANY_SUBS;
+}
+
+
 void Item_func_not_all::print(String *str, enum_query_type query_type)
 {
-  if (show)
+  /*
+    The "<not>"/"<nop>" wrappers are internal and not valid SQL, so skip
+    them when parsable output is required.
+
+    As long as the ALL/ANY subquery item is intact, args[0] prints the
+    original "x op ALL|ANY (subquery)", as Item_allany_subselect::print()
+    re-inverts the comparator.
+
+    Once it was replaced by a plain comparison (the subquery was reduced to
+    a constant), the comparator was inverted for ALL and the negation is
+    held by "<not>", so print it explicitly. For ANY/SOME the replacement is
+    already the original comparison.
+
+    The MIN/MAX rewrite is not handled properly: with SUBS_MAXMIN_ENGINE
+    Item_maxmin_subselect::print() emits the internal "<min>"/"<max>", and
+    with SUBS_MAXMIN_INJECTED the printed "NOT (x >= (select max(..)))" is
+    NULL instead of TRUE for an empty subquery, which val_bool() special
+    cases. Neither path was seen to be pushed down.
+
+    The result is parenthesised because precedence() reports the wrapper
+    (DEFAULT_PRECEDENCE), so a parent would not add parentheses itself.
+  */
+  if (show && (query_type & QT_PARSABLE))
+  {
+    str->append('(');
+    bool negate= is_all_wrapper() && !has_original_allany();
+    if (negate)
+      str->append(STRING_WITH_LEN("NOT ("));
+    args[0]->print(str, query_type);
+    if (negate)
+      str->append(')');
+    str->append(')');
+  }
+  else if (show)
     Item_func::print(str, query_type);
   else
     args[0]->print(str, query_type);
