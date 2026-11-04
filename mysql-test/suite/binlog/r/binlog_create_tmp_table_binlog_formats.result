@@ -1,0 +1,23 @@
+#
+# Test 1: Empty string should abort server startup with error (MDEV-39198)
+#
+FOUND 1 /Error while setting value '' to 'create_tmp_table_binlog_formats'/ in mysqltest.log
+#
+# Test 2: Omitting STATEMENT (e.g. MIXED) emits warning and enforces STATEMENT
+#
+FOUND 1 /Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'/ in mysqltest.log
+#
+# Test 3: Valid values start cleanly without warning
+#
+#
+# Test 4: Restart with --create-tmp-table-binlog-formats=MIXED and verify @@global value
+#
+CALL mtr.add_suppression("Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'");
+# restart: --create-tmp-table-binlog-formats=MIXED
+SELECT @@global.create_tmp_table_binlog_formats;
+@@global.create_tmp_table_binlog_formats
+MIXED,STATEMENT
+# restart
+#
+# End of test binlog_create_tmp_table_binlog_formats
+#
