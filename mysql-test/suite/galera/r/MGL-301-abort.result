@@ -1,0 +1,51 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: certification interval");
+call mtr.add_suppression("WSREP: Cannot interrupt seqno");
+connection node_2;
+call mtr.add_suppression("WSREP: Cannot interrupt seqno");
+connection node_1;
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+CREATE TABLE t2 (id INT AUTO_INCREMENT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE PROCEDURE fill(n INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+WHILE i < n DO
+INSERT INTO t2 (v) VALUES (i);
+SET i = i + 1;
+END WHILE;
+END|
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1000000';
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_sync_wait=0;
+BEGIN;
+UPDATE t1 SET v = 100 WHERE id = 1;
+connection node_2;
+SET GLOBAL wsrep_provider_options='dbug=d,apply_monitor_slave_enter_sync,before_replicate_sync';
+connection node_2a;
+COMMIT;
+connection node_1;
+UPDATE t1 SET v = 1 WHERE id = 1;
+connection node_2;
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
+connection node_1;
+CALL fill(70000);
+connection node_2;
+SET SESSION wsrep_on=OFF;
+SET SESSION wsrep_on=ON;
+SET GLOBAL wsrep_provider_options='signal=before_replicate_sync';
+SET GLOBAL wsrep_provider_options='dbug=';
+SET GLOBAL wsrep_provider_options='signal=apply_monitor_slave_enter_sync';
+connection node_1;
+connection node_2;
+connection node_1;
+DROP PROCEDURE fill;
+DROP TABLE t1, t2;
