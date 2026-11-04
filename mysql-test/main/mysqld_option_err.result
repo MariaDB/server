@@ -1,5 +1,7 @@
 Test that unknown option is not silently ignored.
 Test bad binlog format.
+Test empty value for --create-tmp-table-binlog-formats is rejected.
+FOUND 1 /create-tmp-table-binlog-formats cannot be empty/ in mysqltest.log
 Test bad default storage engine.
 Test non-numeric value passed to number option.
 Test with invalid path
