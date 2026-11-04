@@ -16,7 +16,11 @@ let $nrt_id= `SELECT IFNULL(MAX(id), 0) FROM information_schema.processlist
               WHERE info LIKE $nrt_pattern AND id != CONNECTION_ID()`;
 if ($nrt_id)
 {
+  # The statement can still end on its own between the SELECT above and the
+  # KILL: a lock wait on the remote server checks every second whether its
+  # client is still connected.
   --disable_query_log
+  --error 0,ER_NO_SUCH_THREAD
   eval KILL $nrt_id;
   --enable_query_log
 }
