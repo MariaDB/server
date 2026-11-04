@@ -1311,6 +1311,7 @@ public:
 
   bool add() override;
   void clear() override;
+  void reset_field() override;
   void update_field() override;
 
   enum Sumfunctype sum_func() const override { return ANY_VALUE_FUNC; }
