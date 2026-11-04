@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2020, MariaDB Corporation
+  Copyright (c) 2020, 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1257,6 +1257,9 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   Json_table_nested_path *c_nested= m_nested;
   Json_table_column *jc= *last_column;
   bool first_column= TRUE;
+
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return 1;
 
   if (str->append(STRING_WITH_LEN("COLUMNS (")))
     return 1;
