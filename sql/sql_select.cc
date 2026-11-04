@@ -17636,7 +17636,7 @@ void JOIN::cleanup(bool full)
         }
       }
     }
-    free_pushdown_handlers(*join_list);
+    free_derived_pushdown_handlers(*join_list);
   }
   /* Restore ref array to original state */
   if (current_ref_ptrs != items0)
@@ -17647,22 +17647,23 @@ void JOIN::cleanup(bool full)
 }
 
 /**
-  Clean up all derived pushdown handlers in this join.
+  Clean up all derived pushdown handlers in this join list.
 
   @detail
     Note that dt_handler is picked at the prepare stage (as opposed
     to optimization stage where one could expect this).
     Because of that, we have to do cleanups in this function that is called
-    from JOIN::cleanup() and not in JOIN_TAB::cleanup.
+    from JOIN::cleanup() and SELECT_LEX::cleanup() (for statements that fail
+    before a JOIN is created) and not in JOIN_TAB::cleanup.
  */
-void JOIN::free_pushdown_handlers(List<TABLE_LIST>& join_list)
+void free_derived_pushdown_handlers(List<TABLE_LIST>& join_list)
 {
   List_iterator<TABLE_LIST> li(join_list);
   TABLE_LIST *table_ref;
   while ((table_ref= li++))
   {
     if (table_ref->nested_join)
-      free_pushdown_handlers(table_ref->nested_join->join_list);
+      free_derived_pushdown_handlers(table_ref->nested_join->join_list);
     if (table_ref->pushdown_derived)
     {
       delete table_ref->pushdown_derived;
