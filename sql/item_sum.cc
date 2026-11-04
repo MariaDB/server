@@ -2752,6 +2752,15 @@ void Item_sum_any_value::clear()
 }
 
 
+void Item_sum_any_value::reset_field()
+{
+  DBUG_ENTER("Item_sum_any_value::reset_field");
+  Item_sum_min_max::reset_field();
+  has_value= false;
+  DBUG_VOID_RETURN;
+}
+
+
 void Item_sum_any_value::update_field()
 {
   DBUG_ENTER("Item_sum_any_value::update_field");
