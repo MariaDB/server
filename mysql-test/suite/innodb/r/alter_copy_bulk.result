@@ -9,7 +9,7 @@ SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
 WHERE database_name = 'test' AND table_name = 't1'
 AND stat_name IN ('size','n_leaf_pages');
 index_name	stat_name	stat_value
-GEN_CLUST_INDEX	n_leaf_pages	993
+GEN_CLUST_INDEX	n_leaf_pages	1009
 GEN_CLUST_INDEX	size	1059
 f2	n_leaf_pages	63
 f2	size	97

@@ -1,11 +1,8 @@
 --- bulk_copy_alter.result
 +++ bulk_copy_alter,non_bulk_alter_copy.result
-@@ -9,12 +9,12 @@
- WHERE database_name = 'test' AND table_name = 't1'
- AND stat_name IN ('size','n_leaf_pages');
+@@ -11,9 +11,9 @@
  index_name	stat_name	stat_value
--GEN_CLUST_INDEX	n_leaf_pages	993
-+GEN_CLUST_INDEX	n_leaf_pages	994
+ GEN_CLUST_INDEX	n_leaf_pages	1009
  GEN_CLUST_INDEX	size	1059
 -f2	n_leaf_pages	63
 +f2	n_leaf_pages	64

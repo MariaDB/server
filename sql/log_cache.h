@@ -32,6 +32,7 @@ static constexpr my_off_t CACHE_FILE_TRUNC_SIZE = 65536;
 bool init_binlog_cache_dir();
 
 extern char binlog_cache_dir[FN_REFLEN];
+extern const char *BINLOG_CACHE_DIR;
 
 /*
   Helper classes to store non-transactional and transactional data
