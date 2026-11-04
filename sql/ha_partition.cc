@@ -4796,7 +4796,11 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     error= m_file[new_part_id]->ha_write_row((uchar*) new_data);
     table->next_number_field= saved_next_number_field;
     if (unlikely(error))
+    {
+      /* print_error() must use the handler that reported the write error. */
+      m_last_part= new_part_id;
       goto exit;
+    }
 
     error= m_file[old_part_id]->ha_delete_row(old_data);
     if (unlikely(error))
