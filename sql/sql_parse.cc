@@ -6182,8 +6182,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
               mysqld_show_warnings().
             */
             lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
-            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                         ER_YES, str.c_ptr_safe());
+            if (!thd->is_error())
+              push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                           ER_YES, str.c_ptr_safe());
           }
         }
       }
