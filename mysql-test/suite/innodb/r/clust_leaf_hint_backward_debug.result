@@ -1,0 +1,50 @@
+create table t1 (
+pk int not null primary key,
+k int,
+val text,
+key k_idx(k)
+) engine=innodb row_format=dynamic stats_persistent=0 comment='MERGE_THRESHOLD=1';
+set @save_limit= @@global.innodb_limit_optimistic_insert_debug;
+set global innodb_limit_optimistic_insert_debug= 100;
+insert into t1 select seq, 2*(20001-seq), 'v' from seq_1_to_10000;
+set global innodb_limit_optimistic_insert_debug= @save_limit;
+alter table t1 add column extra int, algorithm=instant;
+set global innodb_max_purge_lag_wait=0;
+set @save_view_update= @@global.innodb_trx_purge_view_update_only_debug;
+set global innodb_trx_purge_view_update_only_debug= 1;
+delete from t1 where pk in (1, 4951);
+connect  ins,localhost,root;
+begin;
+insert into t1 (pk, k, val) values (1, 2*(20001-1)+1, 'w'), (4951, 2*(20001-4951)+1, 'w');
+connection default;
+set statement max_statement_time=1 for set global innodb_max_purge_lag_wait=0;
+create function hold(x int) returns int
+begin
+if x = 4956 then
+set debug_sync= 'now SIGNAL reader_paused';
+set debug_sync= 'now WAIT_FOR reader_go';
+end if;
+return 1;
+end|
+connect  reader,localhost,root;
+set session optimizer_switch='index_condition_pushdown=off';
+set session debug_dbug='+d,ib_log_clust_leaf_hint_step_back';
+select count(left(val,1)) as n, sum(pk) as s from t1 force index(k_idx) where k > 0 and hold(pk);
+connection default;
+set debug_sync='now WAIT_FOR reader_paused';
+connection ins;
+rollback;
+connection default;
+set debug_sync='now SIGNAL reader_go';
+connection reader;
+n	s
+9998	50000048
+connection default;
+Clustered leaf hint step back reached the infimum
+Clustered leaf hint step back reached the metadata record
+disconnect reader;
+disconnect ins;
+set global innodb_trx_purge_view_update_only_debug= @save_view_update;
+drop function hold;
+drop table t1;
+set debug_sync='reset';
