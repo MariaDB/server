@@ -1,0 +1,82 @@
+#
+# Blob columns used as key parts of an internal temporary table.
+#
+--source include/have_sequence.inc
+
+--echo #
+--echo # A constant compared against a blob key part of a materialized
+--echo # derived table.  The key holds a pointer to the value rather than
+--echo # the value itself, so the value has to stay alive for as long as
+--echo # the key is used.
+--echo #
+CREATE TABLE t1 (f1 TEXT) CHARSET=latin1;
+CREATE TABLE t2 (f2 TEXT) CHARSET=latin1;
+# t1 has exactly one row, so it is a const table and t1.f1 is a constant.
+INSERT INTO t1 VALUES (REPEAT('x',100));
+INSERT INTO t2 VALUES (REPEAT('x',100)), (REPEAT('y',100)), (REPEAT('z',100));
+--sorted_result
+SELECT t1.f1 = sq.f2 AS matched FROM t1
+  LEFT JOIN (SELECT DISTINCT f2 FROM t2) sq ON sq.f2 = t1.f1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # A blob column of a derived table that is materialized on disk.
+--echo # Only the HEAP temporary table can key on a blob, so no key may be
+--echo # built here.
+--echo #
+CREATE TABLE t4 (c1 TEXT, c2 INT NOT NULL) CHARSET=latin1;
+CREATE TABLE t5 (d1 TEXT, d2 INT NOT NULL) CHARSET=latin1;
+INSERT INTO t5 SELECT CONCAT('v', LPAD(seq,10,'0')), seq FROM seq_1_to_300;
+INSERT INTO t4 VALUES ('v0000000007', 7), ('v0000000009', 9);
+set @sw=@@optimizer_switch;
+set @tms=@@tmp_memory_table_size;
+set optimizer_switch='derived_merge=off,condition_pushdown_for_derived=off';
+
+--echo # In memory: the blob key part is available.
+EXPLAIN
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+--sorted_result
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+
+--echo # On disk: it is not, and the join has to fall back to a scan.
+set tmp_memory_table_size=0;
+EXPLAIN
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+--sorted_result
+SELECT t4.c2 FROM t4, (SELECT d1 AS x, d2 AS y FROM t5) dt WHERE dt.x = t4.c1;
+
+set tmp_memory_table_size=@tms;
+set optimizer_switch=@sw;
+DROP TABLE t4, t5;
+
+--echo #
+--echo # A blob column that passes through an internal temporary table must
+--echo # still report the table it originates from, and the same flags it
+--echo # would report without one.
+--echo #
+# The other protocols report a column's metadata as it was declared rather
+# than as the answer turned out, so the Max length below differs under each
+# of them.  Pin the metadata blocks to one protocol.
+--disable_ps_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+CREATE TABLE t1 (a TEXT, b INT) CHARSET=latin1;
+INSERT INTO t1 VALUES ('aa', 1), ('bb', 2), ('aa', 3);
+--enable_metadata
+SELECT a, b FROM t1 GROUP BY a, b;
+--echo # The same columns, with no temporary table, for comparison.
+SELECT a, b FROM t1 ORDER BY a, b;
+--disable_metadata
+DROP TABLE t1;
+
+CREATE TABLE t2 (a LONGTEXT NOT NULL, b INT) CHARSET=latin1;
+CREATE TABLE t3 (a VARCHAR(10) NOT NULL, b INT) CHARSET=latin1;
+INSERT INTO t2 VALUES ('x', 1), ('z', 3);
+INSERT INTO t3 VALUES ('y', 2), ('w', 4);
+--enable_metadata
+SELECT a FROM t2 UNION SELECT a FROM t3 ORDER BY a;
+--disable_metadata
+DROP TABLE t2, t3;
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps_protocol

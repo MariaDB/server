@@ -2,12 +2,14 @@ call mtr.add_suppression("InnoDB: User stopword table .* does not exist.");
 select @@global.innodb_ft_server_stopword_table;
 @@global.innodb_ft_server_stopword_table
 NULL
-CREATE TABLE `stop_it-IT` ENGINE = InnoDB SELECT * FROM information_schema.INNODB_FT_DEFAULT_STOPWORD;
+CREATE TABLE `stop_it-IT` (value VARCHAR(18) NOT NULL) ENGINE = InnoDB;
+INSERT INTO `stop_it-IT` SELECT * FROM information_schema.INNODB_FT_DEFAULT_STOPWORD;
 SET @@global.innodb_ft_server_stopword_table = 'test/stop_it-IT';
 ERROR 42000: Variable 'innodb_ft_server_stopword_table' can't be set to the value of 'test/stop_it-IT'
 SET @@global.innodb_ft_server_stopword_table = 'test/stop_it@002dIT';
 drop table `stop_it-IT`;
-CREATE TABLE stop_it ENGINE = InnoDB SELECT * FROM information_schema.INNODB_FT_DEFAULT_STOPWORD;
+CREATE TABLE stop_it (value VARCHAR(18) NOT NULL) ENGINE = InnoDB;
+INSERT INTO stop_it SELECT * FROM information_schema.INNODB_FT_DEFAULT_STOPWORD;
 SET @@global.innodb_ft_server_stopword_table = 'test/stop_it';
 SET @@global.innodb_ft_server_stopword_table = NULL;
 drop table stop_it;

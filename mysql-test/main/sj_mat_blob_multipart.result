@@ -1,0 +1,84 @@
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
+CREATE TABLE t1 (c1 VARCHAR(600), c2 INT NOT NULL, c3 INT) CHARSET=latin1;
+CREATE TABLE t2 (d1 VARCHAR(600), d2 INT NOT NULL, d3 INT) CHARSET=latin1;
+INSERT INTO t1 VALUES (REPEAT('x',600), 1, 10), (REPEAT('y',600), 2, 20);
+INSERT INTO t2 VALUES (REPEAT('x',600), 1, 10), (REPEAT('z',600), 3, 30);
+#
+# One key part, the blob part is last. Nothing follows it in the key
+# buffer, so the offset it advances to is never used.
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE LEFT(c1,100) IN (SELECT SUBSTRING(d1,1,100) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE LEFT(c1,100) IN (SELECT SUBSTRING(d1,1,100) FROM t2);
+c2
+1
+#
+# Two key parts and no blob part at all: the value is short enough to
+# stay a VARCHAR in the temporary table.
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE (LEFT(c1,8), c2) IN (SELECT SUBSTRING(d1,1,8), d2 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE (LEFT(c1,8), c2) IN (SELECT SUBSTRING(d1,1,8), d2 FROM t2);
+c2
+1
+#
+# Two key parts, the blob part first and a NOT NULL part after it
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE (LEFT(c1,100), c2) IN (SELECT SUBSTRING(d1,1,100), d2 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE (LEFT(c1,100), c2) IN (SELECT SUBSTRING(d1,1,100), d2 FROM t2);
+c2
+1
+#
+# The same with a nullable part after the blob part
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE (LEFT(c1,100), c3) IN (SELECT SUBSTRING(d1,1,100), d3 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE (LEFT(c1,100), c3) IN (SELECT SUBSTRING(d1,1,100), d3 FROM t2);
+c2
+1
+#
+# The blob part between two other key parts
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE (c2, LEFT(c1,100), c3) IN (SELECT d2, SUBSTRING(d1,1,100), d3 FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE (c2, LEFT(c1,100), c3) IN (SELECT d2, SUBSTRING(d1,1,100), d3 FROM t2);
+c2
+1
+#
+# Two blob key parts, one after the other
+#
+EXPLAIN SELECT c2 FROM t1
+WHERE (LEFT(c1,100), LEFT(c1,200)) IN
+(SELECT SUBSTRING(d1,1,100), SUBSTRING(d1,1,200) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
+SELECT c2 FROM t1
+WHERE (LEFT(c1,100), LEFT(c1,200)) IN
+(SELECT SUBSTRING(d1,1,100), SUBSTRING(d1,1,200) FROM t2);
+c2
+1
+DROP TABLE t1, t2;
+set optimizer_switch=@save_optimizer_switch;
