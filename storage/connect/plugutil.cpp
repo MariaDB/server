@@ -635,7 +635,31 @@ char *PlugDup(PGLOBAL g, const char *str)
   } else
     return NULL;
 
-} // end of PlugDup 
+} // end of PlugDup
+
+/***********************************************************************/
+/*  Print a column name or path at pos inside the buffer of size sz.   */
+/*  Return true with g->Message set if the result does not fit.        */
+/***********************************************************************/
+bool PlugFmtName(PGLOBAL g, char *buf, size_t sz, char *pos,
+                 const char *format, ...)
+{
+  va_list ap;
+  size_t  room = buf + sz - pos;
+  int     n;
+
+  va_start(ap, format);
+  n = vsnprintf(pos, room, format, ap);
+  va_end(ap);
+
+  if (n < 0 || (size_t)n >= room) {
+    snprintf(g->Message, sizeof(g->Message),
+             "Column name or path too long: %s", buf);
+    return true;
+  } // endif n
+
+  return false;
+} // end of PlugFmtName
 
 /*************************************************************************/
 /* This routine makes a pointer from an offset to a memory pointer.      */

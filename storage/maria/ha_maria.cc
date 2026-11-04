@@ -3134,7 +3134,6 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   TRN *trn;
   int error;
   uint locked_tables;
-  extern my_bool plugins_are_initialized;
   MARIA_HA *used_tables, *trn_next;
   DBUG_ENTER("ha_maria::implicit_commit");
 
