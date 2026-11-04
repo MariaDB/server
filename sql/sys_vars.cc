@@ -774,7 +774,7 @@ Sys_binlog_create_tmptable_format(
        "is not logged, all usage of the temporary table will be logged in "
        "ROW format. Allowed values are STATEMENT or MIXED,STATEMENT",
        SESSION_VAR(create_temporary_table_binlog_formats),
-       CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
+       CMD_LINE(REQUIRED_ARG, OPT_CREATE_TMP_TABLE_BINLOG_FORMATS),
        binlog_formats_create_tmp_names,
        DEFAULT((ulong) (1 << BINLOG_FORMAT_STMT)),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
