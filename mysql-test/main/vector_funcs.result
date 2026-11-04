@@ -276,3 +276,69 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 # End of 11.8 tests
+#
+# MDEV-42032 Alias MySQL's STRING_TO_VECTOR to Vec_FromText (and vice-versa)
+#
+select hex(string_to_vector('[1,2,3]'));
+hex(string_to_vector('[1,2,3]'))
+0000803F0000004000004040
+select hex(string_to_vector('[1,2,3]')) = hex(vec_fromtext('[1,2,3]')) as same;
+same
+1
+select vector_to_string(x'0000803f0000004000004040');
+vector_to_string(x'0000803f0000004000004040')
+[1,2,3]
+select vector_to_string(x'0000803f0000004000004040') =
+vec_totext(x'0000803f0000004000004040') as same;
+same
+1
+select vector_to_string(string_to_vector('[1.5,-2.25,0]'));
+vector_to_string(string_to_vector('[1.5,-2.25,0]'))
+[1.5,-2.25,0]
+select vector_to_string(string_to_vector('[1.5,-2.25,0]')) =
+vec_totext(vec_fromtext('[1.5,-2.25,0]')) as same;
+same
+1
+select STRING_TO_VECTOR(NULL), VECTOR_TO_STRING(NULL);
+STRING_TO_VECTOR(NULL)	VECTOR_TO_STRING(NULL)
+NULL	NULL
+select STRING_TO_VECTOR(NULL) <=> VEC_FROMTEXT(NULL) as same,
+VECTOR_TO_STRING(NULL) <=> VEC_TOTEXT(NULL) as same2;
+same	same2
+1	1
+select string_to_vector();
+ERROR 42000: Incorrect parameter count in the call to native function 'string_to_vector'
+select vector_to_string(x'0000803f', 1);
+ERROR 42000: Incorrect parameter count in the call to native function 'vector_to_string'
+select string_to_vector('[1,2');
+string_to_vector('[1,2')
+NULL
+Warnings:
+Warning	4204	Invalid vector format at offset: 4 for '[1,2'. Must be a valid JSON array of numbers.
+select vector_to_string(x'aabbcc');
+vector_to_string(x'aabbcc')
+NULL
+Warnings:
+Warning	4203	Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it.
+create table t (v vector(3) not null, vector index (v));
+insert t values (string_to_vector('[1,2,3]')), (string_to_vector('[4,5,6]'));
+select vector_to_string(v) from t
+order by vec_distance_euclidean(v, string_to_vector('[4,5,5]')) limit 1;
+vector_to_string(v)
+[4,5,6]
+create table t2 as select string_to_vector('[1,2,3]') as v;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `v` vector(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t, t2;
+create view v1 as select vector_to_string(string_to_vector('[1,2,3]')) as s;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select VEC_ToText(VEC_FromText('[1,2,3]')) AS `s`	latin1	latin1_swedish_ci
+select * from v1;
+s
+[1,2,3]
+drop view v1;
+# End of 13.2 tests
