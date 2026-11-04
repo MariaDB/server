@@ -959,6 +959,28 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
+#ifdef HAVE_PMEM
+      if (is_mmap())
+      {
+        /*
+          Ensure that recovery will correctly detect the end of log
+          and not mistake some old innodb_log_archive=OFF garbage
+          between the current position and the end for valid records.
+          For the pwrite() based code path, write_buf() will assign
+          buf[length]=0 to achieve the same effect.
+        */
+        const lsn_t lsn{get_lsn()};
+        ut_ad(lsn >= first_lsn);
+        size_t offset{lsn - first_lsn + START_OFFSET};
+        ut_ad(offset <= file_size);
+        if (const size_t size{file_size - offset})
+        {
+          byte *const b{buf + offset};
+          memset(b, 0, size);
+          pmem_persist(b, size);
+        }
+      }
+#endif
       header_rewrite(true);
       archive_set_size();
       wait_lsn= 0;
