@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -294,6 +295,8 @@ static int ftb_parse_query_internal(MYSQL_FTPARSER_PARAM *param,
   uchar *end= (uchar*) query + len;
   FT_WORD w;
 
+  w.pos= NULL;
+  w.len= 0;
   info.prev= ' ';
   info.quot= 0;
   while (maria_ft_get_word(cs, start, end, &w, &info))

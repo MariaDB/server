@@ -32,6 +32,7 @@
 #include "transaction.h" /* trans_commit()... */
 #include "log.h"      /* stmt_has_updated_trans_table() */
 #include "mysql/service_debug_sync.h"
+#include "debug_sync.h"
 #include "mysql/psi/mysql_thread.h" /* mysql_mutex_assert_owner() */
 
 namespace
@@ -352,6 +353,16 @@ enum wsrep::provider::status Wsrep_client_service::commit_by_xid()
 void Wsrep_client_service::debug_sync(const char* sync_point)
 {
   DBUG_ASSERT(m_thd == current_thd);
+  DBUG_EXECUTE_IF("sync.wsrep_before_local_cert_applier", {
+    if (m_thd->rgi_slave &&
+        !strcmp(sync_point, "wsrep_before_certification"))
+    {
+      const char act[]= "now "
+                        "SIGNAL sync.wsrep_before_local_cert_applier_reached "
+                        "WAIT_FOR signal.wsrep_before_local_cert_applier";
+      debug_sync_set_action(m_thd, STRING_WITH_LEN(act));
+    }
+  };);
   debug_sync_caller(m_thd, sync_point);
 }
 

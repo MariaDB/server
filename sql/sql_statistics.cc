@@ -1,5 +1,5 @@
 /* Copyright (C) 2009 MySQL AB
-   Copyright (c) 2019, 2022, MariaDB Corporation.
+   Copyright (c) 2019, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -322,7 +322,7 @@ static inline int open_stat_table_for_ddl(THD *thd, TABLE_LIST *table,
                         ER_CHECK_NO_SUCH_TABLE,
                         "Got error %d when trying to open statistics "
                         "table %sQ for updating statistics",
-                        error_handler.got_error(), stat_table_name->str);
+                        error_handler.got_error(), stat_tab_name->str);
   }
   return res;
 }
@@ -3418,12 +3418,16 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
   int rc= 0;
   DBUG_ENTER("delete_statistics_for_table");
 
+  /* Usage statistics (userstat) do not depend on the statistical tables */
+  if (del_global_table_stat(thd, db, tab))
+    rc= 1;
+
   start_new_trans new_trans(thd);
 
   if (open_stat_tables(thd, tables, TRUE))
   {
     new_trans.restore_old_transaction();
-    DBUG_RETURN(0);
+    DBUG_RETURN(rc);
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3463,10 +3467,6 @@ int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db,
     if (err & !rc)
       rc= 1;
   }
-
-  err= del_global_table_stat(thd, db, tab);
-  if (err & !rc)
-      rc= 1;
 
   tables[TABLE_STAT].table->file->extra(HA_EXTRA_FLUSH);
   tables[COLUMN_STAT].table->file->extra(HA_EXTRA_FLUSH);
@@ -3762,13 +3762,17 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   TABLE_LIST tables;
   int rc= 0;
   DBUG_ENTER("delete_statistics_for_index");
-   
+
+  /* Usage statistics (userstat) do not depend on the statistical tables */
+  if (del_global_index_stat(thd, tab, key_info))
+    rc= 1;
+
   start_new_trans new_trans(thd);
 
   if (open_stat_table_for_ddl(thd, &tables, &stat_table_name[2]))
   {
     new_trans.restore_old_transaction();
-    DBUG_RETURN(0);                             // Not an error
+    DBUG_RETURN(rc);                            // Not an error
   }
 
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
@@ -3798,10 +3802,6 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
       }
     }
   }
-
-  err= del_global_index_stat(thd, tab, key_info);
-  if (err && !rc)
-    rc= 1;
 
   /* Make change permanent and avoid 'table is marked as crashed' errors */
   index_stat.flush();

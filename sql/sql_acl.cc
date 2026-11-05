@@ -3073,8 +3073,7 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (info->interface_version >= 0x0202 && info->preprocess_hash &&
-      auth->auth_string.length)
+  if (info->interface_version >= 0x0202 && info->preprocess_hash)
   {
     uchar buf[MAX_SCRAMBLE_LENGTH];
     size_t len= sizeof(buf);
@@ -4312,19 +4311,6 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
   auto buff= static_cast<const ACL_USER *>(buff_);
   *length=buff->hostname_length;
   return reinterpret_cast<const uchar *>(buff->host.hostname);
-}
-
-
-static void acl_update_role(const LEX_CSTRING &rolename,
-                            const access_t& privileges)
-{
-  ACL_ROLE *role= find_acl_role(rolename, true);
-  if (role)
-  {
-    role->initial_role_access= role->access= privileges;
-    DBUG_ASSERT(strcasecmp(rolename.str, public_name.str) ||
-                           acl_public == role);
-  }
 }
 
 
@@ -5627,6 +5613,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
   access_t access(NO_ACL);
+  ACL_ROLE *role= NULL;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -5722,6 +5709,12 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     if (old_row_exists && !old_row_is_role)
     {
+      goto end;
+    }
+    role= find_acl_role(combo->user, true);
+    if ((role != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
     if (user_table.set_is_role(true))
@@ -5881,7 +5874,7 @@ end:
     {
       if (old_row_exists)
       {
-        acl_update_role(combo->user, access);
+        role->initial_role_access= role->access= access;
         if (cleanup_tables)
         {
           /*
@@ -5891,12 +5884,8 @@ end:
             role got its new (empty) privileges, so that roles and users that
             had this role granted don't keep its old privileges cached.
           */
-          ACL_ROLE *role= find_acl_role(combo->user, true);
-          if (role)
-          {
-            unlink_role_and_propagate(role);
-            reset_dynamic(&role->parent_grantee);
-          }
+          unlink_role_and_propagate(role);
+          reset_dynamic(&role->parent_grantee);
         }
       }
       else
@@ -10608,7 +10597,7 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
     {
-      if (item->privs.certainly_allowed(ALL_KNOWN_ACL))
+      if (item->privs.certainly_allowed(ALL_KNOWN_ACL & ~GRANT_ACL))
         return FALSE;
       continue;
     }
@@ -10616,7 +10605,7 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
         strcmp(item->db, db) == 0 &&
         (!item->host.hostname || !item->host.hostname[0]))
     {
-      if (item->privs.certainly_allowed(ALL_KNOWN_ACL))
+      if (item->privs.certainly_allowed(ALL_KNOWN_ACL & ~GRANT_ACL))
         return FALSE; /* Found current role match */
     }
   }
@@ -10644,7 +10633,7 @@ static bool has_some_table_privs(GRANT_TABLE *grant_table,
     not have full info i.e about all columns.
     Optimistically decide we'll be not affected by denies in columns.
   */
-  if (table_access.maybe_allowed(TABLE_ACLS))
+  if (table_access.maybe_allowed(TABLE_ACLS & ~GRANT_ACL))
     return true;
 
   privilege_t cols= grant_table->cols;
@@ -10665,7 +10654,7 @@ static bool has_some_table_privs_for_show(GRANT_TABLE *grant_table,
 {
   access_t table_access= merge_same_level(grant_table->privs,
                                           access_t(NO_ACL, denies));
-  if (table_access.maybe_allowed(TABLE_ACLS))
+  if (table_access.maybe_allowed(TABLE_ACLS & ~GRANT_ACL))
     return true;
   /*
     The below ignored "in-doubt" bits, deny_subtree, as we do
@@ -17578,6 +17567,11 @@ static int old_password_get_salt(const char *hash, size_t hash_length,
 {
   DBUG_ASSERT(*out_length >= SALT_LENGTH_323);
 
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
   if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH_323);
