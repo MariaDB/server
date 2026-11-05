@@ -45,6 +45,7 @@ struct xs_word
 /* XML schema keywords. */
 static xs_word xs_abstract(STRING_WITH_LEN("abstract"));
 static xs_word xs_all(STRING_WITH_LEN("all"));
+static xs_word xs_annotation(STRING_WITH_LEN("annotation"));
 static xs_word xs_any(STRING_WITH_LEN("any"));
 static xs_word xs_anyAttribute(STRING_WITH_LEN("anyAttribute"));
 static xs_word xs_attribute(STRING_WITH_LEN("attribute"));
@@ -494,8 +495,12 @@ public:
 bool XMLSchema_item::enter_tag(MY_XML_VALIDATION_DATA *st,
                                const char *attr, size_t len)
 {
-  st->push(&st->annotation);
-  return MY_XML_OK;
+  if (xs_annotation.eq(attr, len))
+  {
+    st->push(&st->annotation);
+    return MY_XML_OK;
+  }
+  return MY_XML_ERROR;
 }
 
 
@@ -669,6 +674,7 @@ class XMLSchema_any: public XMLSchema_anyAttribute
 public:
   XMLSchema_tag_integer_attribute           m_minOccurs;
   XMLSchema_tag_unbounded_integer_attribute m_maxOccurs;
+  int m_counter;
 
   XMLSchema_any(): XMLSchema_anyAttribute(),
     m_minOccurs(&xs_minOccurs),
@@ -677,11 +683,24 @@ public:
     declare_attribute(&m_minOccurs);
     declare_attribute(&m_maxOccurs);
   }
+  bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
+  {
+    m_counter= 0;
+    return FALSE;
+  }
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,
                          const char *attr, size_t len) override
   {
+    if (m_counter >= m_maxOccurs.m_value_int)
+      return VTN_CONTINUE;
+
     st->push(&st->annotation);
+    m_counter++;
     return VTN_ACCEPTED;
+  }
+  bool end_validation(MY_XML_VALIDATION_DATA *st) override
+  {
+    return m_counter >= m_minOccurs.m_value_int;
   }
 };
 
@@ -779,7 +798,7 @@ public:
   virtual bool valid_value(const char *value, size_t len) { return TRUE; }
   static XMLSchema_builtin_type *get_builtin_type_by_name(
            MY_XML_VALIDATION_DATA *st, const char *name, size_t len);
-
+  virtual bool allows_empty_value() const { return TRUE; }
   XMLSchema_builtin_type() {}
 };
 
@@ -881,6 +900,7 @@ static uint xml_num_state_types[NS_NUM_STATES]=
 class XMLSchema_empty_builtin_type: public XMLSchema_builtin_type
 {
 public:
+  bool allows_empty_value() const override { return TRUE; }
   bool valid_value(const char *value, size_t len) override
   {
     /* Only allow some whitespaces as a value. */
@@ -907,6 +927,7 @@ public:
   int m_disallowed_types;
   XMLSchema_num_builtin_type(int disallowed_types): XMLSchema_builtin_type(),
     m_disallowed_types(disallowed_types) {}
+  bool allows_empty_value() const override { return FALSE; }
   bool valid_value(const char *value, size_t len) override
   {
     int state= NS_GO;
@@ -1262,6 +1283,7 @@ public:
   XMLSchema_binary_builtin_type(enum enum_xml_bin_states state0):
     XMLSchema_builtin_type(), m_state0(state0) {}
 
+  bool allows_empty_value() const override { return TRUE; }
   bool valid_value(const char *value, size_t len) override
   {
     int state= m_state0;
@@ -1327,9 +1349,15 @@ public:
 class XMLSchema_simple_builtin_type: public XMLSchema_type
 {
 public:
+  bool m_empty_value;
   XMLSchema_builtin_type *m_int_type;
   XMLSchema_simple_builtin_type(XMLSchema_builtin_type *int_type):
     XMLSchema_type(), m_int_type(int_type) {}
+  bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
+  {
+    m_empty_value= true;
+    return FALSE;
+  }
   bool validate_tag(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
@@ -1343,8 +1371,13 @@ public:
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override
   {
+    m_empty_value= false;
     return m_int_type->valid_value(attr, len) ? MY_XML_OK :
                                                 st->validation_failed();
+  }
+  bool end_validation(MY_XML_VALIDATION_DATA *st) override
+  {
+    return m_empty_value ? m_int_type->allows_empty_value() : true;
   }
 };
 
@@ -1621,6 +1654,7 @@ class XMLSchema_restriction_in_simpleType: public XMLSchema_tag
 
   /* enum */
   XMLSchema_enum_facet *m_enumeration;
+  bool m_enum_found;
 
   bool m_in_check_type;
 
@@ -1652,11 +1686,14 @@ public:
   }
   bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
   {
+    m_enum_found= false;
     return m_base_type->validate_prepare(st);
   }
   bool end_validation(MY_XML_VALIDATION_DATA *st) override
   {
-    return m_base_type->end_validation(st);
+    bool b_valid= m_base_type->end_validation(st);
+
+    return m_enumeration ? m_enum_found : b_valid;
   }
   bool validate_value(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override;
@@ -1931,7 +1968,7 @@ public:
         res= false;
     }
 
-    if (m_counter == 0)
+    if (!res && m_counter == 0)
     {
       return m_minOccurs.m_value_int == 0;
     }
@@ -2350,6 +2387,8 @@ public:
   }
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
+  bool leave(MY_XML_VALIDATION_DATA *st,
+             const char *attr, size_t len) override;
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
@@ -2611,6 +2650,7 @@ static XMLSchema_tag empty_compositor;
 class XMLSchema_bool_builtin_type: public XMLSchema_builtin_type
 {
 public:
+  bool allows_empty_value() const override { return FALSE; }
   bool valid_value(const char *value, size_t len) override
   {
     return xs_true.eq(value, len) || xs_false.eq(value, len);
@@ -2888,8 +2928,13 @@ bool XMLSchema_attribute::leave(MY_XML_VALIDATION_DATA *st,
   }
   else
   {
-    if (st->add_item_to_resolve(this))
-      return st->error_oom();
+    if (m_atr_type.is_set())
+    {
+      if (st->add_item_to_resolve(this))
+        return st->error_oom();
+    }
+    else
+      return MY_XML_ERROR; /* type has to be specified. */
   }
 
   return XMLSchema_item::leave(st, attr, len);
@@ -3169,7 +3214,10 @@ bool XMLSchema_restriction_in_simpleType::validate_value(
     for (XMLSchema_enum_facet *en= m_enumeration; en; en= en->m_next_enum)
     {
       if (en->eq(attr, len))
+      {
+        m_enum_found= true;
         return MY_XML_OK;
+      }
     }
     return st->validation_failed();
   }
@@ -3541,6 +3589,20 @@ bool XMLSchema_element_global::enter_tag(MY_XML_VALIDATION_DATA *st,
   st->push(def);
 
   return MY_XML_OK;
+}
+
+
+bool XMLSchema_element_global::leave(MY_XML_VALIDATION_DATA *st,
+                                     const char *attr, size_t len)
+{
+  if (!m_type && !m_atr_type.is_set())
+  {
+    m_type= new(st->mem_root) XMLSchema_any_type;
+    if (!m_type)
+      return st->error_oom();
+  }
+
+  return XMLSchema_attribute::leave(st, attr, len);
 }
 
 

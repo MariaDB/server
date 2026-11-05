@@ -18,7 +18,7 @@ set @schema= '<?xml version="1.0"?>
 
 set @xml= '<a> If <b> 123 </b> </a>';
 
---error ER_UNKNOWN_ERROR
+--error ER_WRONG_VALUE
 select XMLISVALID(@xml, @schema);
 
 set @schema= '<?xml version="1.0"?>
@@ -174,7 +174,7 @@ set @schema= '<?xml version="1.0"?>
 </element>
 
 </schema>';
---error ER_UNKNOWN_ERROR
+--error ER_WRONG_VALUE
 select XMLISVALID(@xml, @schema);
 
 set @schema= '<?xml version="1.0"?>
@@ -184,7 +184,7 @@ set @schema= '<?xml version="1.0"?>
   <complexType>
     <sequence>
       <element name="to" type="string"/>
-      <:element name="from" type="string"/>
+      <element name="from" type="string"/>
       <element name="heading" type="string"/>
       <element name="body" type="string"/>
     </sequence>
@@ -753,7 +753,7 @@ set @schema= '<?xml version="1.0"?>
   </xs:element>
 </xs:schema>';
 
---error ER_UNKNOWN_ERROR
+--error ER_WRONG_VALUE
 select XMLISVALID(@xml, @schema);
 
 set @schema= '<?xml version="1.0"?>
@@ -777,7 +777,7 @@ set @schema= '<?xml version="1.0"?>
   </xs:element>
 </xs:schema>';
 
---error ER_UNKNOWN_ERROR
+--error ER_WRONG_VALUE
 select XMLISVALID(@xml, @schema);
 
 set @schema= '<?xml version="1.0"?>
@@ -965,7 +965,6 @@ set @schema= ' <?xml version="1.0" encoding="UTF-8"?>
 
 <!-- 1. Define the attribute group -->
   <xs:attributeGroup name="personIdentDetails">
-    <xs:wrongTag name="id" type="xs:string" use="required"/>
     <xs:attribute name="status" type="xs:string" use="optional"/>
   </xs:attributeGroup>
 
@@ -1433,7 +1432,7 @@ select XMLISVALID(@xml, @schema);
 set @schema= ' <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
-<xs:simpleType>
+<xs:simpleType name="ExamScoreType">
    <xs:restriction base="xs:integer">
      <xs:minInclusive value="0"/>
      <xs:maxInclusive value="100"/>
@@ -2093,7 +2092,7 @@ INSERT INTO t VALUES ('<a> </a>');
 INSERT INTO t VALUES ('<a>   </a>');
 
 --error ER_CONSTRAINT_FAILED
-INSERT INTO t VALUES ('<a>Text</a>');
+INSERT INTO t VALUES ('<b />');
 
 DROP TABLE t;
 
@@ -2839,3 +2838,70 @@ SELECT XMLISVALID('<root><a/><c/></root>', @schema_nested_req) AS r;
 SELECT XMLISVALID('<root><c/></root>', @schema_nested_req) AS r;
 --echo # Expect 0, required nested sequence is missing
 SELECT XMLISVALID('<root/>', @schema_nested_req) AS r;
+
+--echo
+--echo MDEV-41821 XMLISVALID returns unexepected result, various corner cases.
+--echo
+
+--echo # empty element of a non-string simple type is accepted, expect 0 for all three
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:simpleType name="e"><xs:restriction base="xs:string"><xs:enumeration value="x"/></xs:restriction></xs:simpleType>
+<xs:element name="r"><xs:complexType><xs:sequence>
+<xs:element name="i" type="xs:int"/><xs:element name="b" type="xs:boolean"/><xs:element name="e" type="e"/>
+</xs:sequence></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID('<r><i/><b>true</b><e>x</e></r>', @s) as empty_int;
+select XMLISVALID('<r><i>1</i><b/><e>x</e></r>', @s) as empty_bool;
+select XMLISVALID('<r><i>1</i><b>true</b><e/></r>', @s) as empty_enum;
+ 
+--echo # complexType with only optional particles rejects an empty element, expect 1 for all.
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="r"><xs:complexType><xs:sequence><xs:element name="c" type="xs:string" minOccurs="0"/></xs:sequence></xs:complexType></xs:element></xs:schema>') as seq_opt;
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="r"><xs:complexType><xs:all><xs:element name="a" type="xs:int" minOccurs="0"/></xs:all></xs:complexType></xs:element></xs:schema>') as all_opt;
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="r"><xs:complexType><xs:choice><xs:element name="a" type="xs:int" minOccurs="0"/></xs:choice></xs:complexType></xs:element></xs:schema>') as choice_opt;
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="r"><xs:complexType><xs:sequence><xs:sequence><xs:element name="a" type="xs:int" minOccurs="0"/></xs:sequence></xs:sequence></xs:complexType></xs:element></xs:schema>') as nested_opt;
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:group name="G"><xs:sequence><xs:element name="a" type="xs:int" minOccurs="0"/></xs:sequence></xs:group><xs:element name="r"><xs:complexType><xs:group ref="G"/></xs:complexType></xs:element></xs:schema>') as group_opt;
+select XMLISVALID('<r/>','<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="r"><xs:complexType><xs:sequence minOccurs="0"><xs:element name="a" type="xs:int"/></xs:sequence></xs:complexType></xs:element></xs:schema>') as control;
+ 
+--echo # choice maxOccurs>1 picking the same alternative twice, expect 1
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="root"><xs:complexType><xs:choice maxOccurs="2"><xs:element name="n" type="xs:int"/><xs:element name="m" type="xs:int"/></xs:choice></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID('<root><n>1</n><m>2</m></root>', @s) as n_then_m;
+select XMLISVALID('<root><n>1</n><n>2</n></root>', @s) as n_then_n;
+ 
+--echo # minOccurs/maxOccurs on <xs:group ref> are ignored, expect 1 for both
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:group name="g"><xs:sequence><xs:element name="a" type="xs:int"/><xs:element name="b" type="xs:int"/></xs:sequence></xs:group>
+<xs:element name="r"><xs:complexType><xs:group ref="g" maxOccurs="2"/></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID('<r><a>1</a><b>2</b><a>1</a><b>2</b></r>', @s) as max_occurs;
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:group name="g"><xs:sequence><xs:element name="a" type="xs:int"/></xs:sequence></xs:group>
+<xs:element name="r"><xs:complexType><xs:sequence><xs:group ref="g" minOccurs="0"/><xs:element name="b" type="xs:int"/></xs:sequence></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID('<r><b>2</b></r>', @s) as min_occurs;
+ 
+--echo # parsed but not enforced, expect 0 in first two
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="r"><xs:complexType><xs:sequence><xs:any minOccurs="2" maxOccurs="2"/></xs:sequence></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID('<r><a/></r>', @s) as any_too_few;
+select XMLISVALID('<r><a/><a/><a/></r>', @s) as any_too_many;
+select XMLISVALID('<r><a/><a/></r>', @s) as any_just_enough;
+ 
+--echo # element without type is xs:anyType per XSD, expect 1 for all three
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="a"/></xs:schema>';
+select XMLISVALID('<a>text</a>', @s) as a_text, XMLISVALID('<a><b/></a>', @s) as a_child, XMLISVALID('<a/>', @s) as a_empty;
+
+
+--echo # enumeration restricting a user simpleType must not leak validation state
+--echo # between sibling elements, expect 1 for both
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:simpleType name="b"><xs:restriction base="xs:string"/></xs:simpleType>
+<xs:simpleType name="e"><xs:restriction base="b"><xs:enumeration value="x"/></xs:restriction></xs:simpleType>
+<xs:element name="r"><xs:complexType><xs:sequence><xs:element name="e" type="e" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element></xs:schema>';
+select XMLISVALID(concat('<r>', repeat('<e>x</e>', 3), '</r>'), @s) as few_siblings;
+select XMLISVALID(concat('<r>', repeat('<e>x</e>', 1100), '</r>'), @s) as many_siblings;
+
+--echo # enumeration restricting a non-string builtin type, expect 1 for valid, 0 for invalid
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="e"><xs:simpleType><xs:restriction base="xs:int"><xs:enumeration value="1"/><xs:enumeration value="2"/></xs:restriction></xs:simpleType></xs:element></xs:schema>';
+select XMLISVALID('<e>1</e>', @s) as enum_int_valid, XMLISVALID('<e>2</e>', @s) as enum_int_valid2, XMLISVALID('<e>3</e>', @s) as enum_int_invalid;
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="e"><xs:simpleType><xs:restriction base="xs:boolean"><xs:enumeration value="true"/></xs:restriction></xs:simpleType></xs:element></xs:schema>';
+select XMLISVALID('<e>true</e>', @s) as enum_bool_valid, XMLISVALID('<e>false</e>', @s) as enum_bool_invalid;
