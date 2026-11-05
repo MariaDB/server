@@ -855,6 +855,32 @@ protected:
 };
 
 
+class Create_func_ps_current_thread_id : public Create_func_arg0
+{
+public:
+  Item *create_builder(THD *thd) override;
+
+  static Create_func_ps_current_thread_id s_singleton;
+
+protected:
+  Create_func_ps_current_thread_id() = default;
+  ~Create_func_ps_current_thread_id() override = default;
+};
+
+
+class Create_func_ps_thread_id : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override;
+
+  static Create_func_ps_thread_id s_singleton;
+
+protected:
+  Create_func_ps_thread_id() = default;
+  ~Create_func_ps_thread_id() override = default;
+};
+
+
 class Create_func_format_pico_time : public Create_func_arg1
 {
 public:
@@ -3973,6 +3999,29 @@ Create_func_floor::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_ps_current_thread_id
+  Create_func_ps_current_thread_id::s_singleton;
+
+Item*
+Create_func_ps_current_thread_id::create_builder(THD *thd)
+{
+  thd->lex->safe_to_cache_query= 0;
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  return new (thd->mem_root) Item_func_ps_current_thread_id(thd);
+}
+
+
+Create_func_ps_thread_id Create_func_ps_thread_id::s_singleton;
+
+Item*
+Create_func_ps_thread_id::create_1_arg(THD *thd, Item *arg1)
+{
+  thd->lex->safe_to_cache_query= 0;
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  return new (thd->mem_root) Item_func_ps_thread_id(thd, arg1);
+}
+
+
 Create_func_format_pico_time Create_func_format_pico_time::s_singleton;
 
 Item*
@@ -6513,6 +6562,8 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("PERIOD_DIFF") }, BUILDER(Create_func_period_diff)},
   { { STRING_WITH_LEN("PI") }, BUILDER(Create_func_pi)},
   { { STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
+  { { STRING_WITH_LEN("PS_CURRENT_THREAD_ID") }, BUILDER(Create_func_ps_current_thread_id)},
+  { { STRING_WITH_LEN("PS_THREAD_ID") }, BUILDER(Create_func_ps_thread_id)},
   { { STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
   { { STRING_WITH_LEN("QUARTER") }, BUILDER(Create_func_quarter)},
   { { STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},

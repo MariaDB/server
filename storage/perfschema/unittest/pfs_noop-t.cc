@@ -231,12 +231,16 @@ void test_noop()
 
   PSI_server->set_thread_peer_port(NULL, 0);
 
+  thread= PSI_server->get_thread_by_id(1);
+  ok(thread == NULL, "no thread by id");
+  ok(PSI_server->get_thread_internal_id(NULL) == 0, "no internal id");
+
   ok(true, "all noop api called");
 }
 
 int main(int, char **)
 {
-  plan(34);
+  plan(36);
 
   MY_INIT("pfs_noop-t");
   test_noop();

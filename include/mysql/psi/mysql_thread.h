@@ -107,6 +107,8 @@
 #define PSI_CALL_set_thread_account       PSI_THREAD_CALL(set_thread_account)
 #define PSI_CALL_spawn_thread             PSI_THREAD_CALL(spawn_thread)
 #define PSI_CALL_set_connection_type      PSI_THREAD_CALL(set_connection_type)
+#define PSI_CALL_get_thread_by_id         PSI_THREAD_CALL(get_thread_by_id)
+#define PSI_CALL_get_thread_internal_id   PSI_THREAD_CALL(get_thread_internal_id)
 #else
 #define PSI_CALL_delete_current_thread()                do { } while(0)
 #define PSI_CALL_get_thread()                           NULL
@@ -123,6 +125,8 @@
 #define PSI_CALL_set_thread_account(A1, A2, A3, A4)     do { } while(0)
 #define PSI_CALL_spawn_thread(A1, A2, A3, A4, A5)       0
 #define PSI_CALL_set_connection_type(A)                 do { } while(0)
+#define PSI_CALL_get_thread_by_id(A)                    NULL
+#define PSI_CALL_get_thread_internal_id(A)              0
 #endif
 
 

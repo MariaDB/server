@@ -46,6 +46,7 @@
 #include "pfs.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
+#include "pfs_buffer_container.h"
 #include "pfs_host.h"
 #include "pfs_user.h"
 #include "pfs_account.h"
@@ -2582,6 +2583,38 @@ void pfs_set_thread_peer_port_v1(PSI_thread *thread, uint port) {
   if (likely(pfs != NULL)) {
     pfs->m_peer_port = port;
   }
+}
+
+/**
+  Implementation of the thread instrumentation interface.
+  @sa PSI_v1::get_thread_by_id.
+*/
+PSI_thread *pfs_get_thread_by_id_v1(ulonglong processlist_id)
+{
+  if (unlikely(!pfs_initialized) || processlist_id == 0)
+    return NULL;
+
+  PFS_thread_iterator it= global_thread_container.iterate();
+  PFS_thread *pfs= it.scan_next();
+  while (pfs != NULL)
+  {
+    if (pfs->m_processlist_id == processlist_id)
+      return reinterpret_cast<PSI_thread*> (pfs);
+    pfs= it.scan_next();
+  }
+  return NULL;
+}
+
+/**
+  Implementation of the thread instrumentation interface.
+  @sa PSI_v1::get_thread_internal_id.
+*/
+ulonglong pfs_get_thread_internal_id_v1(PSI_thread *thread)
+{
+  PFS_thread *pfs= reinterpret_cast<PFS_thread*> (thread);
+  if (unlikely(pfs == NULL))
+    return 0;
+  return pfs->m_thread_internal_id;
 }
 
 /**
@@ -7152,7 +7185,9 @@ PSI_v1 PFS_v1=
   pfs_destroy_metadata_lock_v1,
   pfs_start_metadata_wait_v1,
   pfs_end_metadata_wait_v1,
-  pfs_set_thread_peer_port_v1
+  pfs_set_thread_peer_port_v1,
+  pfs_get_thread_by_id_v1,
+  pfs_get_thread_internal_id_v1
 };
 
 static void* get_interface(int version)

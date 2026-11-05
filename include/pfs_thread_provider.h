@@ -103,6 +103,10 @@ void pfs_set_thread_v1(PSI_thread* thread);
 
 void pfs_set_thread_peer_port_v1(PSI_thread *thread, uint port);
 
+PSI_thread *pfs_get_thread_by_id_v1(ulonglong processlist_id);
+
+ulonglong pfs_get_thread_internal_id_v1(PSI_thread *thread);
+
 void pfs_delete_current_thread_v1(void);
 
 void pfs_delete_thread_v1(PSI_thread *thread);

@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-19629 PS_THREAD_ID() and PS_CURRENT_THREAD_ID() with the
+--echo #            Performance Schema disabled
+--echo #
+
+SELECT @@performance_schema;
+
+--error ER_WRONG_PERFSCHEMA_USAGE
+SELECT PS_CURRENT_THREAD_ID();
+--error ER_WRONG_PERFSCHEMA_USAGE
+SELECT PS_THREAD_ID(CONNECTION_ID());
+--error ER_WRONG_PERFSCHEMA_USAGE
+SELECT PS_THREAD_ID(NULL);
+
+--echo #
+--echo # End of 13.2 tests
+--echo #

@@ -1,0 +1,16 @@
+#
+# MDEV-19629 PS_THREAD_ID() and PS_CURRENT_THREAD_ID() with the
+#            Performance Schema disabled
+#
+SELECT @@performance_schema;
+@@performance_schema
+0
+SELECT PS_CURRENT_THREAD_ID();
+ERROR HY000: 'ps_current_thread_id': The Performance Schema is not enabled.
+SELECT PS_THREAD_ID(CONNECTION_ID());
+ERROR HY000: 'ps_thread_id': The Performance Schema is not enabled.
+SELECT PS_THREAD_ID(NULL);
+ERROR HY000: 'ps_thread_id': The Performance Schema is not enabled.
+#
+# End of 13.2 tests
+#

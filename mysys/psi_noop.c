@@ -284,6 +284,18 @@ static void set_thread_peer_port_noop(PSI_thread * thread NNN, uint port NNN)
   return;
 }
 
+static PSI_thread*
+get_thread_by_id_noop(unsigned long long processlist_id NNN)
+{
+  return NULL;
+}
+
+static unsigned long long
+get_thread_internal_id_noop(PSI_thread *thread NNN)
+{
+  return 0;
+}
+
 static void delete_current_thread_noop(void)
 {
   return;
@@ -1050,7 +1062,9 @@ static PSI PSI_noop=
   start_metadata_wait_noop,
   end_metadata_wait_noop,
 
-  set_thread_peer_port_noop
+  set_thread_peer_port_noop,
+  get_thread_by_id_noop,
+  get_thread_internal_id_noop
 };
 
 /**

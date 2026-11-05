@@ -1706,6 +1706,22 @@ typedef void (*set_thread_v1_t)(struct PSI_thread *thread);
 typedef void (*set_thread_peer_port_v1_t)(PSI_thread *thread,
                                           unsigned int port);
 
+/**
+  Find the instrumented thread with a given processlist id.
+  @param processlist_id the processlist (connection) id
+  @return the thread instrumentation, or NULL if no such thread exists
+*/
+typedef struct PSI_thread* (*get_thread_by_id_v1_t)
+  (unsigned long long processlist_id);
+
+/**
+  Get the internal thread id (performance_schema.threads.THREAD_ID).
+  @param thread the thread instrumentation
+  @return the internal thread id, or 0 if @c thread is NULL
+*/
+typedef unsigned long long (*get_thread_internal_id_v1_t)
+  (struct PSI_thread *thread);
+
 /** Delete the current thread instrumentation. */
 typedef void (*delete_current_thread_v1_t)(void);
 
@@ -2745,6 +2761,10 @@ struct PSI_v1
   end_metadata_wait_v1_t end_metadata_wait;
 
   set_thread_peer_port_v1_t set_thread_peer_port;
+  /** @sa get_thread_by_id_v1_t. */
+  get_thread_by_id_v1_t get_thread_by_id;
+  /** @sa get_thread_internal_id_v1_t. */
+  get_thread_internal_id_v1_t get_thread_internal_id;
 };
 
 /** @} (end of group Group_PSI_v1) */

@@ -1,0 +1,81 @@
+#
+# MDEV-19629 Implement MySQL 8.0 native functions:
+#            PS_THREAD_ID() and PS_CURRENT_THREAD_ID()
+#
+SELECT PS_CURRENT_THREAD_ID() = @tid;
+PS_CURRENT_THREAD_ID() = @tid
+1
+SELECT PS_THREAD_ID(CONNECTION_ID()) = @tid;
+PS_THREAD_ID(CONNECTION_ID()) = @tid
+1
+SELECT PS_THREAD_ID(CONNECTION_ID()) = PS_CURRENT_THREAD_ID();
+PS_THREAD_ID(CONNECTION_ID()) = PS_CURRENT_THREAD_ID()
+1
+# Another connection
+connect  con1,localhost,root,,;
+connection default;
+con1_matches
+1
+# Same answer as performance_schema.threads for every connection
+SELECT COUNT(*) >= 2 AS have_two,
+COUNT(*) = SUM(PS_THREAD_ID(PROCESSLIST_ID) <=> THREAD_ID) AS all_match
+FROM performance_schema.threads
+WHERE PROCESSLIST_ID IS NOT NULL;
+have_two	all_match
+1	1
+disconnect con1;
+gone_after_disconnect
+1
+# NULL for unknown, NULL, zero, negative and non-integer arguments
+SELECT PS_THREAD_ID(234623462376), PS_THREAD_ID(NULL), PS_THREAD_ID(0),
+PS_THREAD_ID(-1), PS_THREAD_ID(1.9), PS_THREAD_ID(18446744073709551615);
+PS_THREAD_ID(234623462376)	PS_THREAD_ID(NULL)	PS_THREAD_ID(0)	PS_THREAD_ID(-1)	PS_THREAD_ID(1.9)	PS_THREAD_ID(18446744073709551615)
+NULL	NULL	NULL	NULL	NULL	NULL
+SELECT PS_THREAD_ID('abc');
+PS_THREAD_ID('abc')
+NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'abc'
+# Prepared statements
+PREPARE s FROM 'SELECT PS_THREAD_ID(?) = PS_CURRENT_THREAD_ID()';
+SET @cid= CONNECTION_ID();
+EXECUTE s USING @cid;
+PS_THREAD_ID(?) = PS_CURRENT_THREAD_ID()
+1
+EXECUTE s USING NULL;
+PS_THREAD_ID(?) = PS_CURRENT_THREAD_ID()
+NULL
+DEALLOCATE PREPARE s;
+# Result type
+CREATE TABLE t1 AS SELECT PS_THREAD_ID(1) AS a, PS_CURRENT_THREAD_ID() AS b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(21) unsigned DEFAULT NULL,
+  `b` bigint(21) unsigned DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+# Wrong argument count
+SELECT PS_THREAD_ID();
+ERROR 42000: Incorrect parameter count in the call to native function 'PS_THREAD_ID'
+SELECT PS_THREAD_ID(1, 2);
+ERROR 42000: Incorrect parameter count in the call to native function 'PS_THREAD_ID'
+SELECT PS_CURRENT_THREAD_ID(1);
+ERROR 42000: Incorrect parameter count in the call to native function 'PS_CURRENT_THREAD_ID'
+# Allowed in VIRTUAL columns, not in PERSISTENT ones (like CONNECTION_ID())
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_THREAD_ID(a)) VIRTUAL,
+c BIGINT UNSIGNED AS (PS_CURRENT_THREAD_ID()) VIRTUAL);
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_THREAD_ID(a)) PERSISTENT);
+ERROR HY000: Function or expression 'ps_thread_id()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_CURRENT_THREAD_ID()) PERSISTENT);
+ERROR HY000: Function or expression 'ps_current_thread_id()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+# The sys schema function still has its own NULL meaning when qualified
+SELECT sys.ps_thread_id(NULL) = PS_CURRENT_THREAD_ID();
+sys.ps_thread_id(NULL) = PS_CURRENT_THREAD_ID()
+1
+Warnings:
+Note	1585	This function 'ps_thread_id' has the same name as a native function
+#
+# End of 13.2 tests
+#
