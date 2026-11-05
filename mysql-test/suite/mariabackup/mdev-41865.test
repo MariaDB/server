@@ -1,0 +1,67 @@
+# mariadb-backup --prepare must not take plugin_dir from the backup's own
+# backup-my.cnf: that file is part of the backup/transfer and may not be
+# locally trusted (e.g. it can arrive over an SST stream).
+#
+# STEPS
+#  - craft a target-dir with a backup-my.cnf claiming an attacker-chosen
+#    plugin_dir and plugin_load
+#  - put a real file at that attacker-chosen plugin_dir, so a false
+#    negative (file just not found) can't hide a real failure
+#  - run mariadb-backup --prepare against that target-dir
+#  - assert the prepare log never references the attacker directory
+
+--let $targetdir = $MYSQLTEST_VARDIR/tmp/mdev-41865
+--let $attacker_plugins = $MYSQLTEST_VARDIR/tmp/mdev-41865-plugins
+--let $prepare_log = $MYSQLTEST_VARDIR/tmp/mdev-41865-prepare.log
+--let MDEV41865_TARGETDIR = $targetdir
+--let MDEV41865_ATTACKER_PLUGINS = $attacker_plugins
+
+--mkdir $targetdir
+--mkdir $attacker_plugins
+
+perl;
+  use strict;
+  use warnings;
+
+  my $targetdir = $ENV{MDEV41865_TARGETDIR};
+  my $attacker  = $ENV{MDEV41865_ATTACKER_PLUGINS};
+
+  # a real file at the attacker-chosen path: if mariadb-backup ever
+  # resolves plugin_dir from backup-my.cnf, it would find this.
+  open(my $so, '>', "$attacker/poc.so") or die $!;
+  print $so "not a real shared object, just needs to exist";
+  close($so);
+
+  open(my $cnf, '>', "$targetdir/backup-my.cnf") or die $!;
+  print $cnf "[mysqld]\nplugin_dir=$attacker\nplugin_load=poc=poc\n";
+  close($cnf);
+
+  my $checkpoints = "backup_type = full-backuped\nfrom_lsn = 0\nto_lsn = 0\n" .
+                     "last_lsn = 0\nrecover_binlog_info = 0\n";
+  for my $name ("xtrabackup_checkpoints", "mariadb_backup_checkpoints") {
+    open(my $fh, '>', "$targetdir/$name") or die $!;
+    print $fh $checkpoints;
+    close($fh);
+  }
+EOF
+
+--error 1
+--exec $XTRABACKUP --prepare --target-dir=$targetdir > $prepare_log 2>&1
+
+--let SEARCH_FILE = $prepare_log
+--let SEARCH_PATTERN = Loading encryption plugin from poc=poc
+--source include/search_pattern_in_file.inc
+
+# the attacker's chosen directory must never be searched, even though a
+# real file sits there and backup-my.cnf asked for it by name
+--let SEARCH_PATTERN = $attacker_plugins
+--let SEARCH_ABORT = FOUND
+--source include/search_pattern_in_file.inc
+
+--remove_file $attacker_plugins/poc.so
+--rmdir $attacker_plugins
+--remove_file $targetdir/backup-my.cnf
+--remove_file $targetdir/xtrabackup_checkpoints
+--remove_file $targetdir/mariadb_backup_checkpoints
+--remove_file $prepare_log
+--rmdir $targetdir

@@ -7477,6 +7477,10 @@ void handle_options(int argc, char **argv, char ***argv_server,
 	char*	target_dir = NULL;
 	bool	prepare = false;
 
+	/* plugin-dir from the real command line, captured before the
+	   untrusted backup-my.cnf can overwrite it. */
+	char*	cmdline_plugin_dir = NULL;
+
 	char	conf_file[FN_REFLEN];
 
         // array_elements() will not work for load_defaults, as it is defined
@@ -7522,6 +7526,7 @@ void handle_options(int argc, char **argv, char ***argv_server,
 
         handle_options(&argc_early, &argv_early, xb_server_options,
                                      xb_early_options);
+        cmdline_plugin_dir= xb_plugin_dir; // real argv, before backup-my.cnf
         argv_early--; argc_early++;
         handle_options(&argc_early, &argv_early, xb_client_options,
                                      xb_early_options);
@@ -7641,6 +7646,12 @@ void handle_options(int argc, char **argv, char ***argv_server,
             (ho_error= handle_options(&argc_backup, argv_backup,
                                       xb_server_options, xb_get_one_option)))
           exit(ho_error);
+
+	/* Undo any plugin-dir backup-my.cnf set above: during --prepare it is
+	   untrusted (e.g. arrives over an SST stream) and must not be able to
+	   redirect plugin loading. */
+	if (prepare)
+		xb_plugin_dir= cmdline_plugin_dir;
 
         /* Add back the program name handle_options removes */
         ++argc_backup;
