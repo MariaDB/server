@@ -6,4 +6,13 @@
 --let $query_node_1a = INSERT INTO t1 VALUE (1,'x'),(2,'x'),(3,'x')
 --let $query_node_2 = INSERT INTO t1 VALUE (4, 'z');
 
+#
+# TRUNCATE TABLE replicates via TOI as a close+recreate of the table for an
+# engine that supports recreate (MDEV-41923). A concurrent INSERT on another
+# node can then observe the table as briefly absent while the recreate is
+# applied, so ER_NO_SUCH_TABLE is also a non-deterministic, tolerated outcome
+# here, like the other races this harness already allows.
+#
+--let $extra_errors = ,ER_NO_SUCH_TABLE
+
 --source suite/galera/include/galera_concurrent_test.inc
