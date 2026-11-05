@@ -113,4 +113,38 @@ SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
 Variable_name	Value
 Parallel_queries_executed	0
 DROP TABLE t7;
+#
+# LIKE keeps its escape as a child outside args; the copy owns one too
+#
+CREATE TABLE t8 (id INT PRIMARY KEY, s VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO t8 SELECT seq, CONCAT('row_', seq) FROM seq_1_to_2000;
+SET SESSION parallel_worker_threads=0;
+SELECT COUNT(*) FROM t8 WHERE s LIKE 'row_1%';
+COUNT(*)
+1111
+SELECT COUNT(*) FROM t8 WHERE s LIKE 'row|_1%' ESCAPE '|';
+COUNT(*)
+1111
+SELECT COUNT(*) FROM t8 WHERE s NOT LIKE '%9';
+COUNT(*)
+1800
+# same answers with workers enabled, and all three ran in the workers
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET SESSION optimizer_parallel_setup_cost= 0;
+SET SESSION parallel_worker_threads=4;
+FLUSH STATUS;
+SELECT COUNT(*) FROM t8 WHERE s LIKE 'row_1%';
+COUNT(*)
+1111
+SELECT COUNT(*) FROM t8 WHERE s LIKE 'row|_1%' ESCAPE '|';
+COUNT(*)
+1111
+SELECT COUNT(*) FROM t8 WHERE s NOT LIKE '%9';
+COUNT(*)
+1800
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+Variable_name	Value
+Parallel_queries_executed	3
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+DROP TABLE t8;
 DROP TABLE t1,t2,t3,t4,t5;

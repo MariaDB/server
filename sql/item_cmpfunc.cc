@@ -6339,6 +6339,31 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
 }
 
 
+/**
+  @brief
+    Build a clone of a LIKE.
+
+  @details
+    The escape is a child outside args, so Item_func_or_sum::deep_copy() leaves
+    the copy sharing it with the original; clone it as the arguments are
+    cloned. The TurboBM tables and the pattern are read-only, allocated on the
+    statement's mem_root by fix_fields() and never freed by cleanup(), so the
+    copy can keep pointing at them.
+*/
+
+Item *Item_func_like::deep_copy(THD *thd) const
+{
+  Item_func_like *clone=
+    static_cast<Item_func_like *>(Item_func_or_sum::deep_copy(thd));
+  if (unlikely(!clone))
+    return NULL;
+  if (escape_item &&
+      unlikely(!(clone->escape_item= escape_item->deep_copy_with_checks(thd))))
+    return NULL;
+  return clone;
+}
+
+
 void Item_func_like::cleanup()
 {
   canDoTurboBM= FALSE;

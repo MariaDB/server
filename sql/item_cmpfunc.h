@@ -3252,6 +3252,7 @@ public:
   }
 
   bool find_selective_predicates_list_processor(void *arg) override;
+  Item *deep_copy(THD *thd) const override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
