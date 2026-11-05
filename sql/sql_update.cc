@@ -2112,7 +2112,7 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
    select_result_interceptor(thd_arg),
    all_tables(table_list), leaves(leaves_list), update_tables(0),
    tmp_tables(0), updated(0), found(0), fields(field_list),
-   values(value_list), table_count(0), copy_field(0),
+   values(value_list), value_slots(0), table_count(0), copy_field(0),
    handle_duplicates(handle_duplicates_arg), do_update(1), trans_safe(1),
    transactional_tables(0), ignore(ignore_arg), error_handled(0), prepared(0),
    updated_sys_ver(0)
@@ -2561,6 +2561,37 @@ loop_end:
     tmp_tables[cnt]->file->extra(HA_EXTRA_WRITE_CACHE);
   }
   join->tmp_table_keep_current_rowid= TRUE;
+
+  /*
+    If ORDER BY makes the join use a temp table, the SET values have to be
+    computed into it while the rows they read are current, so add them as
+    hidden fields (st_select_lex::get_cardinality_of_ref_ptrs_slice() has
+    reserved the ref_ptrs slots). See multi_update::prepare2().
+  */
+  if (join->order)
+  {
+    if (!(value_slots= (uint *) thd->alloc(sizeof(uint) * values->elements)))
+      DBUG_RETURN(1);
+    uint *slot= value_slots;
+    for (uint i= 0; i < table_count; i++)
+    {
+      List_iterator_fast<Item> value_it(*values_for_table[i]);
+      while (Item *value= value_it++)
+      {
+        if (value->const_item())
+        {
+          *slot++= UINT_MAX;
+          continue;
+        }
+        *slot++= join->all_fields.elements;
+        join->ref_ptrs[join->all_fields.elements]= value;
+        if (join->all_fields.push_front(value, thd->mem_root))
+          DBUG_RETURN(1);
+      }
+    }
+    count_field_types(join->select_lex, &join->tmp_table_param,
+                      join->all_fields, false);
+  }
   DBUG_RETURN(0);
 }
 
@@ -2590,11 +2621,40 @@ static TABLE *item_rowid_table(Item *item)
 */
 int multi_update::prepare2(JOIN *join)
 {
-  if (!join->need_tmp || !join->tmp_table_keep_current_rowid)
+  if (!join->need_tmp)
     return 0;
 
   // there cannot be many tmp tables in multi-update
   JOIN_TAB *tmptab= join->join_tab + join->exec_join_tab_cnt();
+
+  /*
+    Replace each non-constant SET value with the item that reads it from
+    the join's temp table.  initialize_tables() added the values to the
+    join as hidden fields and recorded their ref_ptrs slots in
+    value_slots[], and the temp table item is at the same index of
+    tmptab->ref_array.  Evaluated directly, the original item would see
+    the last row the join read, not the row being sent.
+  */
+  if (value_slots)
+  {
+    uint *slot= value_slots;
+    for (uint i= 0; i < table_count; i++)
+    {
+      List_iterator<Item> value_it(*values_for_table[i]);
+      while (value_it++)
+      {
+        if (*slot != UINT_MAX)
+        {
+          DBUG_ASSERT(join->items0[*slot] == value_it.ref()[0]);
+          value_it.replace((*tmptab->ref_array)[*slot]);
+        }
+        slot++;
+      }
+    }
+  }
+
+  if (!join->tmp_table_keep_current_rowid)
+    return 0;
 
   for (Item **it= tmptab->tmp_table_param->items_to_copy; *it ; it++)
   {
