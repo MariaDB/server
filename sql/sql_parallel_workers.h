@@ -523,6 +523,7 @@ extern bool   pwt_query_shape_allows_workers(JOIN *join, bool trace= false);
 
 extern bool   can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab,
                                        bool trace= false);
+extern bool   pwt_split_plan_conditions(JOIN *join, JOIN_TAB **failed);
 extern pwt_preagg_kind pwt_preagg_shape(JOIN *join, ORDER **group,
                                         bool trace= false);
 extern ORDER* pwt_manager_sort_order(JOIN *join);

@@ -300,6 +300,24 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
   preagg= scan_only ? PWT_PREAGG_NONE : pwt_preagg_shape(join, &preagg_group);
 
   /*
+    Which conjuncts of the table conditions the workers evaluate and which this
+    thread does, taken from the plan as it stands now. The gate took the same
+    split from the same plan, so it cannot fail here; if it does, say so
+    rather than run with half the conditions.
+  */
+  if (!scan_only)
+  {
+    JOIN_TAB *failed;
+    if (!pwt_split_plan_conditions(join, &failed))
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "init_parallel_workers: cannot divide the conditions between "
+               "the workers and the manager");
+      goto cleanup_workers;
+    }
+  }
+
+  /*
     Work out the row shape the workers and this thread will agree on, and build
     the transport that carries rows in it. Both are described in
     sql_parallel_transport.h; from here on nothing in this file knows how a row
@@ -307,7 +325,8 @@ int pwt_manager::init_parallel_workers(THD *thd, JOIN *join,
     to take the next one from.
   */
   if (layout.build(thd, join, exec.tables, exec.n_tables, preagg, preagg_group,
-                   scan_only ? nullptr : pwt_manager_sort_order(join)) ||
+                   scan_only ? nullptr : pwt_manager_sort_order(join),
+                   join->parallel_residual_cond != nullptr) ||
       setup_transport(thd, n) ||
       (layout.plan_sorts && setup_sort_stage(thd)))
     goto cleanup_workers;
