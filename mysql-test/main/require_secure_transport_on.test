@@ -2,14 +2,21 @@
 --source include/not_windows.inc
 --source include/have_ssl_communication.inc
 
+create user x509@localhost require x509;
+
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
 
+# no password hash, no client certificate
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SECURE_TRANSPORT_REQUIRED
 connect with_ssl,localhost,root,,,,,TCP SSL;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,x509,,,,,TCP SSL;
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 disconnect with_ssl;
 
 connection default;
+drop user x509@localhost;
 

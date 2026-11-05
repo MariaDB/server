@@ -14,6 +14,7 @@ my $opt_connect_port;
 my $opt_key;
 my $opt_cert;
 my $opt_ca;
+my $opt_hijack;
 
 my %options=(
   'listen-on=i' => \$opt_listen_port,
@@ -21,6 +22,9 @@ my %options=(
   'ssl-key=s' => \$opt_key,
   'ssl-cert=s' => \$opt_cert,
   'ssl-ca=s' => \$opt_ca,
+  # on the first OK packet from the server send this query to the server
+  # before forwarding the OK to the client
+  'hijack=s' => \$opt_hijack,
 );
 
 GetOptions(%options) or usage("Can't read options");
@@ -85,6 +89,15 @@ while (1) {
   warn "$$: ssl write server ".length.")";
   $_=Net::SSLeay::read($servssl) or last;
   warn "$$: ssl read server ".length.")";
+  if (defined $opt_hijack and substr($_, 4, 1) eq "\0") {
+    my $ok= $_;
+    my $query= "\x03$opt_hijack";
+    Net::SSLeay::write($servssl, pack("V", length $query) . $query);
+    $_=Net::SSLeay::read($servssl);
+    warn "$$: hijack (".(defined $_ ? length : 'eof').")";
+    undef $opt_hijack;
+    $_= $ok;
+  }
   Net::SSLeay::write($clissl, $_) or last;
   warn "$$: ssl write client ".length.")";
 }

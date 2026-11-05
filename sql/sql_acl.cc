@@ -13483,6 +13483,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
   uint curr_auth;                    ///< an index in acl_user->auth[]
   int packets_read, packets_written; ///< counters for send/received packets
   bool make_it_fail;
+  bool hashes_password;              ///< the plugin has hash_password()
   /** when plugin returns a failure this tells us what really happened */
   enum { SUCCESS, FAILURE, RESTART } status;
 };
@@ -13565,6 +13566,9 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   if (ssl_acceptor_fd)
   {
     thd->client_capabilities |= CLIENT_SSL;
+    if (opt_require_secure_transport &&
+        vio_type(thd->net.vio) == VIO_TYPE_TCPIP)
+      thd->client_capabilities|= MARIADB_CLIENT_SSL_INFO_CLIENT;
   }
 
   if (data_len)
@@ -14109,6 +14113,17 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 }
 
 
+static void secure_transport_required_error(THD *thd)
+{
+  Host_errors errors;
+
+  errors.m_ssl= 1;
+  inc_host_errors(thd->security_ctx->ip, &errors);
+  status_var_increment(thd->status_var.access_denied_errors);
+  my_error(ER_SECURE_TRANSPORT_REQUIRED, MYF(0));
+}
+
+
 #ifndef EMBEDDED_LIBRARY
 /**
   Check that a client uses secure connection type in case the option
@@ -14213,13 +14228,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   */
   else if (check_require_secured_transport(thd))
   {
-    Host_errors errors;
-
-    errors.m_ssl= 1;
-    inc_host_errors(mpvio->auth_info.thd->security_ctx->ip, &errors);
-    status_var_increment(thd->status_var.access_denied_errors);
-    my_error(ER_SECURE_TRANSPORT_REQUIRED, MYF(0));
-
+    secure_transport_required_error(thd);
     return packet_error;
   }
 
@@ -14805,6 +14814,87 @@ static void make_ssl_info(THD *thd, LEX_CSTRING salt, char *info)
 #endif
 }
 
+/** Whether the account requires a client certificate */
+static bool requires_client_cert(const ACL_USER *acl_user)
+{
+  return acl_user->ssl_type == SSL_TYPE_X509 ||
+         (acl_user->ssl_type == SSL_TYPE_SPECIFIED &&
+          (acl_user->x509_issuer[0] || acl_user->x509_subject[0]));
+}
+
+/**
+  Check ssl_info_client
+
+  ssl_info_client is one byte version (1) followed by
+  sha2("client", salt, scramble, binding), where binding is the server
+  certificate fingerprint as seen by the client, or "CA" if the client has
+  verified the certificate itself. A client that has no password hash to
+  compute the digest from sends the version byte only.
+*/
+static bool ssl_info_client_is_valid(THD *thd, const LEX_CSTRING &salt,
+                                     const uchar *pkt, ulong pkt_len)
+{
+#ifdef HAVE_OPENSSL
+  static const char prefix[]= "client";
+  static const char ca[]= "CA";
+  uchar digest[256/8];
+
+  if (pkt_len != 1 + sizeof(digest) || pkt[0] != 1)
+    return false;
+
+  DBUG_ASSERT(thd->scramble[SCRAMBLE_LENGTH] == 0);
+
+  LEX_CUSTRING fp= ssl_acceptor_fingerprint();
+  my_sha256_multi(digest, prefix, sizeof(prefix) - 1, salt.str, salt.length,
+                  thd->scramble, (size_t)SCRAMBLE_LENGTH,
+                  fp.str, fp.length, NULL);
+  if (!memcmp(pkt + 1, digest, sizeof(digest)))
+    return true;
+
+  my_sha256_multi(digest, prefix, sizeof(prefix) - 1, salt.str, salt.length,
+                  thd->scramble, (size_t)SCRAMBLE_LENGTH,
+                  ca, sizeof(ca) - 1, NULL);
+  return !memcmp(pkt + 1, digest, sizeof(digest));
+#else
+  return false;
+#endif
+}
+
+/**
+  Send the OK packet and read ssl_info_client that the client sends after it
+
+  @param req     whether valid ssl_info_client is required
+
+  @retval false  ok, the OK packet is sent
+  @retval true   error, it's set in the diagnostics area
+*/
+static bool read_ssl_info_client(THD *thd, const LEX_CSTRING &salt, bool req)
+{
+  NET *net= &thd->net;
+  Diagnostics_area *da= thd->get_stmt_da();
+
+  thd->protocol->end_statement(); // send the OK packet
+  da->reset_diagnostics_area();
+
+  // client sends ssl_info_client only after reading OK
+  ulong pkt_len= my_net_read(net);
+  if (pkt_len == packet_error)
+  {
+    if (!thd->is_error())
+      my_error(ER_HANDSHAKE_ERROR, MYF(0));
+    return true;
+  }
+
+  if (req && !ssl_info_client_is_valid(thd, salt, net->read_pos, pkt_len))
+  {
+    secure_transport_required_error(thd);
+    return true;
+  }
+
+  da->disable_status(); // don't send second OK in login_connection()
+  return false;
+}
+
 static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
                         MPVIO_EXT *mpvio)
 {
@@ -14832,6 +14922,9 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
       break;
     default: DBUG_ASSERT(0);
     }
+
+    mpvio->hashes_password= info->interface_version >= 0x0202 &&
+                            info->hash_password;
 
     if (unlock_plugin)
       plugin_unlock(thd, plugin);
@@ -14907,6 +15000,10 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   char ssl_info[256/4 + 2]= {0}; // '\1', SHA256 (1 char per 4 bits), '\0'
   enum  enum_server_command command= com_change_user_pkt_len ? COM_CHANGE_USER
                                                              : COM_CONNECT;
+  bool ssl_info_client_required= initialized &&
+          opt_require_secure_transport && !com_change_user_pkt_len &&
+          vio_type(thd->net.vio) == VIO_TYPE_TCPIP;
+  LEX_CSTRING salt= empty_clex_str;
   DBUG_ENTER("acl_authenticate");
 
   bzero(&mpvio, sizeof(mpvio));
@@ -15055,6 +15152,17 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       errors.m_ssl= 1;
       inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
       login_failed_error(thd);
+      DBUG_RETURN(1);
+    }
+
+    salt= acl_user->auth[mpvio.curr_auth-1].salt;
+
+    /* don't require ssl_info_client if we verify client certificate anyway */
+    ssl_info_client_required &= !requires_client_cert(acl_user);
+    if (ssl_info_client_required && (!mpvio.hashes_password || !salt.length ||
+        !(thd->client_capabilities & MARIADB_CLIENT_SSL_INFO_CLIENT)))
+    {
+      secure_transport_required_error(thd);
       DBUG_RETURN(1);
     }
 
@@ -15257,9 +15365,20 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                                    mpvio.auth_info.external_user, MYF(0));
 
   if (initialized && !com_change_user_pkt_len)
-    make_ssl_info(thd, acl_user->auth[mpvio.curr_auth-1].salt, ssl_info);
+    make_ssl_info(thd, salt, ssl_info);
 
   my_ok(thd, 0, 0, ssl_info[0] == '\1' ? ssl_info : NULL);
+
+  /*
+    The client sends ssl_info_client whenever both sides have the
+    capability, even if it is not required for this account.
+    Because MARIADB_CLIENT_SSL_INFO_CLIENT is in the server handshake,
+    but REQUIRE clause is only known later.
+  */
+  if (command == COM_CONNECT &&
+      (thd->client_capabilities & MARIADB_CLIENT_SSL_INFO_CLIENT) &&
+      read_ssl_info_client(thd, salt, ssl_info_client_required))
+    DBUG_RETURN(1);
 
   PSI_CALL_set_thread_account
     (thd->main_security_ctx.user, static_cast<uint>(strlen(thd->main_security_ctx.user)),
