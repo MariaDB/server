@@ -3,6 +3,7 @@
 
 /*
  * Copyright (C) 2010 DeNA Co.,Ltd.. All rights reserved.
+ * Copyright (c) 2011, 2026, MariaDB plc.
  * See COPYRIGHT.txt for details.
  */
 
@@ -754,14 +755,16 @@ dbcontext::cmd_find_internal(dbcallback_i& cb, const prep_stmt& pst,
     return cb.dbcb_resp_short(2, "kpnum");
   }
   uchar *const key_buf = DENA_ALLOCA_ALLOCATE(uchar, kinfo.key_length);
+  auto_alloca_free<uchar> key_buf_autofree(key_buf);
   size_t invalues_idx = 0;
   size_t kplen_sum = prepare_keybuf(args, key_buf, table, kinfo, invalues_idx);
   /* filters */
-  uchar *filter_buf = 0;
+  const size_t filter_buf_len = args.filters ?
+    calc_filter_buf_size(table, pst, args.filters) : 0;
+  uchar *const filter_buf = args.filters ?
+    DENA_ALLOCA_ALLOCATE(uchar, filter_buf_len) : 0;
+  auto_alloca_free<uchar> filter_buf_autofree(filter_buf);
   if (args.filters != 0) {
-    const size_t filter_buf_len = calc_filter_buf_size(table, pst,
-      args.filters);
-    filter_buf = DENA_ALLOCA_ALLOCATE(uchar, filter_buf_len);
     if (!fill_filter_buf(table, pst, args.filters, filter_buf,
       filter_buf_len)) {
       return cb.dbcb_resp_short(2, "filterblob");
@@ -863,8 +866,6 @@ dbcontext::cmd_find_internal(dbcallback_i& cb, const prep_stmt& pst,
       cb.dbcb_resp_short_num(0, modified_count);
     }
   }
-  DENA_ALLOCA_FREE(filter_buf);
-  DENA_ALLOCA_FREE(key_buf);
 }
 
 size_t

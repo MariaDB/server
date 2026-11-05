@@ -3,6 +3,7 @@
 
 /*
  * Copyright (C) 2010 DeNA Co.,Ltd.. All rights reserved.
+ * Copyright (c) 2011, 2026, MariaDB plc.
  * See COPYRIGHT.txt for details.
  */
 
@@ -34,15 +35,9 @@ typedef std::allocator<int> allocator_type;
 typedef std::allocator<int> allocator_type;
 #endif
 
-#if 1
-#define DENA_ALLOCA_ALLOCATE(typ, len) \
-	(typ *) alloca((len) * sizeof(typ))
-#define DENA_ALLOCA_FREE(x)
-#else
 #define DENA_ALLOCA_ALLOCATE(typ, len) \
 	static_cast<typ *>(malloc((len) * sizeof(typ)))
 #define DENA_ALLOCA_FREE(x) free(x)
-#endif
 
 namespace dena {
 
