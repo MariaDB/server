@@ -14730,6 +14730,15 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   Lex_ident_plugin client_plugin= Lex_cstring_strlen(next_field);
 
   /*
+    A valid name has at most SAFE_NAME_LEN characters. A longer one
+    stays invalid when cut to SAFE_NAME_LEN+1 characters, and
+    mysql_change_db() rejects it.
+  */
+  if (db)
+    db_len= MY_MIN(db_len, thd->charset()->charpos(db, db + db_len,
+                                                   SAFE_NAME_LEN + 1));
+
+  /*
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
