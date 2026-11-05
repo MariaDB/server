@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1033,6 +1033,11 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
                                                QT_WITHOUT_INTRODUCERS |
                                                QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                                QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
+  }
+  if (thd->is_error())
+  {
+    error= -1;
+    goto err;
   }
   DBUG_PRINT("info", ("View: %.*s", view_query.length(), view_query.ptr()));
 
