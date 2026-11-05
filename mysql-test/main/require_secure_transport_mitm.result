@@ -1,0 +1,139 @@
+#
+# MDEV-40530 Bind the client authentication response to the server certificate
+#
+#
+# require_secure_transport with a man in the middle that relays
+# the authentication and then uses the connection
+#
+call mtr.add_suppression("Invalid ssl_info_client from 'native'@'localhost'");
+install soname 'auth_ed25519';
+install plugin three_attempts soname 'dialog_examples';
+create user native@'%' identified via mysql_native_password using password('foo');
+create user ed@'%' identified via ed25519 using password('bar');
+create user nohash@'%' identified via three_attempts using 'onetwothree';
+create user multi@'%' identified via mysql_native_password using password('pw1')
+or ed25519 using password('pw2');
+create user x509@'%' require x509;
+create user x509pw@'%' identified by 'pw' require x509;
+create user issuer@'%' require issuer '/CN=cacert/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB';
+create user reqssl@'%' require ssl;
+connect ssl_con,127.0.0.1,root,,,$MASTER_MYPORT,,SSL;
+disconnect ssl_con;
+connection default;
+create user reqcipher@'%' require cipher 'CIPHER';
+grant create on test.* to native@'%';
+# MitM uses the connection, the client detects MitM too late
+>> MitM active <<
+# mysql -unative -pfoo --ssl-verify-server-cert -e "select 1"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+show tables like 'hijacked';
+Tables_in_test (hijacked)
+hijacked
+drop table hijacked;
+set global require_secure_transport=on;
+# the client proves that it has seen the server certificate
+# mysql -unative -pfoo --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql -ued -pbar --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql -umulti -ppw1 --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql -umulti -ppw2 --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql --compress -unative -pfoo --ssl-verify-server-cert -e "select 1"
+1
+1
+# the client has verified the server certificate itself
+# mysql -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+1
+1
+# mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql -ux509pw -ppw --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
+1
+1
+# no password hash, but a client certificate
+# mysql -ux509 --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
+1
+1
+# mysql -uissuer --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
+1
+1
+# no password hash to prove anything with
+# mysql --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1"
+ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+# mysql --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1"
+ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+# mysql --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1"
+ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+# mysql --host 127.0.0.1 -ureqcipher --ssl-verify-server-cert -e "select 1"
+ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+# the client does not verify the server certificate
+# mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
+1
+1
+# not TCP
+# mysql --protocol socket -uroot -e "select 1"
+1
+1
+# MitM cannot use the connection
+>> MitM active <<
+# mysql -unative -pfoo --ssl-verify-server-cert -e "select 1"
+ERROR 2026 (HY000): TLS/SSL error: Failed to verify the server certificate
+show tables like 'hijacked';
+Tables_in_test (hijacked)
+# MitM cannot use the connection, even if the client does not care
+>> MitM active <<
+# mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
+# the client error depends on when MitM closes the connection
+show tables like 'hijacked';
+Tables_in_test (hijacked)
+# a proxy that the client trusts
+>> MitM active <<
+# mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+1
+1
+# the proxy modifies ssl_info_client
+# the server closes the connection, the client error depends on timing
+>> MitM active <<
+# command: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+>> MitM active <<
+# version: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+>> MitM active <<
+# truncate: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+>> MitM active <<
+# extend: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+>> MitM active <<
+# corrupt: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+# the proxy drops ssl_info_client, the server replies to the query
+>> MitM active <<
+# drop: mysql --host 127.0.0.1 -unative -pfoo --ssl-verify-server-cert --ssl-ca=cacert.pem -e "select 1"
+--------------
+select 1
+--------------
+
+ERROR 3159 (08004) at line 1: Connections using insecure transport are prohibited while --require_secure_transport=ON.
+# MitM, the client does not verify the server certificate
+>> MitM active <<
+# mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
+# invalid ssl_info_client is logged
+FOUND 7 /Invalid ssl_info_client from 'native'@'localhost': malformed/ in mysqld.1.err
+FOUND 2 /Invalid ssl_info_client from 'native'@'localhost': hash mismatch/ in mysqld.1.err
+set global require_secure_transport=off;
+drop user native@'%';
+drop user ed@'%';
+drop user nohash@'%';
+drop user multi@'%';
+drop user x509@'%';
+drop user x509pw@'%';
+drop user issuer@'%';
+drop user reqssl@'%';
+drop user reqcipher@'%';
+uninstall plugin ed25519;
+uninstall plugin three_attempts;
+# End of 11.4 tests

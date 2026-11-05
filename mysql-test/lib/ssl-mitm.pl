@@ -14,6 +14,8 @@ my $opt_connect_port;
 my $opt_key;
 my $opt_cert;
 my $opt_ca;
+my $opt_hijack;
+my $opt_ssl_info_client;
 
 my %options=(
   'listen-on=i' => \$opt_listen_port,
@@ -21,6 +23,13 @@ my %options=(
   'ssl-key=s' => \$opt_key,
   'ssl-cert=s' => \$opt_cert,
   'ssl-ca=s' => \$opt_ca,
+  # on the first OK packet from the server send this query to the server
+  # before forwarding the OK to the client
+  'hijack=s' => \$opt_hijack,
+  # after the first OK packet from the server read ssl_info_client from the
+  # client and forward it without waiting for a reply: as is (pass), not at
+  # all (drop), or modified (command, version, truncate, extend, corrupt)
+  'ssl-info-client=s' => \$opt_ssl_info_client,
 );
 
 GetOptions(%options) or usage("Can't read options");
@@ -85,8 +94,37 @@ while (1) {
   warn "$$: ssl write server ".length.")";
   $_=Net::SSLeay::read($servssl) or last;
   warn "$$: ssl read server ".length.")";
+  if (defined $opt_hijack and substr($_, 4, 1) eq "\0") {
+    my $ok= $_;
+    my $query= "\x03$opt_hijack";
+    Net::SSLeay::write($servssl, pack("V", length $query) . $query);
+    $_=Net::SSLeay::read($servssl);
+    warn "$$: hijack (".(defined $_ ? length : 'eof').")";
+    undef $opt_hijack;
+    $_= $ok;
+  }
   Net::SSLeay::write($clissl, $_) or last;
   warn "$$: ssl write client ".length.")";
+  if (defined $opt_ssl_info_client and substr($_, 4, 1) eq "\0") {
+    $_=Net::SSLeay::read($clissl) or last;
+    warn "$$: ssl_info_client (".length.")";
+    $_= ssl_info_client($opt_ssl_info_client, $_);
+    undef $opt_ssl_info_client;
+    Net::SSLeay::write($servssl, $_) or last if length;
+  }
+}
+
+sub ssl_info_client {
+  my ($mode, $pkt)= @_;
+  my ($hdr, $data)= (substr($pkt, 0, 4), substr($pkt, 4));
+  return '' if $mode eq 'drop';
+  substr($data, 0, 1)= "\3" if $mode eq 'command';
+  substr($data, 1, 1)= "\2" if $mode eq 'version';
+  chop $data if $mode eq 'truncate';
+  $data.= "\0" if $mode eq 'extend';
+  substr($data, -1)^= "\1" if $mode eq 'corrupt';
+  substr($hdr, 0, 3)= substr(pack('V', length $data), 0, 3);
+  return $hdr . $data;
 }
 
 close($server);

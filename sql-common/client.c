@@ -2118,6 +2118,15 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mysql->client_flag & CLIENT_PROTOCOL_41)
   {
     /* 4.1 server and 4.1 client has a 32 byte option flag */
+    ulonglong client_extended_flag= 0;
+    if (mysql->client_flag & CLIENT_SSL)
+      client_extended_flag|= MARIADB_CLIENT_SSL_INFO_CLIENT;
+    mysql->extension->mariadb_client_flag=
+      mysql->extension->mariadb_server_capabilities &
+      (ulong) (client_extended_flag >> 32);
+    /* without CLIENT_MYSQL the server reads MariaDB capabilities at +28 */
+    if (mysql->extension->mariadb_client_flag)
+      mysql->client_flag&= ~CLIENT_MYSQL;
     int4store(buff,mysql->client_flag);
     int4store(buff+4, net->max_packet_size);
     buff[8]= (char) mysql->charset->number;
@@ -2479,6 +2488,10 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   const char    *auth_plugin_name;
   auth_plugin_t *auth_plugin;
   MCPVIO_EXT    mpvio;
+  uchar         ssl_info_client_pkt[2 + 256/8];
+  size_t        ssl_info_client_len= 2;
+  char          *ssl_info= NULL;
+  uchar         *ssl_info_client= NULL;
   ulong		pkt_length;
   int           res;
 
@@ -2640,39 +2653,122 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   */
   if (mysql->net.read_pos[0] != 0)
     DBUG_RETURN(1);
-  if (!mysql->extension->tls_self_signed_error)
+
+  if (!mpvio.mysql_change_user &&
+      (mysql->extension->mariadb_client_flag &
+       (MARIADB_CLIENT_SSL_INFO_CLIENT >> 32)))
+    ssl_info_client= ssl_info_client_pkt;
+
+  if (!mysql->extension->tls_self_signed_error && !ssl_info_client)
     DBUG_RETURN(0);
 
-  /* Last attempt to validate the cert: compare cert info packet */
-  DBUG_ASSERT(mysql->options.use_ssl);
-  DBUG_ASSERT(mysql->net.vio->ssl_arg);
-  DBUG_ASSERT(!mysql->options.extension ||
-              !mysql->options.extension->tls_allow_invalid_server_cert);
-  DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
-  DBUG_ASSERT(!mysql->options.ssl_capath || !mysql->options.ssl_capath[0]);
-  DBUG_ASSERT(auth_plugin->hash_password_bin);
-  DBUG_ASSERT(mysql->passwd[0]);
-
-  parse_ok_packet(mysql, pkt_length); /* set mysql->info */
-  if (mysql->info && mysql->info[0] == '\1')
+  if (mysql->extension->tls_self_signed_error)
   {
-    uchar fp[128], buf[1024], digest[256/8];
-    size_t buflen= sizeof(buf);
-    uint fplen= sizeof(fp);
-    char *hexsig= mysql->info + 1, hexdigest[sizeof(digest)*2+1];
-    X509 *cert= SSL_get_peer_certificate((SSL*)mysql->net.vio->ssl_arg);
-    X509_digest(cert, EVP_sha256(), fp, &fplen);
-    X509_free(cert);
-    auth_plugin->hash_password_bin(mysql, buf, &buflen);
-    my_sha256_multi(digest, buf, buflen, mysql->scramble, SCRAMBLE_LENGTH,
-                    fp, fplen, NULL);
-    mysql->info= NULL; /* no need to confuse the client with binary info */
+    /* Last attempt to validate the cert: compare cert info packet */
+    DBUG_ASSERT(mysql->options.use_ssl);
+    DBUG_ASSERT(mysql->net.vio->ssl_arg);
+    DBUG_ASSERT(!mysql->options.extension ||
+                !mysql->options.extension->tls_allow_invalid_server_cert);
+    DBUG_ASSERT(!mysql->options.ssl_ca || !mysql->options.ssl_ca[0]);
+    DBUG_ASSERT(!mysql->options.ssl_capath || !mysql->options.ssl_capath[0]);
+    DBUG_ASSERT(auth_plugin->hash_password_bin);
+    DBUG_ASSERT(mysql->passwd[0]);
 
-    octet2hex(hexdigest, digest, sizeof(digest));
-    if (strcmp(hexdigest, hexsig) == 0)
-      DBUG_RETURN(0); /* phew. self-signed certificate is validated! */
+    parse_ok_packet(mysql, pkt_length); /* set mysql->info */
+    if (!mysql->info || mysql->info[0] != '\1')
+      goto not_trusted;
+    ssl_info= mysql->info + 1;
+    mysql->info= NULL; /* no need to confuse the client with binary info */
   }
 
+  /*
+    Just as ssl_info proves to the client that it uses the correct
+    certificate (no MitM), ssl_info_client proves to the server that the
+    client uses the correct certificate. Without it, MitM can hijack the
+    connection after authentication.
+
+    It is COM_QUIT, one byte version (1) and
+    sha2("client", password hash, scramble, binding), where binding is "CA"
+    if the client has verified the certificate already, and the certificate
+    fingerprint otherwise. Without a password hash there is no sha2.
+    The server does not reply to it.
+  */
+  if (mysql->passwd && mysql->passwd[0] && auth_plugin->hash_password_bin)
+  {
+    static const char client[]= "client";
+    static const char ca[]= "CA";
+    uchar pwhash[1024], binding[EVP_MAX_MD_SIZE];
+    size_t pwhash_len= sizeof(pwhash);
+    uint binding_len= sizeof(binding);
+
+    if (!mysql->extension->tls_self_signed_error &&
+        (!mysql->options.extension ||
+         !mysql->options.extension->tls_allow_invalid_server_cert))
+    {
+      binding_len= sizeof(ca) - 1;
+      memcpy(binding, ca, binding_len);
+    }
+    else
+    {
+      X509 *cert= SSL_get_peer_certificate((SSL*)mysql->net.vio->ssl_arg);
+      if (!cert)
+      {
+        set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR,
+                                 unknown_sqlstate, ER(CR_SSL_CONNECTION_ERROR),
+                                 "Could not get server certificate");
+        DBUG_RETURN(1);
+      }
+      X509_digest(cert, EVP_sha256(), binding, &binding_len);
+      X509_free(cert);
+    }
+    auth_plugin->hash_password_bin(mysql, pwhash, &pwhash_len);
+
+    if (ssl_info)
+    {
+      uchar digest[256/8];
+      char hexdigest[sizeof(digest)*2+1];
+      my_sha256_multi(digest, pwhash, pwhash_len,
+                      mysql->scramble, (size_t)SCRAMBLE_LENGTH,
+                      binding, (size_t)binding_len, NULL);
+      octet2hex(hexdigest, digest, sizeof(digest));
+      if (strcmp(hexdigest, ssl_info))
+        goto not_trusted;
+      /* phew. self-signed certificate is validated! */
+      ssl_info= NULL;
+    }
+
+    if (ssl_info_client)
+    {
+      my_sha256_multi(ssl_info_client + 2, client, sizeof(client) - 1,
+                      pwhash, pwhash_len,
+                      mysql->scramble, (size_t)SCRAMBLE_LENGTH,
+                      binding, (size_t)binding_len, NULL);
+      ssl_info_client_len+= 256/8;
+    }
+  }
+
+  if (ssl_info)
+    goto not_trusted;
+
+  if (ssl_info_client)
+  {
+    ssl_info_client[0]= COM_QUIT; /* a server that doesn't expect it quits */
+    ssl_info_client[1]= 1;        /* version 1 */
+    /* it starts a new exchange, like a command */
+    mysql->net.pkt_nr= mysql->net.compress_pkt_nr= 0;
+    if (my_net_write(&mysql->net, ssl_info_client, ssl_info_client_len) ||
+        net_flush(&mysql->net))
+    {
+      set_mysql_extended_error(mysql, CR_SERVER_LOST, unknown_sqlstate,
+                               ER(CR_SERVER_LOST_EXTENDED),
+                               "sending ssl_info_client", errno);
+      DBUG_RETURN(1);
+    }
+    /* The server does not reply to ssl_info_client */
+  }
+  DBUG_RETURN(0);
+
+not_trusted:
   set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
                            ER(CR_SSL_CONNECTION_ERROR),
                            mysql->extension->tls_self_signed_error);

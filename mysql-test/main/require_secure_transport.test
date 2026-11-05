@@ -1,12 +1,26 @@
 -- source include/no_view_protocol.inc
 -- source include/have_ssl_communication.inc
+create user pw@localhost identified by 'pw';
+create user x509@localhost require x509;
 SET GLOBAL require_secure_transport=ON;
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
 
+# no password hash, no client certificate
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SECURE_TRANSPORT_REQUIRED
 connect with_ssl,localhost,root,,,,,TCP SSL;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,pw,pw,,,,TCP SSL;
+--disable_view_protocol
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+--enable_view_protocol
+disconnect with_ssl;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,x509,,,,,TCP SSL;
 --disable_view_protocol
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 --enable_view_protocol
@@ -19,3 +33,5 @@ connect without_ssl,localhost,root,,,,,TCP NOSSL;
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 disconnect without_ssl;
 connection default;
+drop user pw@localhost;
+drop user x509@localhost;
