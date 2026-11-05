@@ -819,6 +819,9 @@ public:
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd) override;
+  /* true for "<not>" (ALL), false for "<nop>" (ANY/SOME) */
+  virtual bool is_all_wrapper() const { return true; }
+  bool has_original_allany() const;
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_not_all>(thd, this); }
@@ -836,6 +839,7 @@ public:
     return name;
   }
   Item *neg_transformer(THD *thd) override;
+  bool is_all_wrapper() const override { return false; }
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_nop_all>(thd, this); }

@@ -32,9 +32,6 @@
 #include "sql_cte.h"
 #include "item_windowfunc.h"
 
-select_handler *find_partial_select_handler(THD *thd, SELECT_LEX *select_lex,
-                                            SELECT_LEX_UNIT *lex_unit);
-
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulonglong setup_tables_done_option)
 {
@@ -3024,6 +3021,8 @@ bool st_select_lex::cleanup()
     delete join;
     join= 0;
   }
+  /* No-op if join->destroy() already freed them; else error before JOIN */
+  free_derived_pushdown_handlers(top_join_list);
   leaf_tables.empty();
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
