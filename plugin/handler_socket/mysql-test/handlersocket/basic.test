@@ -25,6 +25,15 @@ my $sock = IO::Socket::INET->new(PeerAddr => '127.0.0.1',
 print $sock "A\t1\t$ENV{HS_SECRET}\nP\t1\ttest\tt1\tPRIMARY\tid,name\n";
 print $sock "0\t=\t2147483647\t1\n";
 printf "auth: %sopen: %sbad read: %s", scalar(<$sock>), scalar(<$sock>), scalar(<$sock>);
+# open_index with a huge list of return fields, then exec with a modop
+print $sock "P\t2\ttest\tt1\tPRIMARY\t" . ("id," x 1000000) . "id\n";
+print $sock "2\t=\t1\t1\t1\t0\tU\n";
+printf "open many: %smodify many: %s", scalar(<$sock>), scalar(<$sock>);
+# huge statement id
+print $sock "P\t4294967295\ttest\tt1\tPRIMARY\tid\n";
+# huge IN list length
+print $sock "1\t=\t1\t1\t1\t0\t@\t0\t4294967295\t1\n";
+printf "open huge id: %shuge in: %s", scalar(<$sock>), scalar(<$sock>);
 EOF
 
 uninstall plugin handlersocket;

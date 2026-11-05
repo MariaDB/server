@@ -37,5 +37,9 @@ create table t1 (id int primary key, name varchar(100)) engine=innodb;
 auth: 0	1
 open: 0	1
 bad read: 2	1	fldnum
+open many: 0	1
+modify many: 2	1	readonly
+open huge id: 2	1	stmtnum
+huge in: 2	1	invalueslen
 uninstall plugin handlersocket;
 drop table t1;
