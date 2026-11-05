@@ -1251,19 +1251,39 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                                   "re-open from its share"));
     }
     /*
-      The worker runs a plain nested loop, so it implements none of the semijoin
-      duplicate-elimination strategies. Nothing in the flat table list shows that
-      FirstMatch or DuplicateWeedout is in force, and a worker that ignores them
-      emits exactly the duplicates they exist to remove, so refuse a plan that
-      uses any of them. bush_children above covers the materialized ones.
+      Of the semijoin duplicate-elimination strategies, a worker runs
+      FirstMatch and no other. FirstMatch is nothing but the nested loop
+      backing out early: when the last inner table of the nest matches, the
+      executor sets join->return_tab to the outer tab the nest follows
+      (JOIN_TAB::do_firstmatch), and sub_select() unwinds to it. A worker's
+      executor is sub_select() over the worker's own JOIN, so it does that
+      itself once the copy's pointer names the worker's tab
+      (setup_worker_jointabs()). LooseScan and DuplicateWeedout keep state --
+      a match flag, a weed-out table -- that no copy carries, and a worker
+      that ignored them would emit exactly the duplicates they exist to
+      remove. bush_children above covers the materialized ones.
     */
-    if (tab->sj_strategy != SJ_OPT_NONE || tab->loosescan_match_tab ||
-        tab->do_firstmatch || tab->check_weed_out_table ||
+    if ((tab->sj_strategy != SJ_OPT_NONE &&
+         tab->sj_strategy != SJ_OPT_FIRST_MATCH) ||
+        tab->loosescan_match_tab || tab->check_weed_out_table ||
         tab->flush_weedout_table || tab->first_weedout_table)
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                   "is read under a semijoin duplicate-elimination strategy, "
-                   "which a worker's plain nested loop does not implement"));
+                   "is read under a semijoin duplicate-elimination strategy "
+                   "other than FirstMatch, which a worker's nested loop does "
+                   "not implement"));
+    }
+    /*
+      The tab FirstMatch returns to has to be one the worker has: a nest at
+      the head of the plan would return to the last const table, which is not
+      in a worker's array.
+    */
+    if (tab->do_firstmatch &&
+        tab->do_firstmatch < join->join_tab + join->const_tables)
+    {
+      DBUG_RETURN(pwt_decline_tab(join, trace, tab,
+                   "is the last table of a FirstMatch nest that returns to a "
+                   "const table"));
     }
     if (tab->rowid_filter)                        // rowid filter
     {
@@ -1882,15 +1902,20 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
   DBUG_ASSERT(!tab->on_expr_ref || !*tab->on_expr_ref);
   DBUG_ASSERT(!tab->on_precond);
 
-  /* Semijoin strategies and semijoin materialization. */
+  /*
+    Semijoin strategies and semijoin materialization. FirstMatch is the one
+    the gate admits: do_firstmatch, first_sj_inner_tab and last_sj_inner_tab
+    are remapped onto the worker's array by setup_worker_jointabs(), and
+    emb_sj_nest is the plan's nest, which the executor reads only for the
+    materialized shapes refused here.
+  */
   DBUG_ASSERT(!tab->bush_children);
-  DBUG_ASSERT(tab->sj_strategy == SJ_OPT_NONE);
+  DBUG_ASSERT(tab->sj_strategy == SJ_OPT_NONE ||
+              tab->sj_strategy == SJ_OPT_FIRST_MATCH);
   DBUG_ASSERT(!tab->loosescan_match_tab);
-  DBUG_ASSERT(!tab->do_firstmatch);
   DBUG_ASSERT(!tab->flush_weedout_table);
   DBUG_ASSERT(!tab->check_weed_out_table);
   DBUG_ASSERT(!tab->first_weedout_table);
-  DBUG_ASSERT(!tab->emb_sj_nest);
 
   /*
     Rowid filters and range/index_merge access. The driving table may carry a
@@ -2170,6 +2195,24 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
                           &wtab->ref))
         return true;
     }
+
+    /*
+      FirstMatch: the tab the executor backs out to when the nest's last
+      table matches is the manager's, and the comparison it makes --
+      join->return_tab against the tabs of the array it is walking -- is only
+      meaningful within one array. The same tab of this worker's array, then;
+      the gate has checked it is not a const table. The nest bounds are
+      remapped with it, though nothing a worker runs reads them.
+    */
+    if (mtab->do_firstmatch)
+      wtab->do_firstmatch= worker->exec.jointabs +
+                           (mtab->do_firstmatch - exec.jointabs[0]);
+    if (mtab->first_sj_inner_tab)
+      wtab->first_sj_inner_tab= worker->exec.jointabs +
+                                (mtab->first_sj_inner_tab - exec.jointabs[0]);
+    if (mtab->last_sj_inner_tab)
+      wtab->last_sj_inner_tab= worker->exec.jointabs +
+                               (mtab->last_sj_inner_tab - exec.jointabs[0]);
 
     /*
       Recomputed, not copied: it answers "is this the innermost table", which
