@@ -8,9 +8,7 @@ MACRO(BUNDLE_LIBFMT)
   SET(dir "${CMAKE_BINARY_DIR}/extra/libfmt")
   SET(LIBFMT_INCLUDE_DIR "${dir}/src/libfmt/include")
 
-  IF(CMAKE_VERSION VERSION_GREATER "3.0")
-    SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
-  ENDIF()
+  SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
 
   IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9")
     # it's for RHEL-7, gcc 4.8.5

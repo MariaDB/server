@@ -805,7 +805,8 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       if (wait_lsn)
       {
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_wait(wait_lsn, circular_recovery_from_sequence_bit_0);
+        buf_flush_wait(wait_lsn, circular_recovery_from_sequence_bit_0 ||
+                       !buf_pool.flush_list.count);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
       }
       latch.wr_unlock();

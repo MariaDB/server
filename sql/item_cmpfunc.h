@@ -1227,7 +1227,7 @@ public:
   Item_func_interval(THD *thd, Item_row *a):
     Item_long_func(thd, a), intervals(0)
   { }
-  Item_row *row() const { return static_cast<Item_row*>(args[0]); }
+  Item_row *row() const { return static_cast<Item_row*>(args[0]->real_item()); }
   longlong val_int() override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override

@@ -1,4 +1,23 @@
 #
+# CREATE VIEW with too long path
+#
+CREATE DATABASE `d..................................................aaaa`;
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaaaa` AS SELECT 1 AS id;
+ERROR HY000: Long database name and identifier for object resulted in path length exceeding 511 characters. Path: './d@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002eaaaa/t@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e@002e
+DROP DATABASE `d..................................................aaaa`;
+#
+# Open a table with too long path
+#
+CREATE DATABASE `d..................................................aaaa`;
+CREATE TABLE `d..................................................aaaa`.`ttttt.................................................` (a INT) ENGINE=MEMORY;
+FLUSH TABLES;
+SELECT * FROM `d..................................................aaaa`.`ttttt.................................................`;
+a
+SELECT * FROM `d..................................................aaaa`.`t................................................aaaaaaaaaa`;
+ERROR 42S02: Table 'd..................................................aaaa.t................................................aaaaaaaaaa' doesn't exist
+DROP DATABASE `d..................................................aaaa`;
+# End of 10.11 tests
+#
 # MDEV-25292 Atomic CREATE OR REPLACE TABLE
 #
 # Test multi-byte characters in table name
@@ -31,3 +50,4 @@ ERROR HY000: Lost connection to server during query
 #sql-create-PID-TID-SEQ.frm
 drop table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
 set @@debug_dbug="";
+# End of 13.2 tests

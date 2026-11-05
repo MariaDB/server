@@ -84,3 +84,12 @@ create table t1 (a int, b text, fulltext (b)) charset=utf8mb4 collate=utf8mb4_un
 insert t1 values (1000, 'C͓̙̯͔̩ͅͅi̩̘̜̲a̯̲̬̳̜̖̤o͕͓̜͓̺̖̗,̠̬͚ ̺T͇̲h͈̱e ̬̜D̖o̦̖͔̗͖̩̘c̣̼t̝͉̫̮̗o͉̫̭r̙͎̗.͓̪̥');
 select a from t1 where match(b) against ('ciao' in boolean mode);
 drop table t1;
+
+--echo #
+--echo # MDEV-39752 use-of-uninitialized-value in ftb_parse_query_internal
+--echo #
+CREATE TABLE t1 (c1 INT KEY,c2 TEXT,c3 JSON) ENGINE=Aria;
+SELECT * FROM t1 WHERE MATCH(c2) AGAINST ('(a ' IN BOOLEAN MODE);
+DROP TABLE t1;
+
+--echo # End of 10.11 tests

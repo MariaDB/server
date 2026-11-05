@@ -297,7 +297,7 @@ constexpr privilege_t DEFAULT_CREATE_PROC_ACLS=
 
 constexpr privilege_t SHOW_CREATE_TABLE_ACLS=
   COL_DML_ACLS | ALL_TABLE_DDL_ACLS |
-  TRIGGER_ACL | REFERENCES_ACL | GRANT_ACL | VIEW_ACLS;
+  TRIGGER_ACL | REFERENCES_ACL | VIEW_ACLS;
 
 /**
   Table-level privileges which are automatically "granted" to everyone on

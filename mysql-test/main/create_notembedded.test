@@ -4,6 +4,27 @@
 --source include/not_embedded.inc
 
 --echo #
+--echo # CREATE VIEW with too long path
+--echo #
+CREATE DATABASE `d..................................................aaaa`;
+--error ER_IDENT_CAUSES_TOO_LONG_PATH
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaaaa` AS SELECT 1 AS id;
+DROP DATABASE `d..................................................aaaa`;
+
+--echo #
+--echo # Open a table with too long path
+--echo #
+CREATE DATABASE `d..................................................aaaa`;
+# longest allowed path, 512 bytes
+CREATE TABLE `d..................................................aaaa`.`ttttt.................................................` (a INT) ENGINE=MEMORY;
+FLUSH TABLES;
+SELECT * FROM `d..................................................aaaa`.`ttttt.................................................`;
+--error ER_NO_SUCH_TABLE
+SELECT * FROM `d..................................................aaaa`.`t................................................aaaaaaaaaa`;
+DROP DATABASE `d..................................................aaaa`;
+
+--echo # End of 10.11 tests
+--echo #
 --echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
 --echo #
 
@@ -63,3 +84,5 @@ eval create or replace table $t (z int);
 --source include/wait_until_connected_again.inc
 eval drop table $t;
 eval set @@debug_dbug="$save_debug";
+
+--echo # End of 13.2 tests

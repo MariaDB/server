@@ -139,6 +139,19 @@ select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
 select 1;
 1
 1
+#
+# MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
+#
+explain extended select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+show warnings;
+Level	Code	Message
+Error	1436	Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+create view v1 as select 1;
+create or replace view v1 as select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+select * from v1;
+1
+1
+drop view v1;
 # End of 10.11 tests
 #
 # MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth
@@ -150,4 +163,16 @@ repeat('{"type":"GeometryCollection", "geometries":[', @len),
 '{"type":"Point","coordinates":[0,0]}',
 repeat(']}', @len)
 )) as exp;
+#
+# MDEV-41630 ST_IsValid crashes on polygons with many rings
+#
+SET SESSION group_concat_max_len = 200000000;
+SET @rings = (SELECT GROUP_CONCAT(
+CONCAT('(', seq, ' 0,', seq+1, ' 0,', seq+1, ' 1,', seq, ' 1,', seq, ' 0)')
+SEPARATOR ','
+) FROM seq_1_to_100000);
+SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
+SELECT ST_IsValid(@g);
+ST_IsValid(@g)
+0
 # End of 12.3 tests

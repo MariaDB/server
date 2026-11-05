@@ -1,0 +1,26 @@
+source include/not_embedded.inc;
+if (!$HA_FEDERATEDX_SO) {
+  skip Needs ha_federatedx.so;
+}
+
+--echo #
+--echo # MDEV-38859 federated use-after-free with temp tables and savepoints
+--echo #
+INSTALL SONAME 'ha_federatedx';
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CREATE SERVER srv FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST '127.0.0.1', DATABASE 'test', PORT $MASTER_MYPORT);
+CREATE TABLE t1 (c INT) ENGINE=MyISAM;
+CREATE TABLE t2 (c INT) CONNECTION='srv/t1' ENGINE=Federated;
+BEGIN;
+INSERT INTO t2 VALUES (1);
+SAVEPOINT sp;
+INSERT INTO t2 VALUES (2);
+ROLLBACK TO SAVEPOINT sp;
+RELEASE SAVEPOINT sp;
+COMMIT;
+SELECT * FROM t1;
+DROP TABLE t1, t2;
+DROP SERVER srv;
+UNINSTALL SONAME 'ha_federatedx';
+
+--echo # End of 10.11 tests
