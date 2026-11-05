@@ -19,6 +19,7 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
 --echo # Filename is too long because it is converted to @274e@274e@274e@274e...
 --echo # so each '❎' is 5 bytes in filesystem, 51 x 5 = 255 bytes
 let $t= `select repeat('❎', 51)`;
+--replace_result 63 36
 --error ER_CANT_CREATE_TABLE
 eval create table $t (x int);
 # The below case is useful for experimenting on Windows
