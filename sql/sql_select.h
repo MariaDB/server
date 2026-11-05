@@ -669,6 +669,15 @@ typedef struct st_join_table {
   bool          sorted;
   bool          cached_pfs_batch_update;
   bool          use_parallel_scan;
+  /*
+    Set when the parallel-query gate divided this table's condition between
+    a worker and the manager (pwt_split_table_cond()): parallel_worker_cond is
+    then the part a worker filters by as it joins -- NULL if every conjunct
+    was left to the manager -- and the rest is in JOIN::parallel_residual_cond.
+    Without the split a worker evaluates the whole condition.
+  */
+  bool          parallel_cond_split;
+  Item          *parallel_worker_cond;
 
   /* 
     If it's not 0 the number stored this field indicates that the index
@@ -2078,6 +2087,16 @@ public:
     which a scan of a tiny table with a large join under it is not.
   */
   bool parallel_plan_chosen{false};
+  /*
+    The conjuncts of the plan's table conditions that no worker can evaluate
+    -- a correlated subquery, chiefly, whose JOIN belongs to this thread --
+    ANDed together for the manager to apply to every row it drains before the
+    row reaches the plan's terminal (pwt_manager::drain_and_send()). Set by
+    can_run_query_in_workers(), NULL when every condition runs in the workers.
+    A plan with one ships joined rows rather than pre-aggregating, because the
+    filter has to run before any grouping (pwt_row_layout::build()).
+  */
+  Item *parallel_residual_cond{nullptr};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)

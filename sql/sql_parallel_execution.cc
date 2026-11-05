@@ -161,6 +161,211 @@ static bool pwt_item_is_worker_safe(JOIN *join, Item *item)
 }
 
 
+/* The condition a table is filtered by, wherever the optimizer left it. */
+static Item *pwt_table_cond(JOIN_TAB *tab);
+
+
+/*
+  Looks for a field of one of the join's non-const tables that the workers
+  will not ship: pwt_row_layout::build() ships every column whose read_set bit
+  is set, so one whose bit is clear.
+*/
+class Pwt_unshipped_field_finder : public Field_enumerator
+{
+  JOIN *join;
+public:
+  bool found;
+  Pwt_unshipped_field_finder(JOIN *join_arg) : join(join_arg), found(false) {}
+  void visit_field(Item_field *item) override
+  {
+    if (found || !item->field)
+      return;
+    TABLE *table= item->field->table;
+    /*
+      Top-level tabs only: table_count also counts the tables inside a
+      semijoin-materialization nest, which live past top_join_tab_count in
+      entries the plan never initialised.
+    */
+    for (uint j= join->const_tables; j < join->top_join_tab_count; j++)
+      if (table == join->join_tab[j].table)
+      {
+        if (!bitmap_is_set(table->read_set, item->field->field_index))
+          found= true;
+        return;
+      }
+  }
+};
+
+
+/**
+  @brief
+    Put one conjunct of a table's condition on the side that can evaluate it.
+
+  @description
+    A worker-safe conjunct stays with the table. One a worker cannot evaluate
+    goes to the manager, provided the manager can: it reads the row out of its
+    own records, filled by copy_back_row() with the columns the workers ship,
+    so every field the conjunct reads from a join table has to be a shipped
+    one. The subquery's own outer references are walked too (WALK_SUBQUERY):
+    they are what a correlated subquery reads from the row. The condition's
+    fields are in the read_set by construction, since that is how they were
+    marked, but this checks rather than assumes.
+
+  @return  true if the conjunct can be evaluated on neither side.
+*/
+
+static bool pwt_place_conjunct(JOIN *join, Item *conjunct,
+                               List<Item> *worker, List<Item> *manager)
+{
+  if (pwt_item_is_worker_safe(join, conjunct))
+    return worker->push_back(conjunct, join->thd->mem_root);
+
+  Pwt_unshipped_field_finder finder(join);
+  conjunct->walk(&Item::enumerate_field_refs_processor, (void*) &finder,
+                 WALK_SUBQUERY);
+  if (finder.found)
+    return true;
+  return manager->push_back(conjunct, join->thd->mem_root);
+}
+
+
+/**
+  @brief
+    Divide a table's condition between a worker and the manager.
+
+  @description
+    A conjunct no worker can evaluate -- a correlated subquery, whose JOIN
+    belongs to this thread, is the usual one -- used to refuse the whole plan.
+    It need not: a conjunct of an inner join may be applied anywhere after its
+    tables have been read, and this thread sees every finished row the workers
+    ship, with the shipped columns copied back into its own records, where the
+    conjunct's items already look. So the condition is split. The worker-safe
+    conjuncts stay with the table, for the worker to filter by as it joins; the
+    rest are collected into JOIN::parallel_residual_cond, which drain_and_send()
+    applies to each drained row before the row goes on to the plan's terminal.
+
+    What the residual costs is that a row it rejects was first joined through
+    every table after this one, and shipped. For a subquery that is usually
+    the cheaper order regardless: a serial plan evaluates it once per row of
+    this table, the manager once per row of the finished join, which the tables
+    after this one have thinned.
+
+  @param residual  the manager's conjuncts are appended to it.
+
+  @return  false if some conjunct can be evaluated on neither side. The tab is
+           then left as it was.
+*/
+
+static bool pwt_split_table_cond(JOIN *join, JOIN_TAB *tab, Item *cond,
+                                 List<Item> *residual)
+{
+  THD *thd= join->thd;
+  List<Item> worker;
+  List<Item> manager;
+
+  if (cond->type() == Item::COND_ITEM &&
+      ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
+  {
+    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
+    Item *conjunct;
+    while ((conjunct= li++))
+      if (pwt_place_conjunct(join, conjunct, &worker, &manager))
+        return false;
+  }
+  else if (pwt_place_conjunct(join, cond, &worker, &manager))
+    return false;
+
+  Item *worker_cond= nullptr;
+  if (worker.elements == 1)
+    worker_cond= worker.head();
+  else if (worker.elements > 1)
+  {
+    /*
+      A new AND over the manager's own conjuncts, never evaluated here: the
+      worker's copy of it is what runs, cloned and rebound whole by
+      setup_worker_jointabs(). Fixed the way make_cond_for_table() fixes the
+      conditions it assembles from fixed parts.
+    */
+    if (!(worker_cond= new (thd->mem_root) Item_cond_and(thd, worker)))
+      return false;
+    worker_cond->quick_fix_field();
+    worker_cond->update_used_tables();
+  }
+  tab->parallel_worker_cond= worker_cond;
+  tab->parallel_cond_split= true;
+  residual->append(&manager);
+  return true;
+}
+
+
+/**
+  @brief
+    Divide every table condition of the plan between the workers and the
+    manager.
+
+  @description
+    pwt_split_table_cond() per table, for the tables whose condition a worker
+    cannot take whole, and the manager's conjuncts assembled into
+    JOIN::parallel_residual_cond. Asked by the gate, which refuses the plan if
+    it fails, and asked again by init_parallel_workers() over the plan as it
+    stands when the workers are built: the split names the plan's own items,
+    so it is taken from the plan at the point it is used rather than carried
+    from the point it was approved.
+
+  @param failed  out: the table whose condition can be evaluated on neither
+                 side, when the split fails.
+
+  @return  false if the split fails.
+*/
+
+bool pwt_split_plan_conditions(JOIN *join, JOIN_TAB **failed)
+{
+  List<Item> residual;
+  join->parallel_residual_cond= nullptr;
+  /*
+    Top-level tabs only. table_count counts every base table, including those
+    inside a semijoin-materialization nest, but the plan's array holds them
+    past top_join_tab_count, in entries get_best_combination() never filled
+    for a nest it materialises -- the gate refuses such a plan at its bush
+    root. Reading further was a read of uninitialised memory.
+  */
+  for (uint j= join->const_tables; j < join->top_join_tab_count; j++)
+  {
+    JOIN_TAB *tab= &join->join_tab[j];
+    tab->parallel_cond_split= false;
+    tab->parallel_worker_cond= nullptr;
+    Item *cond= pwt_table_cond(tab);
+    if (cond && !pwt_item_is_worker_safe(join, cond) &&
+        !pwt_split_table_cond(join, tab, cond, &residual))
+    {
+      *failed= tab;
+      return false;
+    }
+  }
+  if (!residual.elements)
+    return true;
+
+  /*
+    The manager's share, as one item. Its conjuncts are the plan's own, so
+    nothing here is cloned; an AND over them is built the way
+    pwt_split_table_cond() builds the worker's.
+  */
+  Item *cond= residual.head();
+  if (residual.elements > 1)
+  {
+    if (!(cond= new (join->thd->mem_root) Item_cond_and(join->thd, residual)))
+    {
+      *failed= nullptr;
+      return false;
+    }
+    cond->quick_fix_field();
+    cond->update_used_tables();
+  }
+  join->parallel_residual_cond= cond;
+  return true;
+}
+
+
 /**
   @brief
   decline to parallel scan a table because...
@@ -984,6 +1189,36 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                             "the select groups and the workers cannot "
                             "pre-aggregate this plan"));
 
+  /*
+    The table conditions. The one thing a worker may share with the manager:
+    a conjunct no worker can evaluate is left to this thread, to apply to the
+    drained rows, as long as the row it is handed carries what it reads
+    (pwt_split_table_cond()).
+  */
+  {
+    JOIN_TAB *failed= nullptr;
+    if (!pwt_split_plan_conditions(join, &failed))
+    {
+      if (!failed)
+        DBUG_RETURN(pwt_decline(join, trace,
+                     "out of memory dividing the conditions between the "
+                     "workers and the manager"));
+      DBUG_RETURN(pwt_decline_tab(join, trace, failed,
+                   "is filtered by a condition a worker cannot evaluate, "
+                   "and which reads a column the workers do not ship, so "
+                   "the manager cannot evaluate it over the drained rows "
+                   "either"));
+    }
+    if (join->parallel_residual_cond && trace &&
+        unlikely(join->thd->trace_started()) &&
+        join->thd->variables.parallel_worker_threads > 0)
+    {
+      Json_writer_object trace_residual(join->thd);
+      trace_residual.add("parallel_scan_manager_evaluates",
+                         join->parallel_residual_cond);
+    }
+  }
+
   // every non-const join table must be one the worker can scan / look up itself
   for (uint j= join->const_tables; j < join->table_count; j++)
   {
@@ -1097,12 +1332,6 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                                         "cannot evaluate"));
           }
         }
-    }
-    Item *tab_cond= pwt_table_cond(tab);
-    if (tab_cond && !pwt_item_is_worker_safe(join, tab_cond))
-    {
-      DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                   "is filtered by a condition a worker cannot evaluate"));
     }
   }
 
@@ -1851,11 +2080,15 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
 
     /*
       The whole condition, so select_cond alone is what this table is filtered
-      by. The places the optimizer had moved parts of it to are then cleared:
-      they name items belonging to the manager, and a worker that read them
-      would be evaluating another thread's Items.
+      by -- or the worker's share of it, when the gate left the rest to the
+      manager (pwt_split_table_cond()). The places the optimizer had moved
+      parts of it to are then cleared: they name items belonging to the
+      manager, and a worker that read them would be evaluating another
+      thread's Items.
     */
-    if (Item *cond= pwt_table_cond(mtab))
+    Item *cond= mtab->parallel_cond_split ? mtab->parallel_worker_cond
+                                          : pwt_table_cond(mtab);
+    if (cond)
     {
       if (!(wtab->select_cond= pwt_clone_rebind(thd, cond, exec.tables,
                                                 worker->exec.tables,
@@ -2886,10 +3119,44 @@ int pwt_manager::sort_and_send(JOIN *join)
     1 error.
 */
 
+/**
+  @brief
+    The manager's share of the plan's conditions, applied to the row now in
+    its records.
+
+  @description
+    The conjuncts the gate left to this thread (pwt_split_table_cond()), read
+    off the manager's own base-table records, which copy_back_row() has just
+    filled from the drained row. A correlated subquery among them runs here, on
+    this thread, through the manager's own handlers, exactly as it would have
+    run serially -- against fewer rows, since the workers joined the row
+    through every table before shipping it.
+
+  @return  1 the row passes, 0 it does not, -1 evaluating the condition failed
+           or the query was killed, the error already raised.
+*/
+
+static int pwt_residual_passes(JOIN *join)
+{
+  Item *cond= join->parallel_residual_cond;
+  if (!cond)
+    return 1;
+  /*
+    val_bool(), not val_int(): a WHERE that is this one conjunct carries the
+    parser's IS_COND, and Item_bool_func::val_int() asserts on it.
+  */
+  const bool pass= cond->val_bool();
+  if (unlikely(join->thd->is_error() || join->thd->check_killed()))
+    return -1;
+  return pass;
+}
+
+
 int pwt_manager::drain_and_send(JOIN *join)
 {
   DBUG_ENTER("pwt_manager::drain_and_send");
   uchar *dst= layout.recv_record();
+  const bool residual= join->parallel_residual_cond != nullptr;
   int ret= 0;
 
   if (layout.begin_receive(thd, exec.tables, exec.n_tables))
@@ -2912,6 +3179,24 @@ int pwt_manager::drain_and_send(JOIN *join)
       }
 
       layout.copy_back_row();
+      /*
+        The manager's share of the conditions first, on the joined row the
+        workers shipped: a plan with one ships rows rather than partials
+        (pwt_row_layout::build()), so this is a row the terminal has not yet
+        counted, and one it rejects is simply not handed over.
+      */
+      if (residual)
+      {
+        DBUG_ASSERT(!layout.grouped);
+        int pass= pwt_residual_passes(join);
+        if (pass < 0)
+        {
+          ret= 1;
+          break;
+        }
+        if (!pass)
+          continue;
+      }
       /*
         Hand the row to the plan's own terminal, which is end_update(): it
         knows which group the row belongs to.
@@ -2972,6 +3257,23 @@ int pwt_manager::drain_and_send(JOIN *join)
     */
     if (layout.plan_sorts)
     {
+      /*
+        Filtered before it is collected: the sort reads the container, where
+        the manager's conditions cannot look, so the row is copied back to
+        the base-table records for the length of the test.
+      */
+      if (residual)
+      {
+        layout.copy_back_row();
+        int pass= pwt_residual_passes(join);
+        if (pass < 0)
+        {
+          ret= 1;
+          break;
+        }
+        if (!pass)
+          continue;
+      }
       if (sort_collect(thd))
       {
         ret= 1;
@@ -2982,6 +3284,19 @@ int pwt_manager::drain_and_send(JOIN *join)
 
     /* Put the shipped columns back where the query expects to find them. */
     layout.copy_back_row();
+
+    /* The manager's share of the conditions, if the gate left it one. */
+    if (residual)
+    {
+      int pass= pwt_residual_passes(join);
+      if (pass < 0)
+      {
+        ret= 1;
+        break;
+      }
+      if (!pass)
+        continue;
+    }
 
     int err= join->result->send_data_with_check(join->fields_list, join->unit,
                                                  join->send_records);
