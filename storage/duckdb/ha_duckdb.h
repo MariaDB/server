@@ -187,6 +187,8 @@ private:
   size_t current_row_index= 0;
   MY_BITMAP m_blob_map;
   bool m_first_write{true};
+  /* query_id of the UPDATE/DELETE that last ran whole in DuckDB, see rnd_init() */
+  longlong m_dml_query_id{0};
 };
 
 #endif // HA_DUCKDB_H
