@@ -1,0 +1,105 @@
+#
+# MDEV-39492 Parallel Query: a FirstMatch semijoin runs in the workers.
+#
+# FirstMatch is the nested loop backing out early: once the last inner table
+# of the semijoin nest has matched, the executor returns to the outer table
+# the nest follows (JOIN_TAB::do_firstmatch) rather than looking for more
+# matches that would only duplicate the row. A worker runs sub_select() over
+# its own JOIN_TABs, so it does the same once its copy of that pointer names
+# its own tab (setup_worker_jointabs). The other strategies -- LooseScan,
+# DuplicateWeedout, materialization -- keep state no copy carries, and are
+# still refused.
+#
+# The fact table drives, with two rows per id in the table the EXISTS probes,
+# so that a plain join of the two would double every count.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE dim (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four'),(5,'five');
+
+CREATE TABLE fact (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+  ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 5 + 1, seq % 1000 FROM seq_1_to_20000;
+
+CREATE TABLE other (id INT, flag INT, KEY(id)) ENGINE=InnoDB;
+INSERT INTO other SELECT seq, seq % 2 FROM seq_1_to_20000;
+INSERT INTO other SELECT seq, seq % 2 FROM seq_1_to_20000;
+ANALYZE TABLE dim, fact, other PERSISTENT FOR ALL;
+
+SET @save_pwt= @@session.parallel_worker_threads;
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET @save_jcl= @@session.join_cache_level;
+SET @save_trace= @@optimizer_trace;
+SET @save_switch= @@optimizer_switch;
+# a join buffer is refused by the gate; keep the serial plan a plain ref join
+SET SESSION join_cache_level= 0;
+# a setup cost the fact table repays and the dimension does not: the fact table drives
+SET SESSION optimizer_parallel_setup_cost= 100;
+
+--echo #
+--echo # The serial answers.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT d.name, COUNT(*) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND f.val < 50
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  GROUP BY d.name;
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  ORDER BY f.id;
+
+--echo #
+--echo # The EXISTS is a FirstMatch nest after the dimension; the fact table
+--echo # is divided and every count is what the serial plan gave.
+--echo #
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+FLUSH STATUS;
+SELECT d.name, COUNT(*) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND f.val < 50
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  GROUP BY d.name;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+FLUSH STATUS;
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  ORDER BY f.id;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # The other strategies are still refused: here DuplicateWeedout.
+--echo #
+SET optimizer_switch='firstmatch=off,materialization=off,loosescan=off';
+EXPLAIN SELECT COUNT(*) FROM fact f
+  WHERE f.val < 50 AND f.id IN (SELECT o.id FROM other o WHERE o.flag = 1);
+SET SESSION optimizer_trace=1;
+--disable_result_log
+SELECT COUNT(*) FROM fact f
+  WHERE f.val < 50 AND f.id IN (SELECT o.id FROM other o WHERE o.flag = 1);
+--source include/parallel_query_why.inc
+--enable_result_log
+SET SESSION optimizer_trace=@save_trace;
+SET optimizer_switch=@save_switch;
+
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+SET SESSION join_cache_level= @save_jcl;
+SET SESSION parallel_worker_threads= @save_pwt;
+DROP TABLE dim, fact, other;
