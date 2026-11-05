@@ -1,0 +1,221 @@
+CREATE TABLE dim (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four'),(5,'five');
+CREATE TABLE fact (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 5 + 1, seq % 1000 FROM seq_1_to_20000;
+CREATE TABLE other (id INT PRIMARY KEY, flag INT) ENGINE=InnoDB;
+INSERT INTO other SELECT seq, seq % 2 FROM seq_1_to_20000;
+ANALYZE TABLE dim, fact, other PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.dim	analyze	status	Engine-independent statistics collected
+test.dim	analyze	status	OK
+test.fact	analyze	status	Engine-independent statistics collected
+test.fact	analyze	status	OK
+test.other	analyze	status	Engine-independent statistics collected
+test.other	analyze	status	OK
+SET @save_pwt= @@session.parallel_worker_threads;
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET @save_jcl= @@session.join_cache_level;
+SET @save_trace= @@optimizer_trace;
+SET SESSION join_cache_level= 0;
+SET SESSION optimizer_parallel_setup_cost= 100;
+#
+# The serial answers.
+#
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+COUNT(*)	SUM(f.val)
+100	2000
+SELECT d.name, COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+GROUP BY d.name;
+name	COUNT(*)	SUM(f.val)
+five	100	2400
+four	100	2800
+one	100	2000
+three	100	2200
+two	100	2600
+SELECT f.id, f.val FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+ORDER BY f.id;
+id	val
+1000	0
+2000	0
+3000	0
+4000	0
+5000	0
+6000	0
+7000	0
+8000	0
+9000	0
+10000	0
+11000	0
+12000	0
+13000	0
+14000	0
+15000	0
+16000	0
+17000	0
+18000	0
+19000	0
+20000	0
+SELECT f.id, f.val FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+AND f.val > (SELECT AVG(o.flag) FROM other o WHERE o.id = f.id);
+id	val
+10005	5
+1005	5
+11005	5
+12005	5
+13005	5
+14005	5
+15005	5
+16005	5
+17005	5
+18005	5
+19005	5
+2005	5
+3005	5
+4005	5
+5	5
+5005	5
+6005	5
+7005	5
+8005	5
+9005	5
+#
+# Whole-table aggregation: the fact table is divided, the dimension is
+# looked up per row, the NOT EXISTS is left to the manager, and the
+# trace names it.
+#
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	f	ALL_parallel	dim_id	NULL	NULL	NULL	20000	Using where
+1	PRIMARY	d	eq_ref	PRIMARY	PRIMARY	4	test.f.dim_id	1	Using where
+2	DEPENDENT SUBQUERY	o	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using where
+SET SESSION optimizer_trace=1;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_manager_evaluates') AS manager_evaluates,
+JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS divided
+FROM information_schema.optimizer_trace;
+manager_evaluates	divided
+["!<expr_cache><f.`id`>(<in_optimizer>(f.`id`,<exists>(<primary_index_lookup>(<cache>(f.`id`) in other on PRIMARY where o.flag = 1 and <cache>(f.`id`) = o.`id`))))"]	["f"]
+SET SESSION optimizer_trace=@save_trace;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+COUNT(*)	SUM(f.val)
+100	2000
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+#
+# GROUP BY: the workers ship joined rows rather than partials, the
+# manager filters each and groups what is left.
+#
+FLUSH STATUS;
+SELECT d.name, COUNT(*), SUM(f.val) FROM dim d, fact f
+WHERE f.dim_id = d.id AND f.val < 50
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+GROUP BY d.name;
+name	COUNT(*)	SUM(f.val)
+five	100	2400
+four	100	2800
+one	100	2000
+three	100	2200
+two	100	2600
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+#
+# No aggregation, with and without a sort the manager performs.
+#
+FLUSH STATUS;
+SELECT f.id, f.val FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+ORDER BY f.id;
+id	val
+1000	0
+2000	0
+3000	0
+4000	0
+5000	0
+6000	0
+7000	0
+8000	0
+9000	0
+10000	0
+11000	0
+12000	0
+13000	0
+14000	0
+15000	0
+16000	0
+17000	0
+18000	0
+19000	0
+20000	0
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+FLUSH STATUS;
+SELECT f.id, f.val FROM dim d, fact f
+WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+AND f.val > (SELECT AVG(o.flag) FROM other o WHERE o.id = f.id);
+id	val
+10005	5
+1005	5
+11005	5
+12005	5
+13005	5
+14005	5
+15005	5
+16005	5
+17005	5
+18005	5
+19005	5
+2005	5
+3005	5
+4005	5
+5	5
+5005	5
+6005	5
+7005	5
+8005	5
+9005	5
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+#
+# The residual is the whole WHERE. The parser marks that one item a
+# condition, and the manager has to evaluate it as one.
+#
+SET SESSION optimizer_parallel_setup_cost= 0;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM fact f
+WHERE NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+COUNT(*)	SUM(f.val)
+10000	4990000
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+SET SESSION join_cache_level= @save_jcl;
+SET SESSION parallel_worker_threads= @save_pwt;
+DROP TABLE dim, fact, other;

@@ -1,0 +1,130 @@
+#
+# MDEV-39492 Parallel Query: a condition the manager evaluates.
+#
+# A conjunct of a table's condition that no worker can evaluate -- here a
+# correlated subquery, whose JOIN belongs to the manager's thread -- used to
+# keep the whole query serial. Now the gate splits the condition: the
+# worker-safe conjuncts stay with the table and the rest are applied by the
+# manager to every row the workers ship, before the row reaches the plan's
+# terminal (pwt_split_table_cond, pwt_manager::drain_and_send). A plan with
+# such a residual ships joined rows instead of pre-aggregating, so that the
+# filter runs before any grouping.
+#
+# The same join as parallel_query_costing: a five-row dimension and a
+# 20000-row fact table, plus a third table the subquery probes per fact row.
+#
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+CREATE TABLE dim (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim VALUES (1,'one'),(2,'two'),(3,'three'),(4,'four'),(5,'five');
+
+CREATE TABLE fact (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+  ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 5 + 1, seq % 1000 FROM seq_1_to_20000;
+
+CREATE TABLE other (id INT PRIMARY KEY, flag INT) ENGINE=InnoDB;
+INSERT INTO other SELECT seq, seq % 2 FROM seq_1_to_20000;
+ANALYZE TABLE dim, fact, other PERSISTENT FOR ALL;
+
+SET @save_pwt= @@session.parallel_worker_threads;
+SET @save_cost= @@session.optimizer_parallel_setup_cost;
+SET @save_jcl= @@session.join_cache_level;
+SET @save_trace= @@optimizer_trace;
+# a join buffer is refused by the gate; keep the serial plan a plain ref join
+SET SESSION join_cache_level= 0;
+# a setup cost the fact table repays and the dimension does not: the fact table drives
+SET SESSION optimizer_parallel_setup_cost= 100;
+
+--echo #
+--echo # The serial answers.
+--echo #
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT d.name, COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  GROUP BY d.name;
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  ORDER BY f.id;
+--sorted_result
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND f.val > (SELECT AVG(o.flag) FROM other o WHERE o.id = f.id);
+
+--echo #
+--echo # Whole-table aggregation: the fact table is divided, the dimension is
+--echo # looked up per row, the NOT EXISTS is left to the manager, and the
+--echo # trace names it.
+--echo #
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SET SESSION optimizer_trace=1;
+--disable_result_log
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_manager_evaluates') AS manager_evaluates,
+       JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS divided
+  FROM information_schema.optimizer_trace;
+SET SESSION optimizer_trace=@save_trace;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # GROUP BY: the workers ship joined rows rather than partials, the
+--echo # manager filters each and groups what is left.
+--echo #
+FLUSH STATUS;
+SELECT d.name, COUNT(*), SUM(f.val) FROM dim d, fact f
+  WHERE f.dim_id = d.id AND f.val < 50
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  GROUP BY d.name;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # No aggregation, with and without a sort the manager performs.
+--echo #
+FLUSH STATUS;
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1)
+  ORDER BY f.id;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+FLUSH STATUS;
+--sorted_result
+SELECT f.id, f.val FROM dim d, fact f
+  WHERE f.dim_id = d.id AND d.name = 'one' AND f.val < 10
+    AND f.val > (SELECT AVG(o.flag) FROM other o WHERE o.id = f.id);
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # The residual is the whole WHERE. The parser marks that one item a
+--echo # condition, and the manager has to evaluate it as one.
+--echo #
+SET SESSION optimizer_parallel_setup_cost= 0;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM fact f
+  WHERE NOT EXISTS (SELECT 1 FROM other o WHERE o.id = f.id AND o.flag = 1);
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+SET SESSION optimizer_parallel_setup_cost= @save_cost;
+SET SESSION join_cache_level= @save_jcl;
+SET SESSION parallel_worker_threads= @save_pwt;
+DROP TABLE dim, fact, other;

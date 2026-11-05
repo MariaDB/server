@@ -222,8 +222,10 @@ public:
     grouped: the workers pre-aggregate, so a drained row carries one worker's
     partials for a group and the manager primes its aggregates with them before
     handing it over. Cleared by forget_aggregates() when the container turns
-    out to have no group index, and then the workers ship plain joined rows for
-    the manager's terminal to group -- which it still has to do.
+    out to have no group index, and never set when the manager has a share of
+    the conditions to apply to each row before it is grouped
+    (JOIN::parallel_residual_cond); either way the workers ship plain joined
+    rows for the manager's terminal to group -- which it still has to do.
   */
   bool              plan_aggregates;
   bool              grouped;
@@ -275,10 +277,13 @@ public:
 
   /*
     Work out what travels, build the definition, and build the manager's
-    receiving container from it. Returns true on error (my_error() called).
+    receiving container from it. ship_rows asks for joined rows even from a
+    plan that could pre-aggregate: the manager has a condition to apply to
+    each row first. Returns true on error (my_error() called).
   */
   bool build(THD *thd, JOIN *join_arg, TABLE **tables, uint n_tables,
-             pwt_preagg_kind preagg, ORDER *plan_group, ORDER *plan_sort);
+             pwt_preagg_kind preagg, ORDER *plan_group, ORDER *plan_sort,
+             bool ship_rows);
 
   /*
     An ORDER list equivalent to the plan's, reading 'container' rather than the

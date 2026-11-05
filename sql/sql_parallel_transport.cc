@@ -220,12 +220,13 @@ ORDER *pwt_row_layout::build_sort_order(THD *thd, TABLE *container)
 
 bool pwt_row_layout::build(THD *thd, JOIN *join_arg, TABLE **tables,
                            uint n_tables, pwt_preagg_kind preagg,
-                           ORDER *plan_group, ORDER *plan_sort)
+                           ORDER *plan_group, ORDER *plan_sort, bool ship_rows)
 {
   DBUG_ENTER("pwt_row_layout::build");
   join= join_arg;
-  plan_aggregates= grouped= (preagg != PWT_PREAGG_NONE);
-  whole_table= (preagg == PWT_PREAGG_WHOLE);
+  plan_aggregates= (preagg != PWT_PREAGG_NONE);
+  grouped= plan_aggregates && !ship_rows;
+  whole_table= grouped && (preagg == PWT_PREAGG_WHOLE);
   DBUG_ASSERT((preagg == PWT_PREAGG_GROUPED) == (plan_group != nullptr));
   plan_sorts= (plan_sort != nullptr);
 
