@@ -8671,6 +8671,15 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
   case OPT_BINLOG_FORMAT:
     binlog_format_used= true;
     break;
+  case OPT_CREATE_TMP_TABLE_BINLOG_FORMATS:
+    if (!argument || !*argument ||
+        global_system_variables.create_temporary_table_binlog_formats == 0)
+    {
+      sql_print_error("%s: Error while setting value '%s' to '%s'",
+                      my_progname, argument ? argument : "", opt->name);
+      return 1;
+    }
+    break;
 #include <sslopt-case.h>
   case 'V':
     if (argument)

@@ -1,5 +1,7 @@
 Test that unknown option is not silently ignored.
 Test bad binlog format.
+Test that empty create-tmp-table-binlog-formats is not silently ignored (MDEV-39198).
+FOUND 1 /Error while setting value '' to 'create_tmp_table_binlog_formats'/ in mysqltest.log
 Test bad default storage engine.
 Test non-numeric value passed to number option.
 Test with invalid path
