@@ -4,9 +4,10 @@ connection node_1;
 CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 100);
 connection node_2;
-SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
 SET SESSION wsrep_sync_wait = 2;
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT1S";
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2;
 #
 # Control case: standalone (autocommit) UPDATE correctly waits.
 #
@@ -29,6 +30,7 @@ connection node_2;
 # still wait - bit 2 (UPDATE/DELETE) hasn't been satisfied yet in this
 # transaction (BEGIN only ever checks bit 1).
 #
+connection node_2;
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_1;
 INSERT INTO t1 VALUES (3, 300);
@@ -48,6 +50,7 @@ connection node_2;
 # Same scenario again, but via an implicit (autocommit=0) transaction
 # instead of an explicit BEGIN.
 #
+connection node_2;
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_1;
 INSERT INTO t1 VALUES (4, 400);
@@ -78,6 +81,7 @@ BEGIN;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 4
+connection node_2;
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_1;
 INSERT INTO t1 VALUES (5, 500);
@@ -91,6 +95,7 @@ connection node_2a;
 SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
 SET DEBUG_SYNC = "RESET";
+connection node_2;
 connection node_2;
 connection node_1;
 DROP TABLE t1;

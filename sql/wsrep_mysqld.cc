@@ -1612,16 +1612,19 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
     mysql_mutex_lock(&thd->LOCK_thd_data);
     /*
       Once this transaction has generated its first write (appended
-      certification keys / written to the binlog cache), it may already be
-      holding row locks. Waiting on the causal wait at that point risks a
-      self-deadlock: the local applier thread can be blocked trying to take
-      one of those same locks to apply a write-set this wait is waiting for,
-      and nothing resolves that except the wait eventually timing out. So,
-      per the transaction's lifetime, only wait before the first write -
-      every statement up to and including that first write is still safe
-      (nothing of ours is locked yet when the check runs, since it runs
-      before the statement executes), but nothing after it re-waits,
-      matching the original behaviour for the remainder of the transaction.
+      certification keys / written to the binlog cache) or executed a
+      locking read (SELECT ... FOR UPDATE / LOCK IN SHARE MODE, tracked via
+      wsrep_trx_locking_read_done since that takes row locks without
+      appending any certification key), it may already be holding row
+      locks. Waiting on the causal wait at that point risks a self-deadlock:
+      the local applier thread can be blocked trying to take one of those
+      same locks to apply a write-set this wait is waiting for, and nothing
+      resolves that except the wait eventually timing out. So, per the
+      transaction's lifetime, only wait before the first such statement -
+      every statement up to and including it is still safe (nothing of ours
+      is locked yet when the check runs, since it runs before the statement
+      executes), but nothing after it re-waits, matching the original
+      behaviour for the remainder of the transaction.
     */
     ret= (thd->variables.wsrep_sync_wait & mask) &&
       thd->wsrep_client_thread &&
@@ -1629,9 +1632,31 @@ bool wsrep_must_sync_wait (THD* thd, uint mask)
       !(thd->variables.wsrep_dirty_reads &&
         !is_update_query(thd->lex->sql_command)) &&
       !wsrep_has_changes(thd) &&
+      !thd->wsrep_trx_locking_read_done &&
       thd->wsrep_trx().state() !=
       wsrep::transaction::s_replaying &&
-      thd->wsrep_cs().sync_wait_gtid().is_undefined();
+      /*
+        sync_wait_gtid_ caches "already waited for this top-level command"
+        across its whole lifetime, which for a CALL spans every statement in
+        the stored procedure body: sp_instr_stmt::execute() runs each one
+        via mysql_execute_command() directly, without the dispatch_command()
+        wsrep before/after-command cycle that would normally reset it
+        between statements. That would let a later read in the same CALL
+        skip its own wait just because an earlier one in the same call
+        already succeeded - the exact staleness bug fixed here, reached via
+        a different path. Ignore the cache for a stored procedure's own
+        top-level statements (thd->spcont set, thd->in_sub_stmt clear).
+
+        Deliberately NOT extended to trigger/function bodies
+        (thd->in_sub_stmt == SUB_STMT_TRIGGER/SUB_STMT_FUNCTION): those run
+        nested inside another statement's own execution, which may already
+        be mid-flight with locks of its own, so forcing an extra wait there
+        reintroduces the self-deadlock risk wsrep_has_changes(thd) above
+        exists to avoid - confirmed by a BEFORE INSERT trigger otherwise
+        timing out in galera_var_replicate_aria_on.test.
+      */
+      ((thd->spcont && !thd->in_sub_stmt) ||
+       thd->wsrep_cs().sync_wait_gtid().is_undefined());
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   return ret;
@@ -1663,6 +1688,18 @@ bool wsrep_sync_wait (THD* thd, uint mask)
       thd->wsrep_cs().reset_error();
       return true;
     }
+  }
+
+  /*
+    The wait (if any) succeeded, or wasn't needed - this statement is about
+    to execute. If it's a locking read, record that for later statements in
+    this transaction; a real write is already covered by wsrep_has_changes().
+  */
+  if (mask == WSREP_SYNC_WAIT_BEFORE_READ &&
+      thd->lex->sql_command == SQLCOM_SELECT &&
+      thd->lex->first_select_lex()->select_lock != SELECT_LEX::NONE)
+  {
+    thd->wsrep_trx_locking_read_done= true;
   }
 
   return false;
