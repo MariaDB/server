@@ -53,16 +53,22 @@ installation should now be secure.
 
 Thanks for using MariaDB!
 USE mysql;
-CREATE DATABASE test_foo;
 GRANT ALL ON test.* TO PUBLIC;
-GRANT ALL ON `test_foo`.* TO PUBLIC;
+GRANT ALL ON `test\_%`.* TO PUBLIC;
 CREATE USER IF NOT EXISTS ''@'localhost';
+GRANT ALL ON test.* TO ''@'localhost';
+GRANT ALL ON `test\_%`.* TO ''@'localhost';
+CREATE DATABASE test_foo;
+GRANT ALL ON `test_foo`.* TO PUBLIC;
 GRANT ALL ON `test_foo`.* TO ''@'localhost';
 CREATE USER 'testenv'@'localhost';
 GRANT ALL ON `test_foo`.* TO 'testenv'@'localhost';
 SELECT Db, User FROM mysql.db WHERE Db LIKE 'test%' ORDER BY Db, User;
 Db	User
+test	
 test	PUBLIC
+test\_%	
+test\_%	PUBLIC
 test_foo	
 test_foo	PUBLIC
 test_foo	testenv
@@ -70,7 +76,10 @@ CREATE DATABASE IF NOT EXISTS test;
 USE test;
 SELECT Db, User FROM mysql.db WHERE Db LIKE 'test%' ORDER BY Db, User;
 Db	User
+test_foo	
+test_foo	PUBLIC
 test_foo	testenv
+REVOKE ALL ON `test_foo`.* FROM PUBLIC;
 DROP DATABASE test_foo;
 DROP USER IF EXISTS 'testenv'@'localhost';
 DROP USER IF EXISTS ''@'localhost';

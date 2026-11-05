@@ -4,12 +4,13 @@
 
 #
 # MDEV-28824: mariadb-secure-installation must mention test_ databases
-# and must remove only the default anonymous/PUBLIC grants.
+# and must remove exactly the default test database grants.
 #
 # The script has no MTR coverage.  Run it non-interactively against the
-# test server.  MariaDB installations create the default test database
-# privileges for PUBLIC, so the test sets those up explicitly: MTR's
-# bootstrap does not run mariadb_test_db.sql.
+# test server.  scripts/mariadb_test_db.sql grants 'test' and the literal
+# wildcard 'test\_%' to PUBLIC (to '' before 10.11, which upgraded
+# installations still carry).  MTR's bootstrap does not run that file, so
+# the test sets those rows up explicitly.
 #
 
 # The script needs a basedir in which it can find the client and
@@ -25,15 +26,19 @@
 --exec $MYSQL_BINDIR/scripts/mariadb-secure-installation --basedir=$secure_basedir --socket=$MYSQL_TMP_DIR/mysqld.1.sock --user=root --password= < $MYSQL_TMP_DIR/secure-answers.txt 2>&1 | sed -e '/^stty: /d' -e 's|^print: .*|print: <basedir>|'
 
 #
-# Set up the grants of a default installation (PUBLIC) plus a grant that
-# an administrator created for a named user.  The named user's grant must
-# survive the cleanup.
+# Set up the grants of a default installation (PUBLIC), the same rows for
+# the anonymous user (pre-10.11 installations), and grants an administrator
+# created on a real test_foo database.  Only the default rows on 'test'
+# and 'test\_%' may be removed; every grant on test_foo must survive.
 #
 USE mysql;
-CREATE DATABASE test_foo;
 GRANT ALL ON test.* TO PUBLIC;
-GRANT ALL ON `test_foo`.* TO PUBLIC;
+GRANT ALL ON `test\_%`.* TO PUBLIC;
 CREATE USER IF NOT EXISTS ''@'localhost';
+GRANT ALL ON test.* TO ''@'localhost';
+GRANT ALL ON `test\_%`.* TO ''@'localhost';
+CREATE DATABASE test_foo;
+GRANT ALL ON `test_foo`.* TO PUBLIC;
 GRANT ALL ON `test_foo`.* TO ''@'localhost';
 CREATE USER 'testenv'@'localhost';
 GRANT ALL ON `test_foo`.* TO 'testenv'@'localhost';
@@ -50,6 +55,7 @@ USE test;
 
 SELECT Db, User FROM mysql.db WHERE Db LIKE 'test%' ORDER BY Db, User;
 
+REVOKE ALL ON `test_foo`.* FROM PUBLIC;
 DROP DATABASE test_foo;
 DROP USER IF EXISTS 'testenv'@'localhost';
 DROP USER IF EXISTS ''@'localhost';

@@ -368,7 +368,7 @@ remove_test_database() {
     echo " - Removing privileges on test database..."
     do_query "DELETE FROM mysql.db \
               WHERE User IN ('', 'PUBLIC') \
-              AND (Db='test' OR Db LIKE 'test\\_%')"
+              AND (Db='test' OR Db='test\\_%')"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
