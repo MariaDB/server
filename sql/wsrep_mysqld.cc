@@ -1672,20 +1672,36 @@ bool wsrep_sync_wait (THD* thd, uint mask)
                 thd->variables.wsrep_on);
     if (thd->wsrep_cs().sync_wait(-1))
     {
-      wsrep_override_error(thd, thd->wsrep_cs().current_error(),
-                           thd->wsrep_cs().current_error_status());
       /*
-        Unlike a BF-abort/deadlock, a causal-wait timeout here is a
-        pre-check failure: nothing of this transaction's has executed or
-        been touched by it. wsrep::client_state::after_command_after_result()
-        only clears current_error() once the transaction is no longer
-        active, which is the right policy for a genuinely doomed (BF-aborted)
-        transaction, but would otherwise leave every later statement in this
-        still-perfectly-usable transaction - including ROLLBACK - failing
-        with this same stale error. Clear it immediately: it has already
-        been reported to the caller of this one statement above.
+        wsrep::transaction::bf_abort() only ever mutates current_error()
+        while holding client_state's mutex, which is thd->LOCK_thd_data
+        (see m_wsrep_mutex(&LOCK_thd_data) in THD's constructor) - a
+        concurrent BF-abort/deadlock can set a genuine, sticky error here
+        at any time. Read it, and decide whether to clear it below, under
+        that same lock so the two never interleave with such a write.
       */
-      thd->wsrep_cs().reset_error();
+      mysql_mutex_lock(&thd->LOCK_thd_data);
+      enum wsrep::client_error ce= thd->wsrep_cs().current_error();
+      enum wsrep::provider::status ce_status=
+        thd->wsrep_cs().current_error_status();
+      /*
+        Unlike a BF-abort/deadlock, a causal-wait timeout (or the provider
+        not supporting it at all) here is a pre-check failure: nothing of
+        this transaction's has executed or been touched by it.
+        wsrep::client_state::after_command_after_result() only clears
+        current_error() once the transaction is no longer active, which is
+        the right policy for a genuinely doomed (BF-aborted) transaction,
+        but would otherwise leave every later statement in this
+        still-perfectly-usable transaction - including ROLLBACK - failing
+        with this same stale error. Clear it immediately, but only if it's
+        still the failure sync_wait() itself can produce: a BF-abort may
+        have raced in and overwritten it with a genuine, sticky error that
+        must not be discarded.
+      */
+      if (ce == wsrep::e_timeout_error || ce == wsrep::e_not_supported_error)
+        thd->wsrep_cs().reset_error();
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      wsrep_override_error(thd, ce, ce_status);
       return true;
     }
   }
@@ -1694,12 +1710,18 @@ bool wsrep_sync_wait (THD* thd, uint mask)
     The wait (if any) succeeded, or wasn't needed - this statement is about
     to execute. If it's a locking read, record that for later statements in
     this transaction; a real write is already covered by wsrep_has_changes().
+    A trailing FOR UPDATE/LOCK IN SHARE MODE on a UNION is attached only to
+    the unit's last SELECT_LEX (see SELECT_LEX_UNIT::set_lock_to_the_last_
+    select()), not the first, so walk to it the same way.
   */
   if (mask == WSREP_SYNC_WAIT_BEFORE_READ &&
-      thd->lex->sql_command == SQLCOM_SELECT &&
-      thd->lex->first_select_lex()->select_lock != SELECT_LEX::NONE)
+      thd->lex->sql_command == SQLCOM_SELECT)
   {
-    thd->wsrep_trx_locking_read_done= true;
+    SELECT_LEX *sel= thd->lex->first_select_lex();
+    while (sel->next_select())
+      sel= sel->next_select();
+    if (sel->select_lock != SELECT_LEX::NONE)
+      thd->wsrep_trx_locking_read_done= true;
   }
 
   return false;

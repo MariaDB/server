@@ -515,6 +515,9 @@ bool trans_commit_stmt(THD *thd)
     if (! thd->in_active_multi_stmt_transaction())
     {
       trans_reset_one_shot_chistics(thd);
+#ifdef WITH_WSREP
+      thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
     }
 
     THD_STAGE_INFO(thd, org_stage);
@@ -582,7 +585,12 @@ bool trans_rollback_stmt(THD *thd)
 
     ha_rollback_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
+    {
       trans_reset_one_shot_chistics(thd);
+#ifdef WITH_WSREP
+      thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
+    }
 
     THD_STAGE_INFO(thd, org_stage);
   }
