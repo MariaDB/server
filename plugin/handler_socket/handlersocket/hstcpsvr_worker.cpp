@@ -3,6 +3,7 @@
 
 /*
  * Copyright (C) 2010 DeNA Co.,Ltd.. All rights reserved.
+ * Copyright (c) 2011, 2026, MariaDB plc.
  * See COPYRIGHT.txt for details.
  */
 
@@ -712,6 +713,9 @@ void
 hstcpsvr_worker::do_open_index(char *start, char *finish, hstcpsvr_conn& conn)
 {
   const size_t pst_id = read_ui32(start, finish);
+  if (pst_id > 1024) {
+    return conn.dbcb_resp_short(2, "stmtnum");
+  }
   skip_one(start, finish);
   /* dbname */
   char *const dbname_begin = start;
@@ -807,7 +811,7 @@ hstcpsvr_worker::do_exec_on_index(char *cmd_begin, char *cmd_end, char *start,
     args.invalues_keypart = read_ui32(start, finish);
     skip_one(start, finish);
     args.invalueslen = read_ui32(start, finish);
-    if (args.invalueslen <= 0) {
+    if (args.invalueslen <= 0 || args.invalueslen > 1024) {
       return conn.dbcb_resp_short(2, "invalueslen");
     }
     if (invalues_work.size() < args.invalueslen) {
