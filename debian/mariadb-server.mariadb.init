@@ -26,10 +26,10 @@ SELF="$(cd "$(dirname "$0")"; pwd -P)/$(basename "$0")"
 
 if [ -f /usr/bin/mariadb-admin ]
 then
-  MYADMIN="/usr/bin/mariadb-admin --defaults-file=/etc/mysql/debian.cnf"
+  MYADMIN="/usr/bin/mariadb-admin --defaults-file=/etc/mariadb/debian.cnf"
 elif [ -f /usr/bin/mysqladmin ]
 then
-  MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
+  MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mariadb/debian.cnf"
 else
   log_failure_msg "Command mariadb-admin/mysqladmin not found! This SysV init script depends on it."
   exit 1
@@ -66,7 +66,7 @@ umask 077
 # mysqladmin likes to read /root/.my.cnf. This is usually not what I want
 # as many admins e.g. only store a password without a username there and
 # so break my scripts.
-export HOME=/etc/mysql/
+export HOME=/etc/mariadb/
 
 ## Fetch a particular option from mysql's invocation.
 #
@@ -82,10 +82,10 @@ mariadbd_get_param() {
 ## Do some sanity checks before even trying to start mariadbd.
 sanity_checks() {
   # check for config file
-  if [ ! -r /etc/mysql/my.cnf ]
+  if [ ! -r /etc/mariadb/my.cnf ]
   then
-    log_warning_msg "$0: WARNING: /etc/mysql/my.cnf cannot be read. See README.Debian.gz"
-    echo                "WARNING: /etc/mysql/my.cnf cannot be read. See README.Debian.gz" | $ERR_LOGGER
+    log_warning_msg "$0: WARNING: /etc/mariadb/my.cnf cannot be read. See README.Debian.gz"
+    echo                "WARNING: /etc/mariadb/my.cnf cannot be read. See README.Debian.gz" | $ERR_LOGGER
   fi
 
   # check for diskspace shortage
@@ -199,7 +199,7 @@ case "${1:-''}" in
     then
       log_end_msg 0
       # Now start mysqlcheck or whatever the admin wants.
-      output=$(/etc/mysql/debian-start)
+      output=$(/etc/mariadb/debian-start)
       if [ -n "$output" ]
       then
         log_action_msg "$output"

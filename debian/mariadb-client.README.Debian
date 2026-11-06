@@ -1,4 +1,4 @@
 FAQ:
 
 Q: My <tab> completion is gone, why?
-A: You have "no-auto-rehash" in the "[mysql]" section of /etc/mysql/my.cnf!
+A: You have "no-auto-rehash" in the "[mysql]" section of /etc/mariadb/my.cnf!
