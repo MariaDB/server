@@ -2492,6 +2492,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   size_t        ssl_info_client_len= 2;
   char          *ssl_info= NULL;
   uchar         *ssl_info_client= NULL;
+  my_bool       verified;
   ulong		pkt_length;
   int           res;
 
@@ -2662,6 +2663,11 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   if (!mysql->extension->tls_self_signed_error && !ssl_info_client)
     DBUG_RETURN(0);
 
+  /* the TLS layer has verified the server certificate */
+  verified= !mysql->extension->tls_self_signed_error &&
+            (!mysql->options.extension ||
+             !mysql->options.extension->tls_allow_invalid_server_cert);
+
   if (mysql->extension->tls_self_signed_error)
   {
     /* Last attempt to validate the cert: compare cert info packet */
@@ -2690,8 +2696,10 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     It is COM_QUIT, one byte version (1) and
     sha2("client", password hash, scramble, binding), where binding is "CA"
     if the client has verified the certificate already, and the certificate
-    fingerprint otherwise. Without a password hash there is no sha2.
-    The server does not reply to it.
+    fingerprint otherwise. Without a password hash there is no sha2 and the
+    client can only vouch for the certificate: ssl_info_client is COM_QUIT
+    and the version if the client has verified the certificate, and COM_QUIT
+    alone if it has not. The server does not reply to it.
   */
   if (mysql->passwd && mysql->passwd[0] && auth_plugin->hash_password_bin)
   {
@@ -2701,9 +2709,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
     size_t pwhash_len= sizeof(pwhash);
     uint binding_len= sizeof(binding);
 
-    if (!mysql->extension->tls_self_signed_error &&
-        (!mysql->options.extension ||
-         !mysql->options.extension->tls_allow_invalid_server_cert))
+    if (verified)
     {
       binding_len= sizeof(ca) - 1;
       memcpy(binding, ca, binding_len);
@@ -2746,6 +2752,8 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       ssl_info_client_len+= 256/8;
     }
   }
+  else if (!verified)
+    ssl_info_client_len= 1;
 
   if (ssl_info)
     goto not_trusted;

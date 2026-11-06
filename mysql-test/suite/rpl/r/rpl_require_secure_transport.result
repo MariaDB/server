@@ -40,6 +40,30 @@ change master to master_user='root', master_password='';
 start slave io_thread;
 include/wait_for_slave_io_error.inc [errno=3159]
 include/stop_slave_io.inc
+connection master;
+set global require_secure_transport=client;
+connection slave;
+# trust the replica without a password hash that has verified the master certificate
+change master to master_ssl_verify_server_cert=1,
+master_ssl_ca='MYSQL_TEST_DIR/std_data/cacert.pem';
+include/start_slave.inc
+connection master;
+insert t1 values (3);
+connection slave;
+select * from t1;
+a
+1
+2
+3
+include/stop_slave.inc
+# but not if it has not
+change master to master_ssl_verify_server_cert=0, master_ssl_ca='';
+start slave io_thread;
+include/wait_for_slave_io_error.inc [errno=2006, 2013]
+include/stop_slave_io.inc
+connection master;
+set global require_secure_transport=on;
+connection slave;
 # MitM cannot use the replica connection
 >> MitM active <<
 change master to master_user='repl', master_password='pw',

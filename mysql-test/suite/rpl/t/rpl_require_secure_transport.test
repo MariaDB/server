@@ -50,6 +50,30 @@ start slave io_thread;
 --source include/wait_for_slave_io_error.inc
 --source include/stop_slave_io.inc
 
+--connection master
+set global require_secure_transport=client;
+--connection slave
+--echo # trust the replica without a password hash that has verified the master certificate
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to master_ssl_verify_server_cert=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem';
+--source include/start_slave.inc
+--connection master
+insert t1 values (3);
+--sync_slave_with_master
+select * from t1;
+--source include/stop_slave.inc
+--echo # but not if it has not
+change master to master_ssl_verify_server_cert=0, master_ssl_ca='';
+start slave io_thread;
+--let $slave_io_errno= 2006, 2013
+--let $slave_io_error_is_nonfatal= 1
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_io.inc
+--connection master
+set global require_secure_transport=on;
+--connection slave
+
 --echo # MitM cannot use the replica connection
 --exec perl lib/ssl-mitm.pl --listen-on $MITM_PORT --connect-to $MASTER_MYPORT --ssl-ca std_data/cacert.pem --ssl-key std_data/server-new-key.pem --ssl-cert std_data/server-new-cert.pem --hijack "create table test.hijacked (a int)"
 --replace_result $MITM_PORT MITM_PORT

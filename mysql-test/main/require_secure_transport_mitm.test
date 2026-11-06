@@ -74,6 +74,8 @@ set global require_secure_transport=on;
 --echo # no password hash, but a client certificate
 --echo # mysql -ux509 --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
 --exec $MYSQL --protocol tcp -ux509 --ssl-verify-server-cert $cert -e "select 1" 2>&1
+--echo # mysql -ux509 --disable-ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
+--exec $MYSQL --protocol tcp -ux509 --disable-ssl-verify-server-cert $cert -e "select 1" 2>&1
 --echo # mysql -uissuer --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
 --exec $MYSQL --protocol tcp -uissuer --ssl-verify-server-cert $cert -e "select 1" 2>&1
 
@@ -92,16 +94,18 @@ set global require_secure_transport=on;
 --exec $MYSQL --protocol tcp --host 127.0.0.1 -ureqcipher --ssl-verify-server-cert -e "select 1" 2>&1
 
 set global require_secure_transport=client;
---echo # trust the client without a password hash
+--echo # trust the client without a password hash that has verified the certificate
 --echo # mysql --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1"
 --exec $MYSQL --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1" 2>&1
 --echo # mysql --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1"
 --exec $MYSQL --protocol tcp --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1" 2>&1
 --echo # mysql --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1"
 --exec $MYSQL --protocol tcp --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1" 2>&1
+--echo # but not if it has not
 --echo # mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1"
---exec $MYSQL --protocol tcp -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1" 2>&1
---echo # but not the client with a password hash
+--error 1
+--exec $MYSQL --protocol tcp -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1" > /dev/null 2>&1
+--echo # a client with a password hash still has to prove it
 --exec $mitm
 --echo # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
 --error 1

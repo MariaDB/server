@@ -61,6 +61,9 @@ set global require_secure_transport=on;
 # mysql -ux509 --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
 1
 1
+# mysql -ux509 --disable-ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
+1
+1
 # mysql -uissuer --ssl-verify-server-cert --ssl-cert=client-cert.pem -e "select 1"
 1
 1
@@ -74,7 +77,7 @@ ERROR 3159 (08004): Connections using insecure transport are prohibited while --
 # mysql --host 127.0.0.1 -ureqcipher --ssl-verify-server-cert -e "select 1"
 ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
 set global require_secure_transport=client;
-# trust the client without a password hash
+# trust the client without a password hash that has verified the certificate
 # mysql --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1"
 1
 1
@@ -84,10 +87,9 @@ set global require_secure_transport=client;
 # mysql --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1"
 1
 1
+# but not if it has not
 # mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1"
-1
-1
-# but not the client with a password hash
+# a client with a password hash still has to prove it
 >> MitM active <<
 # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
 show tables like 'hijacked';

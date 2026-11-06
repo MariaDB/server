@@ -34,9 +34,8 @@ select @@global.require_secure_transport;
 --error ER_SECURE_TRANSPORT_REQUIRED
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
 
-# no password hash, no client certificate, but trusted
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
-connect with_ssl,localhost,root,,,,,TCP SSL;
+connect with_ssl,localhost,pw,pw,,,,TCP SSL;
 --disable_view_protocol
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 --enable_view_protocol

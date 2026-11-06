@@ -14829,13 +14829,16 @@ static bool requires_client_cert(const ACL_USER *acl_user)
   sha2("client", salt, scramble, binding), where binding is the server
   certificate fingerprint as seen by the client, or "CA" if the client has
   verified the certificate itself. A client that has no password hash to
-  compute the digest from sends no sha2. COM_QUIT makes a server that does
-  not expect ssl_info_client close the connection.
+  compute the digest from sends no sha2, and if it has not verified the
+  certificate, no version either. COM_QUIT makes a server that does not
+  expect ssl_info_client close the connection.
 
   An invalid ssl_info_client that a correct client cannot send without
   a man in the middle is logged.
 
-  @param salt    the password hash, empty if the server has none
+  @param salt    the password hash, empty if the server has none. Without
+                 it ssl_info_client is valid if the client says it has
+                 verified the certificate
 
   @retval true   valid
   @retval false  invalid
@@ -14848,8 +14851,11 @@ static bool ssl_info_client_is_valid(THD *thd, const LEX_CSTRING &salt,
   static const char ca[]= "CA";
   uchar digest[256/8];
 
-  if (pkt_len == 2 && pkt[0] == COM_QUIT)
+  if (pkt_len == 1 && pkt[0] == COM_QUIT)
     return false;
+
+  if (pkt_len == 2 && pkt[0] == COM_QUIT && pkt[1] == 1)
+    return !salt.length;
 
   if (pkt_len != 2 + sizeof(digest) || pkt[0] != COM_QUIT || pkt[1] != 1)
   {
@@ -15194,13 +15200,15 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
     /* don't require ssl_info_client if we verify client certificate anyway */
     ssl_info_client_required &= !requires_client_cert(acl_user);
+    /*
+      without a password hash the client cannot prove anything,
+      CLIENT trusts it to say whether it has verified the certificate
+    */
     bool has_password_hash= mpvio.hashes_password && salt.length;
-    /* trust the client that cannot prove anything */
-    if (!has_password_hash &&
-        opt_require_secure_transport == REQUIRE_SECURE_TRANSPORT_CLIENT)
-      ssl_info_client_required= false;
-    if (ssl_info_client_required && (!has_password_hash ||
-        !(thd->client_capabilities & MARIADB_CLIENT_SSL_INFO_CLIENT)))
+    if (ssl_info_client_required &&
+        (!(thd->client_capabilities & MARIADB_CLIENT_SSL_INFO_CLIENT) ||
+         (!has_password_hash &&
+          opt_require_secure_transport != REQUIRE_SECURE_TRANSPORT_CLIENT)))
     {
       secure_transport_required_error(thd);
       DBUG_RETURN(1);
