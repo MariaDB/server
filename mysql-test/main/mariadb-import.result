@@ -77,13 +77,13 @@ test_suppressions.sql
 test_suppressions.txt
 Connecting to localhost
 Executing SQL script vardir/tmp/dump/mysql/help_topic.sql
+Executing SQL script vardir/tmp/dump/mysql/help_relation.sql
+Executing SQL script vardir/tmp/dump/mysql/help_keyword.sql
 Executing SQL script vardir/tmp/dump/mysql/time_zone_transition.sql
 Executing SQL script vardir/tmp/dump/mtr/global_suppressions.sql
 Executing SQL script vardir/tmp/dump/mysql/event.sql
 Executing SQL script vardir/tmp/dump/mysql/innodb_index_stats.sql
 Executing SQL script vardir/tmp/dump/mysql/innodb_table_stats.sql
-Executing SQL script vardir/tmp/dump/mysql/help_keyword.sql
-Executing SQL script vardir/tmp/dump/mysql/help_relation.sql
 Executing SQL script vardir/tmp/dump/mysql/help_category.sql
 Executing SQL script vardir/tmp/dump/mysql/time_zone_transition_type.sql
 Executing SQL script vardir/tmp/dump/mysql/global_priv.sql
@@ -110,17 +110,17 @@ Executing SQL script vardir/tmp/dump/mysql/slow_log.sql
 Executing SQL script vardir/tmp/dump/test/v1.sql
 Executing SQL script vardir/tmp/dump/mysql/general_log.sql
 Loading data from LOCAL file: vardir/tmp/dump/mysql/help_topic.txt into help_topic
-mysql.help_topic: Records: 839  Deleted: 0  Skipped: 0  Warnings: 0
+mysql.help_topic: Records: 1171  Deleted: 0  Skipped: 0  Warnings: 0
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_relation.txt into help_relation
+mysql.help_relation: Records: 2116  Deleted: 0  Skipped: 0  Warnings: 0
+Loading data from LOCAL file: vardir/tmp/dump/mysql/help_keyword.txt into help_keyword
+mysql.help_keyword: Records: 1080  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_transition.txt into time_zone_transition
 mysql.time_zone_transition: Records: 394  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mtr/global_suppressions.txt into global_suppressions
 mtr.global_suppressions: Records: 100  Deleted: 0  Skipped: 0  Warnings: 0
-Loading data from LOCAL file: vardir/tmp/dump/mysql/help_keyword.txt into help_keyword
-mysql.help_keyword: Records: 106  Deleted: 0  Skipped: 0  Warnings: 0
-Loading data from LOCAL file: vardir/tmp/dump/mysql/help_relation.txt into help_relation
-mysql.help_relation: Records: 202  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/help_category.txt into help_category
-mysql.help_category: Records: 50  Deleted: 0  Skipped: 0  Warnings: 0
+mysql.help_category: Records: 39  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/time_zone_transition_type.txt into time_zone_transition_type
 mysql.time_zone_transition_type: Records: 32  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from LOCAL file: vardir/tmp/dump/mysql/global_priv.txt into global_priv
