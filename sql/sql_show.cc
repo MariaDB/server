@@ -2911,6 +2911,8 @@ public:
 
 static const char *thread_state_info(THD *tmp)
 {
+  if (tmp->client_gone && tmp->get_command() == COM_SLEEP)
+    return "Client disconnected";
 #ifndef EMBEDDED_LIBRARY
   if (tmp->net.reading_or_writing)
   {

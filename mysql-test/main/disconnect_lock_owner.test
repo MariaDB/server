@@ -1,0 +1,51 @@
+--source include/not_embedded.inc
+--source include/maybe_pool_of_threads.inc
+--source include/have_innodb.inc
+--source include/have_disconnect_watcher.inc
+
+--echo #
+--echo # MDEV-38741 A client that disconnected must not keep owning locks
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET innodb_lock_wait_timeout=3600;
+BEGIN;
+SELECT * FROM t1 WHERE a=2 FOR UPDATE;
+send SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits w
+  JOIN information_schema.innodb_trx t ON t.trx_id = w.requesting_trx_id
+  WHERE t.trx_mysql_thread_id = $con1_id;
+--source include/wait_condition.inc
+
+--echo # The waiting client owns the lock of the row 2
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 WHERE a=2 FOR UPDATE NOWAIT;
+
+--echo # Disconnect abruptly, the server is not reading from the socket
+connection con1;
+dirty_close con1;
+
+connection default;
+# The thread leaves the processlist after its transaction is rolled back
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $con1_id;
+--source include/wait_condition.inc
+
+--echo # The transaction of the client is rolled back, its lock is released
+SELECT * FROM t1 WHERE a=2 FOR UPDATE NOWAIT;
+
+disconnect blocker;
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

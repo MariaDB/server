@@ -8795,20 +8795,92 @@ void select_connection(struct st_command *command)
 }
 
 
+#ifndef EMBEDDED_LIBRARY
+/*
+  dirty_close nolinger: close the connection with a reset, not with the FIN of
+  shutdown() or of a normal close. The socket is closed here, so mysql_close()
+  can neither send COM_QUIT nor reset anything, and closes the descriptor a
+  second time, which is harmless in the single-threaded mysqltest. A unix
+  socket or a pipe cannot be reset, those are just cancelled. A TCP socket
+  that cannot be reset dies, the test would else pass with a FIN.
+*/
+static void abort_connection(MYSQL *mysql)
+{
+  my_socket sock= INVALID_SOCKET;
+  struct sockaddr_storage addr;
+  socklen_t len= sizeof(addr);
+  if (mariadb_get_infov(mysql, MARIADB_CONNECTION_SOCKET, &sock) ||
+      sock == INVALID_SOCKET)
+  {
+    mariadb_cancel(mysql);
+    return;
+  }
+  if (getsockname(sock, reinterpret_cast<struct sockaddr *>(&addr), &len))
+    die("dirty_close nolinger: getsockname() failed, error %d", socket_errno);
+  if (addr.ss_family == AF_UNIX)
+  {
+    mariadb_cancel(mysql);
+    return;
+  }
+  struct linger reset= {1, 0};
+  if (setsockopt(sock, SOL_SOCKET, SO_LINGER,
+                 reinterpret_cast<const char *>(&reset), sizeof(reset)))
+    die("dirty_close nolinger: setsockopt(SO_LINGER) failed, error %d",
+        socket_errno);
+  closesocket(sock);
+}
+#endif
+
+
+/*
+  Whether something other than a comment follows the connection name, which is
+  the first argument of dirty_close.
+*/
+static bool close_connection_has_option(const char *p)
+{
+  while (*p == ' ')
+    p++;
+  char delimiter= ' ';
+  if (*p && strchr("'`\"", *p))
+    delimiter= *p++;
+  while (*p && *p != delimiter)
+    p++;
+  if (*p)
+    p++;
+  while (*p == ' ')
+    p++;
+  return *p && *p != '#';
+}
+
+
 void do_close_connection(struct st_command *command)
 {
   DBUG_ENTER("do_close_connection");
 
   struct st_connection *con;
-  static DYNAMIC_STRING ds_connection;
+  static DYNAMIC_STRING ds_connection, ds_linger;
   const struct command_arg close_connection_args[] = {
     { "connection_name", ARG_STRING, TRUE, &ds_connection,
-      "Name of the connection to close." }
+      "Name of the connection to close." },
+    { "linger", ARG_STRING, FALSE, &ds_linger,
+      "dirty_close only: linger, the default, or nolinger, which resets "
+      "the TCP connection" }
   };
+  /* Only dirty_close takes the second argument, and not in a comment */
+  const bool has_linger= command->type == Q_DIRTY_CLOSE &&
+                         close_connection_has_option(command->first_argument);
   check_command_args(command, command->first_argument,
-                     close_connection_args,
-                     sizeof(close_connection_args)/sizeof(struct command_arg),
-                     ' ');
+                     close_connection_args, has_linger ? 2 : 1, ' ');
+
+  bool nolinger __attribute__((unused))= false;
+  if (has_linger && ds_linger.length)
+  {
+    if (!strcmp(ds_linger.str, "nolinger"))
+      nolinger= true;
+    else if (strcmp(ds_linger.str, "linger"))
+      die("Unknown dirty_close argument '%s', expected linger or nolinger",
+          ds_linger.str);
+  }
 
   DBUG_PRINT("enter",("connection name: '%s'", ds_connection.str));
 
@@ -8818,7 +8890,12 @@ void do_close_connection(struct st_command *command)
   DBUG_PRINT("info", ("Closing connection %s", con->name));
 #ifndef EMBEDDED_LIBRARY
   if (command->type == Q_DIRTY_CLOSE)
-    mariadb_cancel(con->mysql);
+  {
+    if (nolinger)
+      abort_connection(con->mysql);
+    else
+      mariadb_cancel(con->mysql);
+  }
   else
   {
     simple_command(con->mysql,COM_QUIT,0,0,0);

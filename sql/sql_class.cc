@@ -60,6 +60,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "disconnect_watcher.h"
 #include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
@@ -1821,6 +1822,8 @@ void THD::free_connection()
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
+  /* Removed by end_connection() */
+  DBUG_ASSERT(!disconnect_watch);
   if (net.vio)
     vio_delete(net.vio);
   net.vio= nullptr;
@@ -1875,6 +1878,7 @@ void THD::reset_for_reuse()
   query_name_consts= 0;                         // Safety
   abort_on_warning= 0;
   free_connection_done= 0;
+  client_gone= false;
   m_command= COM_CONNECT;
   proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
@@ -2131,7 +2135,11 @@ void THD::awake_no_mutex(killed_state state_to_set,
   mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
-  print_aborted_warning(3, "KILLED");
+  /* The first connection kill of a gone client is the disconnect abort */
+  if (client_gone && state_to_set >= KILL_CONNECTION && killed < KILL_CONNECTION)
+    print_aborted_warning(1, "Client disconnected");
+  else
+    print_aborted_warning(3, "KILLED");
 
   /*
     Don't degrade killed state, for example from a KILL_CONNECTION to
@@ -2145,7 +2153,11 @@ void THD::awake_no_mutex(killed_state state_to_set,
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
 #ifdef SIGNAL_WITH_VIO_CLOSE
-    if (this != current_thd && thread_id != shutdown_thread_id)
+    /*
+      Not if the client is gone, the socket is not waited for, and a client
+      that only half-closed can still read the error.
+    */
+    if (this != current_thd && thread_id != shutdown_thread_id && !client_gone)
     {
       if(active_vio)
         vio_shutdown(active_vio, SHUT_RDWR);
@@ -2421,6 +2433,52 @@ void THD::reset_killed()
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
+}
+
+
+/*
+  A client can send these and disconnect, without waiting for an answer: the
+  end of the connection itself, and the closing of a prepared statement. While
+  the connection is idle it is not known what the next command is. A client
+  that is gone is not a failure until a command that wants an answer comes.
+*/
+static bool command_expects_answer(enum_server_command command)
+{
+  return command != COM_SLEEP && command != COM_QUIT &&
+         command != COM_STMT_CLOSE;
+}
+
+
+void THD::set_client_gone()
+{
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
+  mysql_mutex_assert_owner(&LOCK_thd_data);
+  client_gone= true;
+  /* Pairs with the fence in abort_if_client_gone() */
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  if (command_expects_answer(get_command()))
+    awake_no_mutex(KILL_CONNECTION);
+}
+
+
+void THD::abort_if_client_gone()
+{
+  /*
+    The command is set already. Either this sees the client gone, or the
+    watcher, that stores it before it reads the command, sees the command.
+    No lock unless the client is gone.
+  */
+  std::atomic_thread_fence(std::memory_order_seq_cst);
+  if (likely(!client_gone))
+    return;
+  mysql_mutex_lock(&LOCK_thd_kill);
+  if (command_expects_answer(get_command()) && killed < KILL_CONNECTION)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    awake_no_mutex(KILL_CONNECTION);
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+  mysql_mutex_unlock(&LOCK_thd_kill);
 }
 
 

@@ -1,0 +1,69 @@
+#
+# MDEV-38741 The kill state of a connection does not leak to the next
+# connection that runs in the same cached thread
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connection default;
+# A cache that has one thread, which is the one that is parked last
+FLUSH THREADS;
+SET GLOBAL thread_cache_size= 1;
+# A connection that is aborted by its client disconnecting
+connect  con1,127.0.0.1,root,,,$MASTER_MYPORT;
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+connection con1;
+disconnect con1;
+connection default;
+# The next connection runs in that thread, and is not aborted
+connect  con2,127.0.0.1,root,,,$MASTER_MYPORT;
+thread_reused
+1
+SELECT SLEEP(0.1);
+SLEEP(0.1)
+0
+disconnect con2;
+connection default;
+# An idle connection that disconnects, it ends with the state still set
+connect  con5,127.0.0.1,root,,,$MASTER_MYPORT;
+SELECT 1;
+1
+1
+disconnect con5;
+connection default;
+# The next connection is not aborted
+connect  con6,127.0.0.1,root,,,$MASTER_MYPORT;
+SELECT 1;
+1
+1
+disconnect con6;
+connection default;
+# A connection that ends with the error of its max_statement_time
+connect  con3,127.0.0.1,root,,,$MASTER_MYPORT;
+SET max_statement_time= 0.2;
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+disconnect con3;
+connection default;
+# The next connection has no leftover of it
+connect  con4,127.0.0.1,root,,,$MASTER_MYPORT;
+thread_reused
+1
+SELECT SLEEP(0.1);
+SLEEP(0.1)
+0
+disconnect con4;
+connection default;
+connection blocker;
+COMMIT;
+disconnect blocker;
+connection default;
+DROP TABLE t1;
+# End of 13.2 tests
