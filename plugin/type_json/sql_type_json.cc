@@ -62,9 +62,18 @@ bool Type_handler_json::Item_hybrid_func_fix_attributes(
     Type_handler_hybrid_field_type *handler, Type_all_attributes *func,
     Item **items, uint nitems) const
 {
-  if (func->aggregate_attributes_string(func_name, items, nitems))
+  /*
+    JSON results have the same fixed collation as Field_json, regardless of
+    the arguments' collations.
+  */
+  func->collation.set(&my_charset_utf8mb4_bin, DERIVATION_IMPLICIT);
+  if (func->agg_item_set_converter(func->collation, func_name, items, nitems,
+                                   MY_COLL_ALLOW_CONV, 1))
     return true;
 
+  func->fix_char_length(func->find_max_char_length(items, nitems));
+  func->unsigned_flag= false;
+  func->decimals= func->max_length ? NOT_FIXED_DEC : 0;
   handler->set_handler(&type_handler_json);
   return false;
 }
@@ -73,9 +82,8 @@ Item *
 Type_handler_json::create_typecast_item(THD *thd, Item *item,
                                         const Type_cast_attributes &attr) const
 {
-  CHARSET_INFO *real_cs=
-      attr.charset() ? attr.charset() : thd->variables.collation_connection;
-  return new (thd->mem_root) Item_json_typecast(thd, item, real_cs);
+  // Match the fixed character set and collation of Field_json.
+  return new (thd->mem_root) Item_json_typecast(thd, item, &my_charset_utf8mb4_bin);
 }
 
 Item *Type_handler_json::make_constructor_item(THD *thd,
@@ -85,7 +93,7 @@ Item *Type_handler_json::make_constructor_item(THD *thd,
     return nullptr;
   Item_args tmp(thd, *args);
   return new (thd->mem_root) Item_json_typecast(
-      thd, tmp.arguments()[0], thd->variables.collation_connection);
+      thd, tmp.arguments()[0], &my_charset_utf8mb4_bin);
 }
 /********************Type collection json *******************/
 

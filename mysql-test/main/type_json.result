@@ -120,7 +120,7 @@ CAST(NULL AS JSON)
 NULL
 SELECT CAST('{"a":1}' AS JSON);
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					CAST('{"a":1}' AS JSON)	251 (type=json)	7	7	Y	0	0	8
+def					CAST('{"a":1}' AS JSON)	251 (type=json)	28	7	Y	128	0	8
 CAST('{"a":1}' AS JSON)
 {"a":1}
 CREATE TABLE t1 (a JSON);
@@ -303,3 +303,43 @@ drop table t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-41581: JSON expression collations in GROUP_CONCAT
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+SELECT GROUP_CONCAT(CAST(a AS JSON) ORDER BY 1) AS gc FROM t;
+gc
+1
+DROP TABLE t;
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (2), (1), (1), (NULL);
+SELECT
+COLLATION(CAST(a AS JSON)) AS cast_coll,
+COLLATION(`JSON`(a)) AS constructor_coll
+FROM t WHERE a = 2;
+cast_coll	constructor_coll
+utf8mb4_bin	utf8mb4_bin
+SELECT GROUP_CONCAT(DISTINCT
+COALESCE(CAST(a AS JSON),
+_utf8mb4'0' COLLATE utf8mb4_general_ci)
+ORDER BY 1
+) AS gc FROM t;
+gc
+0,1,2
+SELECT LENGTH(GROUP_CONCAT(DISTINCT
+COALESCE(CAST(a AS JSON),
+_utf8mb4'0' COLLATE utf8mb4_general_ci)
+)) AS len FROM t;
+len
+5
+DROP TABLE t;
+# All selected values are SQL NULL: expected gc = NULL
+CREATE TABLE t (j JSON);
+INSERT INTO t VALUES (NULL), (NULL);
+SELECT GROUP_CONCAT(
+COALESCE(j, CAST(NULL AS JSON)) ORDER BY 1
+) AS gc FROM t;
+gc
+NULL
+DROP TABLE t;

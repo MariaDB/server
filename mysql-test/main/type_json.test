@@ -253,3 +253,43 @@ drop table t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-41581: JSON expression collations in GROUP_CONCAT
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+SELECT GROUP_CONCAT(CAST(a AS JSON) ORDER BY 1) AS gc FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (2), (1), (1), (NULL);
+SELECT
+  COLLATION(CAST(a AS JSON)) AS cast_coll,
+  COLLATION(`JSON`(a)) AS constructor_coll
+FROM t WHERE a = 2;
+
+SELECT GROUP_CONCAT(DISTINCT
+  COALESCE(CAST(a AS JSON),
+           _utf8mb4'0' COLLATE utf8mb4_general_ci)
+  ORDER BY 1
+) AS gc FROM t;
+
+SELECT LENGTH(GROUP_CONCAT(DISTINCT
+  COALESCE(CAST(a AS JSON),
+           _utf8mb4'0' COLLATE utf8mb4_general_ci)
+)) AS len FROM t;
+
+DROP TABLE t;
+
+--echo # All selected values are SQL NULL: expected gc = NULL
+
+CREATE TABLE t (j JSON);
+INSERT INTO t VALUES (NULL), (NULL);
+
+SELECT GROUP_CONCAT(
+  COALESCE(j, CAST(NULL AS JSON)) ORDER BY 1
+) AS gc FROM t;
+
+DROP TABLE t;
