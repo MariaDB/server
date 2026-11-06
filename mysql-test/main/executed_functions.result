@@ -1,0 +1,68 @@
+#
+# MDEV-11326 Add status variable Executed_functions
+#
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE FUNCTION f2() RETURNS INT RETURN f1() + 1;
+CREATE FUNCTION f3() RETURNS INT
+BEGIN
+SIGNAL SQLSTATE '45000';
+RETURN 1;
+END|
+CREATE PROCEDURE p1() SET @a= 1;
+FLUSH STATUS;
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	0
+# A simple call counts once
+SELECT f1();
+f1()
+1
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	1
+# A nested call counts both functions
+SELECT f2();
+f2()
+2
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	3
+# A function that fails while running is counted
+SELECT f3();
+ERROR 45000: Unhandled user-defined exception condition
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	4
+# Calls that are rejected before running are not counted
+SELECT f1(10);
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 0, got 1
+SELECT no_such_function();
+ERROR 42000: FUNCTION test.no_such_function does not exist
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	4
+# Procedures are not counted
+CALL p1();
+SHOW STATUS LIKE 'Executed_functions';
+Variable_name	Value
+Executed_functions	4
+# Global value includes other connections
+SELECT VARIABLE_VALUE INTO @before FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'EXECUTED_FUNCTIONS';
+connect con1,localhost,root;
+SELECT f1();
+f1()
+1
+SELECT f1();
+f1()
+1
+connection default;
+SELECT VARIABLE_VALUE - @before AS new_calls FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'EXECUTED_FUNCTIONS';
+new_calls
+2
+disconnect con1;
+DROP PROCEDURE p1;
+DROP FUNCTION f3;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
