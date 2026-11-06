@@ -7,3 +7,5 @@ NULL
 SELECT sys.ps_thread_account(sys.ps_thread_id(NULL));
 sys.ps_thread_account(sys.ps_thread_id(NULL))
 root@localhost
+Warnings:
+Note	1585	This function 'ps_thread_id' has the same name as a native function

@@ -8,4 +8,11 @@ SELECT sys.ps_thread_account(234623462376);
 
 
 # Check result
+# Various protocols display ER_NATIVE_FCT_NAME_COLLISION very differently.
+--disable_ps_protocol
+--disable_cursor_protocol
+--disable_view_protocol
 SELECT sys.ps_thread_account(sys.ps_thread_id(NULL));
+--enable_view_protocol
+--enable_cursor_protocol
+--enable_ps_protocol

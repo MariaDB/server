@@ -1,4 +1,11 @@
 -- source include/not_embedded.inc
+
+# Various protocols display ER_NATIVE_FCT_NAME_COLLISION very differently.
+# Disable all of them.
+
+--disable_ps_protocol
+--disable_cursor_protocol
+--disable_view_protocol
 # Tests for sys schema
 # Verify the sys.ps_thread_id() function perfoms as expected
 
@@ -16,3 +23,7 @@ SELECT sys.ps_thread_id(CONNECTION_ID()) = @ps_thread_id;
 
 # Passing NULL should also return the current connection thread id
 SELECT sys.ps_thread_id(NULL) = @ps_thread_id;
+
+--enable_view_protocol
+--enable_cursor_protocol
+--enable_ps_protocol
