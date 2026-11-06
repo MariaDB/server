@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+# Shutting down node_2 so its datadir is inert
+# Launching the joiner-role SST script directly, then delivering a
+# normal two-stage backup stream whose backup-my.cnf claims an
+# attacker-chosen plugin_dir
+FOUND 7 /mdev42091_poc/ in mariabackup.prepare.log
+NOT FOUND /mdev42091_attack/attacker_plugins/ in mariabackup.prepare.log
+NOT FOUND /Could not determine a local plugin-dir/ in mdev42091_joiner.log
+# Restoring node_2 with a clean, legitimate full SST
+connection node_2;
+connection node_1;
+disconnect node_2;
+disconnect node_1;

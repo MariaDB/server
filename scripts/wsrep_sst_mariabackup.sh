@@ -1141,7 +1141,46 @@ setup_commands()
     if [ -n "$use_memory" ]; then
         INNOEXTRA="$INNOEXTRA --use-memory=$use_memory"
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
+    # mariadb-backup --prepare gets no --defaults-file of its own, and the
+    # received backup-my.cnf's own plugin_dir is not locally trusted (it
+    # came from whoever answered the SST request). Pass our own,
+    # locally-configured plugin-dir explicitly, which wins over whatever
+    # backup-my.cnf says, unless the user already chose one of their own
+    # via inno-apply-opts: that is a deliberate local choice and takes
+    # priority over our default. Probe a mariadbd on PATH with the
+    # joiner's own --defaults-file/--defaults-group-suffix for the
+    # plugin-dir it would use, config file or compiled-in default,
+    # rather than only looking for an explicit cnf setting. This does
+    # not replay the running server's own command-line arguments
+    # (WSREP_SST_OPT_MYSQLD), so a plugin-dir set only on that server's
+    # actual command line, never in a config file, can still be missed.
+    local joiner_plugin_dir=""
+    local mysqld_bin=$(commandex mariadbd)
+    if [ -n "$mysqld_bin" ]; then
+        joiner_plugin_dir=$("$mysqld_bin" \
+            ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+            ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+            ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+            --verbose --help 2>/dev/null | \
+            awk '/^plugin-dir[ \t]/{print $2; exit}')
+    fi
+    if [ -z "$joiner_plugin_dir" ]; then
+        joiner_plugin_dir=$(parse_cnf '--mysqld' plugin-dir)
+    fi
+    local prepare_plugin_dir=""
+    if printf '%s' "$iapts" | \
+       grep -qE '(^|[[:space:]])--(loose[_-])?plugin[_-]dir(=|[[:space:]])'; then
+        : # the user already chose one explicitly; leave it alone
+    elif [ -n "$joiner_plugin_dir" ]; then
+        prepare_plugin_dir=" --plugin-dir='$joiner_plugin_dir'"
+    else
+        wsrep_log_error "Could not determine a local plugin-dir" \
+            "(mariadbd not found on PATH, its --verbose --help failed," \
+            "or no plugin-dir is configured anywhere); --prepare will" \
+            "fall back to whatever backup-my.cnf itself says, which is" \
+            "not locally trusted"
+    fi
+    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA$prepare_plugin_dir --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
     INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
