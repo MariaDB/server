@@ -5680,6 +5680,13 @@ public:
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  /*
+    True once a locking read (SELECT ... FOR UPDATE / LOCK IN SHARE MODE)
+    has executed in the current transaction. wsrep_has_changes(thd) only
+    reflects writes - a locking read takes row locks without appending any
+    certification key - so this covers the gap. See wsrep_must_sync_wait().
+  */
+  bool                      wsrep_trx_locking_read_done;
   uint64                    wsrep_last_written_gtid_seqno;
   uint64                    wsrep_current_gtid_seqno;
   ulong                     wsrep_affected_rows;
