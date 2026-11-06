@@ -366,7 +366,9 @@ remove_test_database() {
     fi
 
     echo " - Removing privileges on test database..."
-    do_query "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'"
+    do_query "DELETE FROM mysql.db \
+              WHERE User IN ('', 'PUBLIC') \
+              AND (Db='test' OR Db='test\\_%')"
     if [ $? -eq 0 ]; then
 	echo " ... Success!"
     else
@@ -539,6 +541,7 @@ echo
 echo "By default, MariaDB comes with a database named 'test' that anyone can"
 echo "access.  This is also intended only for testing, and should be removed"
 echo "before moving into a production environment."
+echo "These privileges extend to any database named with the 'test_' prefix."
 echo
 
 while true ; do
