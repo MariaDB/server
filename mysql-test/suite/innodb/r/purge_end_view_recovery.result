@@ -1,0 +1,22 @@
+#
+# MDEV-41336 Assertion `*type >= TRX_UNDO_RENAME_TABLE' failed
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b)) ENGINE=InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2 (a INT PRIMARY KEY, c VARBINARY(4000)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 VALUES (1,1),(2,2);
+INSERT INTO t2 SELECT seq, REPEAT(x'08', 4000) FROM seq_1_to_12;
+UPDATE t1 SET b=a+1;
+connect con1,localhost,root;
+BEGIN;
+UPDATE t1 SET b=a+2;
+connection default;
+InnoDB		0 transactions not purged
+UPDATE t2 SET c='x' WHERE a<5;
+UPDATE t2 SET c='x';
+# restart: --innodb-force-recovery=3
+disconnect con1;
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# restart
+DROP TABLE t1, t2;
