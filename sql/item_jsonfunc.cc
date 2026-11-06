@@ -7073,8 +7073,11 @@ static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
   if (param->table->hli->make_key(param->thd, json_value, key_buf))
     return &sel_arg_impossible_member_of; // NULL, or a JSON object/array
 
-  SEL_ARG *tree;
-  if (!(tree= new (param->mem_root) SEL_ARG(field, key_buf, key_buf)))
+  SEL_ARG_ARRAY *tree;
+  if (!(tree= new (param->mem_root) SEL_ARG_ARRAY(param->mem_root, field,
+                                                  key_buf,
+                                                  JSON_INDEX_KEY_MAX_LEN)) ||
+      tree->points.push_back(key_buf))
     return 0; // out of memory
 
   /*
@@ -7092,7 +7095,6 @@ static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
     nullable (see also key_parts->null_bit in test_quick_select(),
     opt_range.cc, same reasoning).
   */
-  tree->maybe_null= false;
 
   /*
     Reuse GEOM_FLAG as the generic "opaque, don't combine algebraically"
@@ -7103,8 +7105,12 @@ static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
     membership tests against the same array are not contradictory the way
     two differently-valued equalities on a scalar field would be.
   */
-  tree->min_flag= GEOM_FLAG;
-  tree->max_flag= NO_MAX_RANGE;
+  tree->rows= param->table->hli->records_in_range(param->table,
+                                                 param->table->key_info +
+                                                   keynr,
+                                                 key_buf,
+                                                 JSON_INDEX_KEY_MAX_LEN,
+                                                 &tree->cost);
   return tree;
 }
 

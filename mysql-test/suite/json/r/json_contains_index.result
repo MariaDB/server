@@ -318,7 +318,7 @@ insert into t1 select seq, concat('["c", "u', seq, '"]') from seq_1_to_1000;
 set @v= concat('[', repeat('"c", ', 200), '"u500"]');
 explain select pk from t1 where json_contains(js, @v);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	1	Using where
 select pk from t1 where json_contains(js, @v);
 pk
 500
@@ -333,3 +333,70 @@ select pk from t1 where json_contains(js, @w);
 pk
 500
 drop table t1;
+#
+# ARRAY index together with other indexes on the same table
+#
+create table t4 (
+pk int primary key,
+a int,
+js1 json,
+js2 json,
+key ka(a),
+index i1(cast(js1 as char(30) array))
+);
+insert into t4 select seq, seq % 10,
+concat('["c", "v', seq, '"]'),
+concat('["c", "w', seq, '"]')
+from seq_1_to_1000;
+# A selective B-tree range wins over a non-selective ARRAY range
+explain select pk from t4 where json_contains(js1, '"c"') and pk between 1 and 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	PRIMARY,i1	PRIMARY	4	NULL	#	Using index condition; Using where
+select pk from t4 where json_contains(js1, '"c"') and pk between 1 and 3;
+pk
+1
+2
+3
+select pk from t4 ignore index(i1) where json_contains(js1, '"c"') and pk between 1 and 3;
+pk
+1
+2
+3
+# A selective ARRAY range wins over a non-selective B-tree range
+explain select pk from t4 where json_contains(js1, '"v501"') and a between 1 and 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	ka,i1	i1	19	NULL	#	Using where
+select pk from t4 where json_contains(js1, '"v501"') and a between 1 and 2;
+pk
+501
+select pk from t4 ignore index(i1) where json_contains(js1, '"v501"') and a between 1 and 2;
+pk
+501
+# Two JSON columns, only js1 has an ARRAY index
+explain select pk from t4 where json_contains(js1, '"v500"') and json_contains(js2, '"w500"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	range	i1	i1	19	NULL	#	Using where
+select pk from t4 where json_contains(js1, '"v500"') and json_contains(js2, '"w500"');
+pk
+500
+select pk from t4 ignore index(i1) where json_contains(js1, '"v500"') and json_contains(js2, '"w500"');
+pk
+500
+explain select pk from t4 where json_contains(js1, '"c"') and json_contains(js2, '"w500"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	ALL	i1	NULL	NULL	NULL	#	Using where
+select pk from t4 where json_contains(js1, '"c"') and json_contains(js2, '"w500"');
+pk
+500
+select pk from t4 ignore index(i1) where json_contains(js1, '"c"') and json_contains(js2, '"w500"');
+pk
+500
+# Only one ARRAY (hlindex) index per table
+create table t5 (
+js1 json,
+js2 json,
+index (cast(js1 as char(10) array)),
+index (cast(js2 as char(10) array))
+);
+ERROR 42000: This version of MariaDB doesn't yet support 'multiple VECTOR indexes'
+drop table t4;

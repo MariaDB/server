@@ -2928,7 +2928,7 @@ SQL_SELECT::test_quick_select(THD *thd,
       key_parts->field=	key_part_info->field;
       key_parts->null_bit= key_part_info->null_bit;
       key_parts->image_type= Field::image_type(key_info->algorithm);
-      if (key_parts->image_type != Field::itRAW)
+      if (key_parts->image_type == Field::itMBR)
         can_clone= true;
       /* Only HA_PART_KEY_SEG is used */
       key_parts->flag= (uint8) key_part_info->key_part_flag;
@@ -2994,7 +2994,6 @@ SQL_SELECT::test_quick_select(THD *thd,
     */
     key_parts->null_bit= 0;
     key_parts->image_type= Field::image_type(key_info->algorithm);
-    can_clone= true;
     key_parts->flag= (uint8) key_info->key_part->key_part_flag;
     trace_keypart.add(key_parts->field->field_name);
     key_parts->claimed= false;
@@ -9549,7 +9548,7 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
 static KEY_PART *get_claimed_key_part(RANGE_OPT_PARAM *param,
                                       KEY_PART *key_part)
 {
-  DBUG_ASSERT(key_part->image_type != Field::itRAW);
+  DBUG_ASSERT(key_part->image_type == Field::itMBR);
   if (!key_part->claimed)
   {
     key_part->claimed= true;
@@ -9638,9 +9637,12 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
       KEY_PART *use_key_part= key_part;
       /* if we've created MAX_KEY parts with GEOM_FLAG, skip the rest */
       if (sel_arg->type == SEL_ARG::KEY_RANGE &&
-          (sel_arg->min_flag & GEOM_FLAG) &&
-          !(use_key_part= get_claimed_key_part(param, key_part)))
-        continue;
+          key_part->image_type == Field::itMBR)
+      {
+        DBUG_ASSERT(sel_arg->min_flag & GEOM_FLAG);
+        if (!(use_key_part= get_claimed_key_part(param, key_part)))
+          continue;
+      }
       sel_arg->part=(uchar) use_key_part->part;
       sel_arg->max_part_no= sel_arg->part+1;
       tree->keys[use_key_part->key]=sel_add(tree->keys[use_key_part->key],
@@ -11033,6 +11035,15 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     return key1;
   }
 
+  if (SEL_ARG_ARRAY::is_array(key1) && SEL_ARG_ARRAY::is_array(key2))
+  {
+    if (static_cast<SEL_ARG_ARRAY*>(key2)->rows <
+        static_cast<SEL_ARG_ARRAY*>(key1)->rows)
+      swap_variables(SEL_ARG *, key1, key2);
+    key2->use_count--;
+    return key1;
+  }
+
   if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
   {
     /*
@@ -11194,6 +11205,33 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
 }
 
 
+static SEL_ARG *key_or_array(RANGE_OPT_PARAM *param, SEL_ARG_ARRAY *key1,
+                             SEL_ARG_ARRAY *key2)
+{
+  SEL_ARG_ARRAY *res;
+  if (!(res= new (param->mem_root) SEL_ARG_ARRAY(param->mem_root, key1->field,
+                                                 key1->min_value,
+                                                 key1->point_len)))
+    return 0;
+  res->part= key1->part;
+  res->max_part_no= key1->max_part_no;
+  for (size_t i= 0; i < key1->points.size(); i++)
+    if (res->points.push_back(key1->points.at(i)))
+      return 0;
+  for (size_t i= 0; i < key2->points.size(); i++)
+    if (!res->has_point(key2->points.at(i)) &&
+        res->points.push_back(key2->points.at(i)))
+      return 0;
+  if (key1->rows == HA_POS_ERROR || key2->rows == HA_POS_ERROR)
+    res->rows= HA_POS_ERROR;
+  else
+    res->rows= key1->rows + key2->rows;
+  res->cost= key1->cost;
+  res->cost.add(&key2->cost);
+  return res;
+}
+
+
 /**
    Combine two range expression under a common OR. On a logical level, the
    transformation is key_or( expr1, expr2 ) => expr1 OR expr2.
@@ -11278,6 +11316,10 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
     key2->free_tree();
     return 0;                                   // Can't optimize this
   }
+
+  if (SEL_ARG_ARRAY::is_array(key1) && SEL_ARG_ARRAY::is_array(key2))
+    return key_or_array(param, static_cast<SEL_ARG_ARRAY*>(key1),
+                        static_cast<SEL_ARG_ARRAY*>(key2));
 
   if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
   {
@@ -12728,16 +12770,18 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
   TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
   ha_rows rows;
 
+  if (!SEL_ARG_ARRAY::is_array(tree))
+    return HA_POS_ERROR;
+  SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(tree);
+
   if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
     return HA_POS_ERROR;
 
-  rows= param->table->hli->records_in_range(param->table,
-                                            param->table->key_info + keynr,
-                                            tree->min_value,
-                                            JSON_INDEX_KEY_MAX_LEN, cost);
+  rows= array->rows;
   param->quick_rows[keynr]= rows;
   if (rows == HA_POS_ERROR)
     return HA_POS_ERROR;
+  *cost= array->cost;
 
   *is_ror_scan= FALSE;
   *mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
@@ -12755,10 +12799,10 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
       param->range_keys_seen.set_bit(keynr);
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= 1;
-      range->ranges= 1;
+      range->ranges= (uint) array->points.size();
       range->rows= rows;
       range->cost= *cost;
-      range->first_key_part_has_only_one_value= true; // always a single point
+      range->first_key_part_has_only_one_value= array->points.size() == 1; // always a single point
       range->selectivity= rows ?
         (double) param->table->opt_range_condition_rows / rows : 1.0;
     }
@@ -13071,6 +13115,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 }
 
 
+bool get_quick_keys_array(PARAM *param, QUICK_RANGE_SELECT_ARRAY *quick,
+                          SEL_ARG *key_tree);
+
 /*
   Create a QUICK_RANGE_SELECT from given key and SEL_ARG tree for that key.
 
@@ -13120,9 +13167,14 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
 
   if (quick)
   {
+    bool is_array= param->table->key_info[param->real_keynr[idx]].algorithm ==
+                   HA_KEY_ALG_ARRAY;
     if (create_err ||
-	get_quick_keys(param,quick,param->key[idx],key_tree,param->min_key,0,
-		       param->max_key,0))
+        (is_array ?
+         get_quick_keys_array(param, (QUICK_RANGE_SELECT_ARRAY*) quick,
+                              key_tree) :
+         get_quick_keys(param,quick,param->key[idx],key_tree,param->min_key,0,
+                        param->max_key,0)))
     {
       delete quick;
       quick=0;
@@ -13182,6 +13234,35 @@ void SEL_ARG::store_next_min_max_keys(KEY_PART *key,
     }
   }
 }
+
+bool get_quick_keys_array(PARAM *param, QUICK_RANGE_SELECT_ARRAY *quick,
+                          SEL_ARG *key_tree)
+{
+  if (!SEL_ARG_ARRAY::is_array(key_tree))
+    return 1;
+  SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(key_tree);
+  uint len= array->point_len;
+  size_t n= array->points.size();
+
+  if (!(quick->points= (uchar*) param->thd->alloc(n * len)))
+    return 1;
+  for (size_t i= 0; i < n; i++)
+  {
+    QUICK_RANGE *range;
+    memcpy(quick->points + i * len, array->points.at(i), len);
+    memcpy(param->min_key, array->points.at(i), len);
+    if (!(range= new (param->thd->mem_root)
+          QUICK_RANGE(param->thd, param->min_key, len, make_keypart_map(0),
+                      param->min_key, len, make_keypart_map(0), GEOM_FLAG)) ||
+        insert_dynamic(&quick->ranges, (uchar*) &range))
+      return 1;
+  }
+  quick->points_length= (uint) (n * len);
+  set_if_bigger(quick->max_used_key_length, len);
+  set_if_bigger(quick->used_key_parts, 1U);
+  return 0;
+}
+
 
 /*
 ** Fix this to get all possible sub_ranges
@@ -14259,13 +14340,13 @@ int QUICK_RANGE_SELECT_ARRAY::get_next()
 {
   int result;
   DBUG_ENTER("QUICK_RANGE_SELECT_ARRAY::get_next");
-  DBUG_ASSERT(ranges.elements == 1);
+  DBUG_ASSERT(ranges.elements >= 1 && points);
 
   if (!last_range)
   {
     last_range= *((QUICK_RANGE**) ranges.buffer);
-    result= head->hlindex_read_first(index, last_range->min_key,
-                                     last_range->min_length, HA_POS_ERROR);
+    result= head->hlindex_read_first(index, points, points_length,
+                                     HA_POS_ERROR);
   }
   else
     result= head->hlindex_read_next();
@@ -18129,6 +18210,21 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          const KEY_PART_INFO *key_parts)
 {
   DBUG_ASSERT(range_trace->trace_started());
+  if (SEL_ARG_ARRAY::is_array(keypart))
+  {
+    SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(keypart);
+    hlindex *hli= key_parts->field->table->hli;
+    for (size_t i= 0; i < array->points.size(); i++)
+    {
+      StringBuffer<128> str;
+      str.append('(');
+      hli->print_key(&str, array->points.at(i), array->point_len);
+      str.append(STRING_WITH_LEN(") MEMBER OF "));
+      str.append(key_parts->field->field_name);
+      range_trace->add(str.ptr(), str.length());
+    }
+    return;
+  }
   Range_print_enumerator_impl range_iter(param, idx, keypart);
 
   while (!range_iter.next())

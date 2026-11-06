@@ -880,6 +880,41 @@ public:
 };
 
 
+/* A JSON index SEL_ARG corresponding to a disjunction of array elements */
+class SEL_ARG_ARRAY: public SEL_ARG
+{
+public:
+  /* Each point is an element encoded by json_index::make_key */
+  Mem_root_array<const uchar*, true> points;
+  /* Length of an encoded element */
+  uint point_len;
+  /* Estimated number of rows containing any of the elements */
+  ha_rows rows;
+  /* Cost of reading the rows */
+  Cost_estimate cost;
+
+  SEL_ARG_ARRAY(MEM_ROOT *root, Field *field, const uchar *point, uint len)
+   :SEL_ARG(field, point, point), points(root), point_len(len),
+    rows(HA_POS_ERROR)
+  {
+    maybe_null= false;
+    min_flag= GEOM_FLAG;
+    max_flag= NO_MAX_RANGE;
+  }
+  static bool is_array(const SEL_ARG *arg)
+  {
+    return arg->type == SEL_ARG::KEY_RANGE && arg->min_flag == GEOM_FLAG;
+  }
+  bool has_point(const uchar *point) const
+  {
+    for (size_t i= 0; i < points.size(); i++)
+      if (!memcmp(points.at(i), point, point_len))
+        return true;
+    return false;
+  }
+};
+
+
 class RANGE_OPT_PARAM
 {
 public:
@@ -1346,6 +1381,8 @@ range_seq_t quick_range_seq_init(void *init_param, uint n_ranges, uint flags);
 bool quick_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range);
 
 
+class QUICK_RANGE_SELECT_ARRAY;
+
 /*
   Quick select that does a range scan on a single key. The records are
   returned in key order.
@@ -1430,6 +1467,9 @@ private:
                              KEY_PART *key, SEL_ARG *key_tree, 
                              uchar *min_key, uint min_key_flag,
                              uchar *max_key, uint max_key_flag);
+  friend bool get_quick_keys_array(PARAM *param,
+                                   QUICK_RANGE_SELECT_ARRAY *quick,
+                                   SEL_ARG *key_tree);
   friend QUICK_RANGE_SELECT *get_quick_select(PARAM*,uint idx,
                                               SEL_ARG *key_tree,
                                               uint mrr_flags,
@@ -1478,11 +1518,15 @@ public:
 class QUICK_RANGE_SELECT_ARRAY: public QUICK_RANGE_SELECT
 {
 public:
+  /* Array elements concatenated */
+  uchar *points;
+  /* Total length of the concatenated elements */
+  uint points_length;
   QUICK_RANGE_SELECT_ARRAY(THD *thd, TABLE *table, uint index_arg,
                           bool no_alloc, MEM_ROOT *parent_alloc,
                           bool *create_err)
     :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
-    create_err)
+    create_err), points(0), points_length(0)
     {};
   int reset() override;
   int get_next() override;

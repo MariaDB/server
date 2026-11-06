@@ -9,7 +9,7 @@ index i1(cast(js as unsigned array))
 insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
 explain select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index_merge	i1	i1,i1,i1	19,19,19	NULL	3	Using sort_union(i1,i1,i1); Using where
+1	SIMPLE	t3	range	i1	i1	19	NULL	3	Using where
 select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
 pk	js
 100	["value-100"]
@@ -17,7 +17,7 @@ pk	js
 108	["value-108"]
 explain select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index_merge	i1	i1,i1,i1	19,19,19	NULL	3	Using sort_union(i1,i1,i1); Using where
+1	SIMPLE	t3	range	i1	i1	19	NULL	3	Using where
 select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
 pk	js
 100	["value-100"]
@@ -50,7 +50,7 @@ from seq_100_to_300;
 # Basic: OR of points, both argument orders
 explain select pk from t1 where json_overlaps(js, '["b", "e"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps(js, '["b", "e"]');
 pk
 1
@@ -65,7 +65,7 @@ pk
 3
 explain select pk from t1 where json_overlaps('["b", "e"]', js);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps('["b", "e"]', js);
 pk
 1
@@ -82,7 +82,7 @@ pk
 # must be returned once
 explain select pk from t1 where json_overlaps(js, '["a", "b"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps(js, '["a", "b"]');
 pk
 1
@@ -96,7 +96,7 @@ pk
 # Duplicate elements in the constant
 explain select pk from t1 where json_overlaps(js, '["b", "b"]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps(js, '["b", "b"]');
 pk
 1
@@ -185,7 +185,7 @@ pk
 5
 explain select pk from t1 where json_overlaps(js, '[true, null]');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps(js, '[true, null]');
 pk
 5
@@ -246,7 +246,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
 explain select count(*) from t1 force index(i1) where json_overlaps(js, @big);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	212	Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	83	Using where
 select count(*) from t1 where json_overlaps(js, @big);
 count(*)
 81
@@ -277,7 +277,7 @@ pk
 3
 explain select pk from t1 where json_overlaps(js, '["b", "v150"]') and pk < 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	PRIMARY,i1	i1	19	NULL	#	Using where
 select pk from t1 where json_overlaps(js, '["b", "v150"]') and pk < 100;
 pk
 1
@@ -339,7 +339,7 @@ pk	pk
 explain select t1.pk from t1, t2 where t2.pk = 1 and json_overlaps(t1.js, t2.k);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	#	
-1	SIMPLE	t1	index_merge	i1	i1,i1	19,19	NULL	#	Using sort_union(i1,i1); Using where
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
 select t1.pk from t1, t2 where t2.pk = 1 and json_overlaps(t1.js, t2.k);
 pk
 150
