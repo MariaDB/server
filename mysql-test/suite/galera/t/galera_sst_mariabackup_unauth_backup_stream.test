@@ -1,0 +1,280 @@
+# The joiner must authenticate the backup-data stream itself, not only
+# the small GTID stage: a party who never proved it knows the
+# per-transfer secret must not be able to supply the backup mariadb-backup
+# --prepare then runs on, e.g. with an attacker-chosen plugin_dir/
+# plugin_load in backup-my.cnf.
+#
+# This exercises the joiner with its progress-reporting wrapper active
+# (--progress 1, via a stub "pv" so the test doesn't depend on pv being
+# installed): that wrapper changes the shape of the streaming pipeline,
+# and the authentication splice must keep working regardless.
+#
+# STEPS
+#  - bring up a 2-node cluster and note node_2's SST address/datadir
+#  - shut node_2 down so its datadir is safe to overwrite
+#  - start the real wsrep_sst_mariabackup joiner-role script directly,
+#    bypassing galera negotiation entirely, with --progress 1 active
+#  - learn the joiner's per-transfer secret the way a real donor would
+#    (parsed out of its advertised address) and use it to pass the GTID
+#    stage legitimately
+#  - then, without presenting that secret again, connect to the joiner's
+#    SST port ourselves and feed it a crafted backup-data stream whose
+#    backup-my.cnf requests an attacker-chosen plugin_dir/plugin_load
+#  - assert the joiner rejects it and mariadb-backup --prepare never runs
+#    on it
+#  - restore node_2 with a normal full SST and close the cluster
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--connection node_2
+--let $node2_datadir = `SELECT @@datadir`
+--let $node2_sst_addr = `SELECT @@global.wsrep_sst_receive_address`
+
+--connection node_1
+--let $node1_pid_file = `SELECT @@pid_file`
+
+--connection node_2
+--echo # Shutting down node_2 so its datadir is inert
+--source include/shutdown_mysqld.inc
+
+--let $joiner_log = $MYSQLTEST_VARDIR/tmp/mdev41158_joiner.log
+--let $joiner_pidfile = $MYSQLTEST_VARDIR/tmp/mdev41158_joiner.pid
+--let $prepare_log = $node2_datadir/mariabackup.prepare.log
+--error 0,1
+--remove_file $joiner_log
+--error 0,1
+--remove_file $joiner_pidfile
+--error 0,1
+--remove_file $prepare_log
+
+--let MDEV41158_SST_ADDR = $node2_sst_addr
+--let MDEV41158_DATADIR = $node2_datadir
+--let MDEV41158_PARENT_PIDFILE = $node1_pid_file
+--let MDEV41158_JOINER_LOG = $joiner_log
+--let MDEV41158_JOINER_PIDFILE = $joiner_pidfile
+--let MDEV41158_DEFAULTS_FILE = $MYSQLTEST_VARDIR/my.cnf
+
+--echo # Launching the joiner-role SST script directly, with its
+--echo # progress-reporting wrapper active, then delivering an
+--echo # unauthenticated two-stage backup stream to it ourselves
+perl;
+  use strict;
+  use warnings;
+  use File::Basename;
+  use IO::Socket::INET;
+  use POSIX ":sys_wait_h";
+
+  my $addr       = $ENV{MDEV41158_SST_ADDR} or die "no SST address";
+  my $datadir    = $ENV{MDEV41158_DATADIR} or die "no datadir";
+  my $joiner_log = $ENV{MDEV41158_JOINER_LOG};
+  my $pidfile    = $ENV{MDEV41158_JOINER_PIDFILE};
+  my $defaults_file = $ENV{MDEV41158_DEFAULTS_FILE} or die "no defaults file";
+  my ($host, $port) = $addr =~ /^(.*):(\d+)$/ or die "bad address $addr";
+
+  open(my $pf, '<', $ENV{MDEV41158_PARENT_PIDFILE}) or die "no parent pidfile: $!";
+  my $parent_pid = <$pf>;
+  chomp $parent_pid;
+  close($pf);
+
+  # Locate the mariabackup/mbstream binaries and the wsrep_sst_mariabackup
+  # script, and build attacker streams.
+  my $xtrabackup = $ENV{XTRABACKUP} or die "XTRABACKUP not set";
+  my $xbstream   = $ENV{XBSTREAM} or die "XBSTREAM not set";
+  my $backup_dir = dirname($xtrabackup);
+  my $scripts_dir = dirname(dirname($backup_dir)) . "/scripts";
+  $scripts_dir = $backup_dir unless -x "$scripts_dir/wsrep_sst_mariabackup";
+  my $sst_script = "$scripts_dir/wsrep_sst_mariabackup";
+  die "cannot find wsrep_sst_mariabackup near $xtrabackup" unless -x $sst_script;
+
+  my $attack = "$datadir/../mdev41158_attack";
+  mkdir $attack;
+  my $stage1 = "$attack/stage1";
+  my $stage2 = "$attack/stage2";
+  mkdir $stage1;
+  mkdir $stage2;
+
+  # A stub "pv": the joiner's progress wrapper only needs something that
+  # passes bytes through unchanged under the -f/-i/-n/-b flags it uses;
+  # the test doesn't depend on pv actually being installed.
+  my $pv_dir = "$attack/pv_stub";
+  mkdir $pv_dir;
+  open(my $pv, '>', "$pv_dir/pv") or die $!;
+  print $pv "#!/bin/sh\nexec cat\n";
+  close($pv);
+  chmod 0755, "$pv_dir/pv";
+
+  my $coords = "00000000-0000-0000-0000-000000000000:1 0\n";
+  my $checkpoints = "backup_type = full-backuped\nfrom_lsn = 0\nto_lsn = 0\n" .
+                     "last_lsn = 0\nrecover_binlog_info = 0\n";
+  # the canary plugin does not exist: we only need proof (if the backup
+  # data stage were ever accepted) that mariabackup --prepare acted on a
+  # plugin_load value taken from our injected backup-my.cnf, not that it
+  # actually loaded.
+  my $backup_cnf = "[mysqld]\nplugin_dir=.\nplugin_load=mdev41158_poc=mdev41158_poc\n";
+
+  # write both the current and the legacy file-naming conventions so the
+  # attack does not depend on which one a given build expects.
+  for my $dir ($stage1, $stage2) {
+    open(my $fh, '>', "$dir/mariadb_backup_galera_info") or die $!; print $fh $coords; close $fh;
+    open(my $fh2, '>', "$dir/xtrabackup_galera_info") or die $!; print $fh2 $coords; close $fh2;
+  }
+  open(my $fh, '>', "$stage2/donor_galera_info") or die $!; print $fh $coords; close $fh;
+  open($fh, '>', "$stage2/mariadb_backup_checkpoints") or die $!; print $fh $checkpoints; close $fh;
+  open($fh, '>', "$stage2/xtrabackup_checkpoints") or die $!; print $fh $checkpoints; close $fh;
+  open($fh, '>', "$stage2/backup-my.cnf") or die $!; print $fh $backup_cnf; close $fh;
+
+  sub pack_stream {
+    my ($dir, $out, @files) = @_;
+    open(my $outfh, '>', $out) or die "open $out: $!";
+    my $pid = fork();
+    die "fork: $!" unless defined $pid;
+    if ($pid == 0) {
+      chdir $dir or die $!;
+      open(STDOUT, '>&', $outfh) or exit(1);
+      exec($xbstream, '-c', @files) or exit(1);
+    }
+    waitpid($pid, 0);
+    close($outfh);
+    die "mbstream pack of @files failed" if $? != 0;
+  }
+
+  pack_stream($stage2, "$attack/stage2.mbstream",
+              "mariadb_backup_galera_info", "xtrabackup_galera_info",
+              "donor_galera_info", "mariadb_backup_checkpoints",
+              "xtrabackup_checkpoints", "backup-my.cnf");
+
+  # Poll a log file until its content matches $regex, or give up after
+  # $timeout seconds. Returns the match (first capture group, if any) or
+  # undef on timeout.
+  sub wait_for_log_match {
+    my ($file, $regex, $timeout) = @_;
+    my $deadline = time() + $timeout;
+    while (time() < $deadline) {
+      if (open(my $lf, '<', $file)) {
+        local $/;
+        my $text = <$lf>;
+        close($lf);
+        if (defined($text) && $text =~ $regex) {
+          return defined($1) ? $1 : 1;
+        }
+      }
+      select(undef, undef, undef, 0.1);
+    }
+    return undef;
+  }
+
+  # Launch the real joiner-role SST script, detached, exactly as mariadbd
+  # would, except that no mariadbd is actually running on the joiner side.
+  # --progress 1 activates the progress-reporting wrapper around the
+  # streaming pipeline; the stub pv above stands in for the real tool.
+  my $jpid = fork();
+  die "fork: $!" unless defined $jpid;
+  if ($jpid == 0) {
+    POSIX::setsid();
+    local $ENV{PATH} = "$pv_dir:$backup_dir:$scripts_dir:$ENV{PATH}";
+    open(STDOUT, '>', $joiner_log) or exit(1);
+    open(STDERR, '>&STDOUT') or exit(1);
+    exec($sst_script,
+         '--role', 'joiner',
+         '--address', $addr,
+         '--datadir', "$datadir/",
+         '--defaults-file', $defaults_file,
+         '--defaults-group-suffix', '.2',
+         '--parent', $parent_pid,
+         '--progress', '1',
+         '--mysqld-args', '--no-defaults') or exit(1);
+  }
+  open(my $pidf, '>', $pidfile) or die $!;
+  print $pidf $jpid;
+  close($pidf);
+
+  # Learn the joiner's per-transfer secret the way a real donor would:
+  # parsed out of the "ready ...secret@host:port/..." line the joiner
+  # prints once its GTID-stage listener is up.
+  my $secret = wait_for_log_match($joiner_log, qr/^ready\s+\S*:([0-9a-f]+)@/m, 30);
+  die "did not see the joiner's secret in $joiner_log" unless defined $secret;
+
+  # The GTID stage (stage1) carries the secret, exactly like a real
+  # donor's send_magic(); the backup-data stage (stage2, built above)
+  # deliberately does not.
+  for my $name ("mariadb_backup_galera_info", "xtrabackup_galera_info") {
+    open(my $sfh, '>', "$stage1/$name") or die $!;
+    print $sfh $coords;
+    print $sfh "secret $secret\n";
+    close($sfh);
+  }
+  pack_stream($stage1, "$attack/stage1.mbstream",
+              "mariadb_backup_galera_info", "xtrabackup_galera_info");
+
+  sub deliver {
+    my ($payload_file, $deadline) = @_;
+    my $bytes = do { local(@ARGV,$/)=($payload_file); <> };
+    while (time() < $deadline) {
+      my $sock = IO::Socket::INET->new(PeerHost => $host, PeerPort => $port,
+                                        Proto => 'tcp', Timeout => 2);
+      if ($sock) {
+        print $sock $bytes;
+        shutdown($sock, 1);
+        my $drain;
+        1 while $sock->recv($drain, 4096);
+        close($sock);
+        return;
+      }
+      select(undef, undef, undef, 0.05);
+    }
+    die "could not deliver $payload_file to $host:$port";
+  }
+
+  # Stage 1 legitimately proves we know the secret, exactly like a real
+  # donor would. Stage 2 (the actual backup data, including our
+  # malicious backup-my.cnf) does not: this is the unauthenticated path
+  # the joiner must now reject.
+  my $deadline = time() + 60;
+  deliver("$attack/stage1.mbstream", $deadline);
+  deliver("$attack/stage2.mbstream", time() + 60);
+
+  # Wait for the joiner to actually reject stage 2, or for this test to
+  # time out trying. Check "prepare never ran" unconditionally afterwards,
+  # rather than only on the rejection-message path: a fail-open bug skips
+  # the rejection message entirely, and both symptoms are worth reporting.
+  my $rejected = wait_for_log_match($joiner_log,
+      qr/Donor does not know my secret! \(backup data stage\)/, 30);
+  my $prepare_ran = -e "$datadir/mariabackup.prepare.log";
+
+  my @problems;
+  push @problems, "joiner did not reject the unauthenticated backup data stage"
+    unless $rejected;
+  push @problems, "mariadb-backup --prepare ran on the rejected stream"
+    if $prepare_ran;
+  die join("; ", @problems) . "\n" if @problems;
+EOF
+
+--echo # Tearing down the attacker-launched joiner script
+perl;
+  use strict;
+  use warnings;
+  open(my $pf, '<', $ENV{MDEV41158_JOINER_PIDFILE}) or die $!;
+  my $pid = <$pf>;
+  chomp $pid;
+  close($pf);
+  kill('TERM', -$pid);
+  select(undef, undef, undef, 1);
+  kill('KILL', -$pid);
+EOF
+
+--echo # Restoring node_2 with a clean, legitimate full SST
+--connection node_2
+--rmdir $node2_datadir
+--mkdir $node2_datadir
+--remove_file $joiner_log
+--remove_file $joiner_pidfile
+--rmdir $node2_datadir/../mdev41158_attack
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--source include/galera_end.inc
