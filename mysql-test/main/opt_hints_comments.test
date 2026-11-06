@@ -1,0 +1,114 @@
+--echo # MDEV-41606 Comments in new-style optimizer hints
+--enable_prepare_warnings
+
+CREATE TABLE t1 (a INT, KEY(a));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+INSERT INTO t2 VALUES (1,10),(2,20),(3,30);
+
+--echo # Comments before, between and after hints; commented hints are ignored
+EXPLAIN EXTENDED
+SELECT /*+
+  -- NO_INDEX(t1)
+  QB_NAME(qb)-- name the query block
+  -- INDEX(t1 a)
+  NO_INDEX(t1) -- do not use the index
+*/ a FROM t1 WHERE a= 2;
+
+--echo # Comments inside hint arguments
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(-- query block name
+  qb) NO_INDEX(-- table name
+  t1@qb -- index name
+  a) */ a FROM t1 WHERE a= 2;
+
+--echo # Query block paths and join order from the report
+EXPLAIN EXTENDED
+SELECT /*+
+  QB_NAME(child_select, derived1.derived2) -- name the nested block
+  -- JOIN_ORDER(@child_select t1, t2)
+  JOIN_ORDER(@child_select t2, t1) -- reverse the join order
+*/ * FROM
+  (SELECT * FROM
+    (SELECT t1.a, t2.b FROM t1, t2 WHERE t1.a= t2.a LIMIT 10)
+    AS derived2)
+  AS derived1;
+
+--echo # Comments before commas and dots in a query block path
+EXPLAIN EXTENDED
+SELECT /*+
+  QB_NAME(child_select -- this is a comment
+                     ,derived1 -- before the path separator
+                     . -- after the path separator
+                     derived2 -- before the closing parenthesis
+  )
+  JOIN_ORDER(@child_select t2 -- before a table separator
+             , -- after a table separator
+             t1)
+*/ * FROM
+  (SELECT * FROM
+    (SELECT t1.a, t2.b FROM t1, t2 WHERE t1.a= t2.a LIMIT 10)
+    AS derived2)
+  AS derived1;
+
+--echo # Comments around parentheses and query block qualifiers
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME -- before the opening parenthesis
+  ( -- after the opening parenthesis
+  qb -- before the closing parenthesis
+  ) NO_INDEX -- before the opening parenthesis
+  (t1 -- before the query block qualifier
+  @ -- after the query block qualifier
+  qb a -- before the closing parenthesis
+  ) */ a FROM t1 WHERE a= 2;
+
+--echo # Comments around numeric arguments
+EXPLAIN EXTENDED
+SELECT /*+ MAX_EXECUTION_TIME(-- before the number
+  1000 -- after the number
+  ) */ 1;
+
+--echo # A quoted identifier can contain a comment marker
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME(`-- qb`) NO_INDEX(t1@`-- qb`) */ a
+FROM t1 WHERE a= 2;
+EXPLAIN EXTENDED
+SELECT /*+ QB_NAME("-- qb") NO_INDEX(t1@"-- qb") */ a
+FROM t1 WHERE a= 2;
+
+--echo # A line comment can run up to the end of the hint
+EXPLAIN EXTENDED
+SELECT /*+ NO_INDEX(t1) -- INDEX(t1 a) */ a FROM t1 WHERE a= 2;
+
+--echo # Empty and comment-only hints warn; a bare marker is invalid
+SELECT /*+ */ 1;
+SELECT /*+ -- QB_NAME(ignored) */ 1;
+SELECT /*+ --*/ 1;
+
+--echo # Tabs after the marker and CRLF line endings
+SET @stmt= CONCAT('EXPLAIN EXTENDED SELECT /*+ --', CHAR(9), 'ignored',
+                  CHAR(13), CHAR(10),
+                  'NO_INDEX(t1) */ a FROM t1 WHERE a= 2');
+PREPARE stmt FROM @stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Whitespace is required after the two dashes
+SELECT /*+ --not_a_comment */ 1;
+SELECT /*+ - */ 1;
+SELECT /*+ QB_NAME(qb)--*/ 1;
+
+--echo # Other comment forms and split tokens remain invalid
+SELECT /*+ # not a line comment */ 1;
+SELECT /*+ QB_-- a comment cannot split a keyword
+  NAME(qb) */ 1;
+
+--echo # Syntax errors after a comment retain their line number
+SELECT /*+
+  -- ignored text
+  NOT_A_HINT()
+*/ 1;
+
+DROP TABLE t1, t2;
+
+--echo # End of 13.2 tests

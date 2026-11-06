@@ -6,6 +6,9 @@
 
 --source include/not_embedded.inc
 
+# Do not start replication from an earlier test when restarting the server.
+--source include/reset_master_slave.inc
+
 #############################################################
 #                 Save initial value                        #
 #############################################################

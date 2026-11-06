@@ -1,0 +1,13 @@
+ok 1 - remove an unlocked restart marker
+ok 2 - successful deletion does not wait
+ok 3 - consume the restart marker after transient access errors
+ok 4 - wait between access-denied retries
+ok 5 - report persistent access errors
+ok 6 - a failed removal does not pretend the marker was consumed
+ok 7 - access-denied retries are bounded
+ok 8 - report other I/O errors
+ok 9 - do not retry unrelated errors
+ok 10 - report a missing restart marker
+ok 11 - do not retry a missing file
+1..11
+# End of 13.2 tests

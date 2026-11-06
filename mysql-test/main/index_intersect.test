@@ -224,11 +224,12 @@ SELECT * FROM City
   WHERE ID BETWEEN 3701 AND 4000 AND Population > 1000000
         AND Country BETWEEN 'S' AND 'Z';
 
+# Keep the intersection cheaper than a primary-key scan despite row estimates.
 --replace_column 9 #
 --replace_result PRIMARY,Country,Population PRIMARY,Population,Country 4,7,4 4,4,7
 EXPLAIN
 SELECT * FROM City 
-  WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
+  WHERE ID BETWEEN 3001 AND 4000 AND Population > 700000
         AND Country BETWEEN 'S' AND 'Z' ;
 
 
@@ -268,11 +269,11 @@ SELECT * FROM City
 
 --sorted_result
 SELECT * FROM City USE INDEX ()
-  WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
+  WHERE ID BETWEEN 3001 AND 4000 AND Population > 700000
         AND Country BETWEEN 'S' AND 'Z' ;
 --sorted_result
 SELECT * FROM City 
-  WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
+  WHERE ID BETWEEN 3001 AND 4000 AND Population > 700000
         AND Country BETWEEN 'S' AND 'Z' ;
         
 # Originally this was just sort_buffer_size=2048. Then, it started
@@ -326,7 +327,7 @@ SELECT * FROM City
 --replace_result PRIMARY,Country,Population PRIMARY,Population,Country 4,7,4 4,4,7
 EXPLAIN
 SELECT * FROM City 
-  WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
+  WHERE ID BETWEEN 3001 AND 4000 AND Population > 700000
         AND Country BETWEEN 'S' AND 'Z';
 
 
@@ -353,7 +354,7 @@ SELECT * FROM City
   WHERE ID BETWEEN 1 AND 500 AND Population > 700000 AND Country LIKE 'C%';
 --sorted_result
 SELECT * FROM City 
-  WHERE ID BETWEEN 3001 AND 4000 AND Population > 600000
+  WHERE ID BETWEEN 3001 AND 4000 AND Population > 700000
         AND Country BETWEEN 'S' AND 'Z';
 
 

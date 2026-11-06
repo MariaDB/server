@@ -1,3 +1,4 @@
+include/reset_master_slave.inc
 SET @start_session_value = @@session.default_master_connection;
 SELECT @start_session_value;
 @start_session_value

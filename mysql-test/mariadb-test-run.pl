@@ -4961,7 +4961,7 @@ sub check_expected_crash_and_restart {
         mtr_error("Unknown command '$last_line' in expect file " .
                   "'$expect_file'");
       }
-      unlink($expect_file);
+      mtr_unlink($expect_file);
 
       # Start server with same settings as last time
       my $rc= mysqld_start($mysqld, $mysqld->{'started_opts'});
