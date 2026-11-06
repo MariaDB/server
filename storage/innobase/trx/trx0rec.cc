@@ -70,6 +70,15 @@ static ulint trx_undo_left(const buf_block_t *undo_block, const byte *ptr)
   return left < 0 ? 0 : static_cast<ulint>(left);
 }
 
+ulint trx_undo_max_rec_size()
+{
+  /* This must agree with trx_undo_left() on a freshly initialized
+  undo log page, where TRX_UNDO_PAGE_FREE is
+  TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE. */
+  return srv_page_size - (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE) -
+    (10 + FIL_PAGE_DATA_END);
+}
+
 /**********************************************************************//**
 Set the next and previous pointers in the undo page for the undo record
 that was written to ptr. Update the first free value by the number of bytes
@@ -1840,25 +1849,17 @@ transaction.
 dberr_t
 trx_undo_report_row_operation(
 /*==========================*/
-	que_thr_t*	thr,		/*!< in: query thread */
-	dict_index_t*	index,		/*!< in: clustered index */
-	const dtuple_t*	clust_entry,	/*!< in: in the case of an insert,
-					index entry to insert into the
-					clustered index; in updates,
-					may contain a clustered index
-					record tuple that also contains
-					virtual columns of the table;
-					otherwise, NULL */
-	const upd_t*	update,		/*!< in: in the case of an update,
-					the update vector, otherwise NULL */
-	ulint		cmpl_info,	/*!< in: compiler info on secondary
-					index updates */
-	const rec_t*	rec,		/*!< in: case of an update or delete
-					marking, the record in the clustered
-					index; NULL if insert */
-	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
-	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
-					undo log record */
+	que_thr_t*		thr,	/*!< in: query thread */
+	dict_index_t*		index,	/*!< in: clustered index */
+	const trx_undo_row_op&	op,	/*!< in: the row change */
+	roll_ptr_t*		roll_ptr,
+				/*!< out: DB_ROLL_PTR to the undo log record */
+	mtr_t*			caller_mtr)
+				/*!< in/out: the mini-transaction that is
+				going to modify op.rec, so that the undo
+				log record and the modification of op.rec
+				cannot be separated by a crash; NULL to
+				use a separate mini-transaction */
 {
 	trx_t*		trx;
 #ifdef UNIV_DEBUG
@@ -1866,8 +1867,8 @@ trx_undo_report_row_operation(
 #endif /* UNIV_DEBUG */
 
 	ut_a(dict_index_is_clust(index));
-	ut_ad(!update || rec);
-	ut_ad(!rec || rec_offs_validate(rec, index, offsets));
+	ut_ad(!op.update || op.rec);
+	ut_ad(!op.rec || rec_offs_validate(op.rec, index, op.offsets));
 	ut_ad(!srv_read_only_mode);
 
 	trx = thr_get_trx(thr);
@@ -1885,7 +1886,7 @@ trx_undo_report_row_operation(
 		trx->apply_online_log= true;
 	}
 
-	bool bulk = !rec;
+	bool bulk = !op.rec;
 
 	if (!bulk) {
 		/* An UPDATE or DELETE must not be covered by an
@@ -1911,22 +1912,34 @@ trx_undo_report_row_operation(
 			thd_sql_command(trx->mysql_thd) != SQLCOM_LOAD);
 
 		if (dberr_t err = m.first->second.bulk_insert_buffered(
-			    *clust_entry, *index, trx)) {
+			    *op.clust_entry, *index, trx)) {
 			return err;
 		}
 	} else {
 		bulk = false;
 	}
 
-	mtr_t		mtr;
+	/* When the undo log record must be written in the same
+	mini-transaction as the modification of op.rec, we must never
+	commit or restart that mini-transaction here. */
+	mtr_t		own_mtr;
+	mtr_t&		mtr	= caller_mtr ? *caller_mtr : own_mtr;
 	dberr_t		err;
-	mtr.start();
+	if (!caller_mtr) {
+		mtr.start();
+	}
 	trx_undo_t**	pundo;
 	trx_rseg_t*	rseg;
 	const bool	is_temp	= index->table->is_temporary();
 	buf_block_t*	undo_block;
 
 	if (is_temp) {
+		/* A temporary table never has an instant ALTER TABLE
+		metadata record, so the caller's mini-transaction is
+		never used for one. That is essential here: changing the
+		log mode would also disable redo logging for the page
+		modifications that the caller has already buffered. */
+		ut_ad(!caller_mtr);
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
 		rseg = trx->get_temp_rseg();
 		pundo = &trx->rsegs.m_noredo.undo;
@@ -1945,7 +1958,7 @@ trx_undo_report_row_operation(
 		undo_block = trx_undo_assign_low<false>(trx, rseg, pundo,
 							&mtr, &err);
 		if (clear_ignore) {
-			ut_ad(!rec);
+			ut_ad(!op.rec);
 			m = trx_undo_rewrite_ignore(&mtr, undo_block,
 						    index->table, trx, *pundo);
 		}
@@ -1955,20 +1968,23 @@ trx_undo_report_row_operation(
 	ut_ad((err == DB_SUCCESS) == (undo_block != NULL));
 	if (UNIV_UNLIKELY(undo_block == NULL)) {
 err_exit:
-		mtr.commit();
+		if (!caller_mtr) {
+			mtr.commit();
+		}
 		return err;
 	}
 
 	ut_ad(undo != NULL);
 
 	do {
-		uint16_t offset = !rec
+		uint16_t offset = !op.rec
 			? trx_undo_page_report_insert(
-				undo_block, trx, index, clust_entry, &mtr,
+				undo_block, trx, index, op.clust_entry, &mtr,
 				bulk)
 			: trx_undo_page_report_modify(
-				undo_block, trx, index, rec, offsets, update,
-				cmpl_info, clust_entry, &mtr);
+				undo_block, trx, index, op.rec,
+				op.offsets, op.update, op.cmpl_info,
+				op.clust_entry, &mtr);
 
 		if (UNIV_UNLIKELY(offset == 0)) {
 			const uint16_t first_free = mach_read_from_2(
@@ -1991,7 +2007,26 @@ err_exit:
 				tree latch, which is the rseg
 				mutex. We must commit the mini-transaction
 				first, because it may be holding lower-level
-				latches, such as SYNC_FSP_PAGE. */
+				latches, such as SYNC_FSP_PAGE.
+
+				We cannot commit the caller's
+				mini-transaction. In that case, keep the
+				page allocated to the undo log; it will be
+				used by the next undo log record, or freed
+				when the transaction ends. The unused tail
+				of the page was zero-filled above, and
+				that must be redo logged, just like in the
+				non-empty case below. */
+				if (caller_mtr) {
+					mtr.memset(*undo_block, first_free,
+						   srv_page_size - first_free
+						   - FIL_PAGE_DATA_END, 0);
+					if (m.second) {
+						trx->mod_tables.erase(m.first);
+					}
+					err = DB_UNDO_RECORD_TOO_BIG;
+					goto err_exit;
+				}
 
 				mtr.commit();
 				mtr.start();
@@ -2030,11 +2065,15 @@ err_exit:
 					   - FIL_PAGE_DATA_END, 0);
 			}
 
-			mtr.commit();
+			if (!caller_mtr) {
+				mtr.commit();
+			}
 		} else {
 			/* Success */
 			undo->top_page_no = undo_block->page.id().page_no();
-			mtr.commit();
+			if (!caller_mtr) {
+				mtr.commit();
+			}
 
 			undo->old_offset = offset;
 			undo->top_offset  = offset;
@@ -2048,16 +2087,18 @@ err_exit:
 
 				if (!time.is_versioned()
 				    && index->table->versioned_by_id()
-				    && (!rec /* INSERT */
-					|| (update
-					    && update->affects_versioned()))) {
+				    && (!op.rec /* INSERT */
+					|| (op.update
+					    && op.update
+					    ->affects_versioned()))) {
 					time.set_versioned(undo->top_undo_no);
 				}
 			}
 
 			if (!bulk) {
 				*roll_ptr = trx_undo_build_roll_ptr(
-					!rec, trx_sys.rseg_id(rseg, !is_temp),
+					!op.rec,
+					trx_sys.rseg_id(rseg, !is_temp),
 					undo->top_page_no, offset);
 			}
 
@@ -2069,10 +2110,13 @@ err_exit:
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr.start();
 
-		if (is_temp) {
-			mtr.set_log_mode(MTR_LOG_NO_REDO);
+		if (!caller_mtr) {
+			mtr.start();
+
+			if (is_temp) {
+				mtr.set_log_mode(MTR_LOG_NO_REDO);
+			}
 		}
 
 		undo_block = trx_undo_add_page(undo, &mtr, &err);
