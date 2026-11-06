@@ -548,4 +548,37 @@ select distinct a from t1 where a=1 and rand() >= 0 group by a with rollup;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-40779: HAVING is not checked for ROLLUP rows with DISTINCT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+
+--echo # The total row has a=NULL and fails a<0 and a=2.
+select distinct a, a+0 as d from t1 group by a with rollup having a<0;
+--sorted_result
+select distinct a, a+0 as d from t1 group by a with rollup having a=2;
+--sorted_result
+select distinct a, a+0 as d from t1 group by a with rollup having a is null;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-40779: ROLLUP rows lost with DISTINCT when a group column
+--echo # is used only in an expression
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1,1),(1,2),(2,1);
+
+--echo # The total row has a+0=NULL.
+--sorted_result
+select distinct a+0 from t1 group by a with rollup;
+--echo # The subtotal rows have b+0=NULL, the total row has a=NULL too.
+--sorted_result
+select distinct a, b+0 from t1 group by a,b with rollup;
+
+drop table t1;
+
 --echo # End of 11.4 tests
