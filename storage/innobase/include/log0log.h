@@ -475,9 +475,9 @@ public:
   @param encrypted  whether the log is encrypted */
   static void header_write(byte *buf, lsn_t lsn, bool encrypted) noexcept;
 
-  /** Rewrite the log file header in set_archive()
-  @param archive  the new value of innodb_log_archive */
-  void header_rewrite(my_bool archive) noexcept;
+  /** Rewrite the log file header in set_archive().
+  @param old_first_lsn  the old first_lsn if setting archive=true, else 0 */
+  void header_rewrite(lsn_t old_first_lsn) noexcept;
 
   /** @return an estimate of get_lsn(),
   using acquire-release ordering with write_buf() or persist();
