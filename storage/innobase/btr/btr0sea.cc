@@ -25,6 +25,141 @@ Created 2/17/1996 Heikki Tuuri
 *************************************************************************/
 
 #include "btr0sea.h"
+#include "rem0rec.h"
+#include "page0page.h"
+
+/** Determine the size of the first fields of an index record,
+without rec_get_offsets().
+@tparam comp           whether ROW_FORMAT=REDUNDANT is not being used
+@param index           index tree
+@param rec             index record
+@param n_bytes_fields  bytes << 16 | number of complete fields;
+if bytes is nonzero, the last field is truncated to that many bytes
+@return the offset from rec where the data of these fields ends */
+template<bool comp>
+static inline size_t rec_data_size(const dict_index_t &index,
+                                   const rec_t *rec,
+                                   uint32_t n_bytes_fields) noexcept
+{
+  ut_ad(page_rec_is_user_rec(rec));
+  size_t n_f= uint16_t(n_bytes_fields) + (n_bytes_fields >= 1U << 16);
+  ut_ad(n_f > 0);
+  ut_ad(n_f <= index.n_fields);
+  ut_ad(comp == index.table->not_redundant());
+
+  size_t n;
+
+  if (comp)
+  {
+    const byte *nulls= rec - REC_N_NEW_EXTRA_BYTES;
+    const byte *lens;
+    if (rec_get_status(rec) == REC_STATUS_INSTANT)
+    {
+      ulint n_fields= index.n_core_fields + rec_get_n_add_field(nulls) + 1;
+      ut_ad(n_fields <= index.n_fields);
+      const ulint n_nullable= index.get_n_nullable(n_fields);
+      ut_ad(n_nullable <= index.n_nullable);
+      lens= --nulls - UT_BITS_IN_BYTES(n_nullable);
+    }
+    else
+      lens= --nulls - index.n_core_null_bytes;
+
+    byte null_mask= 1;
+    size_t len= 0;
+    n= 0;
+    const dict_field_t *field= index.fields;
+    do
+    {
+      const dict_col_t *col= field->col;
+      if (col->is_nullable())
+      {
+        const int is_null{*nulls & null_mask};
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
+        null_mask<<= 1;
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop
+#endif
+        if (UNIV_UNLIKELY(!null_mask))
+          null_mask= 1, nulls--;
+        if (is_null)
+        {
+          len= 0;
+          continue;
+        }
+      }
+
+      len= field->fixed_len;
+
+      if (!len)
+      {
+        len= *lens--;
+        if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col))
+        {
+          len<<= 8;
+          len|= *lens--;
+          ut_ad(!(len & 0x4000));
+          len&= 0x3fff;
+        }
+      }
+
+      n+= len;
+    }
+    while (field++, --n_f);
+
+    if (size_t n_bytes= n_bytes_fields >> 16)
+      n+= std::min(n_bytes, len) - len;
+  }
+  else
+  {
+    const size_t n_bytes= n_bytes_fields >> 16;
+    ut_ad(n_f <= rec_get_n_fields_old(rec));
+    if (rec_get_1byte_offs_flag(rec))
+    {
+      n= rec_1_get_field_end_info(rec, n_f - 1) & ~REC_1BYTE_SQL_NULL_MASK;
+      if (!n_bytes);
+      else if (!uint16_t(n_bytes_fields))
+        n= std::min(n_bytes, n);
+      else
+      {
+        size_t len= n - (rec_1_get_field_end_info(rec, n_f - 2) &
+                         ~REC_1BYTE_SQL_NULL_MASK);
+        n+= std::min(n_bytes, n - len) - len;
+      }
+    }
+    else
+    {
+      n= rec_2_get_field_end_info(rec, n_f - 1) & ~REC_2BYTE_SQL_NULL_MASK;
+      ut_ad(n < REC_2BYTE_EXTERN_MASK); /* keys never are BLOBs */
+      if (!n_bytes);
+      else if (!uint16_t(n_bytes_fields))
+        n= std::min(n_bytes, n);
+      else
+      {
+        size_t len= n - (rec_2_get_field_end_info(rec, n_f - 2) &
+                         ~REC_2BYTE_SQL_NULL_MASK);
+        n+= std::min(n_bytes, n - len) - len;
+      }
+    }
+  }
+
+  return n;
+}
+
+size_t dict_index_t::get_child_offset(const rec_t *rec, uint16_t n_fields)
+  const noexcept
+{
+  ut_ad(!(type & (DICT_FTS | DICT_CORRUPT)));
+  return table->not_redundant()
+    ? rec_data_size<true>(*this, rec, n_fields)
+    : rec_data_size<false>(*this, rec, n_fields);
+}
+
+
 #ifdef BTR_CUR_HASH_ADAPT
 #include "buf0buf.h"
 #include "buf0lru.h"
@@ -226,112 +361,10 @@ static uint32_t rec_fold(const rec_t *rec, const dict_index_t &index,
   ut_ad(page_rec_is_user_rec(rec));
   ut_ad(!rec_is_metadata(rec, index));
   ut_ad(index.n_uniq <= index.n_core_fields);
-  size_t n_f= btr_search_get_n_fields(n_bytes_fields);
-  ut_ad(n_f > 0);
-  ut_ad(n_f <= index.n_core_fields);
-  ut_ad(comp == index.table->not_redundant());
-
-  size_t n;
-
-  if (comp)
-  {
-    const byte *nulls= rec - REC_N_NEW_EXTRA_BYTES;
-    const byte *lens;
-    if (rec_get_status(rec) == REC_STATUS_INSTANT)
-    {
-      ulint n_fields= index.n_core_fields + rec_get_n_add_field(nulls) + 1;
-      ut_ad(n_fields <= index.n_fields);
-      const ulint n_nullable= index.get_n_nullable(n_fields);
-      ut_ad(n_nullable <= index.n_nullable);
-      lens= --nulls - UT_BITS_IN_BYTES(n_nullable);
-    }
-    else
-      lens= --nulls - index.n_core_null_bytes;
-    byte null_mask= 1;
-    n= 0;
-
-    const dict_field_t *field= index.fields;
-    size_t len;
-    do
-    {
-      const dict_col_t *col= field->col;
-      if (col->is_nullable())
-      {
-        const int is_null{*nulls & null_mask};
-#if defined __GNUC__ && !defined __clang__
-# pragma GCC diagnostic push
-# if __GNUC__ < 12 || defined WITH_UBSAN
-#  pragma GCC diagnostic ignored "-Wconversion"
-# endif
-#endif
-        null_mask<<= 1;
-#if defined __GNUC__ && !defined __clang__
-# pragma GCC diagnostic pop
-#endif
-        if (UNIV_UNLIKELY(!null_mask))
-          null_mask= 1, nulls--;
-        if (is_null)
-        {
-          len= 0;
-          continue;
-        }
-      }
-
-      len= field->fixed_len;
-
-      if (!len)
-      {
-        len= *lens--;
-        if (UNIV_UNLIKELY(len & 0x80) && DATA_BIG_COL(col))
-        {
-          len<<= 8;
-          len|= *lens--;
-          ut_ad(!(len & 0x4000));
-          len&= 0x3fff;
-        }
-      }
-
-      n+= len;
-    }
-    while (field++, --n_f);
-
-    if (size_t n_bytes= n_bytes_fields >> 16)
-      n+= std::min(n_bytes, len) - len;
-  }
-  else
-  {
-    const size_t n_bytes= n_bytes_fields >> 16;
-    ut_ad(n_f <= rec_get_n_fields_old(rec));
-    if (rec_get_1byte_offs_flag(rec))
-    {
-      n= rec_1_get_field_end_info(rec, n_f - 1) & ~REC_1BYTE_SQL_NULL_MASK;
-      if (!n_bytes);
-      else if (!uint16_t(n_bytes_fields))
-        n= std::min(n_bytes, n);
-      else
-      {
-        size_t len= n - (rec_1_get_field_end_info(rec, n_f - 2) &
-                         ~REC_1BYTE_SQL_NULL_MASK);
-        n+= std::min(n_bytes, n - len) - len;
-      }
-    }
-    else
-    {
-      n= rec_2_get_field_end_info(rec, n_f - 1) & ~REC_2BYTE_SQL_NULL_MASK;
-      ut_ad(n < REC_2BYTE_EXTERN_MASK); /* keys never are BLOBs */
-      if (!n_bytes);
-      else if (!uint16_t(n_bytes_fields))
-        n= std::min(n_bytes, n);
-      else
-      {
-        size_t len= n - (rec_2_get_field_end_info(rec, n_f - 2) &
-                         ~REC_2BYTE_SQL_NULL_MASK);
-        n+= std::min(n_bytes, n - len) - len;
-      }
-    }
-  }
-
-  return my_crc32c(uint32_t(ut_fold_ull(index.id)), rec, n);
+  ut_ad(btr_search_get_n_fields(n_bytes_fields) > 0);
+  ut_ad(btr_search_get_n_fields(n_bytes_fields) <= index.n_core_fields);
+  return my_crc32c(uint32_t(ut_fold_ull(index.id)), rec,
+                   rec_data_size<comp>(index, rec, n_bytes_fields));
 }
 
 static uint32_t rec_fold(const rec_t *rec, const dict_index_t &index,

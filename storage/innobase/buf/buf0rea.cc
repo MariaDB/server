@@ -378,133 +378,84 @@ static void buf_read_release(buf_block_t *block) noexcept
 }
 
 ATTRIBUTE_NOINLINE
-/** Free a buffer block if needed, and update the read-ahead count.
-@param block  block to be freed
+/** Update the read-ahead count.
 @param count  number of blocks that were read ahead
 @return count*/
-static size_t buf_read_release_count(buf_block_t *block, size_t count) noexcept
+static size_t buf_read_ahead_count(size_t count) noexcept
 {
-  if (block || count)
-  {
-    mysql_mutex_lock(&buf_pool.mutex);
-    if (block)
-      buf_LRU_block_free_non_file_page(block);
-    if (count)
-    {
-      /* Read ahead is considered one I/O operation for the purpose of
-      LRU policy decision. */
-      buf_LRU_stat_inc_io();
-      buf_pool.stat.n_ra_pages_read+= count;
-    }
-    mysql_mutex_unlock(&buf_pool.mutex);
-  }
+  if (count == 0)
+    return 0;
+  
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* Read ahead is considered one I/O operation for the purpose of
+  LRU policy decision. */
+  buf_LRU_stat_inc_io();
+  buf_pool.stat.n_ra_pages_read+= count;
+  mysql_mutex_unlock(&buf_pool.mutex);
 
-  if (count)
-    if (THD *thd= current_thd)
-      if (trx_t *trx= thd_to_trx(thd))
-        if (ha_handler_stats *stats= trx->active_handler_stats)
-          stats->pages_prefetched+= count;
+  if (THD *thd= current_thd)
+    if (trx_t *trx= thd_to_trx(thd))
+      if (ha_handler_stats *stats= trx->active_handler_stats)
+        stats->pages_prefetched+= count;
   return count;
 }
 
-/** Applies a random read-ahead in buf_pool if there are at least a threshold
-value of accessed pages from the random read-ahead area. Does not read any
-page, not even the one at the position (space, offset), if the read-ahead
-mechanism is not activated. NOTE: the calling thread may own latches on
-pages: to avoid deadlocks this function must be written such that it cannot
-end up waiting for these latches!
-@param[in]	page_id		page id of a page which the current thread
-wants to access
-@return number of page read requests issued */
-TRANSACTIONAL_TARGET
-ulint buf_read_ahead_random(const page_id_t page_id) noexcept
+/** Apply a random read-ahead of pages.
+@param space    tablespace
+@param low      first page to attempt to read
+@param high     last page to attempt to read */
+void buf_read_ahead_random(fil_space_t *space, page_id_t low,
+                           page_id_t high) noexcept
 {
-  if (!srv_random_read_ahead || page_id.space() >= SRV_TMP_SPACE_ID)
-    /* Disable the read-ahead for temporary tablespace */
-    return 0;
+  const size_t space_zip_size{space->zip_size()};
+  size_t count{0};
 
-  if (srv_startup_is_before_trx_rollback_phase)
-    /* No read-ahead to avoid thread deadlocks */
-    return 0;
-
-  if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
-    return 0;
-
-  fil_space_t* space= fil_space_t::get(page_id.space());
-  if (!space)
-    return 0;
-
-  const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
-  ulint count= 5 + buf_read_ahead_area / 8;
-  const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
-  page_id_t high= low + buf_read_ahead_area;
-  high.set_page_no(std::min(high.page_no(), space->last_page_number()));
-
-  /* Count how many blocks in the area have been recently accessed,
-  that is, reside near the start of the LRU list. */
-
-  for (page_id_t i= low; i < high; ++i)
-  {
-    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    transactional_shared_lock_guard<page_hash_latch> g
-      {buf_pool.page_hash.lock_get(chain)};
-    if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
-    {
-      const auto state= bpage->zip.get_state();
-      /* A page qualifies if it was accessed by touch() or promoted, and
-      if it is not in buf_pool.LRU_old or is flagged for promotion. */
-      if (bpage->accessed_at() &&
-          (bpage->zip.is_promote(state) || !bpage->zip.old(state)) &&
-          !--count)
-        goto read_ahead;
-    }
-  }
-
-no_read_ahead:
-  space->release();
-  return 0;
-
-read_ahead:
-  if (space->is_stopping())
-    goto no_read_ahead;
-
-  /* Read all the suitable blocks within the area */
-  buf_block_t *block= nullptr;
-  unsigned zip_size{space->zip_size()};
-  if (UNIV_LIKELY(!zip_size))
-  {
-  allocate_block:
-    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
-      goto no_read_ahead;
-  }
-  else if (recv_recovery_is_on())
-  {
-    zip_size|= 1;
-    goto allocate_block;
-  }
-
-  /* Read all the suitable blocks within the area */
   for (page_id_t i= low; i < high; ++i)
   {
     if (space->is_stopping())
       break;
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
-    space->reacquire();
-    if (reinterpret_cast<buf_page_t*>(-1) ==
-        buf_read_page_low(i, zip_size, nullptr, chain, space, block, nullptr))
+    if (buf_pool.page_hash_contains(i, chain))
+      continue;
+
+    size_t zip_size{space_zip_size};
+    buf_block_t *block= nullptr;
+    if (UNIV_LIKELY(!zip_size) || recv_recovery_is_on())
     {
-      count++;
-      ut_ad(!block);
-      if ((UNIV_LIKELY(!zip_size) || (zip_size & 1)) &&
-          UNIV_UNLIKELY(!(block= buf_read_acquire())))
+      if (zip_size)
+        zip_size|= 1;
+      if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
+        /* No free block */
         break;
     }
+
+    space->reacquire();
+    if (reinterpret_cast<buf_page_t*>(-1) ==
+        buf_read_page_low(i, zip_size, nullptr, chain, space, block))
+    {
+      ut_ad(!block);
+      count++;
+    }
+    else
+      buf_read_release(block);
   }
 
-  space->release();
+  if (count)
+  {
+    DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
+               count, space->chain.start->name, low.page_no()));
+    buf_read_ahead_count(count);
+  }
+}
 
-  return buf_read_release_count(block, count);
+/** Read ahead a page if it is not yet in the buffer pool.
+@param space    tablespace
+@param page     page to read ahead */
+void buf_read_ahead_one(fil_space_t *space, uint32_t page) noexcept
+{
+  if (srv_startup_is_before_trx_rollback_phase)
+    return;
+  buf_read_ahead_pages(space, st_::span<const uint32_t>(&page, 1));
 }
 
 buf_block_t *buf_read_page(const page_id_t page_id, dberr_t *err,
@@ -586,85 +537,63 @@ void buf_read_page_background(const page_id_t page_id, fil_space_t *space,
   }
 }
 
-/** Applies linear read-ahead if in the buf_pool the page is a border page of
+/** Apply linear read-ahead if an undo log page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
-Does not read any page if the read-ahead mechanism is not activated. Note
-that the algorithm looks at the 'natural' adjacent successor and
-predecessor of the page, which on the leaf level of a B-tree are the next
-and previous page in the chain of leaves. To know these, the page specified
-in (space, offset) must already be present in the buf_pool. Thus, the
-natural way to use this function is to call it when a page in the buf_pool
-is accessed the first time, calling this function just after it has been
-bufferfixed.
-NOTE 1: as this function looks at the natural predecessor and successor
-fields on the page, what happens, if these are not initialized to any
-sensible value? No problem, before applying read-ahead we check that the
-area to read is within the span of the space, if not, read-ahead is not
-applied. An uninitialized value may result in a useless read operation, but
-only very improbably.
-NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
-function must be written such that it cannot end up waiting for these
-latches!
-@param[in]	page_id		page id; see NOTE 3 above
+Does not read any page if the read-ahead mechanism is not activated.
+@param space     undo tablespace or fil_system.space, or nullptr
+@param id        undo page identifier
 @return number of page read requests issued */
-ulint buf_read_ahead_linear(const page_id_t page_id) noexcept
+TRANSACTIONAL_TARGET
+ulint buf_read_ahead_undo(fil_space_t *space, const page_id_t page_id) noexcept
 {
-  /* check if readahead is disabled.
-  Disable the read ahead logic for temporary tablespace */
-  if (!srv_read_ahead_threshold || page_id.space() >= SRV_TMP_SPACE_ID)
+  if (!srv_read_ahead_threshold)
     return 0;
 
   if (srv_startup_is_before_trx_rollback_phase)
     /* No read-ahead to avoid thread deadlocks */
     return 0;
 
-  if (os_aio_pending_reads_approx() >
-      buf_pool.curr_size() / BUF_READ_AHEAD_PEND_LIMIT)
+  if (os_aio_pending_reads_approx() > buf_pool.curr_size() / 2)
     return 0;
 
+  if (!space->acquire())
+    return 0;
+
+  ut_ad(!space->zip_size());
   const uint32_t buf_read_ahead_area= buf_pool.read_ahead_area;
   const page_id_t low= page_id - (page_id.page_no() % buf_read_ahead_area);
   const page_id_t high_1= low + (buf_read_ahead_area - 1);
 
-  /* We will check that almost all pages in the area have been accessed
-  in the desired order. */
   const bool descending= page_id != low;
 
   if (!descending && page_id != high_1)
-    /* This is not a border page of the area */
-    return 0;
-
-  fil_space_t *space= fil_space_t::get(page_id.space());
-  if (!space)
-    return 0;
-
-  if (high_1.page_no() > space->last_page_number())
   {
-    /* The area is not whole. */
-fail:
     space->release();
     return 0;
   }
 
-  if (trx_sys_hdr_page(page_id))
-    /* If it is an ibuf bitmap page or trx sys hdr, we do no
-    read-ahead, as that could break the ibuf page access order */
-    goto fail;
+  ulint count;
+
+  if (high_1.page_no() > space->last_page_number())
+  {
+    /* The area is not whole. */
+  fail:
+    count= 0;
+    space->release();
+    return count;
+  }
 
   /* How many out of order accessed pages can we ignore
   when working out the access pattern for linear readahead */
-  ulint count= std::min<ulint>(buf_pool_t::READ_AHEAD_PAGES -
-                               srv_read_ahead_threshold,
-                               uint32_t{buf_pool.read_ahead_area});
+  count= std::min<ulint>(buf_pool_t::READ_AHEAD_PAGES -
+                         srv_read_ahead_threshold,
+                         uint32_t{buf_pool.read_ahead_area});
   page_id_t new_low= low, new_high_1= high_1;
   unsigned prev_accessed= 0;
   for (page_id_t i= low; i <= high_1; ++i)
   {
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(i.fold());
     page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
-    /* It does not make sense to use transactional_lock_guard here,
-    because we would have many complex conditions inside the memory
-    transaction. */
     hash_lock.lock_shared();
 
     const buf_page_t* bpage= buf_pool.page_hash.get(i, chain);
@@ -681,19 +610,10 @@ failed:
     const unsigned accessed= bpage->accessed_at();
     if (i == page_id)
     {
-      /* Read the natural predecessor and successor page addresses from
-      the page; NOTE that because the calling thread may have an x-latch
-      on the page, we do not acquire an s-latch on the page, this is to
-      prevent deadlocks. The hash_lock is only protecting the
-      buf_pool.page_hash for page i, not the bpage contents itself. */
       const byte *f= bpage->frame ? bpage->frame : bpage->zip.data;
       uint32_t prev= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_PREV));
       uint32_t next= mach_read_from_4(my_assume_aligned<4>(f + FIL_PAGE_NEXT));
       hash_lock.unlock_shared();
-      /* The underlying file page of this buffer pool page could actually
-      be marked as freed, or a read of the page into the buffer pool might
-      be in progress. We may read uninitialized data here.
-      Suppress warnings of comparing uninitialized values. */
       MEM_MAKE_DEFINED(&prev, sizeof prev);
       MEM_MAKE_DEFINED(&next, sizeof next);
       if (prev == FIL_NULL || next == FIL_NULL)
@@ -747,42 +667,103 @@ failed:
       goto failed;
   }
 
-  /* If we got this far, read-ahead can be sensible: do it */
-  buf_block_t *block= nullptr;
-  unsigned zip_size{space->zip_size()};
-  if (UNIV_LIKELY(!zip_size))
+  /* If we got this far, read-ahead can be sensible: do it.
+  Truncating an undo tablespace (or the system tablespace)
+  holds the tablespace latch exclusively
+  (mtr_t::x_lock_space()) while it shrinks the file.
+  Hold the latch shared, without waiting, while the size is
+  checked and the reads are issued, so that no page beyond the
+  new end is requested. If the latch cannot be had,
+  a shrink is in progress: skip the read-ahead. */
+  if (!space->s_lock_try())
+    goto fail;
+  if (new_high_1.page_no() > space->last_page_number())
   {
-  allocate_block:
-    if (UNIV_UNLIKELY(!(block= buf_read_acquire())))
-      goto fail;
-  }
-  else if (recv_recovery_is_on())
-  {
-    zip_size|= 1;
-    goto allocate_block;
+    space->s_unlock();
+    goto fail;
   }
 
   count= 0;
   for (; new_low <= new_high_1; ++new_low)
   {
-    if (space->is_stopping())
-      break;
     buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(new_low.fold());
+    if (buf_pool.page_hash_contains(new_low, chain))
+      continue;
+
+    buf_block_t *block= buf_read_acquire();
+    if (!block)
+      break;
+
     space->reacquire();
     if (reinterpret_cast<buf_page_t*>(-1) ==
-        buf_read_page_low(new_low, zip_size, nullptr,
-                          chain, space, block, nullptr))
+        buf_read_page_low(new_low, 0, nullptr, chain, space, block))
     {
-      count++;
       ut_ad(!block);
-      if ((UNIV_LIKELY(!zip_size) || (zip_size & 1)) &&
-          UNIV_UNLIKELY(!(block= buf_read_acquire())))
-        break;
+      count++;
     }
+    else
+      buf_read_release(block);
+  }
+  space->s_unlock();
+  buf_read_ahead_count(count);
+  space->release();
+  return count;
+}
+
+/** Read ahead a number of pages. Never waits for a free block,
+and reads at most buf_pool_t::READ_AHEAD_PAGES pages.
+@param space    tablespace
+@param pages    pages to read ahead */
+void buf_read_ahead_pages(fil_space_t *space,
+                          st_::span<const uint32_t> pages) noexcept
+{
+  ut_ad(!recv_recovery_is_on());
+  if (space->id >= SRV_TMP_SPACE_ID)
+    return;
+  if (pages.size() > buf_pool_t::READ_AHEAD_PAGES)
+    pages= st_::span<const uint32_t>(pages.data(),
+                                     buf_pool_t::READ_AHEAD_PAGES);
+  if (os_aio_pending_reads_approx() > buf_pool.curr_size() / 2)
+    return;
+  page_id_t id{space->id, 0};
+  const size_t zip_size{space->zip_size()};
+  ulint count= 0;
+  for (const uint32_t page : pages)
+  {
+    if (space->last_page_number() < page)
+      break;
+    id.set_page_no(page);
+    buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
+    {
+      /* Skip a page that is already in the buffer pool */
+      page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
+      hash_lock.lock_shared();
+      const bool exist= buf_pool.page_hash.get(id, chain) != nullptr;
+      hash_lock.unlock_shared();
+      if (exist)
+        continue;
+    }
+    if (!space->acquire())
+      break;
+    buf_block_t *block= zip_size ? nullptr : buf_read_acquire();
+    if (!zip_size && !block)
+    {
+      space->release();
+      break;
+    }
+
+    /* buf_read_page_low() will release the tablespace reference. */
+    if (reinterpret_cast<buf_page_t*>(-1) !=
+        buf_read_page_low(id, zip_size, nullptr, chain, space, block))
+    {
+      buf_read_release(block);
+      break;
+    }
+    ut_ad(!block);
+    count++;
   }
 
-  space->release();
-  return buf_read_release_count(block, count);
+  buf_read_ahead_count(count);
 }
 
 /** Schedule a page for recovery.
