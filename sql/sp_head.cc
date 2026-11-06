@@ -2166,6 +2166,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
+  status_var_increment(thd->status_var.executed_functions);
+
   {
     /*
       DML statements of the function must not consume the next values of
