@@ -39,6 +39,8 @@
 #include "pfs_program.h"
 #include "pfs_prepared_stmt.h"
 #include "pfs_buffer_container.h"
+#include "pfs_native_func.h"
+#include <mysql/plugin_function.h>
 
 handlerton *pfs_hton= NULL;
 
@@ -229,6 +231,36 @@ maria_declare_plugin(perfschema)
   pfs_status_vars,
   NULL,
   "5.7.31",
+  MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MariaDB_FUNCTION_PLUGIN,
+  &pfs_function_ps_thread_id,
+  "ps_thread_id",
+  "Shubham Chandrawanshi",
+  "Function PS_THREAD_ID()",
+  PLUGIN_LICENSE_GPL,
+  NULL,
+  NULL,
+  0x0100,
+  NULL,
+  NULL,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
+},
+{
+  MariaDB_FUNCTION_PLUGIN,
+  &pfs_function_ps_current_thread_id,
+  "ps_current_thread_id",
+  "Shubham Chandrawanshi",
+  "Function PS_CURRENT_THREAD_ID()",
+  PLUGIN_LICENSE_GPL,
+  NULL,
+  NULL,
+  0x0100,
+  NULL,
+  NULL,
+  "1.0",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

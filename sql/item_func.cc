@@ -51,9 +51,6 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-#include "../storage/perfschema/pfs_server.h"   // pfs_param
-#endif
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif /* WITH_WSREP */
@@ -856,66 +853,6 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
   thd->used|= THD::THREAD_SPECIFIC_USED;
   value= thd->variables.pseudo_thread_id;
   return FALSE;
-}
-
-
-/**
-  Raise an error unless the Performance Schema is running,
-  like MySQL does for PS_THREAD_ID() and PS_CURRENT_THREAD_ID().
-*/
-static bool ps_func_check_enabled(const char *func_name)
-{
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
-  if (pfs_param.m_enabled)
-    return false;
-#endif
-  my_printf_error(ER_WRONG_PERFSCHEMA_USAGE,
-                  "'%s': The Performance Schema is not enabled.", MYF(0),
-                  func_name);
-  return true;
-}
-
-
-bool Item_func_ps_current_thread_id::fix_fields(THD *thd, Item **ref)
-{
-  if (Item_longlong_func::fix_fields(thd, ref))
-    return TRUE;
-  thd->used|= THD::THREAD_SPECIFIC_USED;
-  return FALSE;
-}
-
-
-longlong Item_func_ps_current_thread_id::val_int()
-{
-  DBUG_ASSERT(fixed());
-  null_value= 1;
-  if (ps_func_check_enabled(func_name()))
-    return 0;
-  ulonglong thread_id= PSI_CALL_get_thread_internal_id(PSI_CALL_get_thread());
-  if ((null_value= (thread_id == 0)))
-    return 0;
-  return (longlong) thread_id;
-}
-
-
-longlong Item_func_ps_thread_id::val_int()
-{
-  DBUG_ASSERT(fixed());
-  null_value= 1;
-  if (ps_func_check_enabled(func_name()))
-    return 0;
-
-  longlong processlist_id= args[0]->val_int();
-  /* Like MySQL: NULL, non-integer and negative arguments give NULL */
-  if (args[0]->null_value || args[0]->cmp_type() != INT_RESULT ||
-      (!args[0]->unsigned_flag && processlist_id <= 0))
-    return 0;
-
-  ulonglong thread_id= PSI_CALL_get_thread_internal_id(
-                         PSI_CALL_get_thread_by_id((ulonglong) processlist_id));
-  if ((null_value= (thread_id == 0)))
-    return 0;
-  return (longlong) thread_id;
 }
 
 

@@ -1846,8 +1846,9 @@ sub collect_mysqld_features {
       # Enable or disable ARCHIVE plugin. Possible values are ON, OFF,
       # FORCE (don't start if the plugin fails to load),
       # FORCE_PLUS_PERMANENT (like FORCE, but the plugin can not be uninstalled).
-      # For Innodb I_S plugins that are referenced in sys schema
-      # do not make them optional, to prevent diffs in tests.
+      # For Innodb I_S plugins and the performance schema functions
+      # that are referenced in sys schema do not make them optional,
+      # to prevent diffs in tests.
       push @optional_plugins, $1
         if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. One of: ON, OFF, FORCE/
            and $1 ne "innodb-metrics"
@@ -1855,6 +1856,8 @@ sub collect_mysqld_features {
            and $1 ne "innodb-lock-waits"
            and $1 ne "innodb-locks"
            and $1 ne "innodb-trx"
+           and $1 ne "ps-thread-id"
+           and $1 ne "ps-current-thread-id"
            and $1 ne "gssapi";
       next;
     }

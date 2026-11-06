@@ -2,6 +2,14 @@
 # MDEV-19629 Implement MySQL 8.0 native functions:
 #            PS_THREAD_ID() and PS_CURRENT_THREAD_ID()
 #
+# Function plugins of the performance schema library
+SELECT PLUGIN_NAME, PLUGIN_STATUS, PLUGIN_TYPE, PLUGIN_LIBRARY
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ps_thread_id', 'ps_current_thread_id')
+ORDER BY PLUGIN_NAME;
+PLUGIN_NAME	PLUGIN_STATUS	PLUGIN_TYPE	PLUGIN_LIBRARY
+ps_current_thread_id	ACTIVE	FUNCTION	NULL
+ps_thread_id	ACTIVE	FUNCTION	NULL
 SELECT PS_CURRENT_THREAD_ID() = @tid;
 PS_CURRENT_THREAD_ID() = @tid
 1
@@ -70,12 +78,18 @@ CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_THREAD_ID(a)) PERSISTENT);
 ERROR HY000: Function or expression 'ps_thread_id()' cannot be used in the GENERATED ALWAYS AS clause of `b`
 CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_CURRENT_THREAD_ID()) PERSISTENT);
 ERROR HY000: Function or expression 'ps_current_thread_id()' cannot be used in the GENERATED ALWAYS AS clause of `b`
-# The sys schema function still has its own NULL meaning when qualified
+# sys.ps_thread_id() now uses the native functions
 SELECT sys.ps_thread_id(NULL) = PS_CURRENT_THREAD_ID();
 sys.ps_thread_id(NULL) = PS_CURRENT_THREAD_ID()
 1
 Warnings:
 Note	1585	This function 'ps_thread_id' has the same name as a native function
+SELECT sys.ps_thread_id(CONNECTION_ID()) = PS_CURRENT_THREAD_ID();
+sys.ps_thread_id(CONNECTION_ID()) = PS_CURRENT_THREAD_ID()
+1
+SELECT sys.ps_thread_id(234623462376);
+sys.ps_thread_id(234623462376)
+NULL
 #
 # End of 13.2 tests
 #

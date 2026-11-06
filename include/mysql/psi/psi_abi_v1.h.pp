@@ -462,10 +462,6 @@ typedef void (*set_thread_info_v1_t)(const char* info, uint info_len);
 typedef void (*set_thread_v1_t)(struct PSI_thread *thread);
 typedef void (*set_thread_peer_port_v1_t)(PSI_thread *thread,
                                           unsigned int port);
-typedef struct PSI_thread* (*get_thread_by_id_v1_t)
-  (unsigned long long processlist_id);
-typedef unsigned long long (*get_thread_internal_id_v1_t)
-  (struct PSI_thread *thread);
 typedef void (*delete_current_thread_v1_t)(void);
 typedef void (*delete_thread_v1_t)(struct PSI_thread *thread);
 typedef struct PSI_file_locker* (*get_thread_file_name_locker_v1_t)
@@ -838,8 +834,6 @@ struct PSI_v1
   start_metadata_wait_v1_t start_metadata_wait;
   end_metadata_wait_v1_t end_metadata_wait;
   set_thread_peer_port_v1_t set_thread_peer_port;
-  get_thread_by_id_v1_t get_thread_by_id;
-  get_thread_internal_id_v1_t get_thread_internal_id;
 };
 typedef struct PSI_v1 PSI;
 typedef struct PSI_mutex_info_v1 PSI_mutex_info;

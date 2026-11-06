@@ -55,10 +55,14 @@ CREATE OR REPLACE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_thread_id (
     NOT DETERMINISTIC
     READS SQL DATA
 BEGIN
-    RETURN (SELECT THREAD_ID
-              FROM `performance_schema`.`threads`
-             WHERE PROCESSLIST_ID = IFNULL(in_connection_id, CONNECTION_ID())
-           );
+    -- The native functions raise an error when the Performance Schema
+    -- is disabled; keep returning NULL, as this function always did.
+    IF NOT @@performance_schema THEN
+        RETURN NULL;
+    END IF;
+    RETURN IF(in_connection_id IS NULL,
+              PS_CURRENT_THREAD_ID(),
+              PS_THREAD_ID(in_connection_id));
 END$$
 
 DELIMITER ;
