@@ -1,0 +1,37 @@
+# JSON validation must not reject temporary index search values.
+CREATE TABLE t1 (id INT PRIMARY KEY, j JSON, KEY k (j(16))) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, '{}'), (2, '[]'), (3, '123');
+INSERT INTO t1 VALUES (4, 'invalid');
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`j` at row 1
+UPDATE t1 SET j = 'invalid' WHERE id = 1;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`j` at row 1
+SELECT id, j FROM t1 ORDER BY id;
+id	j
+1	{}
+2	[]
+3	123
+SELECT id FROM t1 FORCE INDEX (k) WHERE j = 'invalid' ORDER BY id;
+id
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j = 'invalid' ORDER BY id;
+id
+SELECT id FROM t1 FORCE INDEX (k) WHERE j > 'invalid' ORDER BY id;
+id
+1
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j > 'invalid' ORDER BY id;
+id
+1
+SELECT id FROM t1 FORCE INDEX (k) WHERE j < 'invalid' ORDER BY id;
+id
+2
+3
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j < 'invalid' ORDER BY id;
+id
+2
+3
+SELECT id FROM t1 FORCE INDEX (k) WHERE j = '{}' ORDER BY id;
+id
+1
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j = '{}' ORDER BY id;
+id
+1
+DROP TABLE t1;
