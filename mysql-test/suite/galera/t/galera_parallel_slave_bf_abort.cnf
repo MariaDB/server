@@ -1,0 +1,8 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+binlog-format=row
+
+[mysqld.2]
+slave-parallel-threads=2
+slave-parallel-mode=optimistic
