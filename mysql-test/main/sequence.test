@@ -1,0 +1,200 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-41258 Server crashes in Item_func_nextval::val_int()/update_table()
+--echo # when a table using DEFAULT NEXTVAL(sequence) is closed and reopened
+--echo # between two executions of a prepared statement
+--echo #
+
+CREATE SEQUENCE s1 START WITH 1 INCREMENT BY 1 CACHE 10;
+CREATE TABLE t1 (
+  id  BIGINT NOT NULL DEFAULT NEXTVAL(s1),
+  val VARCHAR(20),
+  PRIMARY KEY(id)
+);
+
+PREPARE stmt FROM 'INSERT INTO t1 (val) VALUES (?)';
+SET @v = 'row1';
+EXECUTE stmt USING @v;
+
+FLUSH TABLE t1;
+
+--echo # Second execution, after the table was closed and reopened, must
+--echo # still find its sequence dependency (see sequence_debug.test for
+--echo # a stricter debug-build check of this same case).
+SET @v = 'row2';
+EXECUTE stmt USING @v;
+
+SELECT val FROM t1 ORDER BY id;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # A statement that reaches its sequence dependency via "USING
+--echo # DEFAULT", followed after a table reopen by an execution using an
+--echo # ordinary value, must not crash from a stale reference to the
+--echo # closed table.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+INSERT INTO t1 (val) VALUES (1);
+
+PREPARE stmt FROM 'UPDATE t1 SET id=?';
+EXECUTE stmt USING DEFAULT;
+
+FLUSH TABLE t1;
+
+EXECUTE stmt USING 5;
+SELECT * FROM t1;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # Two tables sharing the same sequence, linked by a trigger, must
+--echo # each keep their own independent dependency after a reopen.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+CREATE TABLE t2 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+
+DELIMITER $$;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  INSERT INTO t2 (val) VALUES (100);
+END $$
+DELIMITER ;$$
+
+PREPARE stmt FROM 'INSERT INTO t1 (val) VALUES (?)';
+SET @v = 1;
+EXECUTE stmt USING @v;
+
+FLUSH TABLE t1;
+
+SET @v = 2;
+EXECUTE stmt USING @v;
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DEALLOCATE PREPARE stmt;
+DROP TRIGGER tr;
+DROP TABLE t1, t2;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # A self-join referencing the same sequence-defaulted table twice
+--echo # must also keep each reference independent.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+INSERT INTO t1 (val) VALUES (1), (2);
+UPDATE t1 a, t1 b SET a.val = DEFAULT WHERE a.id = b.id;
+SELECT * FROM t1 ORDER BY id;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # A dependency table dropped between two executions must not cause
+--echo # a use-after-free on the next execution.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+CREATE TABLE t2 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+
+DELIMITER $$;
+CREATE TRIGGER tr AFTER INSERT ON t1 FOR EACH ROW
+BEGIN
+  IF NEW.val > 100 THEN
+    INSERT INTO t2 (val) VALUES (NEW.val);
+  END IF;
+END $$
+DELIMITER ;$$
+
+PREPARE stmt FROM 'INSERT INTO t1 (val) VALUES (?)';
+SET @v = 1;
+EXECUTE stmt USING @v;
+
+DROP TABLE t2;
+
+SET @v = 2;
+EXECUTE stmt USING @v;
+SELECT * FROM t1;
+
+DEALLOCATE PREPARE stmt;
+DROP TRIGGER tr;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # A DEFAULT reference inside a trigger's own statement must not be
+--echo # confused with the top-level statement's sequence dependency.
+--echo #
+
+CREATE SEQUENCE s2;
+CREATE TABLE t3 (id INT NOT NULL DEFAULT NEXTVAL(s2), val INT);
+CREATE TABLE t4 (id INT NOT NULL DEFAULT NEXTVAL(s2), val INT);
+INSERT INTO t4 (val) VALUES (1);
+
+DELIMITER $$;
+CREATE TRIGGER tr2 AFTER INSERT ON t3 FOR EACH ROW
+BEGIN
+  UPDATE t4 SET id = DEFAULT, val = val + 10;
+END $$
+DELIMITER ;$$
+
+INSERT INTO t3 (val) VALUES (1);
+SELECT * FROM t4;
+
+DROP TRIGGER tr2;
+DROP TABLE t3, t4;
+DROP SEQUENCE s2;
+
+--echo #
+--echo # A literal DEFAULT in the prepared statement text itself (not bound
+--echo # via USING DEFAULT) must still work after the table is reopened.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (a INT DEFAULT NEXTVAL(s1), x INT);
+INSERT INTO t1 (x) VALUES (1), (2);
+
+PREPARE stmt FROM "UPDATE t1 SET a = DEFAULT WHERE x = 2";
+EXECUTE stmt;
+
+FLUSH TABLES;
+
+EXECUTE stmt;
+SELECT a, x FROM t1 WHERE x = 2;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--echo #
+--echo # "USING DEFAULT" must still work after the statement is silently
+--echo # reprepared due to a DDL change between EXECUTEs.
+--echo #
+
+CREATE SEQUENCE s1;
+CREATE TABLE t1 (id INT NOT NULL DEFAULT NEXTVAL(s1), val INT);
+INSERT INTO t1 (val) VALUES (1);
+
+PREPARE stmt FROM 'UPDATE t1 SET id=?';
+
+--echo # Force a reprepare before the next EXECUTE.
+ALTER TABLE t1 COMMENT 'force reprepare';
+
+EXECUTE stmt USING DEFAULT;
+SELECT * FROM t1;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+DROP SEQUENCE s1;
