@@ -753,6 +753,9 @@ void ignore_db_dirs_append(const char *dirname_arg)
   LEX_STRING *new_entry;
   size_t len= strlen(dirname_arg);
 
+  if (plugins_are_initialized)
+    return; // cannot modify read-only sysvar at run-time
+
   if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(0),
                        &new_entry, sizeof(LEX_STRING),
                        &new_entry_buf, len + 1,

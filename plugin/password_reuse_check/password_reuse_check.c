@@ -168,7 +168,7 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
   MYSQL *mysql= NULL;
   size_t key_len= username->length + password->length + hostname->length +
                   (3 * 2 /* space for storing length of the strings */);
-  size_t buff_len= (key_len > SQL_BUFF_LEN ? key_len : SQL_BUFF_LEN);
+  size_t buff_len= (key_len >= SQL_BUFF_LEN ? key_len + 1 : SQL_BUFF_LEN);
   size_t len;
   char *buff= malloc(buff_len);
   unsigned char hash[512/8];

@@ -6,6 +6,7 @@
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
 /*  (C) Copyright to the author Olivier BERTRAND          2001 - 2019  */
+/*  Copyright (c) 2013, 2026, MariaDB plc.                             */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -241,6 +242,11 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
         *p = '\0';
         phase = 0;
       } else if (*p == sep && !phase) {
+        if (i == MAXCOL) {
+          snprintf(g->Message, sizeof(g->Message), MSG(TOO_MANY_FIELDS), num_read + 1, fn);
+          goto err;
+          } // endif i
+
         *p = '\0';
 
         //skip leading blanks
