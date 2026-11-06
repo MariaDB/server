@@ -15194,7 +15194,12 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
     /* don't require ssl_info_client if we verify client certificate anyway */
     ssl_info_client_required &= !requires_client_cert(acl_user);
-    if (ssl_info_client_required && (!mpvio.hashes_password || !salt.length ||
+    bool has_password_hash= mpvio.hashes_password && salt.length;
+    /* trust the client that cannot prove anything */
+    if (!has_password_hash &&
+        opt_require_secure_transport == REQUIRE_SECURE_TRANSPORT_CLIENT)
+      ssl_info_client_required= false;
+    if (ssl_info_client_required && (!has_password_hash ||
         !(thd->client_capabilities & MARIADB_CLIENT_SSL_INFO_CLIENT)))
     {
       secure_transport_required_error(thd);

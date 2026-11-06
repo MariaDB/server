@@ -91,6 +91,24 @@ set global require_secure_transport=on;
 --error 1
 --exec $MYSQL --protocol tcp --host 127.0.0.1 -ureqcipher --ssl-verify-server-cert -e "select 1" 2>&1
 
+set global require_secure_transport=client;
+--echo # trust the client without a password hash
+--echo # mysql --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1"
+--exec $MYSQL --protocol tcp --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1" 2>&1
+--echo # mysql --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1"
+--exec $MYSQL --protocol tcp --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1" 2>&1
+--echo # mysql --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1"
+--exec $MYSQL --protocol tcp --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1" 2>&1
+--echo # mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1"
+--exec $MYSQL --protocol tcp -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1" 2>&1
+--echo # but not the client with a password hash
+--exec $mitm
+--echo # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
+--error 1
+--exec $MYSQL --port $MITM_PORT -unative -pfoo --disable-ssl-verify-server-cert -e "select 1" > /dev/null 2>&1
+show tables like 'hijacked';
+set global require_secure_transport=on;
+
 --echo # the client does not verify the server certificate
 --echo # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
 --exec $MYSQL --protocol tcp -unative -pfoo --disable-ssl-verify-server-cert -e "select 1" 2>&1

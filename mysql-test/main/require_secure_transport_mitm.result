@@ -73,6 +73,26 @@ ERROR 3159 (08004): Connections using insecure transport are prohibited while --
 ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
 # mysql --host 127.0.0.1 -ureqcipher --ssl-verify-server-cert -e "select 1"
 ERROR 3159 (08004): Connections using insecure transport are prohibited while --require_secure_transport=ON.
+set global require_secure_transport=client;
+# trust the client without a password hash
+# mysql --host 127.0.0.1 -uroot --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql --host 127.0.0.1 -unohash -ponetwothree --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql --host 127.0.0.1 -ureqssl --ssl-verify-server-cert -e "select 1"
+1
+1
+# mysql -unohash -ponetwothree --disable-ssl-verify-server-cert -e "select 1"
+1
+1
+# but not the client with a password hash
+>> MitM active <<
+# mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
+show tables like 'hijacked';
+Tables_in_test (hijacked)
+set global require_secure_transport=on;
 # the client does not verify the server certificate
 # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
 1
@@ -122,7 +142,7 @@ ERROR 3159 (08004) at line 1: Connections using insecure transport are prohibite
 >> MitM active <<
 # mysql -unative -pfoo --disable-ssl-verify-server-cert -e "select 1"
 # invalid ssl_info_client is logged
-FOUND 7 /Invalid ssl_info_client from 'native'@'localhost': malformed/ in mysqld.1.err
+FOUND 8 /Invalid ssl_info_client from 'native'@'localhost': malformed/ in mysqld.1.err
 FOUND 2 /Invalid ssl_info_client from 'native'@'localhost': hash mismatch/ in mysqld.1.err
 set global require_secure_transport=off;
 drop user native@'%';

@@ -27,6 +27,22 @@ SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS
 disconnect with_ssl;
 
 connection default;
+
+SET GLOBAL require_secure_transport=CLIENT;
+select @@global.require_secure_transport;
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_SECURE_TRANSPORT_REQUIRED
+connect without_ssl,localhost,root,,,,,TCP NOSSL;
+
+# no password hash, no client certificate, but trusted
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect with_ssl,localhost,root,,,,,TCP SSL;
+--disable_view_protocol
+SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+--enable_view_protocol
+disconnect with_ssl;
+connection default;
+
 SET GLOBAL require_secure_transport=OFF;
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 connect without_ssl,localhost,root,,,,,TCP NOSSL;
