@@ -166,21 +166,19 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
-    IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
-      CONFIGURE_FILE(mariadb@.service.in
-                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
-      CONFIGURE_FILE(mariadb@.socket.in
-                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket @ONLY)
-      CONFIGURE_FILE(mariadb-extra@.socket.in
-                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket @ONLY)
-      INSTALL(FILES
-              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
-              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
-              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
-              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
-              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
-              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
-    ENDIF()
+    CONFIGURE_FILE(mariadb@.service.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
+    CONFIGURE_FILE(mariadb@.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket @ONLY)
+    CONFIGURE_FILE(mariadb-extra@.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket @ONLY)
+    INSTALL(FILES
+            ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+            ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
+            ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
+            DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
     IF(INSTALL_SYSTEMD_UNITDIR)
       INSTALL(FILES
@@ -196,18 +194,14 @@ IF(UNIX AND NOT WITHOUT_SERVER)
                   DESTINATION ${INSTALL_SYSTEMD_UNITDIR}/mariadb.service.d
                   COMPONENT server-galera)
       ENDIF()
-      # http://public.kitware.com/Bug/view.php?id=14782
-      IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
-        INSTALL(FILES use_galera_new_cluster.conf
-                DESTINATION
-                "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
-                COMPONENT Server)
-        INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
-                ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
-                ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
-                DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
-      ENDIF()
-
+      INSTALL(FILES use_galera_new_cluster.conf
+              DESTINATION
+              "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
+              COMPONENT Server)
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
+              DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
     ENDIF()
   ENDIF()
 

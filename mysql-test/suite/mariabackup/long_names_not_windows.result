@@ -1,0 +1,9 @@
+#
+# MDEV-40862 mariadb-backup --backup crashes on database and table names that expand to nearly 255 bytes in the file system
+#
+CREATE DATABASE `d..................................................aaaa`;
+CREATE VIEW `d..................................................aaaa`.`q` AS SELECT 1 AS id;
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaa` AS SELECT 1 AS id;
+FOUND 1 /Can.t create file .*File name too long/ in backup.log
+DROP DATABASE `d..................................................aaaa`;
+# End of 10.11 tests

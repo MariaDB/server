@@ -139,6 +139,19 @@ select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
 select 1;
 1
 1
+#
+# MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
+#
+explain extended select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+show warnings;
+Level	Code	Message
+Error	1436	Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+create view v1 as select 1;
+create or replace view v1 as select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+select * from v1;
+1
+1
+drop view v1;
 # End of 10.11 tests
 #
 # MDEV-39813 ST_GeomFromGeoJSON does not control recursion depth

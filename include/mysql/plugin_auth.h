@@ -159,8 +159,9 @@ struct st_mysql_auth
     Password hash is stored in the authentication_string column of the
     mysql.user table in a text form. If a plugin needs to preprocess the
     value somehow before the authentication (e.g. convert from hex or base64
-    to binary), it can do it in this method. This way the conversion
-    will happen only once, not for every authentication attempt.
+    to binary), it can do it in this method. It can also reject invalid
+    (e.g. empty) hashes here. This way the validation and conversion will
+    happen only once, not for every authentication attempt.
 
     The value written to the out buffer will be cached and later made
     available to the authenticate_user() method in the

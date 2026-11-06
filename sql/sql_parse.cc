@@ -2030,13 +2030,15 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
       break;
     /*
       We have name + wildcard in packet, separated by endzero
-      (The packet is guaranteed to end with an end zero)
+      (The packet is guaranteed to end with an end zero, but it is not
+      part of packet_length, a packet without a separator is malformed)
     */
     arg_end= strend(packet);
     uint arg_length= (uint)(arg_end - packet);
 
     /* Check given table name length. */
-    if (packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
+    if (arg_length >= packet_length ||
+        packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                  MYF(0));
@@ -6177,8 +6179,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
               mysqld_show_warnings().
             */
             lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
-            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                         ER_YES, str.c_ptr_safe());
+            if (!thd->is_error())
+              push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                           ER_YES, str.c_ptr_safe());
           }
         }
       }
