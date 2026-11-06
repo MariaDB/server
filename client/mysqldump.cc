@@ -6461,12 +6461,22 @@ static int do_show_slave_status(MYSQL *mysql_con, int have_mariadb_gtid,
       if (use_gtid)
       {
         if (multi_source)
-          fprintf(md_result_file, "%sCHANGE MASTER %s TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix,
-                  quote_for_equal(row[0], name_buff));
+          fprintf(md_result_file, "%sCHANGE MASTER %s TO ",
+                  gtid_comment_prefix, quote_for_equal(row[0], name_buff));
         else
-          fprintf(md_result_file, "%sCHANGE MASTER TO "
-                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix);
+          fprintf(md_result_file, "%sCHANGE MASTER TO ", gtid_comment_prefix);
+
+        if (opt_include_master_host_port)
+        {
+          if (row[1 + multi_source])
+            fprintf(md_result_file, "MASTER_HOST=%s, ",
+                    quote_for_equal(row[1 + multi_source], name_buff));
+          if (row[3 + multi_source])
+            fprintf(md_result_file, "MASTER_PORT=%llu, ",
+                    atoll(row[3 + multi_source]));
+        }
+        
+        fprintf(md_result_file, "MASTER_USE_GTID=slave_pos;\n");
       }
 
       /* SHOW MASTER STATUS reports file and position */

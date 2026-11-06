@@ -255,4 +255,12 @@ connection master;
 connection slave;
 connection master;
 FOUND 1 matches in MDEV-33212.sql
+#
+# MDEV-40999: mariadb-dump --dump-slave --include-master-host-port --gtid missing host and port
+#
+/*M!999999\- enable the sandbox mode */ 
+CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USE_GTID=slave_pos;
+-- CHANGE MASTER '' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_LOG_FILE='master-bin.000002', MASTER_LOG_POS=BINLOG_START;
+
+SET GLOBAL gtid_slave_pos='0-1-1005';
 include/rpl_end.inc
