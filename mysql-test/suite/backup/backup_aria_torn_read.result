@@ -1,0 +1,26 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+call mtr.add_suppression("Error 176 reading (data|index) file");
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+SET @save_dbug= @@GLOBAL.debug_dbug;
+# A page that is torn once is read again.
+SET GLOBAL debug_dbug='+d,aria_backup_torn_read';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk' 2 CONCURRENT;
+SET GLOBAL debug_dbug= @save_dbug;
+# A page that is torn on every read makes BACKUP SERVER fail.
+SET GLOBAL debug_dbug='+d,aria_backup_torn_read_always';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk2';
+ERROR HY000: Error 176 reading index file FILE
+SET GLOBAL debug_dbug= @save_dbug;
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+# restart
+DROP TABLE t1;

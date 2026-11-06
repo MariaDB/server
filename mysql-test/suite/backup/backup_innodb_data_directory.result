@@ -1,0 +1,16 @@
+CREATE TABLE td(a INT PRIMARY KEY, b CHAR(255), INDEX(b))ENGINE=INNODB
+DATA DIRECTORY '$MYSQL_TMP_DIR';
+SET GLOBAL innodb_log_checkpoint_now=ON;
+BACKUP SERVER TO '$target_directory';
+ERROR HY000: Can't create file 'MYSQL_TMP_DIR/test/td.ibd' (errno: ...)
+BACKUP SERVER WITH 'cat';
+td.ibd
+# restart: --defaults-file=MYSQLTEST_VARDIR/some_data_directory/backup.cnf --datadir=MYSQLTEST_VARDIR/some_data_directory
+SELECT * FROM td;
+a	b
+DROP TABLE td;
+ERROR HY000: Table 'td' is read only
+# restart
+SELECT * FROM td;
+a	b
+DROP TABLE td;

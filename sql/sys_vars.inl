@@ -2490,6 +2490,7 @@ public:
   bool session_update(THD *thd, set_var *var) override;
 };
 
+#ifdef HAVE_REPLICATION
 /*
   Class for replicate_events_marked_for_skip.
   We need a custom update function that ensures the slave is stopped when
@@ -2631,6 +2632,7 @@ public:
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
 };
+#endif /* HAVE_REPLICATION */
 
 
 /**

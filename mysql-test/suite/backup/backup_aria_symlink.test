@@ -1,0 +1,114 @@
+--source include/not_windows.inc
+--source include/have_aria.inc
+--source include/have_symlink.inc
+--source include/have_sequence.inc
+# An MSAN build defines HAVE_valgrind, and then mysqld does not install
+# path_starts_from_data_home_dir(): every symbolic link is accepted.
+if (`SELECT COUNT(*) FROM information_schema.system_variables WHERE variable_name='have_sanitizer' AND global_value LIKE 'MSAN%'`)
+{
+  --skip MSAN build does not check symbolic links against the datadir
+}
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria with symbolic links
+--echo #
+
+--let $datadir= `SELECT @@datadir`
+--let $bk= $MYSQLTEST_VARDIR/bk
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $bk
+--error 0,1
+--rmdir $MYSQL_TMP_DIR/aria_dir
+--error 0,1
+--rmdir $MYSQL_TMP_DIR/aria_db
+
+--echo # Symbolic links that maria_open() follows are followed.
+--mkdir $MYSQL_TMP_DIR/aria_dir
+--mkdir $MYSQL_TMP_DIR/aria_db
+--exec ln -s $MYSQL_TMP_DIR/aria_db $datadir/symdb
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+evalp CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+evalp CREATE TABLE t2 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+evalp CREATE TABLE mysql.t3 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+CREATE TABLE symdb.t4 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t1 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+INSERT INTO t2 SELECT seq, REPEAT('b', 200) FROM seq_1_to_1000;
+INSERT INTO mysql.t3 SELECT seq, REPEAT('c', 200) FROM seq_1_to_1000;
+INSERT INTO symdb.t4 SELECT seq, REPEAT('d', 200) FROM seq_1_to_1000;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+evalp BACKUP SERVER TO '$bk';
+
+--let $restart_parameters= --datadir=$bk
+--source include/restart_mysqld.inc
+CHECK TABLE t1, t2, mysql.t3, symdb.t4 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t2;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM mysql.t3;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM symdb.t4;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $bk
+
+--echo # A symbolic link that maria_open() refuses is refused.
+CREATE TABLE t5 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t6 LIKE t5;
+CREATE TABLE t7 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t8 LIKE t7;
+CREATE TABLE mysql.t9 LIKE t7;
+FLUSH TABLES;
+
+--echo # Transactional table, index file
+--move_file $datadir/test/t6.MAI $datadir/test/t6.MAI.orig
+--exec ln -s $datadir/test/t5.MAI $datadir/test/t6.MAI
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /'[^']*(t6\.MAI)'/'\1'/
+--error ER_CANT_OPEN_FILE
+evalp BACKUP SERVER TO '$bk';
+--remove_file $datadir/test/t6.MAI
+--move_file $datadir/test/t6.MAI.orig $datadir/test/t6.MAI
+--rmdir $bk
+
+--echo # Non-transactional table, data file
+--move_file $datadir/test/t8.MAD $datadir/test/t8.MAD.orig
+--exec ln -s $datadir/test/t7.MAD $datadir/test/t8.MAD
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /'[^']*(t8\.MAD)'/'\1'/
+--error ER_CANT_OPEN_FILE
+evalp BACKUP SERVER TO '$bk';
+--remove_file $datadir/test/t8.MAD
+--move_file $datadir/test/t8.MAD.orig $datadir/test/t8.MAD
+--rmdir $bk
+
+--echo # Non-transactional table in the mysql schema, data file
+--move_file $datadir/mysql/t9.MAD $datadir/mysql/t9.MAD.orig
+--exec ln -s $datadir/test/t7.MAD $datadir/mysql/t9.MAD
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /'[^']*(t9\.MAD)'/'\1'/
+--error ER_CANT_OPEN_FILE
+evalp BACKUP SERVER TO '$bk';
+--remove_file $datadir/mysql/t9.MAD
+--move_file $datadir/mysql/t9.MAD.orig $datadir/mysql/t9.MAD
+--rmdir $bk
+
+CHECK TABLE t5, t6, t7, t8, mysql.t9;
+DROP TABLE t1, t2, mysql.t3, symdb.t4, t5, t6, t7, t8, mysql.t9;
+DROP DATABASE symdb;
+--rmdir $MYSQL_TMP_DIR/aria_dir
