@@ -4948,7 +4948,7 @@ static int try_to_reconnect(THD *thd, MYSQL *mysql, Master_info *mi,
   end_server(mysql);
   if ((*retry_count)++)
   {
-    if (*retry_count > master_retry_count)
+    if (master_retry_count && *retry_count > master_retry_count)
       return 1;                             // Don't retry forever
     slave_sleep(thd, mi->connect_retry, io_slave_killed, mi);
   }
