@@ -1,0 +1,349 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-25848 Range optimizer support for JSON_CONTAINS
+--echo #
+
+create table t3 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as unsigned array))
+);
+
+insert into t3 select seq,
+  concat('["value-', seq, '", "value-', seq + 1,
+          '", "value-', seq + 2, '", "value-', seq + 3, '"]') from seq_1_to_200;
+
+let $q= select * from t3 where json_contains(js, '["value-100", "value-101", "value-102"]');
+eval explain $q;
+eval $q;
+
+let $q= select * from t3 where json_contains('["value-100", "value-101", "value-102"]', js);
+eval explain $q;
+eval $q;
+
+DROP TABLE t3;
+
+--echo #
+--echo # Each condition: EXPLAIN, result with the index, result without it.
+--echo # The two results must be identical.
+--echo #
+
+create table t1 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as char(30) array))
+);
+
+insert into t1 values
+  (1,  '["a", "b", "c"]'),
+  (2,  '["b", "d"]'),
+  (3,  '["e"]'),
+  (4,  '[1, 2, 3]'),
+  (5,  '[1.0, "1", true]'),
+  (6,  '[null, false]'),
+  (7,  '["aaaaaaaaaaaaaaaaaaaa-1", "aaaaaaaaaaaaaaaaaaaa-2"]'),
+  (8,  '["a\\"b", "\\u00e9"]'),
+  (9,  '[]'),
+  (10, '["a", "a", "b"]'),
+  (11, '["é"]');
+insert into t1 select seq, concat('["v', seq, '", "w', seq, '"]')
+from seq_100_to_300;
+
+--echo # Basic: AND of points
+let $cond= json_contains(js, '["a", "b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["v150", "w150"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # One element matches nothing
+let $cond= json_contains(js, '["a", "zzz"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Duplicate elements in the constant
+let $cond= json_contains(js, '["b", "b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Scalar constant
+let $cond= json_contains(js, '"b"');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Empty array: true for every array, so no range
+let $cond= json_contains(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # SQL NULL: impossible
+let $cond= json_contains(js, NULL);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Object, nested array: no range
+let $cond= json_contains(js, '{"a": 1}');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["b", ["e"]]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Numbers and other types
+let $cond= json_contains(js, '[1]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '[1, "1", true]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Long strings, escapes, and a constant in another charset
+let $cond= json_contains(js, '["aaaaaaaaaaaaaaaaaaaa-1", "aaaaaaaaaaaaaaaaaaaa-2"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["a\\\\"b", "\\\\u00e9"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, convert('"é"' using latin1));
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Not symmetric: the column as the candidate gets no range
+let $cond= json_contains('["a", "b", "c", "d"]', js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # With a path: no range on i1, even when another predicate
+--echo # makes the range optimizer look at the table
+let $cond= pk > 0 and json_contains(js, '"b"', '\$[1]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Many elements (more than MAX_KEY = 64)
+select json_arrayagg(concat('v', seq)) into @big from seq_100_to_180;
+let $cond= json_contains(js, @big);
+--replace_column 9 #
+eval explain select count(*) from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # NOT must not use the index
+let $cond= not json_contains(js, '["b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # Combined with other predicates and indexes
+let $cond= json_contains(js, '["b", "d"]') or pk = 200;
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["b"]') and pk < 10;
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Prepared statement, re-executed with different values
+prepare s from 'select pk from t1 where json_contains(js, ?)';
+set @a= '["a", "b"]';
+--sorted_result
+execute s using @a;
+set @a= '"v150"';
+--sorted_result
+execute s using @a;
+set @a= NULL;
+execute s using @a;
+deallocate prepare s;
+
+prepare s from 'select count(*) from t1 where json_contains(js, ?)';
+set @a= '[]';
+execute s using @a;
+deallocate prepare s;
+
+--echo #
+--echo # Values from another table
+--echo #
+create table t2 (pk int primary key, j json, k json);
+insert into t2 values (1, '"v150"', '["v150", "w150"]'),
+                      (2, '"b"',    '["b"]');
+
+--echo # Non-constant values: these predicates are not used for ranges,
+--echo # but their key fields must fit in update_ref_and_keys()'s buffer
+--echo # (Item_func_json_contains::count_sargable_conds())
+let $q= select t1.pk, t2.pk from t1, t2
+        where json_contains(t1.js, t2.j) and json_contains(t1.js, t2.k)
+          and json_contains(t1.js, t2.j) and json_contains(t1.js, t2.k);
+--replace_column 9 #
+eval explain $q;
+--sorted_result
+eval $q;
+
+--echo # t2 is a const table: t1 can use a range on i1
+let $q= select t1.pk from t1, t2 where t2.pk = 1 and json_contains(t1.js, t2.k);
+--replace_column 9 #
+eval explain $q;
+--sorted_result
+eval $q;
+
+drop table t1, t2;
+
+--echo # Rare element appearing after more than 64 common elements
+create table t1 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as char(30) array))
+);
+# every row contains "c"; "u<pk>" is unique per row
+insert into t1 select seq, concat('["c", "u', seq, '"]') from seq_1_to_1000;
+
+# rare element after 200 copies of the common one
+set @v= concat('[', repeat('"c", ', 200), '"u500"]');
+explain select pk from t1 where json_contains(js, @v);
+select pk from t1 where json_contains(js, @v);
+select pk from t1 ignore index(i1) where json_contains(js, @v);
+
+# control: same elements, rare one first
+set @w= concat('["u500", ', repeat('"c", ', 199), '"c"]');
+explain select pk from t1 where json_contains(js, @w);
+select pk from t1 where json_contains(js, @w);
+
+drop table t1;
+
+--echo #
+--echo # ARRAY index together with other indexes on the same table
+--echo #
+create table t4 (
+  pk int primary key,
+  a int,
+  js1 json,
+  js2 json,
+  key ka(a),
+  index i1(cast(js1 as char(30) array))
+);
+insert into t4 select seq, seq % 10,
+  concat('["c", "v', seq, '"]'),
+  concat('["c", "w', seq, '"]')
+from seq_1_to_1000;
+
+--echo # A selective B-tree range wins over a non-selective ARRAY range
+let $cond= json_contains(js1, '"c"') and pk between 1 and 3;
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # A selective ARRAY range wins over a non-selective B-tree range
+let $cond= json_contains(js1, '"v501"') and a between 1 and 2;
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # Two JSON columns, only js1 has an ARRAY index
+let $cond= json_contains(js1, '"v500"') and json_contains(js2, '"w500"');
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+let $cond= json_contains(js1, '"c"') and json_contains(js2, '"w500"');
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # Only one ARRAY (hlindex) index per table
+--error ER_NOT_SUPPORTED_YET
+create table t5 (
+  js1 json,
+  js2 json,
+  index (cast(js1 as char(10) array)),
+  index (cast(js2 as char(10) array))
+);
+
+drop table t4;

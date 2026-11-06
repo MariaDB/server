@@ -1,0 +1,346 @@
+#
+# MDEV-25848 Range optimizer support for JSON_OVERLAPS
+#
+create table t3 (
+pk int primary key,
+js json,
+index i1(cast(js as unsigned array))
+);
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+explain select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	i1	i1	19	NULL	3	Using where
+select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+pk	js
+100	["value-100"]
+101	["value-101"]
+108	["value-108"]
+explain select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	i1	i1	19	NULL	3	Using where
+select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+pk	js
+100	["value-100"]
+101	["value-101"]
+108	["value-108"]
+DROP TABLE t3;
+#
+# Each condition: EXPLAIN, result with the index, result without it.
+# The two results must be identical.
+#
+create table t1 (
+pk int primary key,
+js json,
+index i1(cast(js as char(30) array))
+);
+insert into t1 values
+(1,  '["a", "b", "c"]'),
+(2,  '["b", "d"]'),
+(3,  '["e"]'),
+(4,  '[1, 2, 3]'),
+(5,  '[1.0, "1", true]'),
+(6,  '[null, false]'),
+(7,  '["aaaaaaaaaaaaaaaaaaaa-1", "aaaaaaaaaaaaaaaaaaaa-2"]'),
+(8,  '["a\\"b", "\\u00e9"]'),
+(9,  '[]'),
+(10, '["a", "a", "b"]'),
+(11, '["é"]');
+insert into t1 select seq, concat('["v', seq, '", "w', seq, '"]')
+from seq_100_to_300;
+# Basic: OR of points, both argument orders
+explain select pk from t1 where json_overlaps(js, '["b", "e"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["b", "e"]');
+pk
+1
+10
+2
+3
+select pk from t1 ignore index(i1) where json_overlaps(js, '["b", "e"]');
+pk
+1
+10
+2
+3
+explain select pk from t1 where json_overlaps('["b", "e"]', js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps('["b", "e"]', js);
+pk
+1
+10
+2
+3
+select pk from t1 ignore index(i1) where json_overlaps('["b", "e"]', js);
+pk
+1
+10
+2
+3
+# A row matching several points, and duplicates in the row,
+# must be returned once
+explain select pk from t1 where json_overlaps(js, '["a", "b"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["a", "b"]');
+pk
+1
+10
+2
+select pk from t1 ignore index(i1) where json_overlaps(js, '["a", "b"]');
+pk
+1
+10
+2
+# Duplicate elements in the constant
+explain select pk from t1 where json_overlaps(js, '["b", "b"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["b", "b"]');
+pk
+1
+10
+2
+select pk from t1 ignore index(i1) where json_overlaps(js, '["b", "b"]');
+pk
+1
+10
+2
+# Scalar constants (a one-element list)
+explain select pk from t1 where json_overlaps(js, '"e"');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '"e"');
+pk
+3
+select pk from t1 ignore index(i1) where json_overlaps(js, '"e"');
+pk
+3
+explain select pk from t1 where json_overlaps(js, '2');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '2');
+pk
+4
+select pk from t1 ignore index(i1) where json_overlaps(js, '2');
+pk
+4
+# Empty array and SQL NULL: impossible
+explain select pk from t1 where json_overlaps(js, '[]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+select pk from t1 where json_overlaps(js, '[]');
+pk
+select pk from t1 ignore index(i1) where json_overlaps(js, '[]');
+pk
+explain select pk from t1 where json_overlaps(js, NULL);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+select pk from t1 where json_overlaps(js, NULL);
+pk
+select pk from t1 ignore index(i1) where json_overlaps(js, NULL);
+pk
+# Object, nested array: no range
+explain select pk from t1 where json_overlaps(js, '{"a": 1}');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '{"a": 1}');
+pk
+select pk from t1 ignore index(i1) where json_overlaps(js, '{"a": 1}');
+pk
+explain select pk from t1 where json_overlaps(js, '["b", ["e"]]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["b", ["e"]]');
+pk
+1
+10
+2
+select pk from t1 ignore index(i1) where json_overlaps(js, '["b", ["e"]]');
+pk
+1
+10
+2
+# Numbers and other types: 1 = 1.0, but 1 <> "1"
+explain select pk from t1 where json_overlaps(js, '[1]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '[1]');
+pk
+4
+5
+select pk from t1 ignore index(i1) where json_overlaps(js, '[1]');
+pk
+4
+5
+explain select pk from t1 where json_overlaps(js, '["1"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["1"]');
+pk
+5
+select pk from t1 ignore index(i1) where json_overlaps(js, '["1"]');
+pk
+5
+explain select pk from t1 where json_overlaps(js, '[true, null]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '[true, null]');
+pk
+5
+6
+select pk from t1 ignore index(i1) where json_overlaps(js, '[true, null]');
+pk
+5
+6
+# Long strings (hashed) with a common prefix
+explain select pk from t1 where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-1"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-1"]');
+pk
+7
+select pk from t1 ignore index(i1) where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-1"]');
+pk
+7
+explain select pk from t1 where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-3"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-3"]');
+pk
+select pk from t1 ignore index(i1) where json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-3"]');
+pk
+# Escapes, and a constant in another charset
+explain select pk from t1 where json_overlaps(js, '["a\\"b"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["a\\"b"]');
+pk
+8
+select pk from t1 ignore index(i1) where json_overlaps(js, '["a\\"b"]');
+pk
+8
+explain select pk from t1 where json_overlaps(js, '["\\u00e9"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["\\u00e9"]');
+pk
+8
+select pk from t1 ignore index(i1) where json_overlaps(js, '["\\u00e9"]');
+pk
+8
+explain select pk from t1 where json_overlaps(js, convert('["é"]' using latin1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
+select pk from t1 where json_overlaps(js, convert('["é"]' using latin1));
+pk
+8
+select pk from t1 ignore index(i1) where json_overlaps(js, convert('["é"]' using latin1));
+pk
+8
+# Many elements (more than MAX_KEY = 64)
+select json_arrayagg(concat('v', seq)) into @big from seq_100_to_180;
+explain select count(*) from t1 where json_overlaps(js, @big);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
+explain select count(*) from t1 force index(i1) where json_overlaps(js, @big);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	83	Using where
+select count(*) from t1 where json_overlaps(js, @big);
+count(*)
+81
+select count(*) from t1 ignore index(i1) where json_overlaps(js, @big);
+count(*)
+81
+# NOT must not use the index
+explain select pk from t1 where not json_overlaps(js, '["b"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
+select count(*) from t1 where not json_overlaps(js, '["b"]');
+count(*)
+209
+select count(*) from t1 ignore index(i1) where not json_overlaps(js, '["b"]');
+count(*)
+209
+# Combined with other predicates and indexes
+explain select pk from t1 where json_overlaps(js, '["e"]') or pk = 200;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	PRIMARY,i1	i1,PRIMARY	19,4	NULL	#	Using sort_union(i1,PRIMARY); Using where
+select pk from t1 where json_overlaps(js, '["e"]') or pk = 200;
+pk
+200
+3
+select pk from t1 ignore index(i1) where json_overlaps(js, '["e"]') or pk = 200;
+pk
+200
+3
+explain select pk from t1 where json_overlaps(js, '["b", "v150"]') and pk < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY,i1	i1	19	NULL	#	Using where
+select pk from t1 where json_overlaps(js, '["b", "v150"]') and pk < 100;
+pk
+1
+10
+2
+select pk from t1 ignore index(i1) where json_overlaps(js, '["b", "v150"]') and pk < 100;
+pk
+1
+10
+2
+# LIMIT
+select count(*) from
+(select pk from t1 where json_overlaps(js, '["a", "b"]') limit 2) dt;
+count(*)
+2
+# Prepared statement, re-executed with different values
+prepare s from 'select pk from t1 where json_overlaps(js, ?)';
+set @a= '["b", "e"]';
+execute s using @a;
+pk
+1
+10
+2
+3
+set @a= '["v150"]';
+execute s using @a;
+pk
+150
+set @a= NULL;
+execute s using @a;
+pk
+set @a= '[]';
+execute s using @a;
+pk
+deallocate prepare s;
+#
+# Values from another table
+#
+create table t2 (pk int primary key, j json, k json);
+insert into t2 values (1, '"v150"', '["v150", "w150"]'),
+(2, '"b"',    '["b"]');
+# Non-constant values: these predicates are not used for ranges,
+# but their key fields must fit in update_ref_and_keys()'s buffer
+explain select t1.pk, t2.pk from t1, t2
+where json_overlaps(t1.js, t2.j) and json_overlaps(t2.k, t1.js)
+and json_overlaps(t1.js, t2.k) and json_overlaps(t2.j, t1.js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+select t1.pk, t2.pk from t1, t2
+where json_overlaps(t1.js, t2.j) and json_overlaps(t2.k, t1.js)
+and json_overlaps(t1.js, t2.k) and json_overlaps(t2.j, t1.js);
+pk	pk
+1	2
+10	2
+150	1
+2	2
+# t2 is a const table: t1 can use a range on i1
+explain select t1.pk from t1, t2 where t2.pk = 1 and json_overlaps(t1.js, t2.k);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	#	
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select t1.pk from t1, t2 where t2.pk = 1 and json_overlaps(t1.js, t2.k);
+pk
+150
+drop table t1, t2;

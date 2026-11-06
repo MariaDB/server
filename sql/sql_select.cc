@@ -7179,6 +7179,32 @@ Item_func_member_of::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                          false /*eq_func*/, args, 1, usable_tables, sargables);
 }
 
+void
+Item_func_json_overlaps::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                        uint *and_level,
+                                        table_map usable_tables,
+                                        SARGABLE_PARAM **sargables)
+{
+  if (Item_field *field_item= get_local_field(args[0]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false, args + 1, 1, usable_tables, sargables);
+  if (Item_field *field_item= get_local_field(args[1]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false, args, 1, usable_tables, sargables);
+}
+
+void
+Item_func_json_contains::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
+                                        uint *and_level,
+                                        table_map usable_tables,
+                                        SARGABLE_PARAM **sargables)
+{
+  if (arg_count != 2)
+    return;
+  if (Item_field *field_item= get_local_field(args[0]))
+    add_key_equal_fields(join, key_fields, *and_level, this, field_item,
+                         false, args + 1, 1, usable_tables, sargables);
+}
 
 void
 Item_func_in::add_key_fields(JOIN *join, KEY_FIELD **key_fields,

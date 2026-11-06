@@ -46,15 +46,30 @@ class json_index : public hlindex
   int parse_array_first(TABLE *tbl, const uchar *rec, json_engine_t *je,
                         String *str);
   int parse_array_next(json_engine_t *je);
-  uchar match_key[JSON_INDEX_KEY_MAX_LEN];
-  uint match_key_len;
+  const uchar *match_keys;
+  uint n_keys, cur_key;
   bool match_started;
+  HASH seen;
+  MEM_ROOT seen_root;
   /* A second handler to do deletes during the read_next scan */
   handler *delete_handler;
+  void free_seen()
+  {
+    if (my_hash_inited(&seen))
+      my_hash_free(&seen);
+    free_root(&seen_root, MYF(0));
+  }
 public:
   json_index(TABLE *t) :hlindex(t), match_started(false), delete_handler(0)
-  {}
-  ~json_index() { DBUG_ASSERT(!delete_handler); }
+  {
+    my_hash_clear(&seen);
+    init_alloc_root(PSI_INSTRUMENT_ME, &seen_root, 1024, 0, MYF(0));
+  }
+  ~json_index()
+  {
+    DBUG_ASSERT(!delete_handler);
+    free_seen();
+  }
   int insert_row(TABLE *tbl, KEY *keyinfo) override;
   int read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,
                  size_t value_len, ulonglong limit) override;
@@ -453,7 +468,7 @@ int json_index::read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,
 {
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_ARRAY);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
-  DBUG_ASSERT(value && value_len == JSON_INDEX_KEY_MAX_LEN);
+  DBUG_ASSERT(value && value_len && value_len % JSON_INDEX_KEY_MAX_LEN == 0);
 
   match_started= false;
 
@@ -463,8 +478,15 @@ int json_index::read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,
     make_key(), and carried here as QUICK_RANGE::min_key/min_length -- so
     there is nothing left to encode.
   */
-  memcpy(match_key, value, value_len);
-  match_key_len= (uint) value_len;
+  match_keys= value;
+  n_keys= (uint) (value_len / JSON_INDEX_KEY_MAX_LEN);
+  cur_key= 0;
+
+  free_seen();
+  if (n_keys > 1 &&
+      my_hash_init(PSI_INSTRUMENT_ME, &seen, &my_charset_bin, 32, 0,
+                   table->field[FIELD_TREF]->field_length, 0, 0, HASH_UNIQUE))
+    return HA_ERR_OUT_OF_MEM;
 
   /*
     (typ,value,tref) is the whole table -- all three columns are in the
@@ -482,23 +504,45 @@ int json_index::read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,
 
 int json_index::read_next(TABLE *tbl)
 {
-  int err= match_started
-    ? table->file->ha_index_next_same(table->record[0], match_key,
-                                      match_key_len)
-    : table->file->ha_index_read_map(table->record[0], match_key,
-                                     (key_part_map) 3 /* typ,value */,
-                                     HA_READ_KEY_EXACT);
-  match_started= true;
-  if (err)
-    return err == HA_ERR_KEY_NOT_FOUND ? HA_ERR_END_OF_FILE : err;
+  for (;;)
+  {
+    const uchar *key= match_keys + cur_key * JSON_INDEX_KEY_MAX_LEN;
+    int err= match_started
+      ? table->file->ha_index_next_same(table->record[0], key,
+                                        JSON_INDEX_KEY_MAX_LEN)
+      : table->file->ha_index_read_map(table->record[0], key,
+                                       (key_part_map) 3 /* typ,value */,
+                                       HA_READ_KEY_EXACT);
+    match_started= true;
+    if (err == HA_ERR_KEY_NOT_FOUND || err == HA_ERR_END_OF_FILE)
+    {
+      if (++cur_key == n_keys)
+        return HA_ERR_END_OF_FILE;
+      match_started= false;
+      continue;
+    }
+    if (err)
+      return err;
 
-  StringBuffer<64> tref_buf;
-  String *tref= table->field[FIELD_TREF]->val_str(&tref_buf);
-  return tbl->file->ha_rnd_pos(tbl->record[0], (uchar*) tref->ptr());
+    StringBuffer<64> tref_buf;
+    String *tref= table->field[FIELD_TREF]->val_str(&tref_buf);
+    if (n_keys > 1)
+    {
+      DBUG_ASSERT(tref->length() == table->field[FIELD_TREF]->field_length);
+      if (my_hash_search(&seen, (const uchar*) tref->ptr(), tref->length()))
+        continue;
+      uchar *copy= (uchar*) memdup_root(&seen_root, tref->ptr(),
+                                        tref->length());
+      if (!copy || my_hash_insert(&seen, copy))
+        return HA_ERR_OUT_OF_MEM;
+    }
+    return tbl->file->ha_rnd_pos(tbl->record[0], (uchar*) tref->ptr());
+  }
 }
 
 int json_index::read_end(TABLE *tbl)
 {
+  free_seen();
   if (table->file->inited == handler::INDEX)
     table->file->ha_index_end();
   table->file->ha_end_keyread();

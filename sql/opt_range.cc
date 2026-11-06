@@ -256,14 +256,14 @@ public:
   */
   enum Type { IMPOSSIBLE, ALWAYS, MAYBE, KEY, KEY_SMALLER } type;
 
-  SEL_TREE(enum Type type_arg, MEM_ROOT *root)
-    : type(type_arg), keys(root, MAX_KEY), n_ror_scans(0)
+  SEL_TREE(enum Type type_arg, MEM_ROOT *root, size_t num_keys)
+    : type(type_arg), keys(root, num_keys), n_ror_scans(0)
   {
     keys_map.clear_all();
   }
 
-  SEL_TREE(MEM_ROOT *root) :
-    type(KEY), keys(root, MAX_KEY), n_ror_scans(0)
+  SEL_TREE(MEM_ROOT *root, size_t num_keys) :
+    type(KEY), keys(root, num_keys), n_ror_scans(0)
   { 
     keys_map.clear_all();
   }
@@ -646,7 +646,7 @@ int SEL_IMERGE::and_sel_tree(RANGE_OPT_PARAM *param, SEL_TREE *tree,
   {
     SEL_TREE *res_or_tree= 0;
     SEL_TREE *and_tree= 0;
-    if (!(res_or_tree= new SEL_TREE(param->mem_root)) ||
+    if (!(res_or_tree= new SEL_TREE(param->mem_root, param->max_keys)) ||
         !(and_tree= new SEL_TREE(tree, TRUE, param)))
       return (-1);
     if (!and_range_trees(param, *or_tree, and_tree, res_or_tree))
@@ -862,7 +862,7 @@ int SEL_IMERGE::or_sel_imerge_with_checks(RANGE_OPT_PARAM *param,
 
 SEL_TREE::SEL_TREE(SEL_TREE *arg, bool without_merges, RANGE_OPT_PARAM *param)
   : Sql_alloc(),
-    keys(param->mem_root, MAX_KEY),
+    keys(param->mem_root, param->max_keys),
     n_ror_scans(0)
 {
   keys_map= arg->keys_map;
@@ -2825,7 +2825,8 @@ SQL_SELECT::test_quick_select(THD *thd,
   KEY_PART *key_parts;
   KEY *key_info;
   PARAM param;
-  bool force_group_by= false, group_by_optimization_used= false;
+  bool force_group_by= false, group_by_optimization_used= false,
+    can_clone= false;
 
   if (check_stack_overrun(thd, 2*STACK_MIN_SIZE + sizeof(PARAM), buff))
     DBUG_RETURN(ERROR);               // Fatal error flag is set
@@ -2927,6 +2928,8 @@ SQL_SELECT::test_quick_select(THD *thd,
       key_parts->field=	key_part_info->field;
       key_parts->null_bit= key_part_info->null_bit;
       key_parts->image_type= Field::image_type(key_info->algorithm);
+      if (key_parts->image_type == Field::itMBR)
+        can_clone= true;
       /* Only HA_PART_KEY_SEG is used */
       key_parts->flag= (uint8) key_part_info->key_part_flag;
       key_parts->claimed= false;
@@ -3002,7 +3005,9 @@ SQL_SELECT::test_quick_select(THD *thd,
   }
   trace_idx.end();
 
+  param.max_keys= can_clone ? MAX_KEY : param.keys;
   param.key_parts_end=key_parts;
+  param.key_part_clones_end= key_parts;
   param.alloced_sel_args= 0;
 
   max_key_len++; /* Take into account the "+1" in QUICK_RANGE::QUICK_RANGE */
@@ -3470,6 +3475,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
     return true;
   }
   param->keys= keys;
+  param->max_keys= keys;
   param->key_parts_end= key_part;
 
   return FALSE;
@@ -4322,7 +4328,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   /* It should be possible to switch the following ON: */
   range_par->remove_false_where_parts= false;
 
-  range_par->keys= 1; // one index
+  range_par->max_keys= range_par->keys= 1; // one index
   range_par->using_real_indexes= FALSE;
   range_par->remove_jump_scans= FALSE;
   range_par->real_keynr[0]= 0;
@@ -8862,7 +8868,7 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
   {
     /* It's turned out that all disjuncts are always FALSE */
     res_tree= new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE,
-                                             param->mem_root);
+                                             param->mem_root, param->max_keys);
   }
   DBUG_RETURN(res_tree);
 }
@@ -9113,7 +9119,7 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   const SEL_TREE::Type type= val_bool()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
 
-  tree= new (tmp_root) SEL_TREE(type, tmp_root);
+  tree= new (tmp_root) SEL_TREE(type, tmp_root, param->max_keys);
   DBUG_RETURN(tree);
 }
 
@@ -9139,7 +9145,8 @@ SEL_TREE *Item::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   if ((ref_tables & param->current_table) ||
       (ref_tables & ~(param->prev_tables | param->read_tables)))
     DBUG_RETURN(0);
-  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root));
+  DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::MAYBE, param->mem_root,
+                                             param->max_keys));
 }
 
 
@@ -9541,7 +9548,7 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
 static KEY_PART *get_claimed_key_part(RANGE_OPT_PARAM *param,
                                       KEY_PART *key_part)
 {
-  DBUG_ASSERT(key_part->image_type != Field::itRAW);
+  DBUG_ASSERT(key_part->image_type == Field::itMBR);
   if (!key_part->claimed)
   {
     key_part->claimed= true;
@@ -9549,7 +9556,7 @@ static KEY_PART *get_claimed_key_part(RANGE_OPT_PARAM *param,
   }
   if (param->keys >= MAX_KEY)
     return NULL;
-  KEY_PART *new_part= param->key_parts_end++;
+  KEY_PART *new_part= param->key_part_clones_end++;
   *new_part= *key_part;
   new_part->key= (uint16) param->keys;
   new_part->claimed= true;
@@ -9584,7 +9591,8 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
     if (field->eq(key_part->field))
     {
       SEL_ARG *sel_arg=0;
-      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root)))
+      if (!tree && !(tree=new (param->thd->mem_root) SEL_TREE(param->mem_root,
+                                                              param->max_keys)))
 	DBUG_RETURN(0);				// OOM
       if (!value || !(value_used_tables & ~param->read_tables))
       {
@@ -9629,9 +9637,12 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
       KEY_PART *use_key_part= key_part;
       /* if we've created MAX_KEY parts with GEOM_FLAG, skip the rest */
       if (sel_arg->type == SEL_ARG::KEY_RANGE &&
-          (sel_arg->min_flag & GEOM_FLAG) &&
-          !(use_key_part= get_claimed_key_part(param, key_part)))
-        continue;
+          key_part->image_type == Field::itMBR)
+      {
+        DBUG_ASSERT(sel_arg->min_flag & GEOM_FLAG);
+        if (!(use_key_part= get_claimed_key_part(param, key_part)))
+          continue;
+      }
       sel_arg->part=(uchar) use_key_part->part;
       sel_arg->max_part_no= sel_arg->part+1;
       tree->keys[use_key_part->key]=sel_add(tree->keys[use_key_part->key],
@@ -9724,6 +9735,72 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
                                  value));
 }
 
+/*
+  Helper to build a tree for a JSON_CONTAINS / JSON_OVERLAPS `field'.
+
+  Parse the json array `value', and for each array element, call
+  get_mm_parts on `field' and the element, then join them with
+  tree_and / tree_or
+*/
+template <class Get_mm_parts_func>
+static SEL_TREE *json_get_func_mm_tree(RANGE_OPT_PARAM *param, Field *field,
+                                       Item *value, bool conjunctive,
+                                       Get_mm_parts_func &&get_mm_parts)
+{
+  DBUG_ENTER("json_get_func_mm_tree");
+  /* Check that value can evaluated right now */
+  if (value->used_tables() & ~param->read_tables)
+    DBUG_RETURN(NULL);
+
+  List<Item> elements;
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  Json_range_elements jre=
+    json_get_range_elements(param->thd, value, field->charset(), &elements);
+  param->thd->mem_root= tmp_root;
+  if (jre == Json_range_elements::NO_RANGE)
+    DBUG_RETURN(NULL);
+  if (jre == Json_range_elements::IS_NULL)
+    DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE,
+                                               param->mem_root,
+                                               param->max_keys));
+  /*
+    Start with the identity element (NULL for tree_and and
+    SEL_TREE::IMPOSSIBLE for tree_or)
+  */
+  SEL_TREE *tree= conjunctive ? NULL :
+    new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE, param->mem_root,
+                                   param->max_keys);
+  List_iterator_fast<Item> it(elements);
+  Item *elem;
+  while ((elem= it++))
+  {
+    SEL_TREE *t= get_mm_parts(elem);
+    if (conjunctive)
+      tree= tree_and(param, tree, t);
+    else if (!(tree= tree_or(param, tree, t)))
+      DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(tree);
+}
+
+SEL_TREE *Item_func_json_overlaps::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                    Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_json_overlaps::get_func_mm_tree");
+  DBUG_RETURN(json_get_func_mm_tree(param, field, value, false,
+                [&](Item *elem)
+                { return get_mm_parts(param, field, functype(), elem); }));
+}
+
+SEL_TREE *Item_func_json_contains::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                    Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_json_contains::get_func_mm_tree");
+  DBUG_RETURN(json_get_func_mm_tree(param, field, value, true,
+                [&](Item *elem)
+                { return get_mm_parts(param, field, functype(), elem); }));
+}
 
 Data_type_compatibility
 Field::can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
@@ -10724,7 +10801,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
     }
     else
     {
-      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root)))
+      if (!(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                   param->max_keys)))
       {
         DBUG_RETURN(result);
       }
@@ -10748,7 +10826,8 @@ tree_or(RANGE_OPT_PARAM *param,SEL_TREE *tree1,SEL_TREE *tree2)
   }
   else
   {
-    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root)))
+    if (!result && !(result= new (param->mem_root) SEL_TREE(param->mem_root,
+                                                            param->max_keys)))
       DBUG_RETURN(result);
   }
 
@@ -10956,6 +11035,15 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
     return key1;
   }
 
+  if (SEL_ARG_ARRAY::is_array(key1) && SEL_ARG_ARRAY::is_array(key2))
+  {
+    if (static_cast<SEL_ARG_ARRAY*>(key2)->rows <
+        static_cast<SEL_ARG_ARRAY*>(key1)->rows)
+      swap_variables(SEL_ARG *, key1, key2);
+    key2->use_count--;
+    return key1;
+  }
+
   if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
   {
     /*
@@ -11117,6 +11205,33 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
 }
 
 
+static SEL_ARG *key_or_array(RANGE_OPT_PARAM *param, SEL_ARG_ARRAY *key1,
+                             SEL_ARG_ARRAY *key2)
+{
+  SEL_ARG_ARRAY *res;
+  if (!(res= new (param->mem_root) SEL_ARG_ARRAY(param->mem_root, key1->field,
+                                                 key1->min_value,
+                                                 key1->point_len)))
+    return 0;
+  res->part= key1->part;
+  res->max_part_no= key1->max_part_no;
+  for (size_t i= 0; i < key1->points.size(); i++)
+    if (res->points.push_back(key1->points.at(i)))
+      return 0;
+  for (size_t i= 0; i < key2->points.size(); i++)
+    if (!res->has_point(key2->points.at(i)) &&
+        res->points.push_back(key2->points.at(i)))
+      return 0;
+  if (key1->rows == HA_POS_ERROR || key2->rows == HA_POS_ERROR)
+    res->rows= HA_POS_ERROR;
+  else
+    res->rows= key1->rows + key2->rows;
+  res->cost= key1->cost;
+  res->cost.add(&key2->cost);
+  return res;
+}
+
+
 /**
    Combine two range expression under a common OR. On a logical level, the
    transformation is key_or( expr1, expr2 ) => expr1 OR expr2.
@@ -11201,6 +11316,10 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
     key2->free_tree();
     return 0;                                   // Can't optimize this
   }
+
+  if (SEL_ARG_ARRAY::is_array(key1) && SEL_ARG_ARRAY::is_array(key2))
+    return key_or_array(param, static_cast<SEL_ARG_ARRAY*>(key1),
+                        static_cast<SEL_ARG_ARRAY*>(key2));
 
   if ((key1->min_flag | key2->min_flag) & GEOM_FLAG)
   {
@@ -12651,16 +12770,18 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
   TABLE::OPT_RANGE *range= param->table->opt_range + keynr;
   ha_rows rows;
 
+  if (!SEL_ARG_ARRAY::is_array(tree))
+    return HA_POS_ERROR;
+  SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(tree);
+
   if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
     return HA_POS_ERROR;
 
-  rows= param->table->hli->records_in_range(param->table,
-                                            param->table->key_info + keynr,
-                                            tree->min_value,
-                                            JSON_INDEX_KEY_MAX_LEN, cost);
+  rows= array->rows;
   param->quick_rows[keynr]= rows;
   if (rows == HA_POS_ERROR)
     return HA_POS_ERROR;
+  *cost= array->cost;
 
   *is_ror_scan= FALSE;
   *mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
@@ -12678,10 +12799,10 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
       param->range_keys_seen.set_bit(keynr);
       param->table->opt_range_keys.set_bit(keynr);
       range->key_parts= 1;
-      range->ranges= 1;
+      range->ranges= (uint) array->points.size();
       range->rows= rows;
       range->cost= *cost;
-      range->first_key_part_has_only_one_value= true; // always a single point
+      range->first_key_part_has_only_one_value= array->points.size() == 1; // always a single point
       range->selectivity= rows ?
         (double) param->table->opt_range_condition_rows / rows : 1.0;
     }
@@ -12994,6 +13115,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 }
 
 
+bool get_quick_keys_array(PARAM *param, QUICK_RANGE_SELECT_ARRAY *quick,
+                          SEL_ARG *key_tree);
+
 /*
   Create a QUICK_RANGE_SELECT from given key and SEL_ARG tree for that key.
 
@@ -13043,9 +13167,14 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
 
   if (quick)
   {
+    bool is_array= param->table->key_info[param->real_keynr[idx]].algorithm ==
+                   HA_KEY_ALG_ARRAY;
     if (create_err ||
-	get_quick_keys(param,quick,param->key[idx],key_tree,param->min_key,0,
-		       param->max_key,0))
+        (is_array ?
+         get_quick_keys_array(param, (QUICK_RANGE_SELECT_ARRAY*) quick,
+                              key_tree) :
+         get_quick_keys(param,quick,param->key[idx],key_tree,param->min_key,0,
+                        param->max_key,0)))
     {
       delete quick;
       quick=0;
@@ -13105,6 +13234,35 @@ void SEL_ARG::store_next_min_max_keys(KEY_PART *key,
     }
   }
 }
+
+bool get_quick_keys_array(PARAM *param, QUICK_RANGE_SELECT_ARRAY *quick,
+                          SEL_ARG *key_tree)
+{
+  if (!SEL_ARG_ARRAY::is_array(key_tree))
+    return 1;
+  SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(key_tree);
+  uint len= array->point_len;
+  size_t n= array->points.size();
+
+  if (!(quick->points= (uchar*) param->thd->alloc(n * len)))
+    return 1;
+  for (size_t i= 0; i < n; i++)
+  {
+    QUICK_RANGE *range;
+    memcpy(quick->points + i * len, array->points.at(i), len);
+    memcpy(param->min_key, array->points.at(i), len);
+    if (!(range= new (param->thd->mem_root)
+          QUICK_RANGE(param->thd, param->min_key, len, make_keypart_map(0),
+                      param->min_key, len, make_keypart_map(0), GEOM_FLAG)) ||
+        insert_dynamic(&quick->ranges, (uchar*) &range))
+      return 1;
+  }
+  quick->points_length= (uint) (n * len);
+  set_if_bigger(quick->max_used_key_length, len);
+  set_if_bigger(quick->used_key_parts, 1U);
+  return 0;
+}
+
 
 /*
 ** Fix this to get all possible sub_ranges
@@ -14182,13 +14340,13 @@ int QUICK_RANGE_SELECT_ARRAY::get_next()
 {
   int result;
   DBUG_ENTER("QUICK_RANGE_SELECT_ARRAY::get_next");
-  DBUG_ASSERT(ranges.elements == 1);
+  DBUG_ASSERT(ranges.elements >= 1 && points);
 
   if (!last_range)
   {
     last_range= *((QUICK_RANGE**) ranges.buffer);
-    result= head->hlindex_read_first(index, last_range->min_key,
-                                     last_range->min_length, HA_POS_ERROR);
+    result= head->hlindex_read_first(index, points, points_length,
+                                     HA_POS_ERROR);
   }
   else
     result= head->hlindex_read_next();
@@ -18052,6 +18210,21 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
                          const KEY_PART_INFO *key_parts)
 {
   DBUG_ASSERT(range_trace->trace_started());
+  if (SEL_ARG_ARRAY::is_array(keypart))
+  {
+    SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(keypart);
+    hlindex *hli= key_parts->field->table->hli;
+    for (size_t i= 0; i < array->points.size(); i++)
+    {
+      StringBuffer<128> str;
+      str.append('(');
+      hli->print_key(&str, array->points.at(i), array->point_len);
+      str.append(STRING_WITH_LEN(") MEMBER OF "));
+      str.append(key_parts->field->field_name);
+      range_trace->add(str.ptr(), str.length());
+    }
+    return;
+  }
   Range_print_enumerator_impl range_iter(param, idx, keypart);
 
   while (!range_iter.next())

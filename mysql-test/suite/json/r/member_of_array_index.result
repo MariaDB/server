@@ -684,7 +684,7 @@ test.t16	analyze	Warning	Engine-independent statistics are not collected for col
 test.t16	analyze	status	OK
 EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t16	index_merge	arr_idx	arr_idx,arr_idx	19,19	NULL	#	Using sort_union(arr_idx,arr_idx); Using where
+1	SIMPLE	t16	range	arr_idx	arr_idx	19	NULL	#	Using where
 SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR 1999 MEMBER OF (tags) ORDER BY id;
 id
 5
@@ -700,7 +700,7 @@ total_rows	distinct_ids
 # to degrade to ALL before get_claimed_key_part())
 EXPLAIN SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t16	index_merge	cidx,arr_idx	arr_idx,cidx,arr_idx	19,5,19	NULL	#	Using sort_union(arr_idx,cidx,arr_idx); Using where
+1	SIMPLE	t16	index_merge	cidx,arr_idx	arr_idx,cidx	19,5	NULL	#	Using sort_union(arr_idx,cidx); Using where
 SELECT id FROM t16 WHERE 5 MEMBER OF (tags) OR c=1500 OR 1999 MEMBER OF (tags) ORDER BY id;
 id
 5
@@ -847,4 +847,67 @@ SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (t
 id
 5
 DROP TABLE t19;
+create table t3 (
+pk int primary key,
+js json,
+index i1(cast(js as unsigned array))
+);
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+explain format=json select * from t3
+where
+'value-100' member of (js) or
+'value-101' member of (js) or
+'value-102' member of (js) or
+'value-103' member of (js) or
+'value-104' member of (js) or
+'value-105' member of (js) or
+'value-106' member of (js) or
+'value-107' member of (js) or
+'value-108' member of (js);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "range",
+          "possible_keys": ["i1"],
+          "key": "i1",
+          "key_length": "19",
+          "used_key_parts": ["js"],
+          "loops": 1,
+          "rows": 9,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "'value-100' member of (t3.js) or 'value-101' member of (t3.js) or 'value-102' member of (t3.js) or 'value-103' member of (t3.js) or 'value-104' member of (t3.js) or 'value-105' member of (t3.js) or 'value-106' member of (t3.js) or 'value-107' member of (t3.js) or 'value-108' member of (t3.js)"
+        }
+      }
+    ]
+  }
+}
+select * from t3
+where
+'value-100' member of (js) or
+'value-101' member of (js) or
+'value-102' member of (js) or
+'value-103' member of (js) or
+'value-104' member of (js) or
+'value-105' member of (js) or
+'value-106' member of (js) or
+'value-107' member of (js) or
+'value-108' member of (js);
+pk	js
+100	["value-100"]
+101	["value-101"]
+102	["value-102"]
+103	["value-103"]
+104	["value-104"]
+105	["value-105"]
+106	["value-106"]
+107	["value-107"]
+108	["value-108"]
+DROP TABLE t3;
 # End of 13.3 tests
