@@ -179,6 +179,7 @@ static Item*
 make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
                     table_map sjm_tables, bool inside_or_clause);
 static bool make_join_select(JOIN *join,SQL_SELECT *select,COND *item);
+static bool move_expensive_args_last(THD *thd, Item *cond);
 static void revise_cache_usage(JOIN_TAB *join_tab);
 static bool make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after);
 static bool only_eq_ref_tables(JOIN *join, ORDER *order, table_map tables);
@@ -12813,6 +12814,9 @@ int JOIN_TAB::make_scan_filter()
                                   join->const_table_map | table->map,
                                   table->map, -1, FALSE, TRUE)))
     {
+      move_expensive_args_last(join->thd, tmp);
+      if (join->thd->is_error())
+        DBUG_RETURN(1);
       DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
       if (!(cache_select=
             (SQL_SELECT*) join->thd->memdup((uchar*) select,
@@ -14574,6 +14578,107 @@ get_last_top_base_tab_idx(const JOIN *join)
 }
 
 
+/*
+  @brief
+    Put the expensive arguments of AND/OR conditions after the cheap ones
+
+  @param thd   Thread handle
+  @param cond  Condition to process
+
+  @return
+    true if the condition is expensive
+
+  @details
+    Walks down AND, OR and trigger conditions. The arguments of each AND/OR
+    are partitioned into cheap and expensive ones, keeping the relative order
+    within each group, so that short-circuit evaluation can skip
+    the expensive arguments. An AND/OR with a non-deterministic argument
+    keeps its order.
+
+    A condition is expensive if it contains a subquery, a stored function
+    call, or an item that reports itself as expensive (Item::is_expensive()),
+    such as a UDF or MATCH().
+*/
+
+static bool move_expensive_args_last(THD *thd, Item *cond)
+{
+  if (cond->type() == Item::FUNC_ITEM &&
+      ((Item_func *) cond)->functype() == Item_func::TRIG_COND_FUNC)
+    return move_expensive_args_last(thd, ((Item_func *) cond)->arguments()[0]);
+
+  if (!is_cond_and(cond) && !is_cond_or(cond))
+  {
+    /*
+      Not an AND/OR: check whether it is expensive. Stored functions are
+      searched for separately, because Item_func_sp::is_expensive() may
+      return false for them.
+    */
+    Item_func::Functype sp_func= Item_func::FUNC_SP;
+    return cond->with_subquery() ||
+           cond->is_expensive() ||
+           cond->walk(&Item::find_function_processor, &sp_func, 0);
+  }
+
+  List<Item> *args= ((Item_cond *) cond)->argument_list();
+  List_iterator<Item> list_iter(*args), write_iter(*args);
+  Item *item;
+
+  /*
+    Keep the order of a list with non-deterministic arguments (RAND(),
+    a user variable assigned by the statement and so on), so that they are
+    evaluated for the same rows as written. Nested lists are still processed.
+  */
+  bool keep_order= false;
+  while ((item= list_iter++))
+  {
+    if (item->used_tables() & RAND_TABLE_BIT)
+    {
+      keep_order= true;
+      break;
+    }
+  }
+  list_iter.rewind();
+  if (keep_order)
+  {
+    bool any_expensive= false;
+    while ((item= list_iter++))
+      any_expensive|= move_expensive_args_last(thd, item);
+    return any_expensive;
+  }
+
+  Item **expensive= NULL;
+  uint n_expensive= 0;
+  /*
+    `list_iter` reads the arguments. `write_iter` lags behind it and points
+    at the slot where the next argument is written.
+    `expensive` is allocated only if there are expensive arguments in the list.
+  */
+  while ((item= list_iter++))
+  {
+    if (move_expensive_args_last(thd, item))
+    {
+      if (!expensive &&
+          !(expensive= thd->alloc<Item *>(args->elements)))
+        return true;
+      expensive[n_expensive++]= item;
+    }
+    else
+    {
+      write_iter++;
+      *write_iter.ref()= item;
+    }
+  }
+
+  /* Put the expensive arguments into the remaining slots */
+  for (uint i= 0; i < n_expensive; i++)
+  {
+    write_iter++;
+    *write_iter.ref()= expensive[i];
+  }
+  return n_expensive != 0;
+}
+
+
 static bool
 make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 {
@@ -14682,6 +14787,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           if (pseudo_cond)
           {
             add_cond_and_fix(thd, &pseudo_cond, join->outer_ref_cond);
+            move_expensive_args_last(thd, pseudo_cond);
             join->outer_ref_cond= pseudo_cond;
 
             Json_writer_object trace(thd);
@@ -15342,6 +15448,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       if (!tab->bush_children)
         i++;
     }
+
+    for (tab= first_depth_first_tab(join); tab;
+         tab= next_depth_first_tab(join, tab))
+    {
+      if (tab->select_cond)
+        move_expensive_args_last(thd, tab->select_cond);
+      if (tab->select && tab->select->cond &&
+          tab->select->cond != tab->select_cond)
+        move_expensive_args_last(thd, tab->select->cond);
+      if (tab->on_precond)
+        move_expensive_args_last(thd, tab->on_precond);
+    }
+    if (thd->is_error())
+      DBUG_RETURN(1);
 
     if (unlikely(thd->trace_started()))
     {

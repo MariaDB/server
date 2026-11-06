@@ -5858,7 +5858,7 @@ EXPLAIN
               "rows": 7,
               "cost": "COST_REPLACED",
               "filtered": 100,
-              "attached_condition": "(t1.a = 8 or t1.a = (subquery#2)) and t1.b < 20"
+              "attached_condition": "t1.b < 20 and (t1.a = 8 or t1.a = (subquery#2))"
             }
           }
         ],

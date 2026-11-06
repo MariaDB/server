@@ -43,18 +43,18 @@ INSERT INTO t1 VALUES ('MI'),('PR')          /* trailing sign */;
 INSERT INTO t1 VALUES ('TM'),('TM9'),('TME') /* TM formats */;
 INSERT INTO t1 VALUES ('0'),('9'),('X')      /* digits */;
 INSERT INTO t1 VALUES ('EEEE')               /* approximate format */;
-SELECT fmt FROM t1 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+SELECT fmt FROM t1 WHERE IF(bad(fmt)='', to_number('1',fmt) IS NULL, FALSE);
 fmt
 SELECT fmt FROM t1 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
 fmt
 CREATE VIEW v2 AS SELECT CONCAT(t1.fmt, t2.fmt) AS fmt FROM t1 t1, t1 t2;
-SELECT fmt FROM v2 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+SELECT fmt FROM v2 WHERE IF(bad(fmt)='', to_number('1',fmt) IS NULL, FALSE);
 fmt
 SELECT fmt FROM v2 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
 fmt
 DROP VIEW v2;
 CREATE VIEW v3 AS SELECT CONCAT(t1.fmt, t2.fmt, t2.fmt) AS fmt FROM t1 t1, t1 t2, t1 t3;
-SELECT fmt FROM v3 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+SELECT fmt FROM v3 WHERE IF(bad(fmt)='', to_number('1',fmt) IS NULL, FALSE);
 fmt
 SELECT fmt FROM v3 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
 fmt
@@ -69,7 +69,7 @@ INSERT INTO t4 VALUES ('0'),('9'),('X')      /* digits */;
 CREATE VIEW v4 AS
 SELECT CONCAT(t1.fmt, t2.fmt, t3.fmt,t4.fmt) AS fmt
 FROM t4 t1, t4 t2, t4 t3, t4 t4;
-SELECT fmt FROM v4 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+SELECT fmt FROM v4 WHERE IF(bad(fmt)='', to_number('1',fmt) IS NULL, FALSE);
 fmt
 SELECT fmt FROM v4 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
 fmt
@@ -90,7 +90,7 @@ INSERT INTO t4 VALUES ('EEEE')               /* approximate format */;
 CREATE VIEW v4 AS
 SELECT CONCAT(t1.fmt, t2.fmt, t3.fmt,t4.fmt) AS fmt
 FROM t4 t1, t4 t2, t4 t3, t4 t4;
-SELECT fmt FROM v4 WHERE bad(fmt)='' AND to_number('1',fmt) IS NULL;
+SELECT fmt FROM v4 WHERE IF(bad(fmt)='', to_number('1',fmt) IS NULL, FALSE);
 fmt
 SELECT fmt FROM v4 WHERE bad(fmt)<>'' AND to_number('1',fmt) IS NOT NULL;
 fmt
