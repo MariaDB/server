@@ -1677,7 +1677,10 @@ static my_bool translog_create_new_file()
     goto error_lock;
 
   if ((file->handler.file= create_logfile_by_number_no_cache(file_no)) == -1)
+  {
+    pop_dynamic(&log_descriptor.open_files);
     goto error_lock;
+  }
   translog_file_init(file, file_no, 0);
 
   log_descriptor.max_file++;
@@ -1696,13 +1699,15 @@ static my_bool translog_create_new_file()
 
   DBUG_PRINT("info", ("file_no: %lu", (ulong)file_no));
 
-  if (translog_write_file_header())
-    goto error;
-
-  if (ma_control_file_write_and_force(last_checkpoint_lsn, file_no,
+  if (translog_write_file_header() ||
+      ma_control_file_write_and_force(last_checkpoint_lsn, file_no,
                                       max_trid_in_control_file,
                                       recovery_failures))
-    goto error;
+  {
+    /* translog_destroy() closes and frees the file in open_files */
+    translog_stop_writing();
+    DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 
@@ -8826,6 +8831,43 @@ my_bool translog_purge_at_flush()
 uint32 translog_get_first_file(TRANSLOG_ADDRESS horizon)
 {
   return translog_first_file(horizon, 0);
+}
+
+
+/**
+  @brief Make a log page end at a given address
+
+  Change a log page that was read from a log file to the page that
+  translog_flush() writes when the horizon is at the given address:
+  the bytes from the address to the end of the page are filled with
+  TRANSLOG_FILLER, and the page checksum is computed again. The bytes
+  before the address do not change when the log grows, except for the
+  checksum and the sector protection.
+
+  @param page            the log page that contains addr
+  @param addr            the end of the log, at a chunk boundary
+
+  @retval 0 OK
+  @retval 1 the page is not the page of addr, or it uses sector protection
+*/
+
+my_bool translog_cut_page(uchar *page, TRANSLOG_ADDRESS addr)
+{
+  uint offset= (uint) (LSN_OFFSET(addr) % TRANSLOG_PAGE_SIZE);
+  uint flags= page[TRANSLOG_PAGE_FLAGS];
+  DBUG_ENTER("translog_cut_page");
+
+  if (uint3korr(page) != LSN_OFFSET(addr) / TRANSLOG_PAGE_SIZE ||
+      uint3korr(page + 3) != LSN_FILE_NO(addr) ||
+      (flags & ~(TRANSLOG_PAGE_CRC | TRANSLOG_RECORD_CRC)) ||
+      offset < page_overhead[flags])
+    DBUG_RETURN(1);
+  memset(page + offset, TRANSLOG_FILLER, TRANSLOG_PAGE_SIZE - offset);
+  if (flags & TRANSLOG_PAGE_CRC)
+    int4store(page + 3 + 3 + 1,
+              translog_crc(page + page_overhead[flags],
+                           TRANSLOG_PAGE_SIZE - page_overhead[flags]));
+  DBUG_RETURN(0);
 }
 
 

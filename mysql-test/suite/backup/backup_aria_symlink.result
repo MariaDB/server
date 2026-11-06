@@ -1,0 +1,70 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria with symbolic links
+#
+# Symbolic links that maria_open() follows are followed.
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+CREATE TABLE t2 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+CREATE TABLE mysql.t3 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0
+DATA DIRECTORY '$MYSQL_TMP_DIR/aria_dir'
+INDEX DIRECTORY '$MYSQL_TMP_DIR/aria_dir';
+CREATE TABLE symdb.t4 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t1 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+INSERT INTO t2 SELECT seq, REPEAT('b', 200) FROM seq_1_to_1000;
+INSERT INTO mysql.t3 SELECT seq, REPEAT('c', 200) FROM seq_1_to_1000;
+INSERT INTO symdb.t4 SELECT seq, REPEAT('d', 200) FROM seq_1_to_1000;
+BACKUP SERVER TO '$bk';
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE t1, t2, mysql.t3, symdb.t4 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+mysql.t3	check	status	OK
+symdb.t4	check	status	OK
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t2;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+SELECT COUNT(*), SUM(LENGTH(c)) FROM mysql.t3;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+SELECT COUNT(*), SUM(LENGTH(c)) FROM symdb.t4;
+COUNT(*)	SUM(LENGTH(c))
+1000	200000
+# restart
+# A symbolic link that maria_open() refuses is refused.
+CREATE TABLE t5 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t6 LIKE t5;
+CREATE TABLE t7 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t8 LIKE t7;
+CREATE TABLE mysql.t9 LIKE t7;
+FLUSH TABLES;
+# Transactional table, index file
+BACKUP SERVER TO '$bk';
+ERROR HY000: Can't open file: 't6.MAI' (errno: 140 "Wrong create options")
+# Non-transactional table, data file
+BACKUP SERVER TO '$bk';
+ERROR HY000: Can't open file: 't8.MAD' (errno: 140 "Wrong create options")
+# Non-transactional table in the mysql schema, data file
+BACKUP SERVER TO '$bk';
+ERROR HY000: Can't open file: 't9.MAD' (errno: 140 "Wrong create options")
+CHECK TABLE t5, t6, t7, t8, mysql.t9;
+Table	Op	Msg_type	Msg_text
+test.t5	check	status	OK
+test.t6	check	status	OK
+test.t7	check	status	OK
+test.t8	check	status	OK
+mysql.t9	check	status	OK
+DROP TABLE t1, t2, mysql.t3, symdb.t4, t5, t6, t7, t8, mysql.t9;
+DROP DATABASE symdb;

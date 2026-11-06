@@ -1,0 +1,64 @@
+--source include/have_aria.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# This is based on the scenario of ../mariabackup/log_tables.test
+
+CREATE TABLE t(i INT) ENGINE=Aria;
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
+SET GLOBAL general_log = 1;
+SET GLOBAL log_output = 'TABLE';
+
+INSERT INTO t VALUES (1);
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_aria_general_log
+--error 0,1
+--rmdir $target_directory
+
+--connect backup,localhost,root
+SET DEBUG_SYNC='maria_backup_tables_copied SIGNAL prepared WAIT_FOR go';
+--replace_result $target_directory target_directory
+send_eval BACKUP SERVER TO '$target_directory';
+
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR prepared';
+INSERT INTO t VALUES (2);
+SET DEBUG_SYNC='now SIGNAL go';
+
+--connection backup
+--reap
+--disconnect backup
+--connection default
+
+--let $restart_parameters=--datadir=$target_directory
+--source include/restart_mysqld.inc
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
+SELECT * FROM t;
+DROP TABLE t;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 THREAD_ID 5 Query
+--sorted_result
+SELECT * FROM mysql.general_log
+  WHERE argument LIKE "INSERT INTO %" AND
+  (command_type = "Query" OR command_type = "Execute") ;
+SELECT * FROM t;
+DROP TABLE t;
+
+--rmdir $target_directory
