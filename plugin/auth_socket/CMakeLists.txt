@@ -1,4 +1,5 @@
 # Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2026, MariaDB plc.
 # 
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -61,6 +62,39 @@ int main() {
 IF (HAVE_XUCRED)
   ADD_DEFINITIONS(-DHAVE_XUCRED)
   SET(ok 1)
+
+  # macOS, xucred has no pid
+  CHECK_CXX_SOURCE_COMPILES(
+  "#include <sys/types.h>
+  #include <sys/socket.h>
+  #include <sys/un.h>
+  int main() {
+    pid_t pid;
+    socklen_t len= sizeof(pid);
+    getsockopt(0, SOL_LOCAL, LOCAL_PEERPID, &pid, &len);
+    }" HAVE_LOCAL_PEERPID)
+
+  IF (HAVE_LOCAL_PEERPID)
+    ADD_DEFINITIONS(-DHAVE_LOCAL_PEERPID)
+  ENDIF()
+
+  # FreeBSD 13+
+  CHECK_CXX_SOURCE_COMPILES(
+  "#include <sys/types.h>
+  #include <sys/socket.h>
+  #include <sys/un.h>
+  #include <sys/ucred.h>
+  int main() {
+    struct xucred cred;
+    return sizeof(cred.cr_pid) == 0;
+    }" HAVE_XUCRED_CR_PID)
+
+  IF (HAVE_XUCRED_CR_PID)
+    ADD_DEFINITIONS(-DHAVE_XUCRED_CR_PID)
+  ELSEIF (NOT HAVE_LOCAL_PEERPID)
+    MESSAGE(STATUS "auth_socket: peer pid is not available, "
+                   "connections from the server itself are not rejected")
+  ENDIF()
 ELSE()
 
 # NetBSD, is that you?
