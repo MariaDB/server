@@ -68,6 +68,13 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `new` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 crash point: ddl_log_create_after_revert
 t2.frm
 t2.ibd
@@ -153,6 +160,15 @@ t2.MYD
 t2.MYI
 t2.frm
 crash point: ddl_log_create_after_binlog
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+crash point: ddl_log_create_after_complete
 t2.MYD
 t2.MYI
 t2.frm
@@ -283,7 +299,26 @@ t2	CREATE TABLE `t2` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
+crash point: ddl_log_create_after_complete
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
 crash point: ddl_log_create_after_revert
+t2.frm
+t2.ibd
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `new` int(11) DEFAULT NULL,
+  `new2` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
 crash point: ddl_log_create_middle_complete
 t2.frm
 t2.ibd

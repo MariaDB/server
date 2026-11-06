@@ -4928,6 +4928,8 @@ void Table_specification_st::end_create_table(THD *thd,
       DBUG_ASSERT(mdl_request.ticket);
     }
 
+    ddl_log_complete(ddl_log_state_create);
+    debug_crash_here("ddl_log_create_after_complete");
     ddl_log_revert(thd, ddl_log_state_rm);
     debug_crash_here("ddl_log_create_after_revert");
   }
