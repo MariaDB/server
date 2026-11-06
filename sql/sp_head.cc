@@ -3285,6 +3285,11 @@ int sp_head::add_instr(sp_instr *instr)
 
 int sp_head::add_instr(sp_instr_cursor_copy_struct *instr)
 {
+  /*
+    Keep the items of the DEFAULT clause to clean them up after every
+    execution (they are not on the free list of the instruction).
+  */
+  instr->set_def_items(m_thd->free_list);
   instr->free_list= 0;
   m_thd->free_list= 0;
 

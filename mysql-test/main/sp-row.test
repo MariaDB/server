@@ -1756,3 +1756,56 @@ DROP FUNCTION f1;
 --enable_ps2_protocol
 
 --echo # End of 11.8 tests
+
+--echo # Start of 13.2 tests
+
+--echo #
+--echo # Crash on the second call of a stored routine with
+--echo # DECLARE ... ROW TYPE OF cursor DEFAULT (subquery)
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR FOR SELECT a, b FROM t1;
+  BEGIN
+    DECLARE r ROW TYPE OF c
+      DEFAULT (SELECT ROW(1,10) = (SELECT a, b FROM t1 WHERE a=1), 0);
+    SELECT r.a, r.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+CALL p1();
+CALL p1();
+
+--echo # The same with a function in the DEFAULT clause
+DELIMITER $$;
+CREATE FUNCTION f1(r ROW(a INT, b INT)) RETURNS INT RETURN r.a + r.b;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c CURSOR FOR SELECT a, b FROM t1;
+  BEGIN
+    DECLARE r ROW TYPE OF c
+      DEFAULT (SELECT f1(ROW(a, b)), 0 FROM t1 WHERE a=2);
+    SELECT r.a, r.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL p2();
+CALL p2();
+
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

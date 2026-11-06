@@ -7168,7 +7168,8 @@ bool LEX::sp_variable_declarations_init(THD *thd, int nvars)
 
 bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                                Item *dflt_value_item,
-                                               const LEX_CSTRING &expr_str)
+                                               const LEX_CSTRING &expr_str,
+                                               Item *def_items)
 {
   bool has_default_clause= dflt_value_item != NULL;
   if (!has_default_clause &&
@@ -7214,7 +7215,15 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                    spcont, &sp_rcontext_handler_local,
                                    spvar->offset, dflt_value_item,
                                    this, last, expr_str);
-    if (unlikely(is == NULL || sphead->add_instr(is)))
+    if (unlikely(is == NULL))
+      return true;
+    /*
+      The items of the DEFAULT clause of a cursor ROW TYPE variable are on no
+      free list. The instruction that evaluates them cleans them up.
+    */
+    if (i == 0)
+      is->set_default_items(def_items);
+    if (unlikely(sphead->add_instr(is)))
       return true;
   }
   return false;
@@ -7420,12 +7429,14 @@ LEX::sp_variable_declarations_cursor_rowtype_finalize(THD *thd, int nvars,
     spvar->field_def.set_cursor_rowtype_ref(offset);
     sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name);
   }
+  Item *def_items= nullptr;
   if (make_sp_instr_copy_struct_for_last_context_variables(thd,
                                                            (uint) nvars,
-                                                           offset, def))
+                                                           offset, def,
+                                                           &def_items))
     return true;
   if (unlikely(sp_variable_declarations_set_default(thd, nvars, def,
-                                                    expr_str)))
+                                                    expr_str, def_items)))
     return true;
   // Make sure sp_rcontext is created using the invoker security context:
   sphead->m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
@@ -8167,7 +8178,8 @@ bool LEX::sp_close(THD *thd, const Lex_ident_sys_st &name)
 bool LEX::make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                             uint nvars,
                                                             uint cursor_offset,
-                                                            Item *def)
+                                                            Item *def,
+                                                            Item **def_items)
 {
   DBUG_ASSERT(nvars <= spcont->context_var_count());
   const sp_pcursor *pcursor= spcont->find_cursor(cursor_offset);
@@ -8191,6 +8203,8 @@ bool LEX::make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                       (i == 0) ? def : nullptr);
     if (instr == NULL || sphead->add_instr(instr))
       return true;
+    if (i == 0 && def_items)
+      *def_items= instr->def_items();
   }
   return false;
 }
@@ -9446,7 +9460,6 @@ Item *LEX::create_item_func_nextval(THD *thd, Table_ident *table_ident)
                                                           MDL_SHARED_WRITE))))
     return NULL;
   thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
-  table->updating= true;
   return new (thd->mem_root) Item_func_nextval(thd, table);
 }
 
@@ -9764,7 +9777,6 @@ Item *LEX::create_item_ident_field(THD *thd,
                                       db, table, name);
 }
 
-
 Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
                                 const char *start,
                                 const char *end)
@@ -9777,7 +9789,6 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
   sp_variable *spv;
   uint unused_off;
   const LEX_CSTRING new_or_old= {name->str, name->length};
-  enum_sql_command cmd= thd->lex->sql_command;
   bool got_error;
   Item *trigger_specific_item;
   DBUG_ASSERT(spcont);
@@ -9821,14 +9832,17 @@ Item *LEX::create_item_ident_sp(THD *thd, Lex_ident_sys_st *name,
     return splocal;
   }
 
-  if ((fields_are_impossible() &&  is_trigger_new_or_old_reference(&new_or_old)) ||
-  (cmd == SQLCOM_SET_OPTION && is_trigger_new_or_old_reference(&new_or_old))){
+  /*
+    A column named OLD/NEW takes precedence over the trigger row, but that
+    is decided when the name is resolved (Item_trigger_row::fix_fields()).
+  */
+  if (is_trigger_new_or_old_reference(&new_or_old))
+  {
     bool new_row= (new_or_old.str[0] == 'N' || new_or_old.str[0] == 'n');
     return create_and_link_Item_trigger_field_or_row(thd, &new_or_old,
                                                      new_row, true);
   }
 
-possibly_field:
   if (thd->variables.sql_mode & MODE_ORACLE)
   {
     if (lex_string_eq(name, STRING_WITH_LEN("SQLCODE")))

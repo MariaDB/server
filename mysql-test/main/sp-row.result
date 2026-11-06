@@ -2551,3 +2551,53 @@ eq	counter
 1	5
 DROP FUNCTION f1;
 # End of 11.8 tests
+# Start of 13.2 tests
+#
+# Crash on the second call of a stored routine with
+# DECLARE ... ROW TYPE OF cursor DEFAULT (subquery)
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE c CURSOR FOR SELECT a, b FROM t1;
+BEGIN
+DECLARE r ROW TYPE OF c
+DEFAULT (SELECT ROW(1,10) = (SELECT a, b FROM t1 WHERE a=1), 0);
+SELECT r.a, r.b;
+END;
+END;
+$$
+CALL p1();
+r.a	r.b
+1	0
+CALL p1();
+r.a	r.b
+1	0
+CALL p1();
+r.a	r.b
+1	0
+# The same with a function in the DEFAULT clause
+CREATE FUNCTION f1(r ROW(a INT, b INT)) RETURNS INT RETURN r.a + r.b;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE c CURSOR FOR SELECT a, b FROM t1;
+BEGIN
+DECLARE r ROW TYPE OF c
+DEFAULT (SELECT f1(ROW(a, b)), 0 FROM t1 WHERE a=2);
+SELECT r.a, r.b;
+END;
+END;
+$$
+CALL p2();
+r.a	r.b
+22	0
+CALL p2();
+r.a	r.b
+22	0
+DROP PROCEDURE p2;
+DROP FUNCTION f1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+# End of 13.2 tests

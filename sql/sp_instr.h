@@ -585,6 +585,15 @@ private:
   */
   List<Item_param> cleanup_before_parsing(enum_sp_type sp_type);
 
+  /**
+    Whether the Item_trigger_field and Item_trigger_row items linked to this instruction survive
+    re-parsing of its statement. That is the case when they were not created
+    by parsing that statement and are not on the instruction's free list
+    (the DEFAULT clause of a cursor ROW TYPE variable), so re-parsing does
+    not re-create them and the list must stay intact.
+  */
+  virtual bool keep_trigger_items_on_reparse() const { return false; }
+
   sp_head *m_sp;
 
   /**
@@ -604,7 +613,7 @@ private:
   bool setup_table_fields_for_trigger(
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_field> *next_trig_items_list);
-  bool setup_table_row_for_trigger(
+  void setup_table_row_for_trigger(
     THD *thd, sp_head *sp,
     SQL_I_List<Item_trigger_row> *next_trig_items_list_row);
 
@@ -687,6 +696,7 @@ class sp_instr_set : public sp_lex_instr,
 {
   sp_instr_set(const sp_instr_set &);	/**< Prevent use of these */
   void operator=(sp_instr_set &);
+  Item *m_default_items= nullptr;
 
 public:
   sp_instr_set(uint ip, sp_pcontext *ctx,
@@ -701,6 +711,14 @@ public:
   {}
 
   virtual ~sp_instr_set() = default;
+
+  /**
+    Items to clean up after every execution of this instruction, though
+    they are on no free list: the items of the DEFAULT clause of a cursor
+    ROW TYPE variable, which this instruction evaluates (see
+    sp_head::add_instr(sp_instr_cursor_copy_struct*)).
+  */
+  void set_default_items(Item *items) { m_default_items= items; }
 
   int execute(THD *thd, uint *nextp) override;
 
@@ -1811,7 +1829,19 @@ class sp_instr_cursor_copy_struct: public sp_lex_instr
   */
   Item *m_def= nullptr;
 
+  /**
+    The items created on parsing the DEFAULT clause (m_def and everything it
+    refers to, including the items of its subqueries). They are not freed
+    on re-parsing the instruction, so they are on no free list, and are
+    cleaned up explicitly after every execution, as the items of any other
+    statement are. See sp_head::add_instr(sp_instr_cursor_copy_struct*).
+  */
+  Item *m_def_items= nullptr;
+
 public:
+  void set_def_items(Item *items) { m_def_items= items; }
+  Item *def_items() const { return m_def_items; }
+
   sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
                               sp_lex_cursor *lex, uint voffs,
                               Item *def= nullptr)
@@ -1824,8 +1854,17 @@ public:
   {}
   virtual ~sp_instr_cursor_copy_struct() override
   {
-    if (m_def)
-      m_def->delete_self();
+    /*
+      m_def and every item it refers to (including the items of its
+      subqueries) are on the m_def_items list. Free all of them, as
+      Query_arena::free_items() does for any other statement.
+    */
+    for (Item *item= m_def_items; item; )
+    {
+      Item *next= item->next;
+      item->delete_self();
+      item= next;
+    }
   }
 
   int execute(THD *thd, uint *nextp) override;
@@ -1856,6 +1895,11 @@ protected:
   {
     m_valid= true;
     return false;
+  }
+
+  bool keep_trigger_items_on_reparse() const override
+  {
+    return m_def != nullptr;
   }
 
 public:

@@ -2695,7 +2695,7 @@ public:
                                 const Lex_ident_routine &func_name);
   Item *const_charset_converter(THD *thd, CHARSET_INFO *tocs, bool lossless)
   { return const_charset_converter(thd, tocs, lossless, Lex_ident_routine()); }
-  virtual void delete_self()
+  void delete_self()
   {
     cleanup();
     delete this;
@@ -3344,7 +3344,7 @@ inline bool Item_sp_variable::send(Protocol *protocol, st_value *buffer)
 *****************************************************************************/
 
 class Item_splocal :public Item_sp_variable,
-                    private Settable_routine_parameter,
+                    protected Settable_routine_parameter,
                     public Rewritable_query_parameter,
                     public Type_handler_hybrid_field_type
 {
@@ -7920,11 +7920,11 @@ protected:
   { return shallow_copy_with_checks(thd); }
 
 private:
-  void set_required_privilege(bool rw) override;
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
 
   void check_new_old_qulifiers_comform_with_trg_event(THD *thd);
 public:
+  void set_required_privilege(bool rw) override;
   Settable_routine_parameter *get_settable_routine_parameter() override
   {
     return read_only ? nullptr : this;
@@ -7963,7 +7963,7 @@ public:
   NEW.<field> and OLD.<field>
 
   When executing the instruction, create Item_trigger_field objects for
-  each field of the table and insert into the m_fields.
+  each field of the table and store them in m_item_array.
   Once the list is ready, we can call set_value() on each Item_trigger_Field
   and assign appropirate value.
 
@@ -7976,7 +7976,6 @@ public:
 class Item_trigger_row : public Item_splocal
 {
 public:
-  List<Item_trigger_field> m_fields;
   enum __attribute__((packed)) row_version_type { OLD_ROW, NEW_ROW };
 
   /* Next in list of all Item_trigger_row in trigger */
@@ -7998,20 +7997,13 @@ private:
   Name_resolution_context *cxt;
 
   /**
-    This is declared as member variable because we fetch
-    each item on the RHS side of the expression using addr(i).
-    Using elem(i) inside addr(i) is bad idea because it will
-    start iterating from the beginning of the list
-    for each item in m_fields making time complexity O(n^2).
-
-    So, this iterator will get the next element or
-    fetch ith element using elem(i) as needed instead
-    of iterating over the list from the beginning every time.
+    The Item_trigger_field items of the row, one per column. Allows to get
+    the i-th one in O(1) (see addr() and element_index()).
+    Built by populate_with_trigger_fields().
   */
-  List_iterator <Item_trigger_field> m_fields_iterator;
-  uint index;
-  Item* m_last_item_ptr;
   Item **m_item_array;
+  /* Number of elements in m_item_array */
+  uint m_cols;
 
 public:
   Item_trigger_row(THD *thd, Name_resolution_context *context_arg,
@@ -8029,20 +8021,17 @@ public:
     want_privilege(priv),
     table(nullptr),
     cxt(context_arg),
-    index(0),
-    m_last_item_ptr{nullptr},
+    m_item_array(nullptr),
+    m_cols(0),
     row_version(row_ver_arg)
   { }
   Type type() const override
   { return TRIGGER_ROW_ITEM; }
-  void fill_field_references(THD *thd);
   void setup_field(THD *thd, TABLE *table, GRANT_INFO *table_grant_info);
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
-  uint cols() const override { return m_fields.elements;}
+  uint cols() const override { return m_cols; }
   bool is_read_only() const { return read_only; }
-  void set_required_privilege(bool rw) override {
-    want_privilege = rw ? UPDATE_ACL : SELECT_ACL;
-  }
+  void set_required_privilege(bool rw) override;
   bool is_null() override;
   String* val_str(String *str) override;
   Item *do_get_copy(THD *thd) const
@@ -8062,26 +8051,32 @@ public:
   { return read_only ? nullptr : this; }
   bool check_cols(uint c) override;
   Item* element_index(uint i) override
-  { return m_fields.elem(i); }
+  {
+    DBUG_ASSERT(m_item_array && i < m_cols);
+    return m_item_array[i];
+  }
   Item_splocal *get_item_splocal() override { return 0; }
   void cleanup() override
   {
-    List_iterator<Item_trigger_field> it(m_fields);
-    Item *curr_item;
-
-    while ((curr_item= it++))
-    {
-      if (curr_item)
-        curr_item->cleanup();
-    }
-    m_fields.empty();
-
-    Item_fixed_hybrid::cleanup();
+    m_item_array= nullptr;
+    m_cols= 0;
+    Item_splocal::cleanup();
   }
-  void delete_self() override
+  bool val_native(THD *thd, Native *to) override;
+  Type_ref_null val_ref(THD *thd) override;
+  bool get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode) override;
+  my_decimal *val_decimal(my_decimal *d) override;
+  longlong val_int() override;
+  double val_real(void) override;
+  bool send(Protocol *protocol, st_value *buffer) override;
+  bool val_bool() override;
+  const Type_extra_attributes type_extra_attributes() const override
   {
-    return;
+    return Type_extra_attributes();
   }
+
+  Settable_routine_parameter *get_settable_routine_parameter() override
+  { return nullptr; }
 
 public:
   row_version_type row_version;

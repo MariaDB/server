@@ -11104,61 +11104,134 @@ void Item_trigger_field::cleanup()
   Item_fixed_hybrid::cleanup();
 }
 
+void Item_trigger_row::set_required_privilege(bool rw)
+{
+  want_privilege = rw ? (SELECT_ACL | UPDATE_ACL) : UPDATE_ACL;
+  for (uint i= 0; i < m_cols; i++)
+    static_cast<Item_trigger_field*>(m_item_array[i])->set_required_privilege(rw);
+}
+
+bool Item_trigger_row::val_native(THD *thd, Native *to)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return true;
+}
+
+Type_ref_null Item_trigger_row::val_ref(THD *thd)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return Type_ref_null();
+}
+
+bool Item_trigger_row::get_date(THD *thd, MYSQL_TIME *to, date_mode_t mode)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return true;
+}
+
+my_decimal *Item_trigger_row::val_decimal(my_decimal *d)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return nullptr;
+}
+
+longlong Item_trigger_row::val_int()
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return 1;
+}
+
+double Item_trigger_row::val_real(void)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+  return 1;
+}
+
+bool Item_trigger_row::send(Protocol *protocol, st_value *buffer)
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+  return true;
+}
+
+bool Item_trigger_row::val_bool()
+{
+  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+  return true;
+}
+
 void
 Item_trigger_row::check_new_old_qualifiers_comform_with_trg_event(THD *thd)
 {
   if ((thd->current_trg_event() == TRG_EVENT_INSERT &&
-       row_version == OLD_ROW) ||
-      (thd->current_trg_event() == TRG_EVENT_DELETE &&
-       row_version == NEW_ROW))
+       row_version == OLD_ROW))
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "OLD", "on INSERT");
     null_value= true;
+  }
+  else if (thd->current_trg_event() == TRG_EVENT_DELETE &&
+       row_version == NEW_ROW)
+  {
+    my_error(ER_TRG_NO_SUCH_ROW_IN_TRG, MYF(0), "NEW", "on DELETE");
+    null_value= true;
+  }
   else
+  {
     null_value= false;
+  }
+
+  return;
 }
 
 
 bool Item_trigger_row::fix_fields(THD *thd, Item **it)
 {
-  bool result= false;
   if (fixed())
     return false;
+
+  /*
+    OLD/NEW is only a trigger row when no column with that name is visible
+    in the query block. This can't be decided by the parser: in
+    SELECT old FROM t the select list is parsed before the table list.
+  */
+  if (it && cxt && cxt->first_name_resolution_table)
+  {
+    Item *col= new (thd->mem_root) Item_field(thd, cxt, m_name);
+    if (!col)
+      return true;
+    Dummy_error_handler no_errors;
+    thd->push_internal_handler(&no_errors);
+    bool not_found= col->fix_fields(thd, &col);
+    thd->pop_internal_handler();
+    if (!not_found)
+    {
+      thd->change_item_tree(it, col);
+      return false;
+    }
+  }
 
   m_thd= thd;
   check_new_old_qualifiers_comform_with_trg_event(thd);
 
+  /* OLD on INSERT / NEW on DELETE: the error is already raised. */
   if (null_value)
+    return true;
+
+  if (populate_with_trigger_fields(thd))
+    return true;
+
+  for (uint i= 0; i < m_cols; i++)
   {
-    goto return_result;
-  }
-  else
-  {
-    if(populate_with_trigger_fields(thd))
-    {
-      result= true;
-      goto return_result;
-    }
-
-    List_iterator<Item_trigger_field> it_trigger_field(m_fields);
-    Item_trigger_field *trigger_field;
-
-    while((trigger_field= it_trigger_field++))
-    {
-      trigger_field->setup_field(thd, table, table_grants);
-      if (trigger_field->fix_fields_if_needed(thd, nullptr))
-      {
-        result= true;
-        goto return_result;
-      }
-      trigger_field->field->register_field_in_read_map();
-    }
-
+    Item_trigger_field *trigger_field=
+      static_cast<Item_trigger_field*>(m_item_array[i]);
+    trigger_field->setup_field(thd, table, table_grants);
+    if (trigger_field->fix_fields_if_needed(thd, nullptr))
+      return true;
+    trigger_field->field->register_field_in_read_map();
   }
 
-  m_fields_iterator.init(m_fields);
-
-return_result:
+  /* Mark the row as fixed only when every column was set up. */
   base_flags|= item_base_t::FIXED;
-  return result;
+  return false;
 }
 
 void Item_trigger_row::setup_field(THD *thd, TABLE *table,
@@ -11171,19 +11244,6 @@ void Item_trigger_row::setup_field(THD *thd, TABLE *table,
   this->table= table;
 }
 
-void Item_trigger_row::fill_field_references(THD *thd)
-{
-  uint n = m_fields.elements;
-  List_iterator<Item_trigger_field> it(m_fields);
-  Item_trigger_field *field;
-
-  m_item_array = (Item**) thd->alloc(sizeof(Item*) * n);
-    for (uint i = 0; (field = it++); i++)
-    {
-      m_item_array[i] = field;
-    }
-}
-
 bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
 {
   Field_iterator_table field_iterator;
@@ -11191,9 +11251,23 @@ bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
 
   field_iterator.set_table(table);
 
+  m_cols= 0;
+  m_item_array= nullptr;
+  /* The number of fields is an upper bound: invisible ones are skipped. */
+  if (!table->s->fields)
+    return false;
+  if (!(m_item_array= (Item**) thd->alloc(sizeof(Item*) * table->s->fields)))
+    return true;
+
   for (; !field_iterator.end_of_fields(); field_iterator.next())
   {
-    if ((field= field_iterator.field()) && field->invisible != VISIBLE)
+    field= field_iterator.field();
+    /*
+      Take every column, like ROW TYPE OF <table> does, so that NEW/OLD and
+      such a variable have the same number of columns. Only the internal
+      columns (e.g. the hash of a long unique) can't be named.
+    */
+    if (field->invisible == INVISIBLE_FULL)
       continue;
 
     Item_trigger_field *val= new (thd->mem_root)
@@ -11207,11 +11281,8 @@ bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
     if (!val)
       return true;
 
-    if (m_fields.push_back(val))
-      return true;
+    m_item_array[m_cols++]= val;
   }
-
-  fill_field_references(thd);
 
   return false;
 }
@@ -11219,7 +11290,6 @@ bool Item_trigger_row::populate_with_trigger_fields(THD *thd)
 bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
   uint i= 0, result_fields;
-  List_iterator<Item_trigger_field> it_trigger_field(m_fields);
   Item_trigger_field *trigger_field;
   Item *value;
 
@@ -11238,19 +11308,32 @@ bool Item_trigger_row::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 
   value->bring_value();
 
+  if (thd->is_error())
+    return true;
+
   if ((*it)->cmp_type() != ROW_RESULT)
   {
-    trigger_field= it_trigger_field++;
+    if (!m_cols)
+    {
+      my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
+      return true;
+    }
+    trigger_field= static_cast<Item_trigger_field*>(m_item_array[0]);
     if (trigger_field->set_value(thd, it))
       return true;
   }
   else
   {
-    while((trigger_field= it_trigger_field++) && i < result_fields)
+    for (; i < m_cols && i < result_fields; i++)
     {
-      if (trigger_field->set_value(thd, (*it)->addr(i)))
+      trigger_field= static_cast<Item_trigger_field*>(m_item_array[i]);
+      /*
+        A generated column is computed from the other columns, so it
+        takes no value from the row.
+      */
+      if (!trigger_field->field->vcol_info &&
+          trigger_field->set_value(thd, (*it)->addr(i)))
         return true;
-      i++;
     }
   }
 
@@ -11264,6 +11347,7 @@ void Item_trigger_row::print(String *str, enum_query_type query_type)
 
 Item** Item_trigger_row::addr(uint i)
 {
+  DBUG_ASSERT(m_item_array && i < m_cols);
   return &m_item_array[i];
 }
 
@@ -11279,12 +11363,9 @@ bool Item_trigger_row::check_cols(uint n)
 
 bool Item_trigger_row::is_null()
 {
-  List_iterator_fast<Item_trigger_field> m_it(m_fields);
-  Item_trigger_field *field;
-
-  while ((field= m_it++))
+  for (uint i= 0; i < m_cols; i++)
   {
-    if (!field->is_null())
+    if (!m_item_array[i]->is_null())
       return false;
   }
   return true;
@@ -11292,10 +11373,6 @@ bool Item_trigger_row::is_null()
 
 String* Item_trigger_row::val_str(String *str)
 {
-  if (cols() == 1)
-  {
-    return m_fields.head()->val_str(str);
-  }
   my_error(ER_OPERAND_COLUMNS, MYF(0), cols());
   return nullptr;
 }

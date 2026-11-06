@@ -4224,7 +4224,8 @@ public:
                                          Item *def,
                                          const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
-                                            const LEX_CSTRING &expr_str);
+                                            const LEX_CSTRING &expr_str,
+                                            Item *def_items= nullptr);
   bool sp_set_assign_lvalue_function(THD *thd,
                                      const Qualified_ident *ident,
                                      List<Item> *params,
@@ -4336,7 +4337,9 @@ public:
   bool make_sp_instr_copy_struct_for_last_context_variables(THD *thd,
                                                             uint nvars,
                                                             uint cursor_offset,
-                                                            Item *def= nullptr);
+                                                            Item *def= nullptr,
+                                                            Item **def_items=
+                                                              nullptr);
   Item_splocal *create_item_for_sp_var(const Lex_ident_cli_st *name,
                                        sp_variable *spvar);
 

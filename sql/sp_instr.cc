@@ -800,12 +800,23 @@ sp_lex_instr::cleanup_before_parsing(enum_sp_type sp_type)
   free_list= nullptr;
 
   if (sp_type == SP_TYPE_TRIGGER)
+  {
     /*
-      Some of deleted items can be referenced from the list
-      m_cur_trigger_stmt_items. Clean up the list content to avoid
-      dangling references.
+      Some of deleted items can be referenced from the lists
+      m_cur_trigger_stmt_items and m_cur_trigger_stmt_items_row. Clean up
+      the lists content to avoid dangling references.
+      Items that are not re-created by re-parsing (see
+      keep_trigger_items_on_reparse()) are still alive, and the lists they
+      form are linked into sp_head::m_trg_table_fields and
+      sp_head::m_trg_table_row. Emptying such a list would leave an empty
+      list in that chain.
     */
-    m_cur_trigger_stmt_items.empty();
+    if (!keep_trigger_items_on_reparse())
+    {
+      m_cur_trigger_stmt_items.empty();
+      m_cur_trigger_stmt_items_row.empty();
+    }
+  }
 
   return param_values;
 }
@@ -851,11 +862,10 @@ bool sp_lex_instr::setup_table_fields_for_trigger(
 }
 
 
-bool sp_lex_instr::setup_table_row_for_trigger(
+void sp_lex_instr::setup_table_row_for_trigger(
   THD *thd, sp_head *sp,
   SQL_I_List<Item_trigger_row> *next_trig_items_list_row)
 {
-
   DBUG_ASSERT(sp->m_trg);
 
   for (Item_trigger_row *trg_row= sp->m_cur_instr_trig_row_items.first;
@@ -863,17 +873,16 @@ bool sp_lex_instr::setup_table_row_for_trigger(
        trg_row= trg_row->next_trg_row)
   {
     trg_row->setup_field(thd, sp->m_trg->base->get_subject_table(),
-                           &sp->m_trg->subject_table_grants);
+                         &sp->m_trg->subject_table_grants);
   }
 
   if (sp->m_cur_instr_trig_row_items.elements)
   {
     sp->m_cur_instr_trig_row_items.save_and_clear(
-        &m_cur_trigger_stmt_items_row);
-    m_cur_trigger_stmt_items_row.first->next_trig_row_list= next_trig_items_list_row;
+      &m_cur_trigger_stmt_items_row);
+    m_cur_trigger_stmt_items_row.first->next_trig_row_list=
+      next_trig_items_list_row;
   }
-
-  return false;
 }
 
 
@@ -1161,10 +1170,13 @@ LEX* sp_lex_instr::parse_expr(THD *thd, sp_head *sp, LEX *sp_instr_lex)
     parsing_failed= on_after_expr_parsing(thd);
 
     if (sp->m_handler->type() == SP_TYPE_TRIGGER)
-      setup_table_fields_for_trigger(thd, sp,
-                                     saved_ptr_to_next_trg_items_list) ||
+    {
+      if (setup_table_fields_for_trigger(thd, sp,
+                                         saved_ptr_to_next_trg_items_list))
+        parsing_failed= true;
       setup_table_row_for_trigger(thd, sp,
-                                     saved_ptr_to_next_trg_items_list_row);
+                                  saved_ptr_to_next_trg_items_list_row);
+    }
 
     if (cursor_free_list)
       /*
@@ -1355,7 +1367,18 @@ sp_instr_set::execute(THD *thd, uint *nextp)
   DBUG_ENTER("sp_instr_set::execute");
   DBUG_PRINT("info", ("offset: %u", m_offset));
 
-  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
+  int ret= m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this);
+  /*
+    The items of a DEFAULT clause are on no free list, so they are not cleaned
+    up at the end of the statement as the other items are. The state built
+    while evaluating them (the fields of an Item_trigger_row for OLD/NEW, the
+    comparators on them, the state of subqueries) is allocated on a mem_root
+    which is reset after this instruction. Clean it up before that happens, so
+    the next execution prepares the items again.
+  */
+  if (m_default_items)
+    cleanup_items(m_default_items);
+  DBUG_RETURN(ret);
 }
 
 
@@ -2719,6 +2742,14 @@ int
 sp_instr_cursor_copy_struct::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cursor_copy_struct::execute");
+  /*
+    The items of the DEFAULT clause of a cursor ROW TYPE variable are on no
+    free list (see sp_head::add_instr()). The instruction evaluating them,
+    sp_instr_set, cleans them up after every execution. This makes sure that
+    state left by parsing (a trigger row fixed while creating the trigger)
+    is not reused by the first execution.
+  */
+  cleanup_items(m_def_items);
   int ret= m_lex_keeper.cursor_reset_lex_and_exec_core(thd, nextp, false, this);
   DBUG_RETURN(ret);
 }

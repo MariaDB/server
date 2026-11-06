@@ -166,6 +166,13 @@ static int assign_condition_item(MEM_ROOT *mem_root, const char* name, THD *thd,
   }
 
   str= set->val_str(& str_value);
+  if (!str)
+  {
+    /* val_str() failed; make sure that an error is reported */
+    if (!thd->is_error())
+      thd->raise_error_printf(ER_WRONG_VALUE_FOR_VAR, name, "NULL");
+    DBUG_RETURN(1);
+  }
   truncated= assign_fixed_string(mem_root, & my_charset_utf8mb3_bin, 64, ci, str);
   if (truncated)
   {
@@ -262,6 +269,13 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     bool truncated;
     String utf8_text;
     str= set->val_str(& str_value);
+    if (!str)
+    {
+      if (!thd->is_error())
+        thd->raise_error_printf(ER_WRONG_VALUE_FOR_VAR,
+                                "MESSAGE_TEXT", "NULL");
+      goto end;
+    }
     truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8mb3_bin,
                                    MYSQL_ERRMSG_SIZE,
                                    & utf8_text, str);
@@ -300,6 +314,8 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
       goto end;
     }
     longlong code= set->val_int();
+    if (thd->is_error())
+      goto end;
     if ((code <= 0) || (code > MAX_MYSQL_ERRNO))
     {
       str= set->val_str(& str_value);

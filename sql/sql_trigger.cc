@@ -888,7 +888,7 @@ bool iterate_trigger_fields_and_run_func(
 {
   for (SQL_I_List<Item_trigger_field>
          *trg_fld_lst= trg_table_fields.first;
-       trg_fld_lst;
+       trg_fld_lst && trg_fld_lst->first;
        trg_fld_lst= trg_fld_lst->first->next_trig_field_list)
   {
     for (Item_trigger_field *trg_field= trg_fld_lst->first;
@@ -912,7 +912,7 @@ void iterate_trigger_row_and_run_func(
 {
   for (SQL_I_List<Item_trigger_row>
          *trg_row_lst= trg_table_row.first;
-       trg_row_lst;
+       trg_row_lst && trg_row_lst->first;
        trg_row_lst= trg_row_lst->first->next_trig_row_list)
   {
     for (Item_trigger_row *trg_row= trg_row_lst->first;
@@ -3065,9 +3065,11 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
           /* We cannot mark fields which does not present in table. */
           if (trg_field->field_idx != NO_CACHED_FIELD_INDEX)
           {
-            DBUG_PRINT("info", ("marking field: %u", (uint) trg_field->field_idx));
+            DBUG_PRINT("info", ("marking field: %u",
+                       (uint) trg_field->field_idx));
             if (trg_field->get_settable_routine_parameter())
-              bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
+              bitmap_set_bit(trigger_table->write_set,
+                             trg_field->field_idx);
             trigger_table->mark_column_with_deps(
               trigger_table->field[trg_field->field_idx]);
           }
@@ -3087,7 +3089,8 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
 
               field_iterator.set_table(trigger_table);
 
-              for (uint i=0; !field_iterator.end_of_fields(); field_iterator.next(), i++)
+              for (uint i=0; !field_iterator.end_of_fields();
+                   field_iterator.next(), i++)
               {
                 bitmap_set_bit(trigger_table->write_set, i);
                 trigger_table->mark_column_with_deps(trigger_table->field[i]);
