@@ -1436,6 +1436,15 @@ mysql_init(MYSQL *mysql)
   }
   else
     bzero((char*) (mysql), sizeof(*(mysql)));
+  if (!(mysql->extension= (struct st_mariadb_extension *)
+        my_malloc(key_memory_MYSQL, sizeof(*mysql->extension),
+                  MYF(MY_WME | MY_ZEROFILL))))
+  {
+    set_mysql_error(NULL, CR_OUT_OF_MEMORY, unknown_sqlstate);
+    if (mysql->free_me)
+      my_free(mysql);
+    return 0;
+  }
   mysql->options.connect_timeout= CONNECT_TIMEOUT;
   mysql->charset=default_client_charset_info;
   mysql->options.use_ssl= 1;
@@ -1448,8 +1457,9 @@ mysql_init(MYSQL *mysql)
 
 #if ENABLED_LOCAL_INFILE && !defined(MYSQL_SERVER)
   mysql->options.client_flag|= CLIENT_LOCAL_FILES;
-  mysql->auto_local_infile= ENABLED_LOCAL_INFILE == LOCAL_INFILE_MODE_AUTO
-                            ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
+  mysql->extension->auto_local_infile=
+    ENABLED_LOCAL_INFILE == LOCAL_INFILE_MODE_AUTO ? WAIT_FOR_QUERY
+                                                   : ALWAYS_ACCEPT;
 #endif
 
   mysql->options.methods_to_use= MYSQL_OPT_GUESS_CONNECTION;
@@ -1624,7 +1634,8 @@ static int ssl_verify_server_cert(MYSQL *mysql, const char **errptr, int is_loca
     */
     ret_validation= (mysql->options.ssl_ca && mysql->options.ssl_ca[0]) ||
                   (mysql->options.ssl_capath && mysql->options.ssl_capath[0]);
-    mysql->tls_self_signed_error= *errptr= "SSL certificate is self-signed";
+    *errptr= "SSL certificate is self-signed";
+    mysql->extension->tls_self_signed_error= *errptr;
     break;
   case X509_V_OK:
     ret_validation= !is_local &&
@@ -2111,6 +2122,9 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     int4store(buff+4, net->max_packet_size);
     buff[8]= (char) mysql->charset->number;
     bzero(buff+9, 32-9);
+    /* MariaDB specific capabilities instead of the last 4 filler bytes */
+    if (!(mysql->client_flag & CLIENT_MYSQL))
+      int4store(buff+28, mysql->extension->mariadb_client_flag);
     end= buff+32;
   }
   else
@@ -2203,7 +2217,7 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
                                ER(CR_SSL_CONNECTION_ERROR), cert_error);
       goto error;
     }
-    if (mysql->tls_self_signed_error)
+    if (mysql->extension->tls_self_signed_error)
     {
       /*
         If connection is local, we allow self-signed cert.
@@ -2213,12 +2227,13 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
         Otherwise one last cert check after auth.
       */
       if (is_local)
-        mysql->tls_self_signed_error= 0;
+        mysql->extension->tls_self_signed_error= 0;
       else if (!mysql->passwd || !mysql->passwd[0] ||
                !mpvio->plugin->hash_password_bin)
       {
         set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
-                    ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+                                 ER(CR_SSL_CONNECTION_ERROR),
+                                 mysql->extension->tls_self_signed_error);
         goto error;
       }
     }
@@ -2578,10 +2593,12 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
       DBUG_RETURN (1);
 
     /* refuse insecure plugin if TLS is in doubt */
-    if (mysql->tls_self_signed_error && !auth_plugin->hash_password_bin)
+    if (mysql->extension->tls_self_signed_error &&
+        !auth_plugin->hash_password_bin)
     {
       set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
-                  ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+                               ER(CR_SSL_CONNECTION_ERROR),
+                               mysql->extension->tls_self_signed_error);
       DBUG_RETURN (1);
     }
 
@@ -2623,7 +2640,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   */
   if (mysql->net.read_pos[0] != 0)
     DBUG_RETURN(1);
-  if (!mysql->tls_self_signed_error)
+  if (!mysql->extension->tls_self_signed_error)
     DBUG_RETURN(0);
 
   /* Last attempt to validate the cert: compare cert info packet */
@@ -2657,7 +2674,8 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
   }
 
   set_mysql_extended_error(mysql, CR_SSL_CONNECTION_ERROR, unknown_sqlstate,
-                    ER(CR_SSL_CONNECTION_ERROR), mysql->tls_self_signed_error);
+                           ER(CR_SSL_CONNECTION_ERROR),
+                           mysql->extension->tls_self_signed_error);
   DBUG_RETURN(1);
 }
 
@@ -2749,7 +2767,9 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
   mysql->methods= &client_methods;
   mysql->client_flag=0;			/* For handshake */
-  mysql->tls_self_signed_error= 0;
+  mysql->extension->mariadb_client_flag= 0;
+  mysql->extension->mariadb_server_capabilities= 0;
+  mysql->extension->tls_self_signed_error= 0;
 
   /* use default options */
   if (mysql->options.my_cnf_file || mysql->options.my_cnf_group)
@@ -3087,6 +3107,9 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                       unknown_sqlstate);        /* purecov: inspected */
       goto error;
     }
+    /* MariaDB specific capabilities instead of the last 4 filler bytes */
+    if (!(mysql->server_capabilities & CLIENT_MYSQL))
+      mysql->extension->mariadb_server_capabilities= uint4korr(end+14);
   }
   end+= 18;
 
@@ -3263,7 +3286,11 @@ my_bool mysql_reconnect(MYSQL *mysql)
     set_mysql_error(mysql, CR_SERVER_GONE_ERROR, unknown_sqlstate);
     DBUG_RETURN(1);
   }
-  mysql_init(&tmp_mysql);
+  if (!mysql_init(&tmp_mysql))
+  {
+    set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
+    DBUG_RETURN(1);
+  }
   tmp_mysql.options= mysql->options;
   tmp_mysql.options.my_cnf_file= tmp_mysql.options.my_cnf_group= 0;
 
@@ -3275,6 +3302,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
     mysql->net.last_errno= tmp_mysql.net.last_errno;
     strmov(mysql->net.last_error, tmp_mysql.net.last_error);
     strmov(mysql->net.sqlstate, tmp_mysql.net.sqlstate);
+    my_free(tmp_mysql.extension);   /* options are shared with mysql */
     DBUG_RETURN(1);
   }
   if (mysql_set_character_set(&tmp_mysql, mysql->charset->cs_name.str))
@@ -3497,6 +3525,8 @@ void STDCALL mysql_close(MYSQL *mysql)
     mysql_close_free_options(mysql);
     mysql_close_free(mysql);
     mysql_detach_stmt_list(&mysql->stmts, "mysql_close");
+    my_free(mysql->extension);
+    mysql->extension= 0;
     if (mysql->free_me)
       my_free(mysql);
   }
@@ -3534,12 +3564,12 @@ static my_bool cli_read_query_result(MYSQL *mysql)
   MYSQL_DATA *fields;
   ulong length;
 #ifdef MYSQL_CLIENT
-  my_bool can_local_infile= mysql->auto_local_infile != WAIT_FOR_QUERY;
+  my_bool can_local_infile= mysql->extension->auto_local_infile != WAIT_FOR_QUERY;
 #endif
   DBUG_ENTER("cli_read_query_result");
 
-  if (mysql->auto_local_infile == ACCEPT_FILE_REQUEST)
-    mysql->auto_local_infile= WAIT_FOR_QUERY;
+  if (mysql->extension->auto_local_infile == ACCEPT_FILE_REQUEST)
+    mysql->extension->auto_local_infile= WAIT_FOR_QUERY;
 
   if ((length = cli_safe_read(mysql)) == packet_error)
     DBUG_RETURN(1);
@@ -3596,11 +3626,11 @@ mysql_send_query(MYSQL* mysql, const char* query, ulong length)
 {
   DBUG_ENTER("mysql_send_query");
   if (mysql->options.client_flag & CLIENT_LOCAL_FILES &&
-      mysql->auto_local_infile == WAIT_FOR_QUERY &&
+      mysql->extension->auto_local_infile == WAIT_FOR_QUERY &&
       (*query == 'l' || *query == 'L'))
   {
     if (strncasecmp(query, STRING_WITH_LEN("load")) == 0)
-      mysql->auto_local_infile= ACCEPT_FILE_REQUEST;
+      mysql->extension->auto_local_infile= ACCEPT_FILE_REQUEST;
   }
   DBUG_RETURN(simple_command(mysql, COM_QUERY, (uchar*) query, length, 1));
 }
@@ -3822,8 +3852,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
       mysql->options.client_flag|= CLIENT_LOCAL_FILES;
     else
       mysql->options.client_flag&= ~CLIENT_LOCAL_FILES;
-    mysql->auto_local_infile= arg && *(uint*)arg == LOCAL_INFILE_MODE_AUTO
-                              ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
+    mysql->extension->auto_local_infile=
+      arg && *(uint*)arg == LOCAL_INFILE_MODE_AUTO ? WAIT_FOR_QUERY
+                                                   : ALWAYS_ACCEPT;
     break;
   case MYSQL_INIT_COMMAND:
     add_init_command(&mysql->options,arg);
