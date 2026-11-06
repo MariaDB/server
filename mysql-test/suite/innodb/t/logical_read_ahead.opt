@@ -1,0 +1,7 @@
+--innodb-buffer-pool-size=64M
+--innodb_buffer_pool_dump_at_shutdown=off
+--innodb_buffer_pool_load_at_startup=off
+--innodb-random-read-ahead=off
+--innodb-stats-persistent=1
+--innodb-stats-auto-recalc=off
+--innodb-stats-persistent-sample-pages=100000

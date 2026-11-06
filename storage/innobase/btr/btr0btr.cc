@@ -652,26 +652,41 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
 /** Set the child page number in a node pointer record.
 @param[in,out]  block   non-leaf index page
 @param[in,out]  rec     node pointer record in the page
-@param[in]      offsets rec_get_offsets(rec)
+@param[in]      index   the index
 @param[in]      page_no child page number
 @param[in,out]  mtr     mini-transaction
 Sets the child node file address in a node pointer. */
 inline void btr_node_ptr_set_child_page_no(buf_block_t *block,
-                                           rec_t *rec, const rec_offs *offsets,
+                                           rec_t *rec,
+                                           const dict_index_t &index,
                                            ulint page_no, mtr_t *mtr)
 {
-  ut_ad(rec_offs_validate(rec, NULL, offsets));
   ut_ad(!page_rec_is_leaf(rec));
-  ut_ad(!rec_offs_comp(offsets) || rec_get_node_ptr_flag(rec));
+  ut_ad(!index.table->not_redundant() || rec_get_node_ptr_flag(rec));
 
-  const ulint offs= rec_offs_data_size(offsets);
-  ut_ad(rec_offs_nth_size(offsets, rec_offs_n_fields(offsets) - 1) ==
-        REC_NODE_PTR_SIZE);
+  /* The child page number is the last field, after the key fields */
+  const size_t offs= index.get_child_offset
+    (rec, dict_index_get_n_unique_in_tree_nonleaf(&index));
+#ifdef UNIV_DEBUG
+  {
+    mem_heap_t *heap= nullptr;
+    rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+    rec_offs_init(offsets_);
+    const rec_offs *offsets= rec_get_offsets(rec, &index, offsets_, 0,
+                                             ULINT_UNDEFINED, &heap);
+    ut_ad(offs + REC_NODE_PTR_SIZE == rec_offs_data_size(offsets));
+    ut_ad(rec_offs_nth_size(offsets, rec_offs_n_fields(offsets) - 1) ==
+          REC_NODE_PTR_SIZE);
+    if (heap)
+      mem_heap_free(heap);
+  }
+#endif
 
   if (UNIV_LIKELY_NULL(block->page.zip.data))
-    page_zip_write_node_ptr(block, rec, offs, page_no, mtr);
+    page_zip_write_node_ptr(block, rec, offs + REC_NODE_PTR_SIZE, page_no,
+                            mtr);
   else
-    mtr->write<4>(*block, rec + offs - REC_NODE_PTR_SIZE, page_no);
+    mtr->write<4>(*block, rec + offs, page_no);
 }
 
 MY_ATTRIBUTE((nonnull(1,2,3,4),warn_unused_result))
@@ -2478,7 +2493,7 @@ btr_attach_half_pages(
 		btr_node_ptr_set_child_page_no(
 			btr_cur_get_block(&cursor),
 			btr_cur_get_rec(&cursor),
-			offsets, lower_block->page.id().page_no(), mtr);
+			*index, lower_block->page.id().page_no(), mtr);
 		mem_heap_empty(heap);
 	} else {
 		lower_block = block;
@@ -3854,7 +3869,7 @@ cannot_merge:
 		btr_node_ptr_set_child_page_no(
 			btr_cur_get_block(&father_cursor),
 			btr_cur_get_rec(&father_cursor),
-			offsets, right_page_no, mtr);
+			*index, right_page_no, mtr);
 
 #ifdef UNIV_DEBUG
 		if (!page_is_leaf(page) && left_page_no == FIL_NULL) {

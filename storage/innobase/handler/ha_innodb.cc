@@ -112,6 +112,8 @@ bool is_update_query(enum enum_sql_command command);
 #include "row0ext.h"
 #include "trx0undo.h"
 #include "innodb_binlog.h"
+#include "buf0rea.h"
+#include "btr0ra.h"
 
 #include "lz4.h"
 #include "lzo/lzo1x.h"
@@ -9392,6 +9394,111 @@ overwrap, we use this test only as a secondary way of determining the
 start of a new SQL statement. */
 
 
+/* Logical read-ahead. A B-tree scan visits the leaf pages in
+key order, but their page numbers are not in order,
+so prefetching "the next pages" by page number reads the wrong ones.
+The parent of the leaves (the PAGE_LEVEL=1 page) already lists the
+page numbers of its leaves in key order, and every scan descends
+through that page. So we copy the child page numbers from the level-1
+page and ask the buffer pool to read them asynchronously.
+
+Start: The first positioning read (index_read(), the first
+general_fetch() of a table scan) collects up to
+ReadAhead::initial_window (4) child page numbers, starting at the
+child that the cursor enters, in the scan direction
+(btr_ra_batch::collect()), and issues them with
+buf_read_ahead_pages(). It remembers where it stopped:
+the level-1 page and the last child collected.
+
+Rolling: After the scan has consumed about half a batch worth of
+rows (records_per_leaf() * window / 2), ReadAhead::refill()
+re-latches that level-1 page under the index S-latch, finds the
+record after the last child by value (btr_ra_batch::resume_rec()),
+collects the next batch (moving to the sibling level-1 page at the
+end of a page), releases the latches, and only then
+issues the reads. The batch doubles each time, up to a
+ceiling of at most READ_AHEAD_PAGES (64) leaves,
+further capped at 1/256 of the buffer pool.
+
+Sizing: The optimizer's estimate of the range
+(the first and the last leaf of the range, from records_in_range()
+through advise_page_range()) and the query LIMIT only decide how
+big a scan is: one leaf means no read-ahead, and the last leaf is
+where the rolling harvest stops. They never decide which pages
+are read.
+
+Skipped on purpose: Point lookups and lookups of a complete
+unique key (nothing follows), and any read when the buffer pool
+is short of free blocks.
+
+Safety: Read-ahead is only a hint. It never waits for a free block,
+never holds a latch while issuing reads, and stops quietly
+when the level-1 page has changed (freed, reused by another index,
+or the last child is gone). A wrong guess only wastes a read.
+
+Related: One-leaf-ahead prefetch at leaf boundaries
+(forward, backward, and during table rebuild) is independent of
+the above. Undo log read-ahead keeps the old physical
+algorithm, because undo pages are allocated sequentially. */
+
+/** Estimate the average number of records per leaf page
+from table statistics.
+@param stats  table statistics
+@param table  the table
+@param keyno  index whose key length bounds the estimate
+@return records per leaf page, at least 1 */
+static uint records_per_leaf(const ha_statistics &stats, const TABLE &table,
+                             uint keyno) noexcept
+{
+  uint per_page= 0;
+  if (const uint page_size= uint(stats.block_size))
+  {
+    if (const ha_rows pages= stats.data_file_length / page_size)
+      per_page= uint(stats.records / pages);
+    if (keyno < table.s->keys)
+    {
+      const uint key_length= table.key_info[keyno].key_length;
+      if (key_length)
+      {
+        const uint max_records= page_size / key_length;
+        per_page= per_page ? std::min(per_page, max_records) : max_records;
+      }
+    }
+  }
+  return per_page ? per_page : 1;
+}
+
+/** @return the number of rows after which the next read-ahead batch is due,
+for a batch of 'pages' leaves (the batch is refilled once half of it was
+consumed) */
+static uint32_t readahead_countdown(uint rows_per_leaf, uint pages) noexcept
+{
+  const ulonglong rows= ulonglong{rows_per_leaf} * std::max<uint>(1, pages / 2);
+  return uint32_t(std::min<ulonglong>(rows, UINT32_MAX));
+}
+
+/** @return whether a lookup looks up a complete unique key (or a row
+reference) and so returns at most one row, which leaves nothing to read ahead
+@param table        the table
+@param active_index the index being searched (>= table->s->keys if none)
+@param ref_length   length of the row reference
+@param key_len      length of the search key
+@param find_flag    search mode */
+static bool unique_lookup(const TABLE &table, uint active_index,
+                          uint ref_length, uint key_len,
+                          ha_rkey_function find_flag) noexcept
+{
+  if (find_flag != HA_READ_KEY_EXACT || !key_len)
+    return false;
+  if (active_index >= table.s->keys)
+    /* rnd_pos(): the key is the row reference of the clustered index */
+    return key_len == ref_length;
+  const KEY &key= table.key_info[active_index];
+  /* A unique key that may contain NULL can match several rows */
+  return (key.flags & (HA_NOSAME | HA_NULL_PART_KEY)) == HA_NOSAME &&
+    key_len == key.key_length;
+}
+
 /**********************************************************************//**
 Positions an index cursor to the index specified in the handle. Fetches the
 row if any.
@@ -9458,6 +9565,12 @@ ha_innobase::index_read(
 		build_template(false);
 	}
 
+	/* Trigger full table scan with small size for read
+	ahead operation. */
+	if (!key_len) {
+		readahead.init_full();
+	}
+
 	if (key_len) {
 		ut_ad(key_ptr);
 		/* Convert the search key value to InnoDB format into
@@ -9489,8 +9602,12 @@ ha_innobase::index_read(
 	}
 
 	mariadb_set_stats temp(m_prebuilt->trx, handler_stats);
-	dberr_t ret =
-		row_search_mvcc(buf, mode, m_prebuilt, m_last_match_mode, 0);
+	dberr_t ret = UNIV_UNLIKELY(readahead.armed()
+				    && !unique_lookup(*table, active_index,
+						      ref_length, key_len,
+						      find_flag))
+		? search_with_readahead(buf, mode, m_last_match_mode, 0)
+		: row_search_mvcc(buf, mode, m_prebuilt, m_last_match_mode, 0);
 
 	DBUG_EXECUTE_IF("ib_select_query_failure", ret = DB_ERROR;);
 
@@ -9741,8 +9858,28 @@ ha_innobase::general_fetch(
 	int	error;
 
 	mariadb_set_stats temp(trx, handler_stats);
-	switch (dberr_t	ret = row_search_mvcc(buf, PAGE_CUR_UNSUPP, m_prebuilt,
-					      match_mode, direction)) {
+
+	/* Trigger read-ahead prefetch based on row count.
+	Refills halfway through the current batch to prevent
+	I/O stalls during index scans. */
+	if (readahead.refill_due()) {
+		readahead.refill(m_prebuilt->index, trx,
+				 records_per_leaf(stats, *table, active_index));
+	}
+
+	/* A scan that positions through this path collects its leaf
+	pages during the first fetch's descent;
+	search_with_readahead() then prefetches them and sets
+	up rolling read-ahead, as index_read() does.
+	Gated by sql_stat_start so only that first fetch collects. */
+	dberr_t ret = UNIV_UNLIKELY(m_prebuilt->sql_stat_start
+				    && readahead.armed())
+		? search_with_readahead(buf, PAGE_CUR_UNSUPP, match_mode,
+					direction)
+		: row_search_mvcc(buf, PAGE_CUR_UNSUPP, m_prebuilt,
+				  match_mode, direction);
+
+	switch (ret) {
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
@@ -9907,6 +10044,10 @@ ha_innobase::rnd_init(
 
 	if (!scan) {
 		try_semi_consistent_read(0);
+	} else {
+		/* Full table scan: read the whole clustered index
+		in order, so enable read-ahead up to a full batch.*/
+		readahead.init_full();
 	}
 
 	m_start_of_scan = true;
@@ -16828,6 +16969,7 @@ ha_innobase::reset()
 	reset_template();
 
 	m_ds_mrr.dsmrr_close();
+	readahead.reset();
 
 	/* TODO: This should really be reset in reset_template() but for now
 	it's safer to do it explicitly here. */
@@ -21185,9 +21327,278 @@ static void innodb_params_adjust()
   ut_ad(MYSQL_SYSVAR_NAME(log_write_ahead_size).max_val == 4096);
 }
 
+static_assert(buf_pool_t::READ_AHEAD_PAGES <= UINT8_MAX,
+              "read-ahead window is stored in a byte");
+
+void ha_innobase::ReadAhead::reset() noexcept
+{
+  first_page= 0;
+  last_page= 0;
+  /* Clear all read-ahead state together */
+  window= 0;
+  max_window= 0;
+  limit_pages= no_limit;
+  l1_page= 0;
+  l1_child= 0;
+  reverse= false;
+  countdown= 0;
+}
+
+void ha_innobase::ReadAhead::init(uint max_pages) noexcept
+{
+  static_assert(no_limit == buf_pool_t::READ_AHEAD_PAGES,
+                "no LIMIT means the largest window");
+  if (max_pages)
+  {
+    /* Every prefetched page occupies a buffer pool frame from the
+    moment the read is issued. Let a single scan have
+    at most 1/256 of the pool (but never less than the
+    initial batch). */
+    max_pages= uint(std::min<size_t>(max_pages,
+                                     std::max<size_t>(initial_window,
+                                                      buf_pool.curr_size()
+                                                      >> 8)));
+  }
+  max_window= uint8_t(max_pages);
+  window= uint8_t(std::min<uint>(initial_window, max_pages));
+  l1_page= 0;
+}
+
+void ha_innobase::ReadAhead::advise(const page_range &extent) noexcept
+{
+  const uint32_t first= uint32_t(extent.first_page);
+  const uint32_t last= uint32_t(extent.last_page);
+  first_page= first == FIL_NULL ? 0 : first;
+  last_page= last == FIL_NULL ? 0 : last;
+}
+
+/** Estimate the read-ahead page count for the upcoming range scan.
+The optimizer supplies, via advise_page_range(), the leaf-page extent
+[first_page, last_page] that the scan is expected to touch.
+We deliberately do NOT read that physical span:
+InnoDB interleaves indexes within a tablespace, so the numeric gap
+last_page - first_page is not a leaf count and the intervening pages
+may belong to other indexes. Instead the extent is used only as a
+coarse "how large is this scan" signal:
+
+  - first_page == last_page: the whole result fits on one leaf, so
+    read-ahead is pointless.
+  - extent unknown: fall back to the LIMIT-based estimate.
+  - otherwise: a multi-leaf scan, read ahead a full batch.
+
+The pages actually prefetched are the real leaves collected logically
+during the B-tree descent (see btr_cur_t::search_leaf()).
+@return leaf pages to read ahead (0 disables read-ahead) */
+uint ha_innobase::ReadAhead::window_for_extent() const noexcept
+{
+  if (!first_page || !last_page)
+    /* Extent unknown: let the LIMIT heuristic decide. */
+    return limit_pages;
+
+  if (first_page == last_page)
+    /* Single-leaf range: nothing to read ahead. */
+    return 0;
+
+  /* Multi-leaf range: prefetch a full batch, but never more
+  than the LIMIT-derived bound would allow. */
+  return limit_pages ? limit_pages : buf_pool_t::READ_AHEAD_PAGES;
+}
+
+void ha_innobase::ReadAhead::set_limit(ha_rows limit,
+                                       uint rows_per_leaf) noexcept
+{
+  constexpr uint max_pages= buf_pool_t::READ_AHEAD_PAGES;
+
+  if (limit == HA_POS_ERROR)
+    limit_pages= max_pages;
+  else if (limit <= 2)
+    limit_pages= 0;
+  else
+  {
+    /* Pages needed for the limit, plus a 20% margin for
+    sparse/deleted rows. */
+    ulonglong pages= (ulonglong(limit) + rows_per_leaf - 1) / rows_per_leaf;
+    pages+= pages / 5;
+    limit_pages= uint8_t(std::min<ulonglong>(pages ? pages : 1, max_pages));
+  }
+}
+
+/** Harvest child pages from one level-1 page.
+@tparam rev     whether the scan runs in reverse key order
+@param index    the index being scanned
+@param mtr      mini-transaction holding the index latch
+@param batch    child pages collected so far
+@param l1       the level-1 page to harvest from; set to the next page to
+                continue with, or 0 when the harvest is over
+@param resume_child  the last child already collected on l1 (0 at the start)
+@return whether to continue with the page now in l1 */
+template<bool rev>
+bool ha_innobase::ReadAhead::refill_l1(dict_index_t *index, mtr_t &mtr,
+                                       btr_ra_batch &batch, uint32_t &l1,
+                                       uint32_t &resume_child) noexcept
+{
+  fil_space_t *const space= index->table->space;
+
+  dberr_t err;
+  buf_block_t *block=
+    buf_page_get_gen(page_id_t{space->id, l1}, space->zip_size(),
+                     RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED, &mtr, &err);
+  if (!block ||
+      !fil_page_index_page_check(block->page.frame) ||
+      btr_page_get_index_id(block->page.frame) != index->id ||
+      !!page_is_comp(block->page.frame) != index->table->not_redundant() ||
+      fil_page_get_type(block->page.frame) == FIL_PAGE_RTREE ||
+      btr_page_get_level(block->page.frame) != 1)
+  {
+    l1= 0;
+    return false;
+  }
+
+  /* Resume from the record after collecting the last child */
+  const rec_t *rec= btr_ra_batch::resume_rec<rev>(block, index, resume_child);
+  if (!rec)
+  {
+    l1= 0;
+    return false;
+  }
+
+  /* If the page has no more records in the scan direction,
+  resume_rec() returned the page edge */
+  btr_ra_result result= BTR_RA_EDGE;
+  if (!(rev ? page_rec_is_infimum(rec) : page_rec_is_supremum(rec)))
+    result= batch.collect<rev>(index, rec);
+
+  switch (result) {
+  case BTR_RA_STOP:
+    l1= 0;
+    return false;
+  case BTR_RA_FULL:
+    resume_child= batch.l1_child;
+    return false;
+  case BTR_RA_EDGE:
+    /* Continue on the next level-1 page. The sibling link of the
+    last one is FIL_NULL; the cursor uses 0 for "none". */
+    l1= rev ? btr_page_get_prev(block->page.frame)
+            : btr_page_get_next(block->page.frame);
+    if (l1 == FIL_NULL)
+      l1= 0;
+    resume_child= 0;
+  }
+  return l1 != 0;
+}
+
+template<bool rev>
+void ha_innobase::ReadAhead::refill_dir(dict_index_t *index, trx_t *trx,
+                                        uint rows_per_leaf) noexcept
+{
+  fil_space_t *const space= index->table->space;
+  if (!space || !index->is_btree())
+  {
+    l1_page= 0;
+    return;
+  }
+
+  const uint batch_size= std::min<uint>(window, buf_pool_t::READ_AHEAD_PAGES);
+  uint32_t pages[buf_pool_t::READ_AHEAD_PAGES];
+  btr_ra_batch batch(st_::span<uint32_t>(pages, batch_size));
+  batch.stop_page= stop_leaf(rev);
+  /* The level-1 page to harvest from; 0 when the harvest is over */
+  uint32_t l1= l1_page;
+  uint32_t resume_child= l1_child;
+
+  mtr_t mtr{trx};
+  mtr.start();
+  mtr_s_lock_index(index, &mtr);
+
+  while (l1 && !batch.full() &&
+         refill_l1<rev>(index, mtr, batch, l1, resume_child));
+
+  mtr.commit();
+
+  l1_page= l1;
+  l1_child= resume_child;
+
+  /* Increment the window for next readahead batch */
+  window= uint8_t(std::min<uint>(window * 2u, max_window));
+  countdown= readahead_countdown(rows_per_leaf, window);
+
+  if (batch.n)
+    buf_read_ahead_pages(space, batch.collected());
+}
+
+/** Prefetch the next batch of leaf pages for the ongoing scan.
+Resumes from the rolling cursor (l1_page / l1_child):
+re-latches the PAGE_LEVEL=1 page under an index S-latch
+(To avoid split or reorganized), harvests the next
+'window' child page numbers in scan order, chaining to
+the next level-1 sibling when the current one is exhausted,
+and issues buf_read_ahead_pages() for them.
+Aborts the read ahead when leaf reported by records_in_range()
+as the scan's last. */
+void ha_innobase::ReadAhead::refill(dict_index_t *index, trx_t *trx,
+                                    uint rows_per_leaf) noexcept
+{
+  if (reverse)
+    refill_dir<true>(index, trx, rows_per_leaf);
+  else
+    refill_dir<false>(index, trx, rows_per_leaf);
+}
+
+void ha_innobase::ReadAhead::start(fil_space_t *space,
+                                   const btr_ra_batch &batch, bool rev,
+                                   uint rows_per_leaf) noexcept
+{
+  l1_page= 0;
+  if (!batch.n)
+    return;
+
+  /* Prefetch the leaves collected during the descent */
+  buf_read_ahead_pages(space, batch.collected());
+
+  /* Set up the readahead parameter for next readahead batch. So
+  general_fetch() can keep prefetching as the scan advances.
+  Every positioning starts again from the small window:
+  a handler that was repositioned (for example one range of a
+  multi-range read) must prove again that it consumes pages
+  before it prefetches deeply. */
+  window= uint8_t(std::min<uint>(initial_window, max_window));
+  reverse= rev;
+  if (batch.resumable())
+  {
+    l1_page= batch.l1_page;
+    l1_child= batch.l1_child;
+    countdown= readahead_countdown(rows_per_leaf, batch.n);
+  }
+}
+
+dberr_t ha_innobase::search_with_readahead(uchar *buf, page_cur_mode_t mode,
+                                           uint match_mode,
+                                           uint direction) noexcept
+{
+  /* Positioning never harvests more than the initial batch, and only
+  half of it when the extent of the scan is unknown; the rolling
+  refill() collects the deeper batches. */
+  uint32_t batch_buf[ReadAhead::initial_window];
+  btr_ra_batch batch(st_::span<uint32_t>(batch_buf, readahead.first_batch()));
+  const bool rev= direction == ROW_SEL_PREV ||
+    mode == PAGE_CUR_L || mode == PAGE_CUR_LE;
+  /* Do not read ahead beyond the last leaf of the range */
+  batch.stop_page= readahead.stop_leaf(rev);
+  dberr_t err= row_search_mvcc(buf, mode, m_prebuilt, match_mode, direction,
+                               &batch);
+  readahead.start(m_prebuilt->index->table->space, batch, rev,
+                  records_per_leaf(stats, *table, active_index));
+  return err;
+}
+
 /****************************************************************************
  * DS-MRR implementation
  ***************************************************************************/
+
+void ha_innobase::advise_page_range(const page_range *scan_range)
+{
+  readahead.advise(*scan_range);
+}
 
 /**
 Multi Range Read interface, DS-MRR calls */
@@ -21199,8 +21610,9 @@ ha_innobase::multi_range_read_init(
 	uint		mode,
 	HANDLER_BUFFER*	buf)
 {
-	return(m_ds_mrr.dsmrr_init(this, seq, seq_init_param,
-				 n_ranges, mode, buf));
+    readahead.init(readahead.window_for_extent());
+    return(m_ds_mrr.dsmrr_init(this, seq, seq_init_param,
+				n_ranges, mode, buf));
 }
 
 int
@@ -21218,11 +21630,15 @@ ha_innobase::multi_range_read_info_const(
 	uint		n_ranges,
 	uint*		bufsz,
 	uint*		flags,
+	page_range*	pr,
         ha_rows         limit,
 	Cost_estimate*	cost)
 {
 	/* See comments in ha_myisam::multi_range_read_info_const */
 	m_ds_mrr.init(this, table);
+	/* The LIMIT only matters for sizing the read-ahead; keep the
+	derived page count instead of the LIMIT itself. */
+	readahead.set_limit(limit, records_per_leaf(stats, *table, keyno));
 
 	if (m_prebuilt->select_lock_type != LOCK_NONE) {
 		*flags |= HA_MRR_USE_DEFAULT_IMPL;
@@ -21230,7 +21646,7 @@ ha_innobase::multi_range_read_info_const(
 
 	ha_rows res= m_ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param,
                                                n_ranges,
-                                               bufsz, flags, limit, cost);
+                                               bufsz, flags, pr, limit, cost);
 	return res;
 }
 

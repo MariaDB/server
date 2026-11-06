@@ -2382,6 +2382,7 @@ ha_rows ha_spider::multi_range_read_info_const(
   uint n_ranges,
   uint *bufsz,
   uint *flags,
+  page_range *pr,
   ha_rows limit,
   Cost_estimate *cost
 )
@@ -2422,6 +2423,7 @@ ha_rows ha_spider::multi_range_read_info_const(
       n_ranges,
       bufsz,
       flags,
+      pr,
       limit,
       cost
     );
