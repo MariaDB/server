@@ -1,0 +1,280 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-25848 Range optimizer support for JSON_OVERLAPS
+--echo #
+
+create table t3 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as unsigned array))
+);
+
+insert into t3 select seq, concat('["value-', seq, '"]') from seq_1_to_200;
+
+let $q= select * from t3 where json_overlaps(js, '["value-100", "value-101", "value-108"]');
+eval explain $q;
+eval $q;
+
+let $q= select * from t3 where json_overlaps('["value-100", "value-101", "value-108"]', js);
+eval explain $q;
+eval $q;
+
+DROP TABLE t3;
+
+--echo #
+--echo # Each condition: EXPLAIN, result with the index, result without it.
+--echo # The two results must be identical.
+--echo #
+
+create table t1 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as char(30) array))
+);
+
+insert into t1 values
+  (1,  '["a", "b", "c"]'),
+  (2,  '["b", "d"]'),
+  (3,  '["e"]'),
+  (4,  '[1, 2, 3]'),
+  (5,  '[1.0, "1", true]'),
+  (6,  '[null, false]'),
+  (7,  '["aaaaaaaaaaaaaaaaaaaa-1", "aaaaaaaaaaaaaaaaaaaa-2"]'),
+  (8,  '["a\\"b", "\\u00e9"]'),
+  (9,  '[]'),
+  (10, '["a", "a", "b"]'),
+  (11, '["é"]');
+insert into t1 select seq, concat('["v', seq, '", "w', seq, '"]')
+from seq_100_to_300;
+
+--echo # Basic: OR of points, both argument orders
+let $cond= json_overlaps(js, '["b", "e"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps('["b", "e"]', js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # A row matching several points, and duplicates in the row,
+--echo # must be returned once
+let $cond= json_overlaps(js, '["a", "b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Duplicate elements in the constant
+let $cond= json_overlaps(js, '["b", "b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Scalar constants (a one-element list)
+let $cond= json_overlaps(js, '"e"');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '2');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Empty array and SQL NULL: impossible
+let $cond= json_overlaps(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, NULL);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Object, nested array: no range
+let $cond= json_overlaps(js, '{"a": 1}');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["b", ["e"]]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Numbers and other types: 1 = 1.0, but 1 <> "1"
+let $cond= json_overlaps(js, '[1]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["1"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '[true, null]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Long strings (hashed) with a common prefix
+let $cond= json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-1"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["aaaaaaaaaaaaaaaaaaaa-3"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Escapes, and a constant in another charset
+let $cond= json_overlaps(js, '["a\\\\"b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["\\\\u00e9"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, convert('["é"]' using latin1));
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Many elements (more than MAX_KEY = 64)
+select json_arrayagg(concat('v', seq)) into @big from seq_100_to_180;
+let $cond= json_overlaps(js, @big);
+--replace_column 9 #
+eval explain select count(*) from t1 where $cond;
+eval explain select count(*) from t1 force index(i1) where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # NOT must not use the index
+let $cond= not json_overlaps(js, '["b"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # Combined with other predicates and indexes
+let $cond= json_overlaps(js, '["e"]') or pk = 200;
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["b", "v150"]') and pk < 100;
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # LIMIT
+select count(*) from
+  (select pk from t1 where json_overlaps(js, '["a", "b"]') limit 2) dt;
+
+--echo # Prepared statement, re-executed with different values
+prepare s from 'select pk from t1 where json_overlaps(js, ?)';
+set @a= '["b", "e"]';
+--sorted_result
+execute s using @a;
+set @a= '["v150"]';
+--sorted_result
+execute s using @a;
+set @a= NULL;
+execute s using @a;
+set @a= '[]';
+execute s using @a;
+deallocate prepare s;
+
+--echo #
+--echo # Values from another table
+--echo #
+create table t2 (pk int primary key, j json, k json);
+insert into t2 values (1, '"v150"', '["v150", "w150"]'),
+                      (2, '"b"',    '["b"]');
+
+--echo # Non-constant values: these predicates are not used for ranges,
+--echo # but their key fields must fit in update_ref_and_keys()'s buffer
+let $q= select t1.pk, t2.pk from t1, t2
+        where json_overlaps(t1.js, t2.j) and json_overlaps(t2.k, t1.js)
+          and json_overlaps(t1.js, t2.k) and json_overlaps(t2.j, t1.js);
+--replace_column 9 #
+eval explain $q;
+--sorted_result
+eval $q;
+
+--echo # t2 is a const table: t1 can use a range on i1
+let $q= select t1.pk from t1, t2 where t2.pk = 1 and json_overlaps(t1.js, t2.k);
+--replace_column 9 #
+eval explain $q;
+--sorted_result
+eval $q;
+
+drop table t1, t2;
