@@ -3960,5 +3960,25 @@ Note	1981	Aggregate function 'bit_or()' of SELECT #4 belongs to SELECT #3
 Note	1276	Field or reference 'd' of SELECT #3 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`c` AS `d` from `test`.`t1` join `test`.`t1` where <expr_cache><`test`.`t1`.`c`>((/* select#3 */ select ord(<expr_cache><`test`.`t1`.`c`,bit_or(`test`.`t1`.`c`),bit_or(`test`.`t1`.`c`)>((/* select#4 */ select bit_or(`test`.`t1`.`c`)))) from `test`.`t1` group by `test`.`t1`.`c`))
 DROP TABLE t0, t1;
+#
+# MDEV-35592 ERROR 1062 (23000): Duplicate entry 'NULL' for key 'key0'
+# on CONCAT in sub-query
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1
+WITH RECURSIVE s(n) AS (SELECT 0 UNION ALL SELECT n + 1 FROM s WHERE n < 999)
+SELECT n FROM s, (VALUES (1), (2), (3), (4)) AS x ORDER BY n;
+INSERT INTO t1 VALUES (NULL), (NULL);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (1), (2);
+SET @save_tmp_table_size= @@tmp_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+SET tmp_table_size= 16384, max_heap_table_size= 16384;
+SELECT COUNT(*) FROM t1 WHERE (SELECT b FROM t2 WHERE t2.b = t1.a) IS NULL;
+COUNT(*)
+3994
+SET tmp_table_size= @save_tmp_table_size;
+SET max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1, t2;
 # End of 11.4 tests
 SET optimizer_switch=@save_optimizer_switch;
