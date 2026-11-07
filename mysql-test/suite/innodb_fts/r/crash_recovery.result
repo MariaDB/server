@@ -169,5 +169,22 @@ INSERT INTO t1 VALUES ( 1255, "mariadb", "InnoDB");
 # restart
 ALTER TABLE t1 ADD FULLTEXT(col_text_1);
 DROP TABLE t1;
+#
+# MDEV-41757 Phrase search misses rows of a FULLTEXT index built over
+# rows with an empty string in an earlier indexed column
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a TEXT, c TEXT, FULLTEXT(a, c))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, '', 'hello world'), (2, NULL, 'hello world'),
+(3, 'x', 'hello world'), (4, REPEAT('long ', 4000), 'hello world');
+# restart
+SELECT id FROM t1 WHERE MATCH(a, c) AGAINST('"hello world"' IN BOOLEAN MODE)
+ORDER BY id;
+id
+1
+2
+3
+4
+DROP TABLE t1;
 SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
