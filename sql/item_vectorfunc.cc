@@ -40,7 +40,7 @@ static double calc_distance_cosine(float *v1, float *v2, size_t v_len)
   double dotp=0, abs1=0, abs2=0;
   for (size_t i= 0; i < v_len; i++, v1++, v2++)
   {
-    float f1= get_float(v1), f2= get_float(v2);
+    double f1= get_float(v1), f2= get_float(v2);
     abs1+= f1 * f1;
     abs2+= f2 * f2;
     dotp+= f1 * f2;
