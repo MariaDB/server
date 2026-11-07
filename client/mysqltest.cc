@@ -9905,6 +9905,8 @@ int read_line()
   char *buf_end= read_command_buf + read_command_buflen - max_multibyte_length;
   int skip_char= 0;
   my_bool have_slash= FALSE;
+  bool at_comment_start= false;
+  bool at_mariadb_comment_start= false;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
         R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
@@ -9999,6 +10001,8 @@ int read_line()
       else if (c == '*' && last_char == '/')
       {
         state= R_CSTYLE_COMMENT;
+        at_comment_start= true;
+        at_mariadb_comment_start= false;
         break;
       }
       else if (c == '/' && last_char == '*') // Closing sequence `*/`
@@ -10014,9 +10018,10 @@ int read_line()
       break;
 
     case R_CSTYLE_COMMENT:
-      if (c == '!' || c == '+')
+      if ((at_comment_start && (c == '!' || c == '+')) ||
+          (at_mariadb_comment_start && c == '!'))
       {
-        // Got hint introducer '/*!' or '/*+'
+        // Got a special comment introducer: '/*!', '/*+' or '/*M!'.
         state= R_HINT;
       }
       else if (c == '/' && last_char == '*')
@@ -10024,6 +10029,8 @@ int read_line()
         state= R_NORMAL;
         drop_last_char= true; // See comment for `drop_last_char` above
       }
+      at_mariadb_comment_start= at_comment_start && c == 'M';
+      at_comment_start= false;
       break;
 
     case R_COMMENT:
