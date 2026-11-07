@@ -7355,7 +7355,8 @@ int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
       if (ret)
         return 1;
       ret= fk_truncate_illegal_if_parent(thd, table_list->table,
-                                         "CREATE OR REPLACE");
+                                         "CREATE OR REPLACE",
+                                         ER_DDL_ILLEGAL_FK);
       /* New opened tables are always first in the open list */
       DBUG_ASSERT(table_list->table == thd->open_tables);
       close_thread_table(thd, &thd->open_tables);
@@ -7363,7 +7364,8 @@ int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
     }
     else
       ret= fk_truncate_illegal_if_parent(thd, table_list->table,
-                                         "CREATE OR REPLACE");
+                                         "CREATE OR REPLACE",
+                                         ER_DDL_ILLEGAL_FK);
   }
   return ret;
 }
