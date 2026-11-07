@@ -9907,7 +9907,8 @@ int read_line()
   my_bool have_slash= FALSE;
   
   enum {R_NORMAL, R_Q, R_SLASH_IN_Q,
-        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
+        R_COMMENT, R_LINE_START, R_CSTYLE_COMMENT_START,
+        R_CSTYLE_COMMENT_M, R_CSTYLE_COMMENT, R_HINT} state= R_LINE_START;
   DBUG_ENTER("read_line");
 
   *p= 0;
@@ -9998,7 +9999,7 @@ int read_line()
       }
       else if (c == '*' && last_char == '/')
       {
-        state= R_CSTYLE_COMMENT;
+        state= R_CSTYLE_COMMENT_START;
         break;
       }
       else if (c == '/' && last_char == '*') // Closing sequence `*/`
@@ -10013,17 +10014,29 @@ int read_line()
       have_slash= is_escape_char(c, last_quote);
       break;
 
-    case R_CSTYLE_COMMENT:
+    case R_CSTYLE_COMMENT_START:
       if (c == '!' || c == '+')
       {
-        // Got hint introducer '/*!' or '/*+'
         state= R_HINT;
+        break;
       }
-      else if (c == '/' && last_char == '*')
+      if (c == 'M')
+      {
+        state= R_CSTYLE_COMMENT_M;
+        break;
+      }
+      state= R_CSTYLE_COMMENT;
+      /* fall through */
+    case R_CSTYLE_COMMENT:
+      if (c == '/' && last_char == '*')
       {
         state= R_NORMAL;
         drop_last_char= true; // See comment for `drop_last_char` above
       }
+      break;
+
+    case R_CSTYLE_COMMENT_M:
+      state= c == '!' ? R_HINT : R_CSTYLE_COMMENT;
       break;
 
     case R_COMMENT:
