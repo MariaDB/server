@@ -28,6 +28,8 @@
 #include "sql_base.h"
 #include "sql_select.h"
 #include "opt_subselect.h"
+#include "sql_multi_key.h"
+#include "sql_multi_key_batch.h"
 
 #define NO_MORE_RECORDS_IN_BUFFER  (uint)(-1)
 
@@ -2785,6 +2787,19 @@ bool JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 }
 
 
+bool JOIN_CACHE_MULTI_KEY::save_explain_data(EXPLAIN_BKA_TYPE *explain)
+{
+  if (!multi_key_scan)
+    return JOIN_CACHE_BKA::save_explain_data(explain);
+  /* Neither fails: JOIN_CACHE's only sets members, and the text fits the
+     buffer of mrr_type, a StringBuffer<64> */
+  bool error= JOIN_CACHE::save_explain_data(explain) ||
+              explain->mrr_type.append(STRING_WITH_LEN("Multi-key read"));
+  DBUG_ASSERT(!error);
+  return error;
+}
+
+
 /* 
   Initialize a hashed join cache       
 
@@ -4571,6 +4586,166 @@ bool JOIN_CACHE_BKA::skip_index_tuple(range_id_t range_info)
   DBUG_ENTER("JOIN_CACHE_BKA::skip_index_tuple");
   get_record_by_pos((uchar*)range_info);
   DBUG_RETURN(!join_tab->cache_idx_cond->val_bool());
+}
+
+
+class JOIN_TAB_SCAN_MULTI_KEY: public JOIN_TAB_SCAN
+{
+  Multi_key_params params;
+  Multi_key_batch batch;
+  HANDLER_BUFFER aux_buff;
+  /* NULL once the last call of the refill has been read */
+  uchar **row_data;
+  /* nullptr-terminated join buffer positions the last row read answers */
+  uchar **candidates;
+
+  int start_next_call();
+
+  uchar *next_candidate() { return *candidates ? *candidates++ : 0; }
+
+public:
+
+  JOIN_TAB_SCAN_MULTI_KEY(JOIN *j, JOIN_TAB *tab)
+    :JOIN_TAB_SCAN(j, tab), batch(&params), row_data(0), candidates(0) {}
+
+  uint aux_buffer_incr(size_t recno) override;
+
+  int open() override;
+
+  int next() override;
+
+  friend class JOIN_CACHE_MULTI_KEY;
+};
+
+
+uint JOIN_TAB_SCAN_MULTI_KEY::aux_buffer_incr(size_t recno)
+{
+  /* write_record_data() may cut the last record's increment to the space
+     left, so the first record reserves one tuple ahead */
+  return (uint) (batch.space_per_tuple() * (recno == 1 ? 2 : 1));
+}
+
+
+int JOIN_TAB_SCAN_MULTI_KEY::open()
+{
+  TABLE *table= join_tab->table;
+
+  table->null_row= 0;
+  join_tab->tracker->r_scans++;
+  save_or_restore_used_tabs(join_tab, FALSE);
+
+  if (!table->file->inited)
+  {
+    /* init() had prepare() accept ref.key, after which handler.h rules out
+       an ha_index_init() failure on it */
+    int error __attribute__((unused))=
+      table->file->ha_index_init(join_tab->ref.key, false);
+    DBUG_ASSERT(!error);
+  }
+
+  cache->setup_aux_buffer(aux_buff);
+  DBUG_ASSERT((size_t) (aux_buff.buffer_end - aux_buff.buffer) >=
+              cache->records * batch.space_per_tuple());
+  batch.reset(&aux_buff);
+  cache->reset(FALSE);
+  while (!cache->get_record())
+  {
+    uchar *rec_ptr= cache->get_curr_rec();
+    if (!cache->with_match_flag ||
+        (JOIN_CACHE::Match_flag) rec_ptr[0] != JOIN_CACHE::MATCH_IMPOSSIBLE)
+      batch.add(rec_ptr);
+  }
+  batch.split();
+  return start_next_call();
+}
+
+
+int JOIN_TAB_SCAN_MULTI_KEY::start_next_call()
+{
+  TABLE *table= join_tab->table;
+  int error;
+
+  if ((row_data= batch.next_call()) &&
+      (error= table->file->index_multi_key_read_params(row_data)))
+  {
+    /* Not report_error(): it takes HA_ERR_KEY_NOT_FOUND for the end of rows,
+       which would drop the rest of the refill without an error */
+    table->file->print_error(error, MYF(0));
+    return 1;
+  }
+  return 0;
+}
+
+
+int JOIN_TAB_SCAN_MULTI_KEY::next()
+{
+  TABLE *table= join_tab->table;
+  uint32 offset;
+  int error;
+
+  while (row_data)
+  {
+    if (!(error= table->file->index_multi_key_read(table->record[0], &offset)))
+    {
+      candidates= batch.positions(offset);
+      join_tab->tracker->r_rows++;
+      join_tab->tracker->r_rows_after_where++;
+      return 0;
+    }
+    if (error != HA_ERR_END_OF_FILE)
+    {
+      table->file->print_error(error, MYF(0));
+      return 1;
+    }
+    if ((error= start_next_call()))
+      return error;
+  }
+  return -1;
+}
+
+
+int JOIN_CACHE_MULTI_KEY::init(bool for_explain)
+{
+  THD *thd= join->thd;
+  handler *file= join_tab->table->file;
+  Item *cond;
+  JOIN_TAB_SCAN_MULTI_KEY *scan;
+  int rc= 0;
+  DBUG_ENTER("JOIN_CACHE_MULTI_KEY::init");
+
+  if ((cond= make_multi_key_pushdown_cond(join_tab)) &&
+      (scan= new JOIN_TAB_SCAN_MULTI_KEY(join, join_tab)) &&
+      !scan->params.init(thd, join_tab, &cond) &&
+      !(rc= file->index_multi_key_read_with_pushdown_prepare(
+          join_tab->ref.key, scan->params.param, scan->params.params, cond)))
+  {
+    join_tab_scan= multi_key_scan= scan;
+    DBUG_RETURN(JOIN_CACHE::init(for_explain));
+  }
+  DBUG_ASSERT(!rc || rc == HA_ERR_UNSUPPORTED || thd->is_error());
+  /* Only a refusal falls back to BKA: out of memory fails as it does in
+     JOIN_CACHE::init() */
+  if (thd->is_error())
+    DBUG_RETURN(1);
+  DBUG_RETURN(JOIN_CACHE_BKA::init(for_explain));
+}
+
+
+uchar *JOIN_CACHE_MULTI_KEY::get_next_candidate_for_match()
+{
+  uchar *rec_ptr;
+
+  if (!multi_key_scan)
+    return JOIN_CACHE_BKA::get_next_candidate_for_match();
+  /* push_index_cond() leaves an index condition over earlier tables to the
+     BKA cache, which MRR would check through bka_skip_index_tuple() */
+  while ((rec_ptr= multi_key_scan->next_candidate()))
+  {
+    if (!join_tab->cache_idx_cond ||
+        !bka_skip_index_tuple((range_seq_t) this, (range_id_t) rec_ptr))
+      break;
+  }
+  return rec_ptr;
 }
 
 

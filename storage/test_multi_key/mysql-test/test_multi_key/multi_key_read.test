@@ -1,0 +1,374 @@
+--source include/have_sequence.inc
+--source include/have_partition.inc
+--source include/no_protocol.inc
+
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'test_multi_key' AND support='YES'`)
+{
+  --skip Test requires test_multi_key engine
+}
+
+--echo # TEST_MULTI_KEY is a MEMORY engine whose multi-key read looks up each tuple's
+--echo # key and keeps the rows the pushed condition admits; the MyISAM tables are the
+--echo # local side. Each query runs with join_cache_multi_key_read off, then on.
+
+CREATE TABLE trades (sym INT NOT NULL, id INT NOT NULL, ts INT NOT NULL,
+  price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO trades
+  SELECT s.seq, i.seq, i.seq * 10, 100 + (s.seq * 7 + i.seq * 13) % 100
+    FROM seq_1_to_20 s, seq_1_to_50 i;
+CREATE TABLE strades (id INT NOT NULL PRIMARY KEY, sym INT NOT NULL,
+  ts INT NOT NULL, price INT NOT NULL, KEY k_sym USING BTREE (sym),
+  KEY h_sym_ts USING HASH (sym, ts)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO strades SELECT (sym - 1) * 50 + id, sym, ts, price FROM trades;
+CREATE TABLE vtrades (sym VARCHAR(10) NOT NULL, id INT NOT NULL,
+  price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO vtrades SELECT CONCAT('s', s.seq), i.seq, 100 + (s.seq * 7 + i.seq * 13) % 100
+  FROM seq_1_to_5 s, seq_1_to_10 i;
+CREATE TABLE ntrades (sym INT NOT NULL, id INT NOT NULL, note VARCHAR(10) NOT NULL,
+  price INT NOT NULL, PRIMARY KEY USING BTREE (sym, id)) ENGINE=TEST_MULTI_KEY;
+INSERT INTO ntrades SELECT s.seq, i.seq, CONCAT('n', i.seq % 3), 100 + (s.seq * 7 + i.seq * 13) % 100
+  FROM seq_1_to_5 s, seq_1_to_10 i;
+
+CREATE TABLE watch (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO watch VALUES (3, 300, 190), (7, 250, 185), (11, 0, 195), (16, 450, 150);
+CREATE TABLE wp (sym INT NULL, since INT NULL, min_price INT NULL) ENGINE=MyISAM;
+INSERT INTO wp VALUES (3, 300, 190), (7, 250, 185), (7, 250, 185), (7, 300, 150),
+  (NULL, 0, 0), (11, NULL, 195), (16, 450, NULL), (99, 0, 0);
+CREATE TABLE wn (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wn VALUES (3, 300, 190), (7, 250, 185);
+CREATE TABLE wu (sym INT UNSIGNED NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wu VALUES (7, 250, 185), (3000000000, 0, 0), (2147483647, 0, 0);
+CREATE TABLE wk (sym INT NOT NULL, id INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wk VALUES (3, 44), (7, 26), (7, 27), (99, 1);
+CREATE TABLE wo (id INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wo VALUES (26), (34), (44), (99);
+CREATE TABLE vw (sym VARCHAR(10) NOT NULL, min_price INT NOT NULL) ENGINE=MyISAM;
+INSERT INTO vw VALUES ('s2', 150), ('S2', 160), ('s4', 180);
+CREATE TABLE nw (sym INT NOT NULL, note VARCHAR(10) NOT NULL) ENGINE=MyISAM;
+INSERT INTO nw VALUES (2, 'n1'), (4, 'n0');
+CREATE TABLE wt (sym INT NOT NULL, note TEXT NOT NULL) ENGINE=MyISAM;
+INSERT INTO wt SELECT * FROM nw;
+CREATE TABLE wbit (sym INT NOT NULL, b BIT(3) NOT NULL, b8 BIT(8) NOT NULL) ENGINE=MyISAM;
+INSERT INTO wbit VALUES (3, 5, 5), (7, 6, 6);
+CREATE TABLE sink (sym INT, id INT) ENGINE=MyISAM;
+CREATE TABLE tally (sym INT NOT NULL PRIMARY KEY, since INT NOT NULL, n INT NULL) ENGINE=MyISAM;
+
+SET @saved_optimizer_switch= @@optimizer_switch;
+SET @saved_join_cache_level= @@join_cache_level;
+SET SESSION join_cache_level= 6;
+
+SET SESSION optimizer_switch= 'join_cache_multi_key_read=on';
+--let $reset_multi_key_calls= SET test_multi_key_prepares= 0, test_multi_key_calls= 0, test_multi_key_tuples= 0, test_multi_key_rows= 0
+--let $show_multi_key_calls= SELECT @@test_multi_key_prepares AS prepares, @@test_multi_key_calls AS calls, @@test_multi_key_tuples AS tuples, @@test_multi_key_rows AS `rows`
+
+--echo # The query of MDEV-39927: the 4 watch rows go out as 4 tuples in one
+--echo # call, and the engine returns the 10 rows the whole ON clause admits.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+
+--echo # wp: the NULL key is not sent and the duplicate (7, 250, 185) goes out once,
+--echo # so 8 rows make 6 tuples; key 7's second parameter set takes a second call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $show_multi_key_calls
+
+--echo # LEFT JOIN, trades inner: the same 6 tuples in 2 calls; the tuples that got
+--echo # no row and the NULL key, never sent, are NULL-complemented.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $show_multi_key_calls
+
+--echo # The ON conjunct over wp alone, w.since > 260, is the precondition: the 5 rows
+--echo # that fail it are not sent, the other 3 go out in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price AND w.since > 260 ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w LEFT JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price AND w.since > 260 ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $show_multi_key_calls
+
+--echo # wn inner of an outer join, joined to watch on since by a hash join: its 2
+--echo # matching rows go out as 2 tuples in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+--eval $reset_multi_key_calls
+SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w0.sym, w.sym AS wsym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.since = w0.since ORDER BY w0.sym, w.since, t.id;
+--echo # Joined on the key column instead, equality propagation gives trades the
+--echo # equality t.sym = w0.sym, while its ref reads w.sym: the server does not
+--echo # offer the path (prepares 0) and runs plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+--eval $reset_multi_key_calls
+SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w0.sym, w.since, t.id FROM watch w0 LEFT JOIN (wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price) ON w.sym = w0.sym ORDER BY w0.sym, w.since, t.id;
+
+--echo # A correlated subquery: prepared once, one call per execution, 4 for the 4
+--echo # values of w.since. The conjunct on the outer w.since is not pushed: each call
+--echo # returns the 12 rows of keys 3 and 7 that pass the price conjunct.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.ts >= w.since AND t.price > x.min_price) AS c FROM wp w WHERE w.since IS NOT NULL ORDER BY w.sym, w.since, w.min_price;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.ts >= w.since AND t.price > x.min_price) AS c FROM wp w WHERE w.since IS NOT NULL ORDER BY w.sym, w.since, w.min_price;
+--eval $show_multi_key_calls
+
+--echo # The second key part's value comes from the outer query: its = is not in the
+--echo # pushed condition, so the server does not offer the path (prepares 0) and the
+--echo # subquery's join runs as plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+--eval $reset_multi_key_calls
+SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT o.id, (SELECT COUNT(*) FROM wn x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.id = o.id) AS c FROM wo o ORDER BY o.id;
+
+--echo # A two-part key read by eq_ref: 4 tuples bind both parts, and (99, 1) finds
+--echo # no row; then the same key with its first part the constant 7.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id = w.id ORDER BY w.sym, w.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id = w.id ORDER BY w.sym, w.id;
+--eval $show_multi_key_calls
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = 7 AND t.id = w.id ORDER BY w.id;
+--eval $reset_multi_key_calls
+SELECT w.id, t.ts, t.price FROM wk w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = 7 AND t.id = w.id ORDER BY w.id;
+--eval $show_multi_key_calls
+
+--echo # The secondary BTREE key k_sym: the same 6 tuples in 2 calls as on the
+--echo # primary key.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN strades t FORCE INDEX (k_sym) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, w.min_price, t.id, t.ts, t.price FROM wp w STRAIGHT_JOIN strades t FORCE INDEX (k_sym) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $show_multi_key_calls
+
+--echo # The HASH key h_sym_ts with both parts bound: 4 tuples in one call, and
+--echo # watch's (11, 0) finds no row.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts = w.since ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts = w.since ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+
+--echo # The HASH key's second part compared by <=>: the engine binds sym only, and a
+--echo # HASH key needs every part, so prepare() refuses (prepares 1, calls 0) and the
+--echo # join runs as plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, w.since, t.id, t.price FROM watch w STRAIGHT_JOIN strades t FORCE INDEX (h_sym_ts) ON t.sym = w.sym AND t.ts <=> w.since ORDER BY w.sym, t.id;
+
+--echo # <=> on the key over NOT NULL columns: the server offers the path, and the
+--echo # engine, which binds a key part by = only, refuses it: plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+
+--echo # <=> on the key over the nullable wp.sym: the key value may be NULL and <=>
+--echo # matches a NULL key, so the server does not offer the path (prepares 0).
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, w.since, w.min_price, t.id FROM wp w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym <=> w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, w.since, w.min_price, t.id;
+
+--echo # A case-insensitive VARCHAR key: 's2' and 'S2' are one key value, so they go
+--echo # to separate calls (2 calls, 3 tuples); they differ bit for bit, so neither is
+--echo # dropped as a duplicate.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.min_price, t.id, t.price FROM vw w STRAIGHT_JOIN vtrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price ORDER BY w.sym, w.min_price, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.min_price, t.id, t.price FROM vw w STRAIGHT_JOIN vtrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > w.min_price ORDER BY w.sym, w.min_price, t.id;
+--eval $show_multi_key_calls
+
+--echo # INT UNSIGNED values against the INT key: 3000000000's key image is
+--echo # 2147483647's, so the two go to separate calls (2 calls, 3 tuples). Both find
+--echo # the row of key 2147483647, which the pushed condition keeps for 2147483647
+--echo # only: the engine returns 6 rows, 5 of key 7.
+INSERT INTO trades VALUES (2147483647, 1, 10, 150);
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.sym AS tsym, t.id, t.ts, t.price FROM wu w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.sym AS tsym, t.id, t.ts, t.price FROM wu w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+DELETE FROM trades WHERE sym = 2147483647;
+
+--echo # A VARCHAR parameter takes the path; the same over a TEXT column does not:
+--echo # the server refuses a BLOB parameter (prepares 0) and runs plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.note FROM nw w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.note FROM nw w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.note FROM wt w STRAIGHT_JOIN ntrades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.note = w.note ORDER BY w.sym, t.id;
+
+--echo # A BIT(8) parameter, which MyISAM keeps in a byte of its own, takes the path.
+--echo # MyISAM keeps the 3 bits of a BIT(3) among the null bits, which the server
+--echo # refuses (prepares 0): plain BKA.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b8 ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b8 ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.price FROM wbit w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= w.b ORDER BY w.sym, t.id;
+
+--echo # A ? in the pushed condition of a prepared statement: a bound ? has a copy
+--echo # (MDEV-41238), so each execution pushes the condition with its own value and
+--echo # takes the path (prepares 2, calls 2).
+SET @min_price= 185;
+PREPARE stmt FROM 'SELECT w.sym, t.id, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > ? ORDER BY w.sym, t.id';
+PREPARE explain_stmt FROM 'EXPLAIN SELECT w.sym, t.id, t.price FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.price > ? ORDER BY w.sym, t.id';
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR EXECUTE stmt USING @min_price;
+--eval $reset_multi_key_calls
+EXECUTE stmt USING @min_price;
+EXECUTE stmt USING @min_price;
+--eval $show_multi_key_calls
+EXECUTE explain_stmt USING @min_price;
+DEALLOCATE PREPARE stmt;
+DEALLOCATE PREPARE explain_stmt;
+
+--echo # Two multi-key reads in a chain: strades's key comes from trades and its
+--echo # residual from watch. trades makes 1 call of 4 tuples; strades gets keys 1
+--echo # and 2 with 4 parameter sets each, 4 calls of 2 tuples. Its join buffer is
+--echo # incremental at join_cache_level 6 and flat at 5: the same rows and counters.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+SET SESSION join_cache_level= 5;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, s.id AS sid FROM watch w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.id <= 2 STRAIGHT_JOIN strades s FORCE INDEX (k_sym) ON s.sym = t.id AND s.ts >= w.since AND s.price > w.min_price ORDER BY w.sym, t.id, s.id;
+SET SESSION join_cache_level= 6;
+
+--echo # lw is watch with sym + 1, in the engine of trades. When every parameter comes
+--echo # from a table of trades's engine, the server does not offer the path
+--echo # (prepares 0) and the join runs as plain BKA.
+CREATE TABLE lw (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=TEST_MULTI_KEY;
+INSERT INTO lw SELECT sym + 1, since, min_price FROM watch;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM lw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+
+--echo # The same with lw partitioned: a partition's engine counts, so prepares 0.
+CREATE TABLE plw (sym INT NOT NULL, since INT NOT NULL, min_price INT NOT NULL) ENGINE=TEST_MULTI_KEY
+  PARTITION BY HASH (sym) PARTITIONS 2;
+INSERT INTO plw SELECT * FROM lw;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM plw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+
+--echo # watch and lw in the join buffer, trades's key from lw. With the residual
+--echo # from watch, one parameter comes from MyISAM: 4 tuples in one call. With the
+--echo # residual from lw, watch supplies no parameter: prepares 0.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > w.min_price ORDER BY w.sym, t.id;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, x.sym AS xsym, t.id, t.price FROM watch w STRAIGHT_JOIN lw x ON x.since = w.since STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price ORDER BY w.sym, t.id;
+
+--echo # lw's rows through a materialized derived table, and a TEMPORARY Aria copy
+--echo # of lw: the parameters come from those tables, so both take the path, 4
+--echo # tuples in one call.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT d.sym, t.id, t.ts, t.price FROM (SELECT sym, since, min_price FROM lw GROUP BY sym, since, min_price) d STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = d.sym AND t.ts >= d.since AND t.price > d.min_price ORDER BY d.sym, t.id;
+CREATE TEMPORARY TABLE tlw ENGINE=Aria SELECT * FROM lw;
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $reset_multi_key_calls
+SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, t.id, t.ts, t.price FROM tlw w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price ORDER BY w.sym, t.id;
+DROP TEMPORARY TABLE tlw;
+DROP TABLE lw, plw;
+
+--echo # A materialized semi-join: the join buffer inside its nest holds wp alone, and
+--echo # the 7 wp rows with a key make 6 tuples in 2 calls.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+--eval $reset_multi_key_calls
+SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+--eval $show_multi_key_calls
+EXPLAIN SELECT w.sym, w.since FROM watch w WHERE w.since IN (SELECT t.ts FROM wp x STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = x.sym AND t.price > x.min_price - 50) ORDER BY w.sym;
+
+--echo # INSERT ... SELECT and CREATE ... SELECT: one call, 2 tuples.
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR INSERT INTO sink SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM sink ORDER BY sym, id;
+DELETE FROM sink;
+--eval $reset_multi_key_calls
+INSERT INTO sink SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM sink ORDER BY sym, id;
+--eval $show_multi_key_calls
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR CREATE TABLE made ENGINE=MyISAM SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM made ORDER BY sym, id;
+DROP TABLE made;
+--eval $reset_multi_key_calls
+CREATE TABLE made ENGINE=MyISAM SELECT w.sym, t.id FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price;
+SELECT sym, id FROM made ORDER BY sym, id;
+--eval $show_multi_key_calls
+DROP TABLE made;
+
+--echo # UPDATE and DELETE with a correlated scalar subquery: the subquery keeps its
+--echo # join and join cache, one call per tally row. With an IN subquery that becomes
+--echo # a semi-join, the statement runs as a multi-table one, without join caches
+--echo # (prepares 0).
+--let $reset= REPLACE INTO tally VALUES (3, 0, NULL), (7, 300, NULL), (11, 450, NULL)
+--eval $reset
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR UPDATE tally SET n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $reset
+--eval $reset_multi_key_calls
+UPDATE tally SET n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $show_multi_key_calls
+--eval $reset
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $reset
+--eval $reset_multi_key_calls
+UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $show_multi_key_calls
+EXPLAIN UPDATE tally SET n = -1 WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+--let $reset= REPLACE INTO tally VALUES (3, 0, 12), (7, 300, 4), (11, 450, 2)
+--eval $reset
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR DELETE FROM tally WHERE n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $reset
+--eval $reset_multi_key_calls
+DELETE FROM tally WHERE n = (SELECT COUNT(*) FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= tally.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $show_multi_key_calls
+--eval $reset
+SET STATEMENT optimizer_switch= 'join_cache_multi_key_read=off' FOR DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $reset
+--eval $reset_multi_key_calls
+DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+SELECT sym, since, n FROM tally ORDER BY sym;
+--eval $show_multi_key_calls
+--eval $reset
+EXPLAIN DELETE FROM tally WHERE sym IN (SELECT w.sym FROM wn w STRAIGHT_JOIN trades t FORCE INDEX (PRIMARY) ON t.sym = w.sym AND t.ts >= w.since AND t.price > w.min_price);
+
+SET SESSION optimizer_switch= @saved_optimizer_switch;
+SET SESSION join_cache_level= @saved_join_cache_level;
+DROP TABLE trades, strades, vtrades, ntrades;
+DROP TABLE watch, wp, wn, wu, wk, wo, vw, nw, wt, wbit, sink, tally;
