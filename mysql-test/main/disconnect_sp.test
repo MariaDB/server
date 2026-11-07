@@ -1,0 +1,64 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_disconnect_watcher.inc
+
+--echo #
+--echo # MDEV-38741 A stored procedure stops when its client disconnects, also if
+--echo # it has a handler for errors
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE marker (a INT) ENGINE=InnoDB;
+
+DELIMITER |;
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SELECT a INTO @x FROM t1 FOR UPDATE;
+  INSERT INTO marker VALUES (1);
+END|
+DELIMITER ;|
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+connect (con1,127.0.0.1,root,,,$MASTER_MYPORT);
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET innodb_lock_wait_timeout=3600;
+send CALL p();
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits w
+  JOIN information_schema.innodb_trx t ON t.trx_id = w.requesting_trx_id
+  WHERE t.trx_mysql_thread_id = $con1_id;
+--source include/wait_condition.inc
+
+connection con1;
+dirty_close con1;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+
+--echo # The procedure did not go on after the lock wait
+connection blocker;
+COMMIT;
+connection default;
+SELECT COUNT(*) AS marker_rows FROM marker;
+
+--echo # The connection is logged once, with the reason
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted connection $con1_id to db[^\n]*Client disconnected;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+disconnect blocker;
+DROP PROCEDURE p;
+DROP TABLE t1, marker;
+
+--echo # End of 13.2 tests

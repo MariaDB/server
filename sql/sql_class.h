@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <thread>
+#include "my_atomic_wrapper.h"
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_array.h"
@@ -4534,6 +4535,10 @@ public:
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
+  /* Not NULL if the socket is registered in the client disconnect watcher */
+  struct Disconnect_watch *disconnect_watch= nullptr;
+  /* The client disconnect watcher found that the client is gone */
+  Atomic_relaxed<bool> client_gone{false};
 
   /**  
     is set if a statement accesses a temporary table created through
@@ -5467,6 +5472,13 @@ public:
   }
   int killed_errno();
   void reset_killed();
+  /*
+    Client disconnect, see disconnect_watcher.h. The watcher calls
+    set_client_gone() under LOCK_thd_kill and LOCK_thd_data, the connection
+    thread calls abort_if_client_gone() when a command starts.
+  */
+  void set_client_gone();
+  void abort_if_client_gone();
   inline void reset_kill_query()
   {
     if (killed < KILL_CONNECTION)

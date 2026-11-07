@@ -49,6 +49,7 @@
 #include "init.h"         // unireg_init
 #include "derror.h"       // init_errmessage
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
+#include "disconnect_watcher.h"
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
 #include "sys_vars_shared.h"
 #include "ddl_log.h"
@@ -490,6 +491,8 @@ my_bool relay_log_recovery;
 my_bool opt_sync_frm;
 READ_ONLY_SYSVAR my_bool opt_allow_suspicious_udfs;
 my_bool opt_require_secure_transport= 0;
+/* A system variable only where there is a watcher, see sys_vars.cc */
+my_bool opt_disconnect_watcher;
 READ_ONLY_SYSVAR char* opt_secure_file_priv;
 READ_ONLY_SYSVAR my_bool lower_case_file_system;
 READ_ONLY_SYSVAR my_bool opt_large_pages;
@@ -1302,6 +1305,7 @@ PSI_thread_key key_thread_delayed_insert,
   key_thread_one_connection, key_thread_signal_hand,
   key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
 PSI_thread_key key_thread_ack_receiver;
+PSI_thread_key key_thread_disconnect_watcher;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -1312,6 +1316,7 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
   { &key_thread_slave_deadlock_handler, "slave_deadlock_handler", PSI_FLAG_GLOBAL},
   { &key_thread_ack_receiver, "Ack_receiver", PSI_FLAG_GLOBAL},
+  { &key_thread_disconnect_watcher, "disconn_watcher", PSI_FLAG_GLOBAL},
   { &key_rpl_parallel_thread, "rpl_parallel", 0}
 };
 
@@ -1937,6 +1942,9 @@ static void close_connections(void)
   while (CONNECT::count)
     my_sleep(100);
 
+  /* Stop reacting to client socket events, before the connections are killed */
+  disconnect_watcher_stop();
+
   /*
     First signal all threads that it's time to die
     This will give the threads some time to gracefully abort their
@@ -2144,6 +2152,7 @@ static void clean_up(bool print_message, bool use_dummy_thd)
     my_bitmap_free(&slave_error_mask);
 #endif
   stop_handle_manager();
+  disconnect_watcher_end();
   ddl_log_release();
 
   logger.cleanup_base();
@@ -5979,6 +5988,8 @@ static int init_server_components()
 
 #ifndef EMBEDDED_LIBRARY
   start_handle_manager();
+  if (disconnect_watcher_start())
+    opt_disconnect_watcher= false;
 #endif
 
   /*

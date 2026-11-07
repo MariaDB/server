@@ -139,6 +139,7 @@ extern ulong read_only, opt_readonly;
 extern MYSQL_PLUGIN_IMPORT my_bool lower_case_file_system;
 extern my_bool opt_enable_named_pipe, opt_sync_frm, opt_allow_suspicious_udfs;
 extern my_bool opt_require_secure_transport;
+extern my_bool opt_disconnect_watcher;
 extern const char *current_dbug_option;
 extern char* opt_secure_file_priv;
 extern my_bool sp_automatic_privileges, opt_noacl;
@@ -396,7 +397,8 @@ extern PSI_cond_key key_TABLE_SHARE_COND_rotation;
 extern PSI_thread_key key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_deadlock_handler, key_rpl_parallel_thread;
+  key_thread_slave_deadlock_handler, key_rpl_parallel_thread,
+  key_thread_disconnect_watcher;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_cache,
        key_file_binlog_index, key_file_binlog_index_cache, key_file_casetest,

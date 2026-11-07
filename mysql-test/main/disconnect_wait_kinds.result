@@ -1,0 +1,42 @@
+#
+# MDEV-38741 A client disconnect aborts statements that do not poll the
+# connection themselves. SLEEP() and the metadata lock waits do, and are
+# not tested here. Whether the statement reports an error, and so a log
+# line, is up to it.
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+# A statement that only uses the CPU
+connect  con1,localhost,root;
+SELECT BENCHMARK(1000000000000, MD5('a'));
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The statement is aborted, the thread ends
+# A wait for a table level lock, held by a long UPDATE
+connect  blocker,localhost,root;
+UPDATE t1 SET a=SLEEP(3600);
+connection default;
+connect  con1,localhost,root;
+SELECT * FROM t1;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The statement is aborted, the thread ends
+KILL QUERY $blocker_id;
+connection blocker;
+disconnect blocker;
+connection default;
+# An idle client that disconnects has no statement that is aborted
+connect  con1,localhost,root;
+connection default;
+connection con1;
+disconnect con1;
+connection default;
+NOT FOUND matches in mysqld.1.err
+DROP TABLE t1;
+# End of 13.2 tests
