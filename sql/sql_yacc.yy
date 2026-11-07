@@ -1432,7 +1432,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
         ev_alter_on_schedule_completion opt_ev_rename_to opt_ev_sql_stmt
         optional_flush_tables_arguments
-        opt_time_precision kill_type kill_option int_num
+        opt_time_precision time_precision kill_type kill_option int_num
         opt_default_time_precision
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
@@ -9193,7 +9193,14 @@ opt_default_time_precision:
 opt_time_precision:
           /* empty */             { $$= 0;  }
         | '(' ')'                 { $$= 0;  }
-        | '(' real_ulong_num ')'  { $$= $2; }
+        | time_precision          { $$= $1; }
+        ;
+
+time_precision:
+          '(' real_ulonglong_num ')'
+          {
+            $$= (int) MY_MIN($2, UINT_MAX16);
+          }
         ;
 
 optional_braces:
@@ -10313,9 +10320,9 @@ function_call_nonkeyword:
              if (unlikely(!($$= Lex->make_item_func_sysdate(thd, 0))))
                MYSQL_YYABORT;
           }
-        | SYSDATE '(' real_ulong_num ')'
+        | SYSDATE time_precision
           {
-             if (unlikely(!($$= Lex->make_item_func_sysdate(thd, (uint) $3))))
+             if (unlikely(!($$= Lex->make_item_func_sysdate(thd, (uint) $2))))
                MYSQL_YYABORT;
           }
         | TIMESTAMP_ADD '(' interval_time_stamp ',' expr ',' expr ')'
