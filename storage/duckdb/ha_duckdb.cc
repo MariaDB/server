@@ -903,7 +903,8 @@ int ha_duckdb::rnd_next(uchar *buf)
   {
     duckdb::Value value= current_chunk->GetValue(col_idx, current_row_index);
     Field *field= table->field[col_idx];
-    store_duckdb_field_in_mysql_format(field, value, thd);
+    if (!store_duckdb_field_in_mysql_format(field, value, thd))
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
 
   /* update NULL field tag */

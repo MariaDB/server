@@ -32,5 +32,5 @@
 
 extern handlerton *duckdb_hton;
 
-void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
+bool store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
                                         THD *thd);
