@@ -375,6 +375,7 @@ class Json_schema_unique_items : public Json_schema_keyword
     bool is_unique;
 
   public:
+    Json_schema_unique_items() : is_unique(false) { }
     bool validate(const json_engine_t *je, const uchar *k_start= NULL,
                   const uchar *k_end= NULL) override;
     bool handle_keyword(THD *thd, json_engine_t *je,

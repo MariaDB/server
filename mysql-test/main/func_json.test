@@ -4481,3 +4481,16 @@ SELECT JSON_SCHEMA_VALID(@schema, @value);
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 
 --echo # End of 11.4 tests
+
+#
+# MDEV-41676: JSON_SCHEMA_VALID rejects duplicate array elements
+# when uniqueItems is false
+#
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[1,1]') AS duplicate_numbers;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '["x","x"]') AS duplicate_strings;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[{"x":1},{"x":1}]') AS duplicate_objects;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[1,2]') AS unique_array;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '[]') AS empty_array;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":false}', '1') AS scalar;
+SELECT JSON_SCHEMA_VALID('{}', '[1,1]') AS omitted_keyword;
+SELECT JSON_SCHEMA_VALID('{"uniqueItems":true}', '[1,1]') AS true_keyword;

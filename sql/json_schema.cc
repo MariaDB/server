@@ -1335,6 +1335,8 @@ bool Json_schema_unique_items::validate(const json_engine_t *je,
   if (curr_je.value_type != JSON_VALUE_ARRAY)
     return false;
 
+  if (!is_unique)
+    return false; 
   if (my_hash_init(PSI_INSTRUMENT_ME, &unique_items, curr_je.s.cs,
                    1024, 0, 0, get_key_name, NULL, 0))
     return true;
