@@ -770,7 +770,7 @@ void Item_param::setup_conversion_string(THD *thd, CHARSET_INFO *fromcs)
   Routines to assign parameters from data supplied by the client.
 
     Update the parameter markers by reading data from the packet and
-    and generate a valid query for logging.
+    generate a valid query for logging.
 
   @note
     This function, along with other _with_log functions is called when one of
@@ -1879,7 +1879,7 @@ select_like_stmt_test_with_open(Prepared_statement *stmt,
     We should not call LEX::unit.cleanup() after this
     open_normal_and_derived_tables() call because we don't allow
     prepared EXPLAIN yet so derived tables will clean up after
-    themself.
+    themselves.
   */
   THD *thd= stmt->thd;
   if (open_tables(thd, &tables, &table_count, MYSQL_OPEN_FORCE_SHARED_MDL))
@@ -3486,7 +3486,7 @@ void mysqld_stmt_bulk_execute(THD *thd, char *packet_arg, uint packet_length)
 
   @param thd             THD handle
   @param stmt            prepared statement being directly executed
-  @param paket           packet with parameters to bind
+  @param packet           packet with parameters to bind
   @param packet_end      pointer to the byte after parameters end
   @param bulk_op         is it bulk operation
   @param direct_exec     is it direct execution
@@ -3567,7 +3567,7 @@ stmt_execute_packet_sanity_check(Prepared_statement *stmt,
 
   @param thd             THD handle
   @param stmt_id         id of the prepared statement
-  @param paket           packet with parameters to bind
+  @param packet          packet with parameters to bind
   @param packet_end      pointer to the byte after parameters end
   @param cursor_flags    cursor flags
   @param bulk_op         id it bulk operation
@@ -5434,7 +5434,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     However, if the function log_slow_statement wasn't called here the record
     for the statement would be written to slow query log since the variable
     slow_query_log is restored to its original value by the time the function
-    log_slow_statement is called from disptach_command() to write a record
+    log_slow_statement is called from dispatch_command() to write a record
     into slow query log.
   */
   log_slow_statement(thd);
@@ -5469,7 +5469,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     {
       /*
         Here we have the diagnostics area status already set to DA_OK.
-        sent_out_parameters() can raise errors when assigning OUT parameters:
+        send_out_parameters() can raise errors when assigning OUT parameters:
           DECLARE a DATETIME;
           EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
         when the procedure p1 assigns a DATETIME-incompatible value (e.g. 10)

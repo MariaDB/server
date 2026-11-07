@@ -60,7 +60,7 @@ static bool fk_info_append_fields(THD *thd, String *str,
 
 
 /**
-  Generate a foreign key description suitable for a error message.
+  Generate a foreign key description suitable for an error message.
 
   @param thd          Thread context.
   @param fk_info   The foreign key information.
@@ -182,8 +182,8 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
                         binlogging as in case of non transactional tables
                         partial truncation is possible.
 
-  @retval TRUNCATE_FAILED_SKIP_BINLOG Truncate was not successful hence donot
-                        binlong the statement.
+  @retval TRUNCATE_FAILED_SKIP_BINLOG Truncate was not successful hence do not
+                        binlog the statement.
 */
 
 enum Sql_cmd_truncate_table::truncate_result
@@ -275,7 +275,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       If truncate method is not implemented then we don't binlog the
       statement. If truncation has failed in a transactional engine then also
       we don't binlog the statment. Only in non transactional engine we binlog
-      inspite of errors.
+      in spite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
         table->file->has_transactions_and_rollback())
@@ -311,7 +311,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
 
   /* Lock types are set in the parser. */
   DBUG_ASSERT(table_ref->lock_type == TL_WRITE);
-  /* The handler truncate protocol dictates a exclusive lock. */
+  /* The handler truncate protocol dictates an exclusive lock. */
   DBUG_ASSERT(table_ref->mdl_request.type == MDL_EXCLUSIVE);
 
   /*
@@ -572,8 +572,8 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
 
   /*
-    A locked table ticket was upgraded to a exclusive lock. After the
-    the query has been written to the binary log, downgrade the lock
+    A locked table ticket was upgraded to an exclusive lock. After the
+    query has been written to the binary log, downgrade the lock
     to a shared one.
   */
   if (m_ticket_downgrade)

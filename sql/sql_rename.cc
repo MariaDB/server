@@ -331,7 +331,7 @@ check_rename(THD *thd, rename_param *param,
 /*
   Rename a single table or a view
 
-  SYNPOSIS
+  SYNOPSIS
     do_rename()
       thd               Thread handle
       ren_table         A table/view to be renamed
@@ -408,7 +408,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
     if (!(rc= mysql_rename_table(hton, &ren_table->db, old_alias,
                                  new_db, new_alias, &param->old_version, 0)))
     {
-      /* Table rename succeded.
+      /* Table rename succeeded.
          It's safe to start recovery at rename trigger phase
       */
       debug_crash_here("ddl_log_rename_before_phase_trigger");
@@ -491,7 +491,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 /*
   Rename tables/views in the list
 
-  SYNPOSIS
+  SYNOPSIS
     rename_tables()
       thd               Thread handle
       table_list        List of tables to rename

@@ -32,7 +32,7 @@ class Sql_cmd_analyze_table : public Sql_cmd
 {
 public:
   /**
-    Constructor, used to represent a ANALYZE TABLE statement.
+    Constructor, used to represent an ANALYZE TABLE statement.
   */
   Sql_cmd_analyze_table() = default;
 
@@ -77,7 +77,7 @@ class Sql_cmd_optimize_table : public Sql_cmd
 {
 public:
   /**
-    Constructor, used to represent a OPTIMIZE TABLE statement.
+    Constructor, used to represent an OPTIMIZE TABLE statement.
   */
   Sql_cmd_optimize_table() = default;
 
