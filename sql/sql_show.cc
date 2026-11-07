@@ -4321,6 +4321,24 @@ static bool is_simple_is_query(THD *thd)
     DBUG_PRINT("info", ("has SQL_CALC_FOUND_ROWS, using fallback path"));
     return false;
   }
+  /* ROWNUM() counts rows of the join, not of the streamed result. */
+  if (sel->with_rownum)
+  {
+    DBUG_PRINT("info", ("has ROWNUM(), using fallback path"));
+    return false;
+  }
+  /* LIMIT ROWS EXAMINED is enforced by the join, not by the I_S scan. */
+  if (thd->lex->limit_rows_examined)
+  {
+    DBUG_PRINT("info", ("has LIMIT ROWS EXAMINED, using fallback path"));
+    return false;
+  }
+  /* The statement timer can interrupt the scan, use the regular path. */
+  if (thd->variables.max_statement_time)
+  {
+    DBUG_PRINT("info", ("max_statement_time is set, using fallback path"));
+    return false;
+  }
   return true;
 }
 
@@ -4404,6 +4422,7 @@ bool schema_table_store_record(THD *thd, TABLE *table)
         (e.g. TABLE_CATALOG) and is built before HAVING pushdown in some
         cases. full_cond is the complete condition and must be checked.
       */
+      thd->inc_examined_row_count(1);
       if (plan->full_cond && !plan->full_cond->val_bool())
         return 0;
       /* Honour LIMIT / @@sql_select_limit; do not count filtered rows. */
@@ -10370,7 +10389,9 @@ bool get_schema_tables_result(JOIN *join,
         }
         /* FOUND_ROWS() without SQL_CALC_FOUND_ROWS is rows sent. */
         thd->limit_found_rows= plan->sent_rows;
-        my_eof(thd);
+        /* Evaluating the WHERE (KILL, timeout) can have set an error */
+        if (!thd->is_error())
+          my_eof(thd);
         result= 1;
       }
     }
