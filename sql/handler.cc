@@ -6247,7 +6247,8 @@ static my_bool delete_table_force(THD *thd, plugin_ref plugin, void *arg)
   st_force_drop_table_params *param = (st_force_drop_table_params *)arg;
 
   if (param->discovering == (hton->discover_table != NULL) &&
-      !(thd->slave_thread && (hton->flags & HTON_IGNORE_UPDATES)))
+      !(thd->slave_thread && (hton->flags & HTON_IGNORE_UPDATES)) &&
+      !(hton->flags & HTON_NO_TABLES))
   {
     int error;
     error= ha_delete_table(thd, hton, param->path, param->db, param->alias, 0);

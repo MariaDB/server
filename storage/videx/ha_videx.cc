@@ -375,11 +375,12 @@ static int videx_init(void *p)
   videx_hton= static_cast<handlerton *>(p);
 
   videx_hton->create= videx_create_handler;
-  videx_hton->flags= HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
-                     HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION |
-                     HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
-                     HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE |
-                     HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT;
+  videx_hton->flags= (HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
+                      HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION |
+                      HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
+                      HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE |
+                      HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT |
+                      HTON_NO_TABLES);
 
   videx_hton->update_optimizer_costs= videx_update_optimizer_costs;
   videx_hton->tablefile_extensions= ha_videx_exts;
@@ -709,7 +710,7 @@ int ha_videx::create(const char *name, TABLE *table_arg,
 int ha_videx::delete_table(const char *name)
 {
   DBUG_ENTER("ha_videx::delete_table");
-  DBUG_RETURN(0);
+  DBUG_RETURN(0);                         // Table was deleted
 }
 
 int ha_videx::rename_table(const char *from, const char *to)

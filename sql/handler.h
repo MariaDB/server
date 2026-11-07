@@ -2031,6 +2031,14 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_EXPENSIVE_RENAME (1 << 21)
 
+/*
+  Engine does not have any tables and ha_delete_table() will always
+  return 0 (delete successful)
+  This flag is needed to tell delete_table_force() that it should not
+  call ha_delete_table() for the engine.
+*/
+#define HTON_NO_TABLES (1 << 22)
+
 class Ha_trx_info;
 
 struct THD_TRANS
