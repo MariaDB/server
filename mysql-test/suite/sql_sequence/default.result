@@ -169,18 +169,18 @@ deallocate prepare stmt;
 # Wrong usage of default
 #
 CREATE table t1 (a int default next value for s1, b int);
-ERROR 42S02: Table 'test.s1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 's1'
 CREATE SEQUENCE s1 nocache engine=myisam;
 CREATE table t1 (a int default next value for s1, b int);
 DROP SEQUENCE s1;
 insert into t1 (b) values (5),(6);
-ERROR 42S02: Table 'test.s1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 's1'
 ALTER TABLE t1 add column c int;
-ERROR 42S02: Table 'test.s1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 's1'
 CREATE SEQUENCE s1 nocache engine=myisam;
 ALTER TABLE t1 add column c int;
 ALTER TABLE t1 add column d int default next value for s_not_exits;
-ERROR 42S02: Table 'test.s_not_exits' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 's_not_exits'
 drop table t1;
 drop sequence s1;
 #

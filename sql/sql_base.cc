@@ -5397,6 +5397,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       it to point to the opened table.
     */
     tl->linked_table= tables;
+    tl->sequence= tables->sequence;
     DBUG_PRINT("info", ("table name: %s added", tables->table_name.str));
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);

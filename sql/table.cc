@@ -708,6 +708,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
     share->is_view= 1;
+    share->table_type= TABLE_TYPE_VIEW;
+
     if (flags & GTS_VIEW)
     {
       LEX_CSTRING pathstr= { path, length };
@@ -4276,6 +4278,7 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
       ;
     last->next_global= table->internal_tables;
     table->internal_tables= sequence;
+    DBUG_ASSERT(sequence->sequence);            // Set by parser
   }
 
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
@@ -5117,7 +5120,12 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
       may happen on windows when opening a file with a not legal file name
     */
     if (db_errno == ENOENT || db_errno == EINVAL)
-      my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
+    {
+      if (share->table_type == TABLE_TYPE_SEQUENCE)
+        my_error(ER_UNKNOWN_SEQUENCES, MYF(0), share->table_name.str);
+      else
+        my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
+    }
     else
     {
       strxmov(buff, share->normalized_path.str, reg_ext, NullS);

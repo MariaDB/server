@@ -112,18 +112,18 @@ deallocate prepare stmt;
 --echo # Wrong usage of default
 --echo #
 
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 CREATE table t1 (a int default next value for s1, b int);
 CREATE SEQUENCE s1 nocache engine=myisam;
 CREATE table t1 (a int default next value for s1, b int);
 DROP SEQUENCE s1;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 insert into t1 (b) values (5),(6);
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 ALTER TABLE t1 add column c int;
 CREATE SEQUENCE s1 nocache engine=myisam;
 ALTER TABLE t1 add column c int;
---error ER_NO_SUCH_TABLE
+--error ER_UNKNOWN_SEQUENCES
 ALTER TABLE t1 add column d int default next value for s_not_exits;
 drop table t1;
 drop sequence s1;

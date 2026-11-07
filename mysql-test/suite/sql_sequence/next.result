@@ -604,12 +604,12 @@ drop sequence s;
 # MDEV-33985 Server crashes at Item_func_nextval::val_int
 #
 select * from (select 1 as a) x where (nextval(x));
-ERROR 42S02: Table 'test.x' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 'x'
 select (with x(x) as (select 1) select * from x where (nextval(x)));
 ERROR 42S02: 'x' is not a SEQUENCE
 create sequence s;
 select next value for s1 from s as s1;
-ERROR 42S02: Table 'test.s1' doesn't exist
+ERROR 42S02: Unknown SEQUENCE: 's1'
 drop sequence s;
 #
 # MDEV-38815 Server crashes in Item_func_nextval::val_int upon update on a view

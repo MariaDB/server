@@ -5740,7 +5740,8 @@ bool non_existing_table_error(int error)
           error == HA_ERR_UNSUPPORTED ||
           error == ER_NO_SUCH_TABLE ||
           error == ER_NO_SUCH_TABLE_IN_ENGINE ||
-          error == ER_WRONG_OBJECT);
+          error == ER_WRONG_OBJECT ||
+          error == ER_UNKNOWN_SEQUENCES);
 }
 
 
@@ -7108,8 +7109,6 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
     found= plugin_foreach(thd, discover_handlerton,
                         MYSQL_STORAGE_ENGINE_PLUGIN, share);
 
-  if (thd->lex->query_tables && thd->lex->query_tables->sequence && !found)
-    my_error(ER_UNKNOWN_SEQUENCES, MYF(0),share->table_name.str);
   if (!found)
     open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
