@@ -8852,6 +8852,17 @@ ha_innobase::inplace_alter_table(
 	/* Ignore the inplace alter phase when table is empty */
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ha_alter_info->mdl_exclusive_after_prepare) {
+		if (ha_alter_info->handler_ctx) {
+			/* As row_merge_build_indexes() would do, clear
+			the flag that makes it assign new FTS_DOC_ID
+			values. Otherwise, a FULLTEXT index added later
+			without rebuilding the table would not match the
+			FTS_DOC_ID of the existing rows. */
+			DICT_TF2_FLAG_UNSET(
+				static_cast<ha_innobase_inplace_ctx*>(
+					ha_alter_info->handler_ctx)->new_table,
+				DICT_TF2_FTS_ADD_DOC_ID);
+		}
 ok_exit:
 		DEBUG_SYNC(m_user_thd, "innodb_after_inplace_alter_table");
 		DBUG_RETURN(false);
