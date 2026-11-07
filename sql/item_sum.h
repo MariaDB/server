@@ -451,6 +451,14 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const override { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  /*
+    Whether this function, used as a window function, can be evaluated in the
+    streaming path: incrementally in a single pass over rows. Whether
+    streaming is actually chosen also depends on the frame and the ordering
+    (see have_streaming_window_funcs()). False by default; overriden where
+    supported.
+  */
+  virtual inline bool is_streamable() const { return false; }
   bool is_aggr_sum_func()
   {
     switch (sum_func()) {
@@ -911,6 +919,8 @@ public:
     return true;
   }
 
+  inline bool is_streamable() const override { return true; }
+
 private:
   void add_helper(bool perform_removal);
   ulonglong count;
@@ -987,6 +997,8 @@ public:
     return true;
   }
 
+  inline bool is_streamable() const override { return true; }
+
 protected:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_sum_count>(thd, this); }
@@ -1046,6 +1058,8 @@ public:
   {
     return true;
   }
+
+  inline bool is_streamable() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1252,6 +1266,8 @@ public:
                           const Tmp_field_param *param) override;
   void setup_caches(THD *thd) override
   { setup_hybrid(thd, arguments()[0], NULL); }
+
+  inline bool is_streamable() const override { return true; }
 };
 
 
