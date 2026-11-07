@@ -1,0 +1,13 @@
+#
+# MDEV-37493 information_schema.routines.routine_schema no longer
+# matched case-insensitively with lower_case_table_names=2
+#
+CREATE DATABASE FooBar;
+CREATE PROCEDURE FooBar.testing(IN p INT) SELECT p;
+SELECT routine_schema, routine_name FROM information_schema.routines WHERE routine_schema = 'FooBar';
+routine_schema	routine_name
+foobar	testing
+SELECT specific_schema, specific_name, parameter_name FROM information_schema.parameters WHERE specific_schema = 'FOOBAR';
+specific_schema	specific_name	parameter_name
+foobar	testing	p
+DROP DATABASE FooBar;
