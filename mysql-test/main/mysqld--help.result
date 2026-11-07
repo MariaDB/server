@@ -1233,10 +1233,14 @@ The following specify which files/extra groups are read (specified before remain
  not sure, leave this option unset
  --report-user=name  The account user name of the slave to be reported to the
  master during slave registration
- --require-secure-transport 
+ --require-secure-transport[=name] 
  When this option is enabled, connections attempted using
  insecure transport will be rejected. Secure transports
- are SSL/TLS, Unix sockets or named pipes.
+ are SSL/TLS, Unix sockets or named pipes. Over TCP the
+ client must also prove that it has verified the server
+ certificate, which needs a password hash or a client
+ certificate. CLIENT trusts clients of accounts without a
+ password hash to have verified it. One of: OFF, ON, CLIENT
  --rowid-merge-buff-size=# 
  The size of the buffers used [NOT] IN evaluation via
  partial matching
@@ -1927,7 +1931,7 @@ report-host (No default value)
 report-password (No default value)
 report-port 0
 report-user (No default value)
-require-secure-transport FALSE
+require-secure-transport OFF
 rowid-merge-buff-size 8388608
 rpl-semi-sync-master-enabled FALSE
 rpl-semi-sync-master-timeout 10000

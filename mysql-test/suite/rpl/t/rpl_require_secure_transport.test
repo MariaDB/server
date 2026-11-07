@@ -1,0 +1,102 @@
+--source include/not_windows.inc
+--source include/have_ssl_communication.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-40530 Bind the client authentication response to the server certificate
+--echo #
+
+--connection master
+call mtr.add_suppression("Invalid ssl_info_client from 'repl'@'localhost': malformed");
+create user repl@'%' identified by 'pw';
+grant replication slave on *.* to repl@'%';
+create table t1 (a int);
+set global require_secure_transport=on;
+
+--connection slave
+call mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed");
+--source include/stop_slave.inc
+--let $master_port_orig= query_get_value(SHOW SLAVE STATUS, Master_Port, 1)
+--let $master_verify_orig= query_get_value(SHOW SLAVE STATUS, Master_SSL_Verify_Server_Cert, 1)
+--let $master_verify_orig= `select "$master_verify_orig" = "Yes"`
+
+--echo # the replica has verified the master certificate
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to master_user='repl', master_password='pw', master_ssl=1,
+  master_ssl_verify_server_cert=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem';
+--source include/start_slave.inc
+--connection master
+insert t1 values (1);
+--sync_slave_with_master
+select * from t1;
+--source include/stop_slave.inc
+
+--echo # the replica does not verify the master certificate
+change master to master_ssl_verify_server_cert=0, master_ssl_ca='';
+--source include/start_slave.inc
+--connection master
+insert t1 values (2);
+--sync_slave_with_master
+select * from t1;
+--source include/stop_slave.inc
+
+--echo # no password hash to prove anything with
+change master to master_user='root', master_password='';
+start slave io_thread;
+--let $slave_io_errno= 3159
+--let $slave_io_error_is_nonfatal= 1
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_io.inc
+
+--connection master
+set global require_secure_transport=client;
+--connection slave
+--echo # trust the replica without a password hash that has verified the master certificate
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+eval change master to master_ssl_verify_server_cert=1,
+  master_ssl_ca='$MYSQL_TEST_DIR/std_data/cacert.pem';
+--source include/start_slave.inc
+--connection master
+insert t1 values (3);
+--sync_slave_with_master
+select * from t1;
+--source include/stop_slave.inc
+--echo # but not if it has not
+change master to master_ssl_verify_server_cert=0, master_ssl_ca='';
+start slave io_thread;
+--let $slave_io_errno= 2006, 2013
+--let $slave_io_error_is_nonfatal= 1
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_io.inc
+--connection master
+set global require_secure_transport=on;
+--connection slave
+
+--echo # MitM cannot use the replica connection
+--exec perl lib/ssl-mitm.pl --listen-on $MITM_PORT --connect-to $MASTER_MYPORT --ssl-ca std_data/cacert.pem --ssl-key std_data/server-new-key.pem --ssl-cert std_data/server-new-cert.pem --hijack "create table test.hijacked (a int)"
+--replace_result $MITM_PORT MITM_PORT
+eval change master to master_user='repl', master_password='pw',
+  master_port=$MITM_PORT, master_connect_retry=1;
+start slave io_thread;
+--let $slave_io_errno= 2003, 2013, 3159
+--let $slave_io_error_is_nonfatal= 1
+--source include/wait_for_slave_io_error.inc
+--source include/stop_slave_io.inc
+--connection master
+show tables like 'hijacked';
+set global require_secure_transport=off;
+
+--connection slave
+--replace_result $master_port_orig MASTER_PORT
+eval change master to master_user='root', master_password='', master_port=$master_port_orig,
+  master_ssl_verify_server_cert=$master_verify_orig, master_connect_retry=60;
+--source include/start_slave.inc
+
+--connection master
+drop table t1;
+drop user repl@'%';
+--source include/rpl_end.inc
+
+--echo # End of 11.4 tests
