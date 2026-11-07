@@ -1,0 +1,10 @@
+source include/not_embedded.inc;
+
+--echo #
+--echo # MDEV-38591: Optimizer trace test for condition processing
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, x INT, j JSON);
+INSERT INTO t VALUES (1, 10, '[10, 20]'), (2, 20, '[10, 20]'), (3, 30, '[30, 40]');
+SET STATEMENT optimizer_trace='enabled=on' FOR SELECT * FROM t WHERE x=10 AND x MEMBER OF (j);
+SELECT JSON_DETAILED(JSON_EXTRACT(TRACE, '$**.condition_processing')) AS t FROM information_schema.OPTIMIZER_TRACE;
+DROP TABLE t;

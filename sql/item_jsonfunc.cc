@@ -992,35 +992,191 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
-    Odd but realistic worst case is when all characters
-    of the argument turn into '\uXXXX\uXXXX', which is 12.
+    Item 2 (maybe_null & view-protocol fix): Worst-case output length: each
+    input character can expand to '\uXXXX\uXXXX' (12 bytes) plus the two
+    surrounding quotes (+2).
+
+    For NULL input, val_str() returns the 4-character unquoted string "null".
+    When args[0]->max_char_length() is 0 (e.g. for literal NULL), the formula
+    (0 * 12 + 2 = 2) would under-declare max_char_length as 2, causing "null"
+    to be truncated to "nu" under --view-protocol.  We enforce a minimum of 4
+    characters using MY_MAX(..., 4ULL) to ensure "null" is never truncated.
   */
-  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  if (json_passthrough)
+    fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length(), 4ULL));
+  else
+    fix_char_length_ulonglong(MY_MAX((ulonglong) args[0]->max_char_length() * 12 + 2, 4ULL));
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_json_quote::val_str(String *str)
 {
+  /*
+    Evaluate the argument. For STRING_RESULT we need the returned pointer
+    (which may differ from &tmp_s for const-item optimisations).
+    For numeric types the text lives in tmp_s; val_str() still fills it.
+  */
   String *s= args[0]->val_str(&tmp_s);
-
-  if ((null_value= (args[0]->null_value ||
-                    args[0]->result_type() != STRING_RESULT)))
-    return NULL;
 
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
+  if (args[0]->null_value)
   {
-    /* Report an error. */
+    /*
+      SQL NULL input maps to the JSON null literal — return the
+      4-character string "null" as a non-NULL result.
+    */
+    null_value= 0;
+    if (str->append(STRING_WITH_LEN("null")))
+    {
+      null_value= 1;
+      return 0;
+    }
+    return str;
+  }
+
+  /*
+    Items 4 & 5: Guard against a null String pointer once, before the
+    switch, rather than duplicating it inside every case.  After this
+    point every code path below is guaranteed s != NULL.
+  */
+  if (!s)
+  {
+    null_value= 1;
+    return NULL;
+  }
+
+  if (json_passthrough)
+  {
+    null_value= 0;
+    return s;
+  }
+
+  /*
+    Item 6: Use a labelled switch so ROW_RESULT can re-enter via goto after
+    unwrapping a single-column row item.
+  */
+  Item_result t= args[0]->result_type();
+
+eval:
+  switch (t)
+  {
+  case STRING_RESULT:
+    /* String input: quote and escape. */
+    if (str->append('"') ||
+        st_append_escaped(str, s) ||
+        str->append('"'))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+
+  case INT_RESULT:
+  {
+    /*
+      Use val_int() / append_longlong() directly to avoid the
+      ZEROFILL zero-padding that val_str() applies for display.
+      append_longlong() / append_ulonglong() format as a plain JSON integer
+      with no leading zeros.
+    */
+    longlong ival= args[0]->val_int();
+    if (args[0]->unsigned_flag ? str->append_ulonglong((ulonglong)ival)
+                               : str->append_longlong(ival))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+  }
+
+  case DECIMAL_RESULT:
+  {
+    /*
+      Use val_decimal() directly so ZEROFILL display attributes
+      don't leak into the JSON number.  my_decimal::to_string() produces a
+      canonical decimal representation (e.g. "1.50" not "0001.50").
+    */
+    my_decimal dec_buf;
+    my_decimal *dec= args[0]->val_decimal(&dec_buf);
+    if (!dec || !dec->to_string(&tmp_s) || str->append(tmp_s))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+  }
+
+  case REAL_RESULT:
+  {
+    /*
+      Use val_real() directly to avoid ZEROFILL distortion.
+      my_gcvt() produces a shortest-round-trip float representation.
+    */
+    char rbuf[MY_GCVT_MAX_FIELD_WIDTH + 4];
+    double rval= args[0]->val_real();
+    size_t rlen= my_gcvt(rval, MY_GCVT_ARG_DOUBLE,
+                         MY_GCVT_MAX_FIELD_WIDTH, rbuf, NULL);
+    if (str->append(rbuf, rlen))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+  }
+
+  case TIME_RESULT:
+    /*
+      Item 6: Times are already well-formatted text (e.g. '2025-01-01 12:00:00')
+      and require no JSON escaping beyond surrounding quotes.
+    */
+    if (str->append('"') ||
+        str->append(tmp_s) ||
+        str->append('"'))
+    {
+      null_value= 1;
+      return 0;
+    }
+    null_value= 0;
+    return str;
+
+  case ROW_RESULT:
+    /*
+      Item 6: Single-column ROW_RESULT unwrapping logic (goto eval).
+      Stored function calls (Item_func_sp) can report ROW_RESULT with cols() == 1
+      at the point val_str() inspects args[0]->result_type(). The inner return
+      element type is extracted via element_index(0)->result_type() and the
+      switch is re-entered via goto eval.
+
+      NOTE: When a stored function returning VARCHAR(30) (e.g. JSON_OBJECT text)
+      is unwrapped here, its element type is STRING_RESULT. In val_str(),
+      STRING_RESULT inputs are quoted and escaped (e.g. producing '"{\"key\":...}"').
+      This double-quoting is standard SQL/JSON behavior for VARCHAR return types.
+    */
+    if (args[0]->cols() == 1)
+    {
+      t= args[0]->element_index(0)->result_type();
+      if (t != ROW_RESULT)
+        goto eval;
+    }
+    /* fallthrough */
+  default:
+    /*
+      Item 6: Unknown or multi-column ROW_RESULT — emit a real diagnostic
+      instead of silently returning NULL.  Under MEMBER OF this will surface
+      as a warning mentioning json_quote internally.
+    */
+    my_error(ER_WRONG_ARGUMENTS, MYF(ME_WARNING), func_name());
     null_value= 1;
     return 0;
   }
-
-  return str;
 }
 
 
@@ -1607,6 +1763,62 @@ static int find_key_in_object(json_engine_t *j, json_string_t *key)
 }
 
 
+bool Item_func_json_contains::json_array_eq(json_engine_t *a, json_engine_t *b)
+{
+  json_engine_t loc_a= *a, loc_b= *b;
+  while (json_scan_next(&loc_a) == 0 && json_scan_next(&loc_b) == 0)
+  {
+    if (loc_a.state == JST_ARRAY_END && loc_b.state == JST_ARRAY_END)
+      return true;
+    if (loc_a.state != JST_VALUE || loc_b.state != JST_VALUE)
+      return false;
+    if (json_read_value(&loc_a) || json_read_value(&loc_b))
+      return false;
+    if (!json_value_eq(&loc_a, &loc_b))
+      return false;
+    if (!json_value_scalar(&loc_a))
+      json_skip_level(&loc_a);
+    if (!json_value_scalar(&loc_b))
+      json_skip_level(&loc_b);
+  }
+  return (loc_a.state == JST_ARRAY_END && loc_b.state == JST_ARRAY_END);
+}
+
+bool Item_func_json_contains::json_value_eq(json_engine_t *a, json_engine_t *b)
+{
+  if (a->value_type != b->value_type)
+    return false;
+
+  switch (a->value_type)
+  {
+  case JSON_VALUE_STRING:
+    return json_string_compare(a->s.cs,
+                               a->value, a->value_len, a->value_escaped,
+                               b->value, b->value_len, b->value_escaped) == 0;
+  case JSON_VALUE_NUMBER:
+  {
+    double d_a, d_b;
+    char *end;
+    int err;
+    d_a= a->s.cs->strntod((char *) a->value, a->value_len, &end, &err);
+    d_b= b->s.cs->strntod((char *) b->value, b->value_len, &end, &err);
+    return (fabs(d_a - d_b) < 1e-12);
+  }
+  case JSON_VALUE_ARRAY:
+    return json_array_eq(a, b);
+  case JSON_VALUE_OBJECT:
+    return check_contains(a, b);
+  case JSON_VALUE_TRUE:
+  case JSON_VALUE_FALSE:
+  case JSON_VALUE_NULL:
+    return true;
+  default:
+    break;
+  }
+  return false;
+}
+
+
 int Item_func_json_contains::check_contains(json_engine_t *js,
                                             json_engine_t *value)
 {
@@ -1670,7 +1882,7 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
     return value->state == JST_OBJ_END && !json_skip_level(js);
   }
   case JSON_VALUE_ARRAY:
-    if (value->value_type != JSON_VALUE_ARRAY)
+    if (value->value_type != JSON_VALUE_ARRAY || member_of)
     {
       loc_js= *value;
       set_js= FALSE;
@@ -1691,7 +1903,7 @@ int Item_func_json_contains::check_contains(json_engine_t *js,
         else
           set_js= TRUE;
 
-        if (check_contains(js, value))
+        if (member_of ? json_value_eq(js, value) : check_contains(js, value))
         {
           if (json_skip_level(js))
           {
@@ -1850,9 +2062,21 @@ bool Item_func_json_contains::val_bool()
 
 error:
   if (je.s.error)
-    report_json_error(js, &je, 0);
+  {
+    if (member_of)
+      report_json_error_ex(js->ptr(), &je, "member of", 1,
+          Sql_condition::WARN_LEVEL_WARN);
+    else
+      report_json_error(js, &je, 0);
+  }
   if (ve.s.error)
-    report_json_error(val, &ve, 1);
+  {
+    if (member_of)
+      report_json_error_ex(val->ptr(), &ve, "member of", 0,
+          Sql_condition::WARN_LEVEL_WARN);
+    else
+      report_json_error(val, &ve, 1);
+  }
 return_null:
   null_value= 1;
   return 0;
@@ -6738,3 +6962,159 @@ void Item_func_is_json::print(String *str, enum_query_type query_type)
   if (with_unique_keys)
     str->append(STRING_WITH_LEN(" WITH UNIQUE KEYS"));
 }
+
+
+bool Item_func_member_of::val_bool()
+{
+  DBUG_ASSERT(fixed());
+
+  bool res= json_contains_item->val_bool();
+  /*
+    Note: MariaDB intentionally diverges from MySQL's documented behavior
+    ("If value is NULL, returns NULL"). MariaDB evaluates SELECT NULL MEMBER OF
+    ('[null]') as 1 and SELECT NULL MEMBER OF ('[1,2,3]') as 0. When args[0] is
+    SQL NULL, json_quote_item returns the string "null" (per MDEV-13645), which
+    json_contains_item matches against JSON null in the array. Container NULL
+    (args[1] IS NULL) still propagates SQL NULL via json_contains_item->null_value.
+  */
+  if (json_contains_item->null_value)
+  {
+    null_value= 1;
+    return false;
+  }
+  null_value= 0;
+  return negated ? !res : res;
+}
+
+bool Item_func_member_of::fix_length_and_dec(THD *thd)
+{
+  /*
+    Item 7: Call through the explicit immediate parent (Item_func_opt_neg).
+    Item_func_opt_neg does not itself override fix_length_and_dec — the call
+    resolves through Item_bool_func::fix_length_and_dec — but naming the
+    direct parent makes the inheritance intent explicit and consistent with
+    the walk() and transform() overrides below.
+  */
+  if (Item_func_opt_neg::fix_length_and_dec(thd))
+    return true;
+
+  set_maybe_null();
+
+  if (args[1]->collation.collation != &my_charset_utf8mb4_bin)
+  {
+    Item *conv= args[1]->safe_charset_converter(thd, &my_charset_utf8mb4_bin);
+    if (conv && conv != args[1])
+    {
+      if (conv->fix_fields(thd, &conv))
+        return true;
+      thd->change_item_tree(&args[1], conv);
+    }
+  }
+
+  List<Item> contains_args;
+  if (contains_args.push_back(args[1], thd->mem_root))
+    return true;
+
+  /*
+    For JSON-typed candidates (is_json_type == true), we use json_passthrough
+    so non-null JSON values pass through unquoted, while SQL NULL inputs are
+    consistently converted to the JSON string "null" (MDEV-41418).
+  */
+  bool passthrough= is_json_type(args[0]);
+  Item_func_json_quote *jq= new (thd->mem_root) Item_func_json_quote(thd, args[0], passthrough);
+  if (!jq)
+    return true;
+  if (jq->fix_length_and_dec(thd))
+    return true;
+
+  jq->used_tables_and_const_cache_init();
+  jq->used_tables_and_const_cache_join(args[0]);
+  json_quote_item= jq;
+  if (contains_args.push_back(json_quote_item, thd->mem_root))
+    return true;
+
+  Item_func_json_contains *jc= new (thd->mem_root) Item_func_json_contains(thd, contains_args, true);
+  if (!jc)
+    return true;
+  if (jc->fix_length_and_dec(thd))
+    return true;
+  /* Propagate used-tables/const state from the freshly fixed arguments. */
+  jc->used_tables_and_const_cache_init();
+  jc->used_tables_and_const_cache_join(args[1]);
+  jc->used_tables_and_const_cache_join(json_quote_item);
+  json_contains_item= jc;
+
+  return false;
+}
+
+
+bool Item_func_member_of::walk(Item_processor processor, void *arg, item_walk_flags flags)
+{
+  /*
+    Item 9: Explicitly walk json_contains_item (and transitively json_quote_item
+    which lives inside it) because these internal helper items are NOT in the
+    args[] array that Item_func_or_sum::walk() iterates via walk_args().
+    Item_func_member_of::args[] contains only {args[0]=candidate, args[1]=container};
+    the helper items are hidden children that would be completely skipped without
+    this explicit call.  Removing it causes processors such as used_tables and
+    equal-field propagation to miss those items.
+
+    Call through Item_func_opt_neg (immediate parent) instead of Item_bool_func
+    for the same reason as fix_length_and_dec and transform.
+  */
+  if (json_contains_item && json_contains_item->walk(processor, arg, flags))
+    return true;
+  return Item_func_opt_neg::walk(processor, arg, flags);
+}
+
+Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uchar *arg)
+{
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
+  Item *res= Item_bool_func::transform(thd, transformer, arg);
+  if (res && res == this)
+  {
+    if (json_quote_item && json_quote_item->type() == Item::FUNC_ITEM)
+      static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
+    if (json_contains_item && json_contains_item->type() == Item::FUNC_ITEM)
+    {
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
+    }
+  }
+  return res;
+}
+
+
+
+void Item_func_member_of::update_used_tables()
+{
+  Item_func_opt_neg::update_used_tables();
+  if (json_quote_item)
+  {
+    if (json_quote_item->type() == Item::FUNC_ITEM)
+      static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
+    json_quote_item->update_used_tables();
+  }
+  if (json_contains_item)
+  {
+    if (json_contains_item->type() == Item::FUNC_ITEM)
+    {
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
+    }
+    json_contains_item->update_used_tables();
+  }
+}
+
+
+void Item_func_member_of::print(String *str, enum_query_type query_type)
+{
+  args[0]->print_parenthesised(str, query_type, higher_precedence());
+  if (negated)
+    str->append(STRING_WITH_LEN(" not"));
+  str->append(STRING_WITH_LEN(" member of ("));
+  args[1]->print(str, query_type);
+  str->append(')');
+}
+
+

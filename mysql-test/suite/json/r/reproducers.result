@@ -1,0 +1,59 @@
+# MDEV-41402
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+SELECT * FROM (SELECT * FROM t UNION SELECT * FROM t) dt WHERE dt.a MEMBER OF (dt.j);
+a	j
+1	[1,2,3]
+DROP TABLE t;
+# MDEV-41404
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
+SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t) dt;
+a	j	a MEMBER OF (j)
+3	[1,2,3]	1
+3	[2,3,4]	1
+DROP TABLE t;
+# Cross-join const-caching check
+CREATE TABLE t1 (id INT, val JSON);
+INSERT INTO t1 VALUES (1, '[1,2,3]'), (2, '[4,5,6]'), (3, NULL);
+CREATE TABLE t2 (candidate INT);
+INSERT INTO t2 VALUES (2), (4), (NULL);
+SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
+candidate	val	candidate MEMBER OF (val)
+NULL	[1,2,3]	0
+2	[1,2,3]	1
+4	[1,2,3]	0
+NULL	[4,5,6]	0
+2	[4,5,6]	0
+4	[4,5,6]	1
+NULL	NULL	NULL
+2	NULL	NULL
+4	NULL	NULL
+DROP TABLE t1, t2;
+# Malformed JSON warnings check
+SELECT 1 MEMBER OF ('[1,2');
+1 MEMBER OF ('[1,2')
+NULL
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'member of'
+CREATE TABLE t_json (j TEXT);
+INSERT INTO t_json VALUES ('[1,2');
+SELECT j MEMBER OF ('[1]') FROM t_json;
+j MEMBER OF ('[1]')
+0
+DROP TABLE t_json;
+CREATE TABLE t_41418 (j JSON, c VARCHAR(10), i INT);
+INSERT INTO t_41418 VALUES (NULL, NULL, NULL);
+SELECT j MEMBER OF ('[1]'), c MEMBER OF ('[1]'), i MEMBER OF ('[1]') FROM t_41418;
+j MEMBER OF ('[1]')	c MEMBER OF ('[1]')	i MEMBER OF ('[1]')
+0	0	0
+SELECT j MEMBER OF ('[null]'), c MEMBER OF ('[null]'), i MEMBER OF ('[null]') FROM t_41418;
+j MEMBER OF ('[null]')	c MEMBER OF ('[null]')	i MEMBER OF ('[null]')
+1	1	1
+DROP TABLE t_41418;
+CREATE TABLE t_41586 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t_41586 VALUES ('é');
+SELECT a MEMBER OF (CONCAT('["',a,'"]')) FROM t_41586;
+a MEMBER OF (CONCAT('["',a,'"]'))
+1
+DROP TABLE t_41586;
