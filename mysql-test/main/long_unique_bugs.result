@@ -864,4 +864,35 @@ engine=innodb character set utf8mb3
 as select 'x' as a;
 delete from t;
 drop table t;
+#
+# MDEV-41977 UNIQUE HASH prefix on utf8mb4 TEXT allows rows with equal
+# indexed prefixes
+#
+create table t1 (a text character set utf8mb4 collate utf8mb4_bin,
+unique key (a(1)) using hash) engine=innodb;
+insert into t1 values ('aa');
+insert into t1 values ('ab');
+ERROR 23000: Duplicate entry 'a' for key 'a'
+insert into t1 values ('ba');
+update t1 set a='bb' where a='aa';
+ERROR 23000: Duplicate entry 'b' for key 'a'
+insert ignore into t1 values ('ac'), ('bc'), ('ca');
+Warnings:
+Warning	1062	Duplicate entry 'a' for key 'a'
+Warning	1062	Duplicate entry 'b' for key 'a'
+select * from t1 order by a;
+a
+aa
+ba
+ca
+drop table t1;
+create table t1 (a varchar(10) character set utf8mb4 collate utf8mb4_bin,
+unique key (a(1)) using hash) engine=innodb;
+insert into t1 values ('aa');
+insert into t1 values ('ab');
+ERROR 23000: Duplicate entry 'a' for key 'a'
+select * from t1;
+a
+aa
+drop table t1;
 # End of 10.11 tests
