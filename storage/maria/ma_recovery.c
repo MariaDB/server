@@ -50,6 +50,7 @@ static LSN current_group_end_lsn;
 static MARIA_HA *current_group_table;
 #endif
 static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
+static my_bool recovery_from_sql_layer; /**< server startup, not aria_read_log */
 /** @brief to avoid writing a checkpoint if recovery did nothing. */
 static my_bool checkpoint_useful;
 static my_bool in_redo_phase;
@@ -228,6 +229,7 @@ int maria_recovery_from_log(void)
 
   DBUG_ASSERT(!maria_in_recovery);
   maria_in_recovery= TRUE;
+  recovery_from_sql_layer= TRUE;
 
 #ifdef EXTRA_DEBUG
   fn_format(name_buff, "aria_recovery.trace", maria_data_root, "", MYF(0));
@@ -250,6 +252,7 @@ int maria_recovery_from_log(void)
   if (trace_file)
     my_fclose(trace_file, MYF(0));
   maria_in_recovery= FALSE;
+  recovery_from_sql_layer= FALSE;
   DBUG_RETURN(res);
 }
 
@@ -1198,6 +1201,18 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
     DBUG_RETURN(0);
   }
 
+  if (info->s->options & HA_OPTION_RELIES_ON_SQL_LAYER)
+  {
+    /*
+      Parser plugins are not available until the SQL layer opens the table.
+      write_log_record_for_repair() syncs these tables before logging repair,
+      so keep the rebuilt files and allow subsequent REDO and UNDO records.
+    */
+    tprint(tracef, "we skip repair requiring the SQL layer;"
+           " files were synced before logging\n");
+    DBUG_RETURN(0);
+  }
+
   /*
     Otherwise, the mapping is newer than the table, and our record is newer
     than the mapping, so we can repair.
@@ -1404,7 +1419,16 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
     goto end;
   }
   tprint(tracef, "Table '%s', id %u", name, sid);
-  info= maria_open(name, O_RDWR, HA_OPEN_FOR_REPAIR, 0);
+  /*
+    Row and key recovery uses logged values, without fulltext parsers.
+    REDO_REPAIR_TABLE keeps the indexes already rebuilt by the SQL layer.
+    Keep refusing these tables in aria_read_log.
+    In server recovery, maria_in_recovery already triggers the state LSN
+    initialization done by HA_OPEN_FROM_SQL_LAYER.
+  */
+  info= maria_open(name, O_RDWR,
+                   HA_OPEN_FOR_REPAIR |
+                   (recovery_from_sql_layer ? HA_OPEN_FROM_SQL_LAYER : 0), 0);
   if (info == NULL)
   {
     tprint(tracef, ", is absent (must have been dropped later?)"
@@ -1472,7 +1496,9 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   {
     tprint(tracef, "\n");
     eprint(tracef, "Table '%s' is crashed, skipping it. Please repair it with"
-           " aria_chk -r", share->open_file_name.str);
+           " %s", share->open_file_name.str,
+           (share->options & HA_OPTION_RELIES_ON_SQL_LAYER) ?
+           "REPAIR TABLE" : "aria_chk -r");
     recovery_found_crashed_tables++;
     error= -1; /* not fatal, try with other tables */
     goto end;
