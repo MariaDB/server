@@ -1,0 +1,10 @@
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB;
+INSERT INTO t1 VALUES(repeat('a',100));
+# prepare --export with a bogus argv[0]
+# restart
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
