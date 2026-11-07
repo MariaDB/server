@@ -8,8 +8,10 @@
 #
 
 -- source include/not_embedded.inc
+-- source include/have_debug.inc
 -- source include/have_debug_sync.inc
 -- source include/have_innodb.inc
+-- source include/have_sequence.inc
 set local sql_mode="";
 set global sql_mode="";
 
@@ -361,3 +363,142 @@ reap;
 DROP TABLE t1;
 disconnect con1;
 SET debug_sync='RESET';
+
+--echo #
+--echo # MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+--echo #            virtual column expressions
+--echo #
+--echo # Kill before the vcol expression is parsed
+create table t1 (a int, b int as (a + 1) virtual);
+insert into t1 (a) values (1);
+flush tables;
+
+let $sync_point= TABLE_after_field_clone;
+let $query= select * from t1;
+--source main/kill_debug.inc
+drop table t1;
+
+--echo # Kill inside the expression must not leave it cut short.
+create table t1 (a int, b int as (a + 1) virtual);
+insert into t1 (a) values (1);
+flush tables;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,lex_kill_before_plus';
+--error ER_QUERY_INTERRUPTED
+select * from t1;
+show warnings;
+set debug_dbug= @save_dbug;
+select * from t1;
+
+--echo # Kill after '+' in the expression reports only the kill error.
+flush tables;
+set debug_dbug= '+d,lex_kill_after_plus';
+--error ER_QUERY_INTERRUPTED
+select * from t1;
+show warnings;
+set debug_dbug= @save_dbug;
+select * from t1;
+drop table t1;
+
+--echo # Kill inside the client statement must not run it cut short.
+set debug_dbug= '+d,lex_kill_before_plus';
+--error ER_QUERY_INTERRUPTED
+select 1 + 2;
+show warnings;
+set debug_dbug= @save_dbug;
+
+--echo # Kill before the trigger body is parsed
+create table t1 (a int);
+create trigger tr before insert on t1 for each row set new.a= new.a + 1;
+flush tables;
+
+let $sync_point= TABLE_after_field_clone;
+let $query= insert into t1 values (1);
+--source main/kill_debug.inc
+insert into t1 values (1);
+select * from t1;
+drop table t1;
+
+--echo # Kill inside the trigger body must not leave it cut short.
+create table t1 (a int);
+create trigger tr before insert on t1 for each row set new.a= new.a + 1;
+flush tables;
+set debug_dbug= '+d,lex_kill_before_plus';
+--error ER_QUERY_INTERRUPTED
+insert into t1 values (1);
+show warnings;
+set debug_dbug= @save_dbug;
+insert into t1 values (1);
+select * from t1;
+drop table t1;
+
+--echo # Kill while loading the second trigger
+create table t1 (a int);
+create trigger tr1 before insert on t1 for each row set new.a= new.a + 1;
+create trigger tr2 before insert on t1 for each row set new.a= new.a * 10;
+flush tables;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,kill_on_second_trigger_load';
+--error ER_QUERY_INTERRUPTED
+insert into t1 values (1);
+show warnings;
+set debug_dbug= @save_dbug;
+insert into t1 values (1);
+select * from t1;
+
+--echo # RENAME TABLE killed while loading trigger names moves all of them.
+set debug_dbug= '+d,kill_on_second_trigger_load';
+rename table t1 to t2;
+set debug_dbug= @save_dbug;
+select trigger_name, event_object_table from information_schema.triggers
+where trigger_schema= 'test' order by trigger_name;
+rename table t2 to t1;
+
+--echo # DROP TABLE killed while loading trigger names removes all of them.
+set debug_dbug= '+d,kill_on_second_trigger_load';
+drop table t1;
+set debug_dbug= @save_dbug;
+create table t1 (a int);
+create trigger tr2 before insert on t1 for each row set new.a= 2;
+drop table t1;
+
+--echo # Kill before the table is discovered
+flush tables;
+
+let $sync_point= after_open_table_mdl_shared;
+let $query= select * from seq_1_to_3;
+--source main/kill_debug.inc
+select * from seq_1_to_3;
+
+--echo # Kill before the view is parsed
+create view v1 as select 1 + 2 as a;
+flush tables;
+
+let $sync_point= after_open_table_mdl_shared;
+let $query= select * from v1;
+--source main/kill_debug.inc
+select * from v1;
+drop view v1;
+
+--echo # Kill before the stored function is parsed
+create function f1() returns int return 1 + 2;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,kill_before_sp_load';
+--error ER_QUERY_INTERRUPTED
+select f1();
+show warnings;
+set debug_dbug= @save_dbug;
+select f1();
+drop function f1;
+
+--echo # Kill inside the stored function body must not leave it cut short.
+create function f1() returns int return 1 + 2;
+set debug_dbug= '+d,lex_kill_before_plus';
+--error ER_QUERY_INTERRUPTED
+select f1();
+show warnings;
+set debug_dbug= @save_dbug;
+select f1();
+drop function f1;
+
+--echo # End of 10.11 tests

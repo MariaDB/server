@@ -265,3 +265,205 @@ ERROR 70100: Query execution was interrupted
 DROP TABLE t1;
 disconnect con1;
 SET debug_sync='RESET';
+#
+# MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+#            virtual column expressions
+#
+# Kill before the vcol expression is parsed
+create table t1 (a int, b int as (a + 1) virtual);
+insert into t1 (a) values (1);
+flush tables;
+connect con1, localhost, root;
+set debug_sync= 'TABLE_after_field_clone signal opening wait_for go';
+select * from t1;
+connection default;
+set debug_sync= 'now wait_for opening';
+kill query CON1_ID;
+connection con1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+disconnect con1;
+connection default;
+set debug_sync= 'reset';
+drop table t1;
+# Kill inside the expression must not leave it cut short.
+create table t1 (a int, b int as (a + 1) virtual);
+insert into t1 (a) values (1);
+flush tables;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,lex_kill_before_plus';
+select * from t1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+select * from t1;
+a	b
+1	2
+# Kill after '+' in the expression reports only the kill error.
+flush tables;
+set debug_dbug= '+d,lex_kill_after_plus';
+select * from t1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+select * from t1;
+a	b
+1	2
+drop table t1;
+# Kill inside the client statement must not run it cut short.
+set debug_dbug= '+d,lex_kill_before_plus';
+select 1 + 2;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+# Kill before the trigger body is parsed
+create table t1 (a int);
+create trigger tr before insert on t1 for each row set new.a= new.a + 1;
+flush tables;
+connect con1, localhost, root;
+set debug_sync= 'TABLE_after_field_clone signal opening wait_for go';
+insert into t1 values (1);
+connection default;
+set debug_sync= 'now wait_for opening';
+kill query CON1_ID;
+connection con1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+disconnect con1;
+connection default;
+set debug_sync= 'reset';
+insert into t1 values (1);
+select * from t1;
+a
+2
+drop table t1;
+# Kill inside the trigger body must not leave it cut short.
+create table t1 (a int);
+create trigger tr before insert on t1 for each row set new.a= new.a + 1;
+flush tables;
+set debug_dbug= '+d,lex_kill_before_plus';
+insert into t1 values (1);
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+insert into t1 values (1);
+select * from t1;
+a
+2
+drop table t1;
+# Kill while loading the second trigger
+create table t1 (a int);
+create trigger tr1 before insert on t1 for each row set new.a= new.a + 1;
+create trigger tr2 before insert on t1 for each row set new.a= new.a * 10;
+flush tables;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,kill_on_second_trigger_load';
+insert into t1 values (1);
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+insert into t1 values (1);
+select * from t1;
+a
+20
+# RENAME TABLE killed while loading trigger names moves all of them.
+set debug_dbug= '+d,kill_on_second_trigger_load';
+rename table t1 to t2;
+set debug_dbug= @save_dbug;
+select trigger_name, event_object_table from information_schema.triggers
+where trigger_schema= 'test' order by trigger_name;
+trigger_name	event_object_table
+tr1	t2
+tr2	t2
+rename table t2 to t1;
+# DROP TABLE killed while loading trigger names removes all of them.
+set debug_dbug= '+d,kill_on_second_trigger_load';
+drop table t1;
+set debug_dbug= @save_dbug;
+create table t1 (a int);
+create trigger tr2 before insert on t1 for each row set new.a= 2;
+drop table t1;
+# Kill before the table is discovered
+flush tables;
+connect con1, localhost, root;
+set debug_sync= 'after_open_table_mdl_shared signal opening wait_for go';
+select * from seq_1_to_3;
+connection default;
+set debug_sync= 'now wait_for opening';
+kill query CON1_ID;
+connection con1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+disconnect con1;
+connection default;
+set debug_sync= 'reset';
+select * from seq_1_to_3;
+seq
+1
+2
+3
+# Kill before the view is parsed
+create view v1 as select 1 + 2 as a;
+flush tables;
+connect con1, localhost, root;
+set debug_sync= 'after_open_table_mdl_shared signal opening wait_for go';
+select * from v1;
+connection default;
+set debug_sync= 'now wait_for opening';
+kill query CON1_ID;
+connection con1;
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+disconnect con1;
+connection default;
+set debug_sync= 'reset';
+select * from v1;
+a
+3
+drop view v1;
+# Kill before the stored function is parsed
+create function f1() returns int return 1 + 2;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,kill_before_sp_load';
+select f1();
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+select f1();
+f1()
+3
+drop function f1;
+# Kill inside the stored function body must not leave it cut short.
+create function f1() returns int return 1 + 2;
+set debug_dbug= '+d,lex_kill_before_plus';
+select f1();
+ERROR 70100: Query execution was interrupted
+show warnings;
+Level	Code	Message
+Error	1317	Query execution was interrupted
+set debug_dbug= @save_dbug;
+select f1();
+f1()
+3
+drop function f1;
+# End of 10.11 tests
