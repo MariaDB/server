@@ -366,6 +366,11 @@ static void videx_update_optimizer_costs(OPTIMIZER_COSTS *costs)
   costs->row_copy_cost= 0.00006087;
 }
 
+static int videx_drop_table(handlerton *hton, const char *name)
+{
+  return -1;
+}
+
 static int videx_init(void *p)
 {
   DBUG_ENTER("videx_init");
@@ -383,7 +388,7 @@ static int videx_init(void *p)
 
   videx_hton->update_optimizer_costs= videx_update_optimizer_costs;
   videx_hton->tablefile_extensions= ha_videx_exts;
-
+  videx_hton->drop_table= videx_drop_table;
   DBUG_RETURN(0);
 }
 
