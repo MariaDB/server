@@ -7000,22 +7000,19 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
 
   set_maybe_null();
 
-  /* Force the container to utf8mb4 so JSON_CONTAINS byte comparison works
-     correctly for non-utf8mb4 charsets (MDEV-41586). */
-  Item *container= args[1];
-  if (container->collation.collation != &my_charset_utf8mb4_bin)
+  if (args[1]->collation.collation != &my_charset_utf8mb4_bin)
   {
-    Item *conv= container->safe_charset_converter(thd, &my_charset_utf8mb4_bin);
-    if (conv && conv != container)
+    Item *conv= args[1]->safe_charset_converter(thd, &my_charset_utf8mb4_bin);
+    if (conv && conv != args[1])
     {
       if (conv->fix_fields(thd, &conv))
         return true;
-      container= conv;
+      thd->change_item_tree(&args[1], conv);
     }
   }
 
   List<Item> contains_args;
-  if (contains_args.push_back(container, thd->mem_root))
+  if (contains_args.push_back(args[1], thd->mem_root))
     return true;
 
   /*
@@ -7043,7 +7040,7 @@ bool Item_func_member_of::fix_length_and_dec(THD *thd)
     return true;
   /* Propagate used-tables/const state from the freshly fixed arguments. */
   jc->used_tables_and_const_cache_init();
-  jc->used_tables_and_const_cache_join(container);
+  jc->used_tables_and_const_cache_join(args[1]);
   jc->used_tables_and_const_cache_join(json_quote_item);
   json_contains_item= jc;
 
@@ -7080,11 +7077,7 @@ Item *Item_func_member_of::transform(THD *thd, Item_transformer transformer, uch
       static_cast<Item_func*>(json_quote_item)->arguments()[0]= args[0];
     if (json_contains_item && json_contains_item->type() == Item::FUNC_ITEM)
     {
-      Item *c= static_cast<Item_func*>(json_contains_item)->arguments()[0];
-      if (c != args[1] && c && c->type() == Item::FUNC_ITEM)
-        static_cast<Item_func*>(c)->arguments()[0]= args[1];
-      else
-        static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
       static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
     }
   }
@@ -7106,14 +7099,7 @@ void Item_func_member_of::update_used_tables()
   {
     if (json_contains_item->type() == Item::FUNC_ITEM)
     {
-      Item *c= static_cast<Item_func*>(json_contains_item)->arguments()[0];
-      if (c != args[1] && c && c->type() == Item::FUNC_ITEM)
-      {
-        static_cast<Item_func*>(c)->arguments()[0]= args[1];
-        c->update_used_tables();
-      }
-      else
-        static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
+      static_cast<Item_func*>(json_contains_item)->arguments()[0]= args[1];
       static_cast<Item_func*>(json_contains_item)->arguments()[1]= json_quote_item;
     }
     json_contains_item->update_used_tables();
