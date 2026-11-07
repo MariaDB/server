@@ -4899,11 +4899,6 @@ int create_table_impl(THD *thd,
   }
   else
   {
-    if (ddl_log_state_create)
-      ddl_log_create_table(ddl_log_state_create, create_info->db_type,
-                           &path, &db, &table_name, frm_only);
-    debug_crash_here("ddl_log_create_before_create_frm");
-
     alter_info->db= orig_db;
     alter_info->table_name= orig_table_name;
     file= mysql_create_frm_image(thd, create_info, alter_info,
@@ -4919,6 +4914,11 @@ int create_table_impl(THD *thd,
         deletefrm(path.str);
       goto err;
     }
+
+    if (ddl_log_state_create)
+      ddl_log_create_table(ddl_log_state_create, create_info->db_type,
+                           &path, &db, &table_name, frm_only);
+    debug_crash_here("ddl_log_create_before_create_frm");
 
     if (thd->variables.keep_files_on_create)
       create_info->options|= HA_CREATE_KEEP_FILES;
