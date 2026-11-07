@@ -4794,5 +4794,22 @@ c1	c2
 2	2
 DROP TABLE t1;
 #
+# MDEV-19039 Wrong result from query, using window function and GROUP BY .. WITH ROLLUP
+#
+CREATE TABLE t1 (i int);
+INSERT INTO t1 VALUES (1), (1), (2), (2), (3), (3);
+SELECT i, SUM(i) OVER () AS so FROM t1 GROUP BY i;
+i	so
+1	6
+2	6
+3	6
+SELECT i, SUM(i) OVER () AS so FROM t1 GROUP BY i WITH ROLLUP;
+i	so
+NULL	6
+1	6
+2	6
+3	6
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
