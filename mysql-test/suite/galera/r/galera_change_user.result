@@ -21,6 +21,7 @@ COUNT(*)
 0
 include/assert.inc [SELECT did a causal read on a fresh connection]
 # After COM_CHANGE_USER
+change_user user1,,;
 SET SESSION wsrep_sync_wait = 1;
 SELECT COUNT(*) FROM test.t1;
 COUNT(*)
