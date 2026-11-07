@@ -1,0 +1,16 @@
+--echo #
+--echo # MDEV-41697: ST_Collect returns a MULTIPOINT in some cases
+--echo #
+
+CREATE TABLE t1 (g GEOMETRY);
+
+--echo # Bug case: POINT, LINESTRING, POINT
+INSERT INTO t1 VALUES (POINT(1,1)), (ST_GeomFromText('LINESTRING(0 0,1 1)')), (POINT(5,5));
+SELECT ST_AsText(ST_Collect(g)) FROM t1;
+
+--echo # Normal case: POINT, POINT, LINESTRING
+DELETE FROM t1;
+INSERT INTO t1 VALUES (POINT(1,1)), (POINT(5,5)), (ST_GeomFromText('LINESTRING(0 0,1 1)'));
+SELECT ST_AsText(ST_Collect(g)) FROM t1;
+
+DROP TABLE t1;
