@@ -970,6 +970,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   my_bool binlog_alter_two_phase;
+  my_bool binlog_sequential_table_ids;
 
   Charset_collation_map_st character_set_collations;
   Sql_path path;
@@ -3909,6 +3910,8 @@ public:
 
   /* 1 if binlog table maps has been written */
   bool binlog_table_maps;
+  /* Per-statement counter for sequential table IDs (starts at 1) */
+  uint binlog_sequential_table_id_counter;
 
   void issue_unsafe_warnings();
   void reset_unsafe_warnings()
