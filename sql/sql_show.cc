@@ -2911,6 +2911,11 @@ public:
 
 static const char *thread_state_info(THD *tmp)
 {
+  /* Idle, or only finishing the reply, nothing is left to abort */
+  uint8 flags= tmp->disconnect_flags;
+  if ((flags & THD::DISCONNECT_MARKED) &&
+      (tmp->get_command() == COM_SLEEP || (flags & THD::DISCONNECT_UNINTERRUPTIBLE)))
+    return "Client disconnected";
 #ifndef EMBEDDED_LIBRARY
   if (tmp->net.reading_or_writing)
   {

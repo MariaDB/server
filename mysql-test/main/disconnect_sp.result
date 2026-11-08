@@ -1,0 +1,38 @@
+#
+# MDEV-38741 A stored procedure stops when its client disconnects, also if
+# it has a handler for errors
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE marker (a INT) ENGINE=InnoDB;
+CREATE PROCEDURE p()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SELECT a INTO @x FROM t1 FOR UPDATE;
+INSERT INTO marker VALUES (1);
+END|
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connect  con1,127.0.0.1,root,,,$MASTER_MYPORT;
+SET innodb_lock_wait_timeout=3600;
+CALL p();
+connection default;
+connection con1;
+disconnect con1;
+connection default;
+# The procedure did not go on after the lock wait
+connection blocker;
+COMMIT;
+connection default;
+SELECT COUNT(*) AS marker_rows FROM marker;
+marker_rows
+0
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
+disconnect blocker;
+DROP PROCEDURE p;
+DROP TABLE t1, marker;
+# End of 13.2 tests

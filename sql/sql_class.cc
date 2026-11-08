@@ -60,6 +60,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "disconnect_watcher.h"
 #include "sql_cursor.h"                         //Select_materialize
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
@@ -1821,6 +1822,8 @@ void THD::free_connection()
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
+  /* Removed by end_connection() */
+  DBUG_ASSERT(!disconnect_watch);
   if (net.vio)
     vio_delete(net.vio);
   net.vio= nullptr;
@@ -1875,6 +1878,7 @@ void THD::reset_for_reuse()
   query_name_consts= 0;                         // Safety
   abort_on_warning= 0;
   free_connection_done= 0;
+  disconnect_flags= 0;
   m_command= COM_CONNECT;
   proc_info= "login";                           // Same as in THD::THD()
   transaction->on= 1;
@@ -2122,7 +2126,10 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 extern std::atomic<my_thread_id> shutdown_thread_id;
 void THD::awake_no_mutex(killed_state state_to_set,
                          int killed_errno_arg,
-                         const char *killed_err_msg_arg)
+                         const char *killed_err_msg_arg,
+                         const char *abort_reason,
+                         uint abort_level,
+                         bool shutdown_vio)
 {
   DBUG_ENTER("THD::awake_no_mutex");
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
@@ -2131,7 +2138,7 @@ void THD::awake_no_mutex(killed_state state_to_set,
   mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
-  print_aborted_warning(3, "KILLED");
+  print_aborted_warning(abort_level, abort_reason);
 
   /*
     Don't degrade killed state, for example from a KILL_CONNECTION to
@@ -2145,7 +2152,12 @@ void THD::awake_no_mutex(killed_state state_to_set,
   if (state_to_set >= KILL_CONNECTION || state_to_set == NOT_KILLED)
   {
 #ifdef SIGNAL_WITH_VIO_CLOSE
-    if (this != current_thd && thread_id != shutdown_thread_id)
+    /*
+      Not for a disconnect: the client is gone, the socket is not waited for,
+      and shutting it down would log a write error for the reply.
+    */
+    if (this != current_thd && thread_id != shutdown_thread_id &&
+        shutdown_vio)
     {
       if(active_vio)
         vio_shutdown(active_vio, SHUT_RDWR);
@@ -2421,6 +2433,89 @@ void THD::reset_killed()
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  Kill a connection whose client disconnected, aborting its running command.
+
+  It is awake_no_mutex(KILL_CONNECTION), what KILL CONNECTION does: waits
+  are woken, the engines are told, and the connection ends after the error is
+  sent. The socket is not shut down, the client is gone. The reason, "Client
+  disconnected", is logged. For a binlog dump thread it is logged only with
+  log_warnings=4, a replica closes the connection on purpose when it stops.
+  Nothing is done if the connection is already being killed.
+*/
+void THD::kill_on_disconnect()
+{
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
+  mysql_mutex_assert_owner(&LOCK_thd_data);
+  /* OFF applies to the marks made before it, and to the victims queued */
+  if (killed >= KILL_CONNECTION || !opt_disconnect_watcher)
+    return;
+  const char *reason= "Client disconnected";
+  uint level= 1;
+  if (get_command() == COM_BINLOG_DUMP)
+  {
+    reason= "BINLOG DUMP client disconnected";
+    level= 3;
+  }
+  awake_no_mutex(KILL_CONNECTION, 0, 0, reason, level, false);
+}
+
+
+/**
+  The command is done and only its reply is left.
+
+  There is nothing to abort any more, so the watcher only notes a disconnect
+  from now on, and a lost connection is found by the next read or write as
+  usual. check_disconnect() clears the flag when the next command starts.
+
+  @note Called by the connection thread in Protocol::end_statement(), when
+        the last reply of a command is sent.
+*/
+void THD::set_disconnect_uninterruptible()
+{
+  /*
+    The default memory order of Atomic_relaxed is enough here: the watcher
+    needs only this bit, it reads no other data written before it.
+  */
+  disconnect_flags.fetch_or(DISCONNECT_UNINTERRUPTIBLE);
+}
+
+
+/**
+  A command starts, check if the client is gone.
+
+  Clear DISCONNECT_UNINTERRUPTIBLE of the previous command. If the watcher
+  has signaled a disconnect, while the connection was idle, or the previous
+  reply was being written, or as this command started, abort the command.
+  Not COM_QUIT and COM_STMT_CLOSE, a client can send them and disconnect, as
+  in a normal shutdown.
+
+  @note Called by the connection thread, after the command is set. Takes
+        the locks itself, and only when the client is gone.
+*/
+void THD::check_disconnect()
+{
+  /*
+    The command is set already. The reply of the previous one is written.
+    This always writes, with release: the watcher, if it comes after, sees
+    the command, and if it came before, this sees the client gone. No lock
+    unless the client is gone.
+  */
+  uint8 prev= disconnect_flags.fetch_and(uint8(~DISCONNECT_UNINTERRUPTIBLE),
+                                         std::memory_order_release);
+  if (!(prev & DISCONNECT_MARKED))
+    return;
+  mysql_mutex_lock(&LOCK_thd_kill);
+  if (disconnect_aborts_command(get_command()) && killed < KILL_CONNECTION)
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    kill_on_disconnect();
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+  mysql_mutex_unlock(&LOCK_thd_kill);
 }
 
 
@@ -3538,6 +3633,7 @@ bool select_send::send_eof()
     thd->push_final_warnings();
     thd->update_server_status();       // Needed for slow query status
     thd->protocol->end_statement();
+    DEBUG_SYNC(thd, "select_send_after_early_eof");
   }
 
 end:
