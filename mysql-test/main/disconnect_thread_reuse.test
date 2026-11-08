@@ -1,0 +1,116 @@
+--source include/not_embedded.inc
+# The test checks the thread cache, which pool-of-threads does not have
+--source include/one_thread_per_connection.inc
+--source include/have_innodb.inc
+--source include/have_disconnect_watcher.inc
+
+--echo #
+--echo # MDEV-38741 The kill state of a connection does not leak to the next
+--echo # connection that runs in the same cached thread
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+--source include/count_sessions.inc
+
+connection default;
+--echo # A cache that has one thread, which is the one that is parked last
+let $save_thread_cache_size= `SELECT @@global.thread_cache_size`;
+FLUSH THREADS;
+let $threads_cached=
+  (SELECT variable_value FROM information_schema.global_status
+  WHERE variable_name = 'THREADS_CACHED');
+let $wait_condition= SELECT $threads_cached = 0;
+--source include/wait_condition.inc
+SET GLOBAL thread_cache_size= 1;
+
+--echo # A connection that is aborted by its client disconnecting
+connect (con1,127.0.0.1,root,,,$MASTER_MYPORT);
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET innodb_lock_wait_timeout=3600;
+send SELECT * FROM t1 FOR UPDATE;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits w
+  JOIN information_schema.innodb_trx t ON t.trx_id = w.requesting_trx_id
+  WHERE t.trx_mysql_thread_id = $con1_id;
+--source include/wait_condition.inc
+connection con1;
+dirty_close con1;
+connection default;
+let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+let $wait_condition= SELECT $threads_cached = 1;
+--source include/wait_condition.inc
+
+--echo # The next connection runs in that thread, and is not aborted
+let $created=
+  `SELECT variable_value FROM information_schema.global_status
+   WHERE variable_name = 'THREADS_CREATED'`;
+connect (con2,127.0.0.1,root,,,$MASTER_MYPORT);
+--disable_query_log
+eval SELECT variable_value = $created AS thread_reused
+FROM information_schema.global_status WHERE variable_name = 'THREADS_CREATED';
+--enable_query_log
+SELECT SLEEP(0.1);
+disconnect con2;
+connection default;
+let $wait_condition= SELECT $threads_cached = 1;
+--source include/wait_condition.inc
+
+--echo # An idle connection that disconnects, it ends with the state still set
+connect (con5,127.0.0.1,root,,,$MASTER_MYPORT);
+SELECT 1;
+dirty_close con5;
+connection default;
+let $wait_condition= SELECT $threads_cached = 1;
+--source include/wait_condition.inc
+
+--echo # The next connection is not aborted
+connect (con6,127.0.0.1,root,,,$MASTER_MYPORT);
+SELECT 1;
+disconnect con6;
+connection default;
+let $wait_condition= SELECT $threads_cached = 1;
+--source include/wait_condition.inc
+
+--echo # A connection that ends with the error of its max_statement_time
+connect (con3,127.0.0.1,root,,,$MASTER_MYPORT);
+SET max_statement_time= 0.2;
+SET innodb_lock_wait_timeout=3600;
+--error ER_STATEMENT_TIMEOUT
+SELECT * FROM t1 FOR UPDATE;
+disconnect con3;
+connection default;
+let $wait_condition= SELECT $threads_cached = 1;
+--source include/wait_condition.inc
+
+--echo # The next connection has no leftover of it
+let $created=
+  `SELECT variable_value FROM information_schema.global_status
+   WHERE variable_name = 'THREADS_CREATED'`;
+connect (con4,127.0.0.1,root,,,$MASTER_MYPORT);
+--disable_query_log
+eval SELECT variable_value = $created AS thread_reused
+FROM information_schema.global_status WHERE variable_name = 'THREADS_CREATED';
+--enable_query_log
+SELECT SLEEP(0.1);
+disconnect con4;
+
+connection default;
+--disable_query_log
+--eval SET GLOBAL thread_cache_size= $save_thread_cache_size
+--enable_query_log
+connection blocker;
+COMMIT;
+disconnect blocker;
+connection default;
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

@@ -1,0 +1,32 @@
+#
+# MDEV-38741 A client that disconnected must not keep owning locks
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+a
+1
+connect  con1,localhost,root;
+SET innodb_lock_wait_timeout=3600;
+BEGIN;
+SELECT * FROM t1 WHERE a=2 FOR UPDATE;
+a
+2
+SELECT * FROM t1 WHERE a=1 FOR UPDATE;
+connection default;
+# The waiting client owns the lock of the row 2
+SELECT * FROM t1 WHERE a=2 FOR UPDATE NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The transaction of the client is rolled back, its lock is released
+SELECT * FROM t1 WHERE a=2 FOR UPDATE NOWAIT;
+a
+2
+disconnect blocker;
+DROP TABLE t1;
+# End of 13.2 tests

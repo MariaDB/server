@@ -1,0 +1,100 @@
+--source include/not_embedded.inc
+--source include/maybe_pool_of_threads.inc
+--source include/have_disconnect_watcher.inc
+
+--echo #
+--echo # MDEV-38741 A client disconnect aborts statements that do not poll the
+--echo # connection themselves. SLEEP() and the metadata lock waits do, and are
+--echo # not tested here. Whether the statement reports an error, and so a log
+--echo # line, is up to it.
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1);
+
+--echo # A statement that only uses the CPU
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+send SELECT BENCHMARK(1000000000000, MD5('a'));
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con1_id AND info LIKE 'SELECT BENCHMARK%';
+--source include/wait_condition.inc
+
+--echo # Disconnect abruptly, the server is not reading from the socket
+connection con1;
+dirty_close con1;
+
+connection default;
+--echo # The statement is aborted, the thread ends
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+
+--echo # A wait for a table level lock, held by a long UPDATE
+connect (blocker,localhost,root);
+let $blocker_id= `SELECT CONNECTION_ID()`;
+send UPDATE t1 SET a=SLEEP(3600);
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $blocker_id AND state = 'User sleep';
+--source include/wait_condition.inc
+
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+send SELECT * FROM t1;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con1_id AND state = 'Waiting for table level lock';
+--source include/wait_condition.inc
+
+--echo # Disconnect abruptly, the server is not reading from the socket
+connection con1;
+dirty_close con1;
+
+connection default;
+--echo # The statement is aborted, the thread ends
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+
+evalp KILL QUERY $blocker_id;
+connection blocker;
+--error 0,ER_QUERY_INTERRUPTED
+reap;
+disconnect blocker;
+connection default;
+
+--echo # An idle client that disconnects has no statement that is aborted
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+connection default;
+# The server is idle only after it has finished the previous statement
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con1_id AND command = 'Sleep';
+--source include/wait_condition.inc
+connection con1;
+dirty_close con1;
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con1_id;
+--source include/wait_condition.inc
+# The thread has left the processlist, so it has logged everything it will log
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted connection $con1_id to db[^\n]*Client disconnected;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

@@ -30,21 +30,37 @@ connection default;
 
 disconnect con1;
 disconnect con2;
+--source include/disconnect_watcher_value.inc
 connect (con1,localhost,root);
-send
-SET STATEMENT innodb_lock_wait_timeout=1 FOR # work around MDEV-38741
-SELECT * FROM t1 LOCK IN SHARE MODE;
+--disable_query_log
+if ($disconnect_watcher)
+{
+  --send SELECT * FROM t1 LOCK IN SHARE MODE
+}
+if (!$disconnect_watcher)
+{
+  # Without the disconnect_watcher the lock wait is not aborted by the
+  # disconnect below, and ends with the timeout
+  --send SET STATEMENT innodb_lock_wait_timeout=1 FOR SELECT * FROM t1 LOCK IN SHARE MODE
+}
+--enable_query_log
 
 connection default;
 let $wait_condition=
   select count(*) = 1 from information_schema.processlist
   where state = 'Sending data' and
-        info LIKE 'SET STATEMENT innodb_lock_wait_timeout%';
+        info like '%SELECT * FROM t1 LOCK IN SHARE MODE';
 --source include/wait_condition.inc
 --error ER_LOCK_WAIT_TIMEOUT
 SET STATEMENT lock_wait_timeout=1 FOR DROP TABLE t2;
 
-disconnect con1;
+dirty_close con1;
+# With the disconnect_watcher, the disconnect aborts the lock wait of the
+# SELECT, without a timeout.
+let $wait_condition=
+  select count(*) = 0 from information_schema.processlist
+  where info like '%SELECT * FROM t1 LOCK IN SHARE MODE';
+--source include/wait_condition.inc
 
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --disable_ps2_protocol
