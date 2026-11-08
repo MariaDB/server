@@ -1,0 +1,186 @@
+# wait_for_listen() (scripts/wsrep_sst_mariabackup.sh) asks
+# check_port() whether a process named socat/nc/netcat is listening
+# on the port an SST attempt expects to use, but check_port() accepted
+# any process with that name anywhere on the system as proof of
+# readiness -- it never verified the listener found actually belonged
+# to this invocation. On a host running several concurrent SSTs, a
+# port can be momentarily held by an unrelated process right as a
+# joiner starts; the joiner must not report itself ready in that
+# case, since its own listener never actually came up.
+#
+# This is tested by calling the real check_port()/is_descendant_of()
+# functions directly (extracted live from the actual script file, not
+# reimplemented), rather than by driving a full joiner-role SST and
+# observing whether "ready" appears in its log: that end-to-end
+# symptom races the script's own fast cleanup-on-bind-failure, so it
+# is not a reliable pass/fail signal either way. The function-level
+# behavior below is what the bug and the fix actually are.
+#
+# STEPS
+#  - extract check_sockets_utils()/is_descendant_of()/check_port()
+#    from the real scripts/wsrep_sst_common.sh into a small harness
+#  - occupy a port with an unrelated, persistent process named socat
+#  - assert check_port() does not mistake that unrelated process for
+#    this invocation's own listener
+#  - as a control, start a second socat that genuinely is a
+#    descendant of the harness's own shell, on a different port, and
+#    assert check_port() does correctly recognize that one
+
+--source include/galera_cluster.inc
+--source include/have_mariabackup.inc
+
+perl;
+  use strict;
+  use warnings;
+  use File::Basename;
+  use IO::Socket::INET;
+  use POSIX ":sys_wait_h";
+
+  # Locate scripts/wsrep_sst_common.sh the same way the other
+  # mariabackup SST tests locate wsrep_sst_mariabackup: next to the
+  # mariadb-backup binary this build actually produced.
+  my $xtrabackup = $ENV{XTRABACKUP} or die "XTRABACKUP not set";
+  my $backup_dir = dirname($xtrabackup);
+  my $scripts_dir = dirname(dirname($backup_dir)) . "/scripts";
+  $scripts_dir = $backup_dir
+    unless -f "$scripts_dir/wsrep_sst_common"
+        || -f "$scripts_dir/wsrep_sst_common.sh";
+  my $common = "$scripts_dir/wsrep_sst_common";
+  $common = "$scripts_dir/wsrep_sst_common.sh" unless -f $common;
+  die "cannot find wsrep_sst_common near $xtrabackup" unless -f $common;
+
+  # Extract check_sockets_utils(), is_descendant_of() and check_port()
+  # verbatim from the real file: this test must exercise the actual
+  # production code, not a reimplementation of it.
+  open(my $src, '<', $common) or die "open $common: $!";
+  my @lines = <$src>;
+  close($src);
+
+  sub extract_function {
+    my ($name, $lines, $optional) = @_;
+    my ($start, $end);
+    for my $i (0 .. $#$lines) {
+      if (!defined($start) && $lines->[$i] =~ /^\Q$name\E\(\)/) {
+        $start = $i;
+        next;
+      }
+      if (defined($start) && $lines->[$i] =~ /^\}\s*$/) {
+        $end = $i;
+        last;
+      }
+    }
+    return '' if !defined($start) && $optional;
+    die "could not find function $name() in $common"
+      unless defined($start) && defined($end);
+    return join('', @{$lines}[$start .. $end]);
+  }
+
+  my $harness_path = "$ENV{MYSQLTEST_VARDIR}/tmp/check_port_harness.sh";
+  open(my $out, '>', $harness_path) or die $!;
+  print $out "#!/bin/bash\nset -ue\n";
+  print $out "wsrep_log_error() { :; }\n";
+  print $out "wsrep_log_info() { :; }\n";
+  print $out "commandex() { command -v \"\$1\" || :; }\n\n";
+  print $out extract_function('check_sockets_utils', \@lines), "\n";
+  # is_descendant_of()/any_pid_is_ours() are the fix under test: older
+  # check_port() versions neither have nor need them, so don't require
+  # them here -- the A/B revert check must be able to run the pre-fix
+  # function too.
+  print $out extract_function('is_descendant_of', \@lines, 1), "\n";
+  print $out extract_function('any_pid_is_ours', \@lines, 1), "\n";
+  print $out extract_function('check_port', \@lines), "\n";
+  print $out <<'DRIVER';
+check_sockets_utils
+unrelated_port="$1"
+own_port="$2"
+if check_port "" "$unrelated_port" "socat|nc|netcat"; then
+    echo "UNRELATED: MATCHED"
+else
+    echo "UNRELATED: NOT MATCHED"
+fi
+if check_port "" "$own_port" "socat|nc|netcat"; then
+    echo "OWN: MATCHED"
+else
+    echo "OWN: NOT MATCHED"
+fi
+DRIVER
+  close($out);
+  chmod 0755, $harness_path;
+
+  # An unrelated process, named the same as what check_port() looks
+  # for, listening on its own port: must never be mistaken for ours.
+  my $unrelated_port = 29800 + int(rand(1000));
+  my $unrelated_pid = fork();
+  die "fork: $!" unless defined $unrelated_pid;
+  if ($unrelated_pid == 0) {
+    POSIX::setsid();
+    open(STDIN,  '<', '/dev/null');
+    open(STDOUT, '>', '/dev/null');
+    open(STDERR, '>&STDOUT');
+    exec('socat', '-u', "TCP-LISTEN:$unrelated_port,reuseaddr,fork", 'STDOUT') or exit(1);
+  }
+
+  # A control case: a socat that genuinely is a descendant of the
+  # harness process below (launched from inside it, not from here),
+  # on a different port: must still be correctly recognized as ours.
+  my $own_port = $unrelated_port + 1;
+
+  sub wait_until_listening {
+    my ($port, $deadline) = @_;
+    while (time() < $deadline) {
+      my $sock = IO::Socket::INET->new(PeerHost => '127.0.0.1', PeerPort => $port,
+                                        Proto => 'tcp', Timeout => 1);
+      if ($sock) { close($sock); return 1; }
+      select(undef, undef, undef, 0.1);
+    }
+    return 0;
+  }
+  die "unrelated occupier never started listening on $unrelated_port"
+    unless wait_until_listening($unrelated_port, time() + 10);
+
+  # Run the harness: it starts its own "own_port" socat as a direct
+  # child of itself, waits for it, then calls check_port() against
+  # both ports.
+  my $driver_path = "$ENV{MYSQLTEST_VARDIR}/tmp/check_port_driver.sh";
+  open(my $dout, '>', $driver_path) or die $!;
+  print $dout <<DRIVER2;
+#!/bin/bash
+set -ue
+socat -u TCP-LISTEN:$own_port,reuseaddr,fork STDOUT >/dev/null 2>&1 &
+own_socat_pid=\$!
+for i in \$(seq 1 100); do
+    if (exec 3<>/dev/tcp/127.0.0.1/$own_port) 2>/dev/null; then
+        exec 3<&-; exec 3>&-
+        break
+    fi
+    sleep 0.1
+done
+# Sourced, not exec'd: check_port() must see this driver's own \$\$,
+# the same process the "own" socat above was actually forked from,
+# not some other script's PID.
+source "$harness_path" $unrelated_port $own_port
+kill \$own_socat_pid 2>/dev/null || :
+DRIVER2
+  close($dout);
+  chmod 0755, $driver_path;
+
+  my $result = `"$driver_path" 2>&1`;
+  my $rc = $?;
+
+  kill('TERM', -$unrelated_pid);
+  select(undef, undef, undef, 1);
+  kill('KILL', -$unrelated_pid);
+
+  unlink($harness_path, $driver_path);
+
+  die "driver script failed (exit $rc):\n$result" if $rc != 0;
+
+  print "$result";
+
+  die "BUG: check_port() matched the unrelated process as our own\n"
+    if $result =~ /^UNRELATED: MATCHED$/m;
+  die "check_port() failed to recognize our own genuine listener\n"
+    unless $result =~ /^OWN: MATCHED$/m;
+EOF
+
+--source include/galera_end.inc
