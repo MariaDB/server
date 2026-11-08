@@ -1083,3 +1083,4 @@ a	b
 # long data packets: 0
 PS_close;
 # End of 11.4 tests
+call mtr.add_suppression("Client disconnected");

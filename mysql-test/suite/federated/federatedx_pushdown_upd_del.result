@@ -1760,6 +1760,7 @@ connection master;
 CREATE DATABASE federated_nrt;
 connection slave;
 CREATE DATABASE federated_nrt;
+call mtr.add_suppression("Client disconnected");
 create table federated_nrt.s1 (a int);
 connection master;
 DROP TABLE IF EXISTS federated_nrt.s1;

@@ -9,6 +9,7 @@ connection server_1;
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Client disconnected");
 # Suppress slave errors related to the simulated error
 connection server_2;
 call mtr.add_suppression("reply failed");

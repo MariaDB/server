@@ -18,6 +18,8 @@ let collation=utf8mb3_unicode_ci;
 --source include/have_innodb.inc
 
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+# mariadb-import can leave a running LOAD DATA behind on failure (MDEV-42164)
+call mtr.add_suppression("Client disconnected");
 
 --echo # Bug#37938 Test "mysqldump" lacks various insert statements
 --echo # Turn off concurrent inserts to avoid random errors

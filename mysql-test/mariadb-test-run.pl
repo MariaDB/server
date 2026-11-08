@@ -4615,7 +4615,7 @@ sub extract_warning_lines ($$) {
      qr|mysqld got signal 6|,
      qr|Error while setting value 'pool-of-threads' to 'thread_handling'|,
      qr|Access denied for user|,
-     qr|Aborted connection|,
+     qr|Aborted connection(?!.*\(Client disconnected\))|,
      qr|table.*is full|,
      qr/\[ERROR\] (mysqld|mariadbd): \Z/,  # Warning from Aria recovery
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm

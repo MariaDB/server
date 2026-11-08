@@ -1245,6 +1245,8 @@ connection master;
 CREATE DATABASE federated_nrt;
 connection slave;
 CREATE DATABASE federated_nrt;
+# The master gives up after net_read_timeout, while the slave is still running
+call mtr.add_suppression("Client disconnected");
 create table federated_nrt.s1 (a int);
 
 connection master;

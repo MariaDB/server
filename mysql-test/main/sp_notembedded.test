@@ -1,5 +1,7 @@
 # Can't test with embedded server
 -- source include/not_embedded.inc
+# A client is closed while its procedure waits for a lock
+call mtr.add_suppression("Client disconnected");
 # Disable concurrent inserts to avoid test failures
 set @old_concurrent_insert= @@global.concurrent_insert;
 set @@global.concurrent_insert= 0;

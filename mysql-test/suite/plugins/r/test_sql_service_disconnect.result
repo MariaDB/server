@@ -1,0 +1,30 @@
+#
+# MDEV-38741 A disconnect aborts a statement run through the SQL service
+#
+install plugin test_sql_service soname 'test_sql_service';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connect  con1,127.0.0.1,root,,,$MASTER_MYPORT;
+SET innodb_lock_wait_timeout=3600;
+set global test_sql_service_execute_sql_local= 'select * from test.t1 for update';
+connection default;
+# The client disconnects while the local statement waits for the lock
+connection con1;
+disconnect con1;
+connection default;
+# The reason is logged, although the statement ended without an error
+FOUND 1 matches in mysqld.1.err
+connection blocker;
+COMMIT;
+disconnect blocker;
+connection default;
+DROP TABLE t1;
+uninstall plugin test_sql_service;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+# End of 13.2 tests

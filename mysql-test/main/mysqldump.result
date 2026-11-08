@@ -1,5 +1,6 @@
 call mtr.add_suppression("@003f.frm' \\(errno: 22\\)");
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+call mtr.add_suppression("Client disconnected");
 # Bug#37938 Test "mysqldump" lacks various insert statements
 # Turn off concurrent inserts to avoid random errors
 # NOTE:  We reset the variable back to saved value at the end of test

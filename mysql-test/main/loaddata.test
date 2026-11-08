@@ -5,6 +5,9 @@
 --source include/have_ucs2.inc
 --source include/test_db_charset_latin1.inc
 
+# A client is closed while LOAD DATA LOCAL runs
+call mtr.add_suppression("Client disconnected");
+
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
 load data infile '../../std_data/loaddata1.dat' into table t1 fields terminated by ',' IGNORE 2 LINES;

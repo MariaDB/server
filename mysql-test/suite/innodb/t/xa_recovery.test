@@ -7,6 +7,8 @@
 # so they don't get marked crashed when the server gets crashed
 --disable_query_log
 call mtr.add_suppression("Found [12] prepared XA transactions");
+# The watcher aborts the lock wait of a connection that is disconnected
+call mtr.add_suppression("Client disconnected");
 FLUSH TABLES;
 --enable_query_log
 

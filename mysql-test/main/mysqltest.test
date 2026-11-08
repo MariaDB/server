@@ -3134,3 +3134,6 @@ SELECT 1 /* doesn't throw error */;
 --disable_query_log
 --eval SET GLOBAL max_connections = $saved_max_connections
 --enable_query_log
+
+# mysqltest exits with a statement still running
+call mtr.add_suppression("Client disconnected");
