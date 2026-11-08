@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY);
+SHOW VARIABLES LIKE 'log_bin';
+Variable_name	Value
+log_bin	OFF
+connection node_2;
+SHOW VARIABLES LIKE 'log_bin';
+Variable_name	Value
+log_bin	OFF
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+START TRANSACTION;
+SELECT COUNT(*) FROM t1 WHERE id=10;
+COUNT(*)
+0
+SAVEPOINT trans2;
+INSERT INTO t1 (id) VALUES (10);
+ROLLBACK TO SAVEPOINT trans2;
+COMMIT;
+connection node_2;
+SET SESSION wsrep_sync_wait=7;
+SELECT COUNT(*) AS expect_0 FROM t1;
+expect_0
+0
+DROP TABLE t1;
