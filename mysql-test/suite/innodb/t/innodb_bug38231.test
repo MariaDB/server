@@ -9,6 +9,9 @@
 # preceded by --send
 -- source include/not_embedded.inc
 
+# The clients are closed while they wait for locks
+call mtr.add_suppression("Client disconnected");
+
 SET default_storage_engine=InnoDB;
 
 # we care only that the following SQL commands do not crash the server

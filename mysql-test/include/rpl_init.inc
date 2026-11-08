@@ -160,6 +160,15 @@ while ($_rpl_server)
   --let $rpl_connection_name= server_$_rpl_server
   --source include/rpl_connection.inc
   USE test;
+
+  # A replica closes its connection on purpose when it is stopped, in any phase
+  # of its setup, also while the master runs one of its first queries. The
+  # client disconnect watcher aborts the query and logs "Client disconnected".
+  # Not written to the binlog, so that positions and events do not change.
+  SET SESSION sql_log_bin= 0;
+  call mtr.add_suppression("Client disconnected");
+  SET SESSION sql_log_bin= 1;
+
   if (!$rpl_skip_reset_master_and_slave)
   {
     --source include/kill_binlog_dump_threads.inc

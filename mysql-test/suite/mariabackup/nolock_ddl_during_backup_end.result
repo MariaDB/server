@@ -1,2 +1,3 @@
+call mtr.add_suppression("Client disconnected");
 CREATE TABLE t1(i int) ENGINE=INNODB;
 # xtrabackup backup

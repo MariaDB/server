@@ -14,6 +14,12 @@ sub start_test {
   my $path;
   my $cmd = $self->{ctests}->{$tinfo->{shortname}};
 
+  # These tests close connections on purpose and cannot call
+  # mtr.add_suppression() themselves; the table is emptied after each test.
+  system($::exe_mysql, "--no-defaults", "--user=root", "--skip-ssl", "--host=127.0.0.1",
+         "--port=$ENV{MASTER_MYPORT}",
+         "--execute=call mtr.add_suppression('Client disconnected')");
+
   if ($cmd =~ /[ "'><%!*?]/) {
     ($path, $args) = ('/bin/sh', [ '-c', $cmd ])
   } else {

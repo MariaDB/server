@@ -1,5 +1,6 @@
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
 --let $custom_cnf=$MYSQLTEST_VARDIR/tmp/custom_my.cnf
+call mtr.add_suppression("Client disconnected");
 
 --echo # Check for unknown options in command-line
 --disable_result_log
