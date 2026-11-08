@@ -12525,9 +12525,7 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
     back a statement or a transaction. However, notifications do not happen
     if the binary log is set as read/write.
   */
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  /* cache_mngr may be missing e.g. in mtr test ev51914.test */
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   if (cache_mngr)
   {
     /*
