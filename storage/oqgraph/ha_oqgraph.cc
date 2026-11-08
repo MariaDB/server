@@ -128,8 +128,6 @@ static const ha_create_table_option oqgraph_table_option_list[]=
   HA_TOPTION_END
 };
 
-static bool oqgraph_init_done= 0;
-
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
@@ -194,16 +192,9 @@ static int oqgraph_init(void *p)
   hton->close_connection = oqgraph_close_connection;
   hton->drop_table= [](handlerton *, const char*) { return -1; };
 
-  oqgraph_init_done= TRUE;
   return 0;
 }
 
-static int oqgraph_fini(void *)
-{
-  DBUG_PRINT( "oq-debug", ("oqgraph_fini"));
-  oqgraph_init_done= FALSE;
-  return 0;
-}
 
 static int error_code(int res)
 {
@@ -1375,7 +1366,7 @@ maria_declare_plugin(oqgraph)
   oqgraph_description,
   PLUGIN_LICENSE_GPL,
   oqgraph_init,                  /* Plugin Init                  */
-  oqgraph_fini,                  /* Plugin Deinit                */
+  NULL,                          /* Plugin Deinit                */
   0x0300,                        /* Version: 3s.0                */
   oqgraph_status,                /* status variables             */
   oqgraph_sysvars,               /* system variables             */
