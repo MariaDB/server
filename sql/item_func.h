@@ -988,6 +988,12 @@ public:
     return Item_func_hybrid_field_type::type_handler()->
            Item_func_hybrid_field_type_val_int(this);
   }
+  bool val_bool() override
+  {
+    DBUG_ASSERT(fixed());
+    return Item_func_hybrid_field_type::type_handler()->
+           Item_func_hybrid_field_type_val_bool(this);
+  }
   my_decimal *val_decimal(my_decimal *dec) override
   {
     DBUG_ASSERT(fixed());
