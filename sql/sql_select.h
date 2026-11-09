@@ -1986,6 +1986,20 @@ public:
 
     do_narrow.stop();
 
+    /*
+      cmp_buffer_with_ref() compares the key buffer as a whole, so the
+      bytes following a variable length value take part in the comparison
+      even though they hold no information.  Copying the value leaves them
+      as the source row had them, and a storage engine is free to leave
+      that part of a record undefined.  Their content only decides whether
+      an already fetched row is fetched again, so mark them defined.
+
+      to_field describes the key part rather than the column:
+      copy_keys_from_share() narrows the field of a key part built over a
+      prefix, so this marks the slot in the key buffer and nothing past it.
+    */
+    to_field->mark_unused_memory_as_defined();
+
     thd->count_cuted_fields= org_count_cuted_fields;
     return result;
   }
