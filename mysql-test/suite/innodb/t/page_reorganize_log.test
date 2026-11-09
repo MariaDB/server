@@ -1,0 +1,46 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-21725 Log page reorganization as the ranges by which records moved
+--echo #
+
+--source ../include/no_checkpoint_start.inc
+
+--echo # A record with no data bytes: its origin is PAGE_HEAP_TOP.
+CREATE TABLE t1(a VARCHAR(10) PRIMARY KEY, b VARCHAR(10), KEY(b))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES('','');
+
+--echo # The keys are in the reverse order of the heap. add_up() evicts runs.
+CREATE TABLE t2(a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+(12,REPEAT('l',70)),(11,REPEAT('k',10)),(10,REPEAT('j',90)),
+(9,REPEAT('i',30)),(8,REPEAT('h',50)),(7,REPEAT('g',1)),
+(6,REPEAT('f',40)),(5,REPEAT('e',2)),(4,REPEAT('d',60)),
+(3,REPEAT('c',20)),(2,REPEAT('b',80)),(1,REPEAT('a',3));
+
+--echo # The records of KEY(b) are shorter than MIN_MOVE.
+CREATE TABLE t3(a TINYINT PRIMARY KEY, b TINYINT NOT NULL, KEY(b))
+ENGINE=InnoDB;
+INSERT INTO t3 VALUES(5,5),(6,6),(7,7),(1,1),(2,2),(3,3),(4,4),(9,9),(8,8),
+(10,10);
+
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug='+d,do_page_reorganize,page_reorganize_log_max_up_2';
+INSERT INTO t1 VALUES('x','x');
+INSERT INTO t2 VALUES(13,'m');
+INSERT INTO t3 VALUES(11,11);
+SET debug_dbug=@save_dbug;
+--let CLEANUP_IF_CHECKPOINT=DROP TABLE t1,t2,t3;
+--source ../include/no_checkpoint_end.inc
+--source include/start_mysqld.inc
+
+CHECK TABLE t1,t2,t3;
+SELECT * FROM t1;
+SELECT a, LENGTH(b), LEFT(b,1) FROM t2;
+SELECT b, a FROM t3 FORCE INDEX(b);
+DROP TABLE t1,t2,t3;
+
+--echo # End of 12.3 tests

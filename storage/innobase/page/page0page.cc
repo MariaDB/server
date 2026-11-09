@@ -437,7 +437,9 @@ page_copy_rec_list_end_no_locks(
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
 	const rec_t*	rec,		/*!< in: record to copy from onward */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr)		/*!< in: mtr */
+	mtr_t*		mtr,		/*!< in: mtr */
+	uint16_t*	extra)		/*!< out: rec_offs_extra_size() of
+					each copied record, or nullptr */
 {
 	page_t*		new_page	= buf_block_get_frame(new_block);
 	const page_t*	page		= page_align(rec);
@@ -473,6 +475,9 @@ page_copy_rec_list_end_no_locks(
 		rec_t*	ins_rec;
 		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
+		if (extra) {
+			*extra++ = uint16_t(rec_offs_extra_size(offsets));
+		}
 		ins_rec = page_cur_insert_rec_low(&cur2, rec, offsets,
 						  mtr);
 		if (UNIV_UNLIKELY(!ins_rec || !(rec = page_rec_get_next_const(rec)))) {
