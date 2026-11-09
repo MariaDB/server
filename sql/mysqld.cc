@@ -8024,6 +8024,7 @@ SHOW_VAR status_vars[]= {
   {"Delete_scan",	       (char*) offsetof(STATUS_VAR, delete_scan_count), SHOW_LONG_STATUS},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
+  {"Executed_functions",       (char*) offsetof(STATUS_VAR, executed_functions), SHOW_LONG_STATUS},
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
   {"Feature_check_constraint", (char*) &feature_check_constraint, SHOW_LONG },
   {"Feature_custom_aggregate_functions", (char*) offsetof(STATUS_VAR, feature_custom_aggregate_functions), SHOW_LONG_STATUS},

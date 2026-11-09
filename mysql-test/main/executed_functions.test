@@ -1,0 +1,60 @@
+--echo #
+--echo # MDEV-11326 Add status variable Executed_functions
+--echo #
+
+--disable_ps2_protocol
+CREATE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE FUNCTION f2() RETURNS INT RETURN f1() + 1;
+DELIMITER |;
+CREATE FUNCTION f3() RETURNS INT
+BEGIN
+  SIGNAL SQLSTATE '45000';
+  RETURN 1;
+END|
+DELIMITER ;|
+CREATE PROCEDURE p1() SET @a= 1;
+
+FLUSH STATUS;
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # A simple call counts once
+SELECT f1();
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # A nested call counts both functions
+SELECT f2();
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # A function that fails while running is counted
+--error ER_SIGNAL_EXCEPTION
+SELECT f3();
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # Calls that are rejected before running are not counted
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f1(10);
+--error ER_SP_DOES_NOT_EXIST
+SELECT no_such_function();
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # Procedures are not counted
+CALL p1();
+SHOW STATUS LIKE 'Executed_functions';
+
+--echo # Global value includes other connections
+SELECT VARIABLE_VALUE INTO @before FROM information_schema.GLOBAL_STATUS
+  WHERE VARIABLE_NAME= 'EXECUTED_FUNCTIONS';
+connect con1,localhost,root;
+SELECT f1();
+SELECT f1();
+connection default;
+SELECT VARIABLE_VALUE - @before AS new_calls FROM information_schema.GLOBAL_STATUS
+  WHERE VARIABLE_NAME= 'EXECUTED_FUNCTIONS';
+disconnect con1;
+
+DROP PROCEDURE p1;
+DROP FUNCTION f3;
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+--enable_ps2_protocol
+--echo # End of 13.3 tests
