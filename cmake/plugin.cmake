@@ -362,11 +362,11 @@ MACRO(MARIADB_ADD_PLUGIN)
     ENDIF()
   ENDIF()
 
-  IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
-    INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${target}")
-  ENDIF()
-
   IF(TARGET ${target})
+    IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/mysql-test")
+      INSTALL_MYSQL_TEST("${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/" "plugin/${target}")
+    ENDIF()
+
     GET_TARGET_PROPERTY(plugin_type ${target} TYPE)
     STRING(REPLACE "_LIBRARY" "" plugin_type ${plugin_type})
     SET(have_target 1)
