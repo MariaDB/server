@@ -83,9 +83,11 @@ DROP TABLE t1;
 # Test case 8: Check that the statements 'PURGE BINARY LOGS BEFORE'
 # is supported by prepared statements
 PURGE BINARY LOGS BEFORE '2020-11-17';
+ERROR HY000: You are not using binary logging
 # Check that the statements 'PURGE BINARY LOGS TO' is supported by
 # prepared statements
 PURGE BINARY LOGS TO 'mariadb-bin.000063';
+ERROR HY000: You are not using binary logging
 # Test case 9: Check that the statements 'HANDLER OPEN/HANDLER READ/
 # HANDLER CLOSE' are supported by prepared statements
 CREATE TABLE t1 (a INT);
