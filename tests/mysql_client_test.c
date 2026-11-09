@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24069,6 +24069,40 @@ static void test_mdev_41502()
   myquery(rc);
 }
 
+/* COM_FIELD_LIST without the table name / wildcard separator */
+static void test_mdev_41504()
+{
+  MYSQL *con;
+  int rc;
+
+  myheader("test_mdev_41504");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @save_general_log= @@global.general_log");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL general_log= 1");
+  myquery(rc);
+
+  con= mysql_client_init(NULL);
+  DIE_UNLESS(con);
+  if (!mysql_real_connect(con, opt_host, opt_user, opt_password, current_db,
+                          opt_port, opt_unix_socket, 0))
+  {
+    fprintf(stdout, "\n connection failed(%s)", mysql_error(con));
+    exit(1);
+  }
+  rc= simple_command(con, COM_FIELD_LIST, (uchar*) "t1", 2, 0);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_errno(con) == ER_UNKNOWN_COM_ERROR);
+  mysql_close(con);
+
+  rc= mysql_query(mysql, "SET GLOBAL general_log= @save_general_log");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -24811,6 +24845,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_36678", test_mdev_36678 },
   { "test_mdev_23864", test_mdev_23864 },
   { "test_mdev_41502", test_mdev_41502 },
+  { "test_mdev_41504", test_mdev_41504 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
 #ifndef EMBEDDED_LIBRARY

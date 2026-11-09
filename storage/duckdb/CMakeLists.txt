@@ -38,7 +38,7 @@ SET(DUCKDB_PLUGIN_SOURCES
 )
 
 MYSQL_ADD_PLUGIN(duckdb ${DUCKDB_PLUGIN_SOURCES} STORAGE_ENGINE MODULE_ONLY
-                 COMPONENT duckdb-engine)
+                 COMPONENT duckdb-engine DISABLED)
 SET(CPACK_RPM_duckdb-engine_PACKAGE_SUMMARY "DuckDB storage engine for MariaDB server" PARENT_SCOPE)
 SET(CPACK_RPM_duckdb-engine_PACKAGE_DESCRIPTION "The MariaDB DuckDB storage
 engine embeds DuckDB as a pluggable storage engine, enabling fast analytical

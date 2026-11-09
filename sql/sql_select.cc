@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2024, MariaDB Corporation.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21803,8 +21803,8 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     create_tmp_field_from_field() can't be used for tmp field creation.
   */
   if (((maybe_null() && in_rollup()) ||
-      (new_table->in_use->create_tmp_table_for_derived && /* for mat. view/dt */
-       orig_item && orig_item->maybe_null())) &&
+       (new_table->in_use->create_tmp_table_for_derived && /* for mat. view/dt */
+        orig_item && orig_item->maybe_null())) &&
       !field->maybe_null())
   {
     /*
@@ -21851,9 +21851,13 @@ Field *Item_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   src->set_field(field);
   if (!(result= create_tmp_field_from_item_field(root, table, NULL, param)))
     return NULL;
+  /*
+    field can be a nullable trigger field, its null_ptr is not in record[0],
+    so the default value is taken from the table field
+  */
   if (!(field->flags & NO_DEFAULT_VALUE_FLAG) &&
       field->eq_def(result))
-    src->set_default_field(field);
+    src->set_default_field(field->table->field[field->field_index]);
   return result;
 }
 

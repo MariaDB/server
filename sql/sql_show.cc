@@ -785,6 +785,9 @@ void ignore_db_dirs_append(const char *dirname_arg)
   LEX_STRING *new_entry;
   size_t len= strlen(dirname_arg);
 
+  if (plugins_are_initialized)
+    return; // cannot modify read-only sysvar at run-time
+
   if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(0),
                        &new_entry, sizeof(LEX_STRING),
                        &new_entry_buf, len + 1,
@@ -5798,8 +5801,9 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_all3(sctx, db_name->str, false) ||
+    privilege_t test_access(SHOW_DB_ACL | (DB_ACLS & ~GRANT_ACL));
+    if (sctx->master_access & test_access ||
+        acl_get_all3(sctx, db_name->str, false) & test_access ||
         !check_grant_db(thd, db_name->str))
 #endif
     {
