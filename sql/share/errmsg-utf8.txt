@@ -12447,3 +12447,7 @@ ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE
         eng "This operation leaves replication connection '%s' with an invalid configuration: %s"
 ER_CANT_SET_IN_SUBSTATEMENT
         eng "Cannot set %s within a trigger or stored program"
+ER_INVALID_BITWISE_OPERANDS_SIZE
+        eng "Mismatched length of operands for bitwise operator: %d and %d"
+ER_INVALID_BITWISE_AGGREGATE_OPERANDS_SIZE
+        eng "Operand size %d exceeds maximum limit of 512 bytes for bitwise aggregate function"
