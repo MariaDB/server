@@ -6457,4 +6457,19 @@ drop table t1;
 DO STR_TO_DATE(1, '%#');
 DO STR_TO_DATE(LOWER('q'), '%@');
 DO STR_TO_DATE(LOWER('.'), '%.');
+#
+# MDEV-41968 CURTIME, UTC_TIME and UTC_TIMESTAMP accept precision 65536 as zero
+#
+select curtime(65536);
+ERROR 42000: Too big precision specified for 'curtime'. Maximum is 6
+select utc_time(65536);
+ERROR 42000: Too big precision specified for 'utc_time'. Maximum is 6
+select utc_timestamp(65536);
+ERROR 42000: Too big precision specified for 'utc_timestamp'. Maximum is 6
+select now(65542);
+ERROR 42000: Too big precision specified for 'current_timestamp'. Maximum is 6
+select sysdate(65536);
+ERROR 42000: Too big precision specified for 'sysdate'. Maximum is 6
+select curtime(4294967296);
+ERROR 42000: Too big precision specified for 'curtime'. Maximum is 6
 # End of 10.11 tests
