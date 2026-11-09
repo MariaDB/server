@@ -161,7 +161,7 @@ enum enum_binlog_row_image {
   BINLOG_ROW_IMAGE_FULL_NODUP= 3
 };
 
-enum class Tmp_table_kind { TMP, GLOBAL, ANY };
+enum enum_tmp_table_type { TMP_TABLE_LOCAL, TMP_TABLE_GLOBAL, TMP_TABLE_LOCAL_OR_GLOBAL };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
 #define MODE_REAL_AS_FLOAT              (1ULL << 0)
@@ -5962,31 +5962,30 @@ public:
   TABLE *find_temporary_table(const Lex_ident_db &db,
                               const Lex_ident_table &table_name,
                               Temporary_table_state state= TMP_TABLE_IN_USE,
-                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                              enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
   TABLE *find_temporary_table(const TABLE_LIST *tl,
                               Temporary_table_state state= TMP_TABLE_IN_USE,
-                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                              enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
 
-  TMP_TABLE_SHARE *find_tmp_table_share_w_base_key(const char *key,
-                                                   uint key_length);
   TMP_TABLE_SHARE *find_tmp_table_share(const Lex_ident_db &db,
                                         const Lex_ident_table &table_name,
-                                        Tmp_table_kind find_kind);
+                                        enum_tmp_table_type find_kind);
   TMP_TABLE_SHARE *find_tmp_table_share(const TABLE_LIST *tl,
-                                        Tmp_table_kind find_kind);
+                                        enum_tmp_table_type find_kind);
   TMP_TABLE_SHARE *find_tmp_table_share(const char *key, size_t key_length,
-                                        Tmp_table_kind find_kind);
+                                        enum_tmp_table_type find_kind,
+                                        bool use_base_name = 0);
 
   void global_tmp_tables_set_explicit_lock_duration();
   bool use_real_global_temporary_share(const TABLE_LIST *table) const;
 
   bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
-                                 Tmp_table_kind find_kind);
+                                 enum_tmp_table_type find_kind);
   bool open_temporary_table(TABLE_LIST *tl,
-                            Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                            enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
   bool check_and_open_tmp_table(TABLE_LIST *tl);
   bool open_temporary_tables(TABLE_LIST *tl,
-                             Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                             enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
 
   bool close_temporary_tables();
   bool rename_temporary_table(TABLE *table, const LEX_CSTRING *db,
@@ -6023,11 +6022,11 @@ private:
                                           const Lex_ident_table &table_name);
   TABLE *find_temporary_table(const char *key, uint key_length,
                               Temporary_table_state state,
-                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                              enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
   TABLE *open_temporary_table(TMP_TABLE_SHARE *share,
                               const Lex_ident_table &alias);
   bool find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table,
-                              Tmp_table_kind find_kind= Tmp_table_kind::ANY);
+                              enum_tmp_table_type find_kind= TMP_TABLE_LOCAL_OR_GLOBAL);
   bool use_temporary_table(TABLE *table, TABLE **out_table);
   void close_temporary_table(TABLE *table);
   bool log_events_and_free_tmp_shares();

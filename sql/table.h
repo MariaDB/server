@@ -130,7 +130,6 @@ enum enum_table_ref_type
   TABLE_REF_TMP_TABLE
 };
 
-
 /*************************************************************************/
 
 /**
@@ -892,6 +891,7 @@ struct TABLE_SHARE
   enum open_frm_error error;            /* error from open_table_def() */
   uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
+  uint gtt_options;
   uchar frm_version;
 
   enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
@@ -1258,11 +1258,16 @@ struct TABLE_SHARE
     return table_creation_was_logged == 1;
   }
   bool on_commit_delete() const
-  { return db_create_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
+  { return gtt_options & GTT_ON_COMMIT_DELETE_ROWS; }
   bool global_tmp_table() const
-  { return db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE; }
-  bool local_tmp_table() const
-  { return tmp_table && !global_tmp_table(); }
+  {
+    /*
+      options & HA_LEX_CREATE_GLOBAL_TMP_TABLE is only true when
+      creating a global temporary table definition.
+    */
+    return gtt_options & GTT_TABLE;
+  }
+  bool local_tmp_table() const { return tmp_table && !global_tmp_table(); }
 };
 
 /* not NULL, but cannot be dereferenced */
@@ -2875,6 +2880,7 @@ struct TABLE_LIST
   enum_mdl_type mdl_type;
   ulong         table_options;
 
+  uint          gtt_options;
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */

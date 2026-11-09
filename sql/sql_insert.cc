@@ -5449,7 +5449,7 @@ bool select_create::send_eof()
     */
     if (thd->find_tmp_table_share(table->s->table_cache_key.str,
                                   table->s->table_cache_key.length,
-                                  Tmp_table_kind::TMP))
+                                  TMP_TABLE_LOCAL))
     {
       my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table->alias.c_ptr());
       abort_result_set();

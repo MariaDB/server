@@ -878,7 +878,9 @@ create global temporary table t (t text);
 set max_session_mem_used= 8192;
 --error ER_OPTION_PREVENTS_STATEMENT
 insert t values (0);
+set max_session_mem_used= @save_max_session_mem_used;
 lock table t write;
+set max_session_mem_used= 8192;
 --error ER_OPTION_PREVENTS_STATEMENT
 alter table t add z int;
 set max_session_mem_used= @save_max_session_mem_used;

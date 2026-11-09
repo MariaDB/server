@@ -4626,20 +4626,16 @@ public:
     sql_command= command;
     create_info.set(options);
   }
+
+  /*
+    Scope can be 0, HA_LEX_CREATE_TMP_TABLE or HA_LEX_CREATE_GLOBAL_TMP_TABLE
+  */
   void set_command(enum_sql_command command,
                    uint scope,
                    DDL_options_st options)
   {
     set_command(command, options);
-    create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
-
-    if (scope & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)
-    {
-      create_info.table_options|= HA_OPTION_GLOBAL_TEMPORARY_TABLE;
-
-      // default (implicit) value
-      create_info.table_options|= HA_OPTION_ON_COMMIT_DELETE_ROWS;
-    }
+    create_info.options|= scope;
   }
   bool check_create_options(DDL_options_st options)
   {

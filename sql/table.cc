@@ -1960,13 +1960,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
     se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
   share->mysql_version= uint4korr(frm_image+51);
-  db_create_options= uint2korr(frm_image+30);
+  share->db_create_options= db_create_options= uint2korr(frm_image+30);
+  share->db_options_in_use= share->db_create_options;
   if (share->mysql_version >= 110400)
-    db_create_options|= uint2korr(frm_image+59) << 16;
-  share->db_options_in_use= share->db_create_options= db_create_options;
-  share->table_type= db_create_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE
-                     ? TABLE_TYPE_GLOBAL_TEMPORARY
-                     : TABLE_TYPE_NORMAL;
+  {
+    /* gtt options uses bits 3 & 4 at position 59.  Rest of bits are free*/
+    share->gtt_options= (gtt_table_options) ((uint) (frm_image[59] >> 3) & 3);
+  }
+  share->table_type= (share->gtt_options ?
+                      TABLE_TYPE_GLOBAL_TEMPORARY : TABLE_TYPE_NORMAL);
   share->null_field_first= 0;
   if (!frm_image[32])				// New frm file in 3.23
   {
@@ -5290,13 +5292,11 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   tmp= MYSQL_VERSION_ID;          // Store to avoid warning from int4store
   int4store(fileinfo+51, tmp);
   int4store(fileinfo+55, create_info->extra_size);
+  /* We store gtt_options as we had in the GTT preview */
+  fileinfo[59]= create_info->gtt_options << 3;
   /*
-    59-60 is unused since 10.2.4
-    High table_options word since 11.4
-  */
-  int2store(fileinfo+59, create_info->table_options >> 16);
-  /*
-    61 for default_part_db_type
+    60 is unused since 10.2.4
+    61 was used for default_part_db_type
   */
   int2store(fileinfo+62, create_info->key_block_size);
   DBUG_VOID_RETURN;

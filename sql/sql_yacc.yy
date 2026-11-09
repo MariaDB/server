@@ -2554,8 +2554,8 @@ for_channel:
 #endif
           }
 
-          }
-          ;
+        }
+        ;
 
 /* create a table */
 
@@ -2569,6 +2569,12 @@ create:
             if (lex->main_select_push())
               MYSQL_YYABORT;
             lex->current_select->parsing_place= BEFORE_OPT_LIST;
+            if ($2 == HA_LEX_CREATE_GLOBAL_TMP_TABLE)
+            {
+               Lex->create_info.gtt_options=
+               (gtt_table_options) ((uint) GTT_TABLE |
+                                    (uint) GTT_ON_COMMIT_DELETE_ROWS);
+            }
             if (lex->set_command_with_check(SQLCOM_CREATE_TABLE, $2, $1 | $4))
                MYSQL_YYABORT;
           }
@@ -5967,7 +5973,7 @@ create_table_option:
         | ON
           {
             if (unlikely(!(Lex->create_info.options
-                           & HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE)))
+                           & HA_LEX_CREATE_GLOBAL_TMP_TABLE)))
             {
               thd->parse_error();
               MYSQL_YYABORT;
@@ -5979,7 +5985,9 @@ create_table_option:
 create_on_commit_action:
           DELETE_SYM ROWS_SYM
         | PRESERVE_SYM ROWS_SYM
-          { Lex->create_info.table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS; }
+          {
+            Lex->create_info.gtt_options&= ~(uint) GTT_ON_COMMIT_DELETE_ROWS;
+          }
         ;
 
 engine_defined_option:
@@ -13785,9 +13793,7 @@ opt_if_exists:
 
 opt_global_or_temporary:
         GLOBAL_SYM TEMPORARY
-        {
-          $$= HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE;
-        }
+        { $$= HA_LEX_CREATE_GLOBAL_TMP_TABLE; }
       | opt_temporary;
 
 opt_temporary:

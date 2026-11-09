@@ -581,7 +581,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     table_ref->table= NULL;
     query_cache_invalidate3(thd, table_ref, FALSE);
 
-    DBUG_ASSERT(!thd->find_tmp_table_share(table_ref, Tmp_table_kind::GLOBAL));
+    DBUG_ASSERT(!thd->find_tmp_table_share(table_ref, TMP_TABLE_GLOBAL));
   }
 
 

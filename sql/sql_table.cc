@@ -1183,7 +1183,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
       DBUG_RETURN(true);
     }
     DBUG_ASSERT(is_temporary_table(table) ||
-                !thd->find_tmp_table_share(table, Tmp_table_kind::GLOBAL));
+                !thd->find_tmp_table_share(table, TMP_TABLE_GLOBAL));
   }
 
   if (!drop_temporary)
@@ -4651,7 +4651,7 @@ check_global_temporary_tables_for_create(THD *thd,
   const TABLE *table= create_info->table;
   if ((table && table->s->tmp_table && table->s->global_tmp_table()) ||
       thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
-                                Tmp_table_kind::GLOBAL))
+                                TMP_TABLE_GLOBAL))
   {
     my_error(ER_TABLE_IN_USE, MYF(0), db.str, table_name.str);
     return TRUE;
@@ -4768,7 +4768,7 @@ int create_table_impl(THD *thd,
     */
     TABLE *tmp_table= internal_tmp_table ? NULL :
                   thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
-                                            Tmp_table_kind::TMP);
+                                            TMP_TABLE_LOCAL);
 
     if (tmp_table)
     {
@@ -5899,15 +5899,17 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   if (src_table->schema_table)
     local_create_info.max_rows= 0;
   /* Replace type of source table with one specified in the statement. */
-  local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
+  local_create_info.options&= ~(HA_LEX_CREATE_TMP_TABLE |
+                                HA_LEX_CREATE_GLOBAL_TMP_TABLE);
   local_create_info.options|= create_info->options;
-  local_create_info.table_options&= ~HA_OPTIONS_TO_RESET_CREATE_LIKE;
+  local_create_info.gtt_options= create_info->gtt_options;
+
   /*
     Do not inherit the ON COMMIT behavior,
     if the new table is not global temporary.
   */
   if (!create_info->global_tmp_table())
-    create_info->table_options&= ~HA_OPTION_ON_COMMIT_DELETE_ROWS;
+    create_info->gtt_options= GTT_NONE;
 
   local_create_info.table_options|= create_info->table_options;
   /* Reset auto-increment counter for the new table. */
@@ -6256,7 +6258,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
   if (thd->has_open_global_temporary_tables())
   {
     if (thd->open_temporary_table_impl(out_table, &table,
-                                       Tmp_table_kind::GLOBAL))
+                                       TMP_TABLE_GLOBAL))
       return TRUE;
 
     if (table)
@@ -6286,6 +6288,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
     create_info.init();
     create_info.db_type= source->db_type();
     create_info.row_type= source->row_type;
+    create_info.gtt_options= source->gtt_options;
     create_info.alter_info= &alter_info;
 
     if (mysql_prepare_alter_table(thd, &global_table, &create_info,
@@ -9897,6 +9900,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     db_create_options&= ~(HA_OPTION_DELAY_KEY_WRITE |
 			  HA_OPTION_NO_DELAY_KEY_WRITE);
   create_info->table_options|= db_create_options;
+  create_info->gtt_options= table->s->gtt_options;
 
   if (table->s->tmp_table)
     create_info->options|=HA_LEX_CREATE_TMP_TABLE;
@@ -11183,7 +11187,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (table->s->global_tmp_table())
   {
-    if (thd->find_tmp_table_share(table_list, Tmp_table_kind::GLOBAL))
+    if (thd->find_tmp_table_share(table_list, TMP_TABLE_GLOBAL))
     {
       // The table is opened in the same connection.
       my_error(ER_TABLE_IN_USE, MYF(0), table_list->db.str,
@@ -11277,7 +11281,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         THD::all_temp_tables list.
       */
       if (thd->find_tmp_table_share(alter_ctx.new_db, alter_ctx.new_name,
-                                    Tmp_table_kind::TMP))
+                                    TMP_TABLE_LOCAL))
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
         DBUG_RETURN(true);
@@ -13518,7 +13522,7 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     /* Allow to open real tables only. */
     table->required_type= TABLE_TYPE_NORMAL;
 
-    if (thd->open_temporary_tables(table, Tmp_table_kind::TMP) ||
+    if (thd->open_temporary_tables(table, TMP_TABLE_LOCAL) ||
         open_and_lock_tables(thd, table, FALSE, 0))
     {
       t= NULL;

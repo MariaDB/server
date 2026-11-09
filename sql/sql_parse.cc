@@ -407,7 +407,7 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   {
     DBUG_ASSERT(table->db.str && table->table_name.str);
     if (table->updating && !thd->find_tmp_table_share(table,
-                                                      Tmp_table_kind::ANY))
+                                                      TMP_TABLE_LOCAL_OR_GLOBAL))
       return 1;
   }
   return 0;
@@ -2961,7 +2961,7 @@ retry:
             Let us restart acquiring and opening tables for LOCK TABLES.
           */
           close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
-          if (thd->open_temporary_tables(tables, Tmp_table_kind::TMP))
+          if (thd->open_temporary_tables(tables, TMP_TABLE_LOCAL))
             goto err;
           goto retry;
         }
@@ -4956,7 +4956,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       CF_PREOPEN_TMP_TABLES was set and the tables would be pre-opened
       in a usual way, they would have been closed.
     */
-    if (thd->open_temporary_tables(all_tables, Tmp_table_kind::TMP))
+    if (thd->open_temporary_tables(all_tables, TMP_TABLE_LOCAL))
       goto error;
 
     if (lock_tables_precheck(thd, all_tables))

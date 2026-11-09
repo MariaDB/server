@@ -180,7 +180,7 @@ TABLE *THD::create_and_open_tmp_table(LEX_CUSTRING *frm,
 TABLE *THD::find_temporary_table(const Lex_ident_db &db,
                                  const Lex_ident_table &table_name,
                                  Temporary_table_state state,
-                                 Tmp_table_kind find_kind)
+                                 enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::find_temporary_table");
 
@@ -216,62 +216,16 @@ TABLE *THD::find_temporary_table(const Lex_ident_db &db,
   @return Success                     Pointer to first used table instance.
           Failure                     NULL
 */
+
 TABLE *THD::find_temporary_table(const TABLE_LIST *tl,
                                  Temporary_table_state state,
-                                 Tmp_table_kind find_kind)
+                                 enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::find_temporary_table");
   TABLE *table= find_temporary_table(tl->get_db_name(),
                                      tl->get_table_name(),
                                      state, find_kind);
   DBUG_RETURN(table);
-}
-
-
-/**
-  Check whether a temporary table exists with the specified key.
-  The key, in this case, is not the usual key used for temporary tables.
-  It does not contain server_id & pseudo_thread_id. This function is
-  essentially used use to check whether there is any temporary table
-  which _shadows_ a base table.
-  (see: Query_cache::send_result_to_client())
-
-  @return Success                     A pointer to table share object
-          Failure                     NULL
-*/
-TMP_TABLE_SHARE *THD::find_tmp_table_share_w_base_key(const char *key,
-                                                      uint key_length)
-{
-  DBUG_ENTER("THD::find_tmp_table_share_w_base_key");
-
-  TMP_TABLE_SHARE *share;
-  TMP_TABLE_SHARE *result= NULL;
-  bool locked;
-
-  if (!has_temporary_tables())
-  {
-    DBUG_RETURN(NULL);
-  }
-
-  locked= lock_temporary_tables();
-
-  All_tmp_tables_list::Iterator it(*temporary_tables);
-  while ((share= it++))
-  {
-    if ((share->table_cache_key.length - TMP_TABLE_KEY_EXTRA) == key_length
-        && !memcmp(share->table_cache_key.str, key, key_length))
-    {
-      result= share;
-    }
-  }
-
-  if (locked)
-  {
-    DBUG_ASSERT(m_tmp_tables_locked);
-    unlock_temporary_tables();
-  }
-
-  DBUG_RETURN(result);
 }
 
 
@@ -285,13 +239,12 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share_w_base_key(const char *key,
 */
 TMP_TABLE_SHARE *THD::find_tmp_table_share(const Lex_ident_db &db,
                                            const Lex_ident_table &table_name,
-                                           Tmp_table_kind find_kind)
+                                           enum_tmp_table_type find_kind)
 {
-  DBUG_ENTER("THD::find_tmp_table_share");
-
   TMP_TABLE_SHARE *share;
   char key[MAX_DBKEY_LENGTH];
   uint key_length;
+  DBUG_ENTER("THD::find_tmp_table_share");
 
   key_length= create_tmp_table_def_key(key, db, table_name);
   share= find_tmp_table_share(key, key_length, find_kind);
@@ -310,7 +263,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const Lex_ident_db &db,
           Failure                     NULL
 */
 TMP_TABLE_SHARE *THD::find_tmp_table_share(const TABLE_LIST *tl,
-                                           Tmp_table_kind find_kind)
+                                           enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::find_tmp_table_share");
   TMP_TABLE_SHARE *share= find_tmp_table_share(tl->get_db_name(),
@@ -324,17 +277,29 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const TABLE_LIST *tl,
   Lookup TMP_TABLE_SHARE using the specified table definition key.
   Return NULL is none found.
 
+  @param key           Table name
+  @param key_length     Length of table name
+  @param find_kind      What type of temporary table we are trying to find.
+  @param use_base_name  True if we should ignore the unique tmp table
+                        identifier (server_id & pseudo_thread_id).
+                        This parameter is essentially used use to check
+                        whether there is any temporary table which _shadows_
+                        a base table.
+                        (see: Query_cache::send_result_to_client()
+
   @return Success                     A pointer to table share object
           Failure                     NULL
 */
-TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
-                                           Tmp_table_kind find_kind)
-{
-  DBUG_ENTER("THD::find_tmp_table_share");
 
+TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
+                                           enum_tmp_table_type find_kind,
+                                           bool use_base_name)
+{
   TMP_TABLE_SHARE *share;
   TMP_TABLE_SHARE *result= NULL;
   bool locked;
+  size_t tmp_table_suffix= use_base_name ? TMP_TABLE_KEY_EXTRA : 0;
+  DBUG_ENTER("THD::find_tmp_table_share");
 
   if (!has_temporary_tables())
   {
@@ -346,10 +311,10 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while ((share= it++))
   {
-    if (share->table_cache_key.length == key_length &&
-    !memcmp(share->table_cache_key.str, key, key_length) &&
-    (find_kind == Tmp_table_kind::ANY ||
-     share->global_tmp_table() == (find_kind == Tmp_table_kind::GLOBAL)))
+    if (share->table_cache_key.length - tmp_table_suffix == key_length &&
+        !memcmp(share->table_cache_key.str, key, key_length) &&
+        (find_kind == TMP_TABLE_LOCAL_OR_GLOBAL ||
+         share->global_tmp_table() == (find_kind == TMP_TABLE_GLOBAL)))
     {
       result= share;
       break;
@@ -386,10 +351,10 @@ void THD::global_tmp_tables_set_explicit_lock_duration()
 
 bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
 {
-  return table->open_strategy == TABLE_LIST::OPEN_STUB ||
-         table->open_strategy == TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST ||
-         sql_command_flags() & CF_USE_PARENT_GTT_SHARE ||
-        stmt_arena->is_stmt_prepare();
+  return (table->open_strategy == TABLE_LIST::OPEN_STUB ||
+          table->open_strategy == TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST ||
+          sql_command_flags() & CF_USE_PARENT_GTT_SHARE ||
+          stmt_arena->is_stmt_prepare());
 }
 
 /**
@@ -400,7 +365,7 @@ bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
   @param table [out]                  TABLE handle found/opened
 */
 bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
-                                    Tmp_table_kind find_kind)
+                                    enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::internal_open_temporary_table");
   /*
@@ -482,7 +447,7 @@ bool THD::open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,
                                       for the given key, tl->table is set.
     @retval true                      On error. my_error() has been called.
 */
-bool THD::open_temporary_table(TABLE_LIST *tl, Tmp_table_kind find_kind)
+bool THD::open_temporary_table(TABLE_LIST *tl, enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::open_temporary_table");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", tl->db.str, tl->table_name.str));
@@ -582,7 +547,7 @@ bool THD::check_and_open_tmp_table(TABLE_LIST *tl)
           true                        On error. my_error() has been called.
 */
 bool THD::open_temporary_tables(TABLE_LIST *tl,
-                                Tmp_table_kind find_kind)
+                                enum_tmp_table_type find_kind)
 {
   TABLE_LIST *first_not_own;
   DBUG_ENTER("THD::open_temporary_tables");
@@ -1218,7 +1183,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 */
 TABLE *THD::find_temporary_table(const char *key, uint key_length,
                                  Temporary_table_state state,
-                                 Tmp_table_kind find_kind)
+                                 enum_tmp_table_type find_kind)
 {
   DBUG_ENTER("THD::find_temporary_table");
 
@@ -1234,8 +1199,8 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
   {
     if (share->table_cache_key.length == key_length &&
         !memcmp(share->table_cache_key.str, key, key_length) &&
-        (find_kind == Tmp_table_kind::ANY ||
-         share->global_tmp_table() == (find_kind == Tmp_table_kind::GLOBAL)))
+        (find_kind == TMP_TABLE_LOCAL_OR_GLOBAL ||
+         share->global_tmp_table() == (find_kind == TMP_TABLE_GLOBAL)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
 
@@ -1348,7 +1313,7 @@ TABLE *THD::open_temporary_table(TMP_TABLE_SHARE *share,
           Failure                     true
 */
 bool THD::find_and_use_tmp_table(const TABLE_LIST *tl, TABLE **out_table,
-                                 Tmp_table_kind find_kind)
+                                 enum_tmp_table_type find_kind)
 {
   char key[MAX_DBKEY_LENGTH];
   uint key_length;

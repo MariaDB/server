@@ -119,6 +119,9 @@ enum chf_create_flags {
   CHF_INDEX_FLAG
 };
 
+enum gtt_table_options : uint
+{ GTT_NONE=0, GTT_TABLE=1, GTT_ON_COMMIT_DELETE_ROWS=2 };
+
 /* Bits in table_flags() to show what database can do */
 
 #define HA_NO_TRANSACTIONS     (1ULL << 0) /* Doesn't support transactions */
@@ -516,7 +519,7 @@ enum chf_create_flags {
 #define HA_LEX_CREATE_SHARED_ACCESS_TMP_TABLE 128U
 
 /** GLOBAL TEMPORARY TABLE */
-#define HA_LEX_CREATE_GLOBAL_TEMPORARY_TABLE 256U
+#define HA_LEX_CREATE_GLOBAL_TMP_TABLE 256U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -2271,6 +2274,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   uint options;				/* OR of HA_CREATE_ options */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
+  uint gtt_options;
   handlerton *db_type;
   /**
     Row type of the table definition.
@@ -2317,9 +2321,15 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   }
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   bool global_tmp_table() const
-  { return table_options & HA_OPTION_GLOBAL_TEMPORARY_TABLE; }
+  {
+    /*
+      options & HA_LEX_CREATE_GLOBAL_TMP_TABLE is only true when
+      creating a global temporary table definition.
+    */
+    return (bool) (gtt_options & GTT_TABLE);
+  }
   bool on_commit_delete() const
-  { return table_options & HA_OPTION_ON_COMMIT_DELETE_ROWS; }
+  { return gtt_options & GTT_ON_COMMIT_DELETE_ROWS; }
   void use_default_db_type(THD *thd)
   {
     db_type= tmp_table() ? ha_default_tmp_handlerton(thd)

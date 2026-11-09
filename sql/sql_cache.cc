@@ -2055,8 +2055,9 @@ lookup:
       query in query cache was made.
     */
     if ((tmptable=
-         thd->find_tmp_table_share_w_base_key((char *) table->data(),
-                                              table->key_length())))
+         thd->find_tmp_table_share((char *) table->data(),
+                                   table->key_length(),
+                                   TMP_TABLE_LOCAL_OR_GLOBAL, 1)))
     {
       DBUG_PRINT("qcache",
                  ("Temporary table detected: '%s.%s'",

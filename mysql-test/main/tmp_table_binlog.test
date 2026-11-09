@@ -37,7 +37,7 @@ set binlog_format=mixed;
 create temporary table t1 (x int);
 create temporary table t2 (y int);
 set @save_create_tmp_table_binlog_formats=@@create_tmp_table_binlog_formats;
-set create_tmp_table_binlog_formats=mixed;
+set create_tmp_table_binlog_formats="statement,mixed";
 create or replace temporary table t2 like t1;
 drop table t1, t2;
 set create_tmp_table_binlog_formats=@save_create_tmp_table_binlog_formats;

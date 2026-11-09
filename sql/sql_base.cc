@@ -2118,7 +2118,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       locked tables list was created.
     */
     if (thd->locked_tables_mode == LTM_PRELOCKED)
-      my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str, table_list->alias.str);
+      my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str,
+               table_list->alias.str);
     else
       my_error(ER_TABLE_NOT_LOCKED, MYF(0), alias.str);
     DBUG_RETURN(TRUE);
@@ -4799,7 +4800,7 @@ restart:
             goto error;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
-          if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
+          if (thd->open_temporary_tables(*start, TMP_TABLE_LOCAL))
             goto error;
 
           error= FALSE;
@@ -4864,7 +4865,7 @@ restart:
               goto error;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
-            if (thd->open_temporary_tables(*start, Tmp_table_kind::TMP))
+            if (thd->open_temporary_tables(*start, TMP_TABLE_LOCAL))
               goto error;
 
             error= FALSE;
