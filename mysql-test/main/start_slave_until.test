@@ -19,7 +19,8 @@
 # MDEV-35635 – Issues around parsing and invalid parameter combinations in `START SLAVE UNTIL`.
 
 --source include/not_embedded.inc
-
+# We should start in the case buts its not always the case.
+RESET SLAVE ALL;
 #
 # Invalid query options (using slave+master options)
 #  
