@@ -4504,12 +4504,6 @@ static my_bool kill_callback_collect(THD *thd, kill_callback_arg *arg)
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake_no_mutex(KILL_SLAVE_SAME_ID);  // Mark killed
-    /*
-      Remover the thread from ack_receiver to ensure it is not
-      sending acks to the master anymore.
-    */
-    ack_receiver.remove_slave(thd);
-
     mysql_mutex_unlock(&thd->LOCK_thd_data);
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
