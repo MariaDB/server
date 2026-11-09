@@ -1896,9 +1896,9 @@ private:
 
   /** Temporary memory for page reorganization.
 
-  A thread holds at most one slot at a time, and it holds a page latch while
-  doing so, therefore reserving a slot must not wait for anything, except
-  in grow().
+  A thread holds at most 2 slots at a time, during a page reorganization.
+  It holds a page latch while it holds a slot. Therefore, the reservation
+  of a slot must not wait for anything, except in grow().
   Instead of being sized in advance for a number of threads that is not known
   and that changes while the server is running, the pool grows on demand.
 
