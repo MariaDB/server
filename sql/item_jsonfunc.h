@@ -353,6 +353,20 @@ protected:
 };
 
 
+enum class Json_range_elements
+{
+  /* Cannot express as a list of index points */
+  NO_RANGE,
+  /* SQL NULL */
+  IS_NULL,
+  /* Parsed successfully into a list of scalar elements */
+  OK
+};
+
+Json_range_elements json_get_range_elements(THD *thd, Item *value,
+                                            CHARSET_INFO *cs,
+                                            List<Item> *elements);
+
 class Item_func_json_contains: public Item_bool_func
 {
 protected:
@@ -376,8 +390,17 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   bool val_bool() override;
-
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables)
+                      override;
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
 protected:
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part, Item_func::Functype type,
+                       Item *value) override;
+  bool count_sargable_conds(void *arg) override;
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
   int check_contains(json_engine_t *je, json_engine_t *ve);
@@ -927,7 +950,7 @@ protected:
 
 extern bool is_json_type(const Item *item);
 
-class Item_func_json_overlaps: public Item_bool_func
+class Item_func_json_overlaps: public Item_bool_func2_with_rev
 {
   String tmp_js;
   bool a2_constant, a2_parsed;
@@ -937,7 +960,7 @@ class Item_func_json_overlaps: public Item_bool_func
 
 public:
   Item_func_json_overlaps(THD *thd, Item *a, Item *b):
-    Item_bool_func(thd, a, b)
+    Item_bool_func2_with_rev(thd, a, b)
     {}
   LEX_CSTRING func_name_cstring() const override
   {
@@ -948,6 +971,16 @@ public:
   bool val_bool() override;
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
+  enum Functype rev_functype() const override
+  { return functype(); }
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
+                             Field *field, Item *value) override;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part, Item_func::Functype type,
+                       Item *value) override;
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables)
+                      override;
 };
 
 class Item_func_json_schema_valid: public Item_bool_func

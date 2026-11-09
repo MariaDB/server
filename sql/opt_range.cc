@@ -9733,6 +9733,72 @@ Item_bool_func::get_mm_leaf(RANGE_OPT_PARAM *param,
                                  value));
 }
 
+/*
+  Helper to build a tree for a JSON_CONTAINS / JSON_OVERLAPS `field'.
+
+  Parse the json array `value', and for each array element, call
+  get_mm_parts on `field' and the element, then join them with
+  tree_and / tree_or
+*/
+template <class Get_mm_parts_func>
+static SEL_TREE *json_get_func_mm_tree(RANGE_OPT_PARAM *param, Field *field,
+                                       Item *value, bool conjunctive,
+                                       Get_mm_parts_func &&get_mm_parts)
+{
+  DBUG_ENTER("json_get_func_mm_tree");
+  /* Check that value can evaluated right now */
+  if (value->used_tables() & ~param->read_tables)
+    DBUG_RETURN(NULL);
+
+  List<Item> elements;
+  MEM_ROOT *tmp_root= param->mem_root;
+  param->thd->mem_root= param->old_root;
+  Json_range_elements jre=
+    json_get_range_elements(param->thd, value, field->charset(), &elements);
+  param->thd->mem_root= tmp_root;
+  if (jre == Json_range_elements::NO_RANGE)
+    DBUG_RETURN(NULL);
+  if (jre == Json_range_elements::IS_NULL)
+    DBUG_RETURN(new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE,
+                                               param->mem_root,
+                                               param->max_keys));
+  /*
+    Start with the identity element (NULL for tree_and and
+    SEL_TREE::IMPOSSIBLE for tree_or)
+  */
+  SEL_TREE *tree= conjunctive ? NULL :
+    new (param->mem_root) SEL_TREE(SEL_TREE::IMPOSSIBLE, param->mem_root,
+                                   param->max_keys);
+  List_iterator_fast<Item> it(elements);
+  Item *elem;
+  while ((elem= it++))
+  {
+    SEL_TREE *t= get_mm_parts(elem);
+    if (conjunctive)
+      tree= tree_and(param, tree, t);
+    else if (!(tree= tree_or(param, tree, t)))
+      DBUG_RETURN(NULL);
+  }
+  DBUG_RETURN(tree);
+}
+
+SEL_TREE *Item_func_json_overlaps::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                    Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_json_overlaps::get_func_mm_tree");
+  DBUG_RETURN(json_get_func_mm_tree(param, field, value, false,
+                [&](Item *elem)
+                { return get_mm_parts(param, field, functype(), elem); }));
+}
+
+SEL_TREE *Item_func_json_contains::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                                    Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_json_contains::get_func_mm_tree");
+  DBUG_RETURN(json_get_func_mm_tree(param, field, value, true,
+                [&](Item *elem)
+                { return get_mm_parts(param, field, functype(), elem); }));
+}
 
 Data_type_compatibility
 Field::can_optimize_scalar_range(const RANGE_OPT_PARAM *param,
