@@ -1,0 +1,114 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test', user 'root');
+
+--echo #
+--echo # MDEV-10526: Spider pushdown for binary bitwise aggregate functions
+--echo #
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  val_int BIGINT UNSIGNED,
+  val_bin VARBINARY(4)
+) ENGINE=InnoDB;
+CREATE TABLE t1_s (
+  id INT PRIMARY KEY,
+  val_int BIGINT UNSIGNED,
+  val_bin VARBINARY(4)
+) ENGINE=SPIDER REMOTE_SERVER='srv' REMOTE_TABLE='t1';
+INSERT INTO t1 VALUES
+  (1, 0xF000000000000000, x'F0000000'),
+  (2, 0x0F00000000000000, x'0F0F0F0F'),
+  (3, 0x00FF000000000000, x'00FF0000'),
+  (4, 0x0000FF0000000000, x'0000FF00'),
+  (5, 0x000000FF000000FF, x'000000FF'),
+  (6, NULL, NULL);
+
+--disable_ps2_protocol
+--echo # Binary mode, pushed down
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+FROM t1_s;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+--echo # Integer mode, pushed down
+SELECT BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int) FROM t1_s;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+--echo # Without pushdown the results must be the same
+SET spider_direct_aggregate= 0;
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+FROM t1_s;
+SELECT BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int) FROM t1_s;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+SET spider_direct_aggregate= DEFAULT;
+--echo # Aggregates with FILTER (MDEV-24943) are not pushed down
+SELECT HEX(BIT_OR(val_bin) FILTER (WHERE id < 3)),
+       HEX(BIT_AND(val_bin) FILTER (WHERE id > 1)),
+       BIT_XOR(val_int) FILTER (WHERE id IN (2, 5))
+FROM t1_s;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+--enable_ps2_protocol
+
+--echo # GROUP BY - reset_field()/update_field() with direct_add()
+CREATE TABLE t2 (
+  id INT PRIMARY KEY,
+  grp INT,
+  val_bin VARBINARY(4),
+  val_int BIGINT UNSIGNED
+) ENGINE=InnoDB;
+CREATE TABLE t2_s (
+  id INT PRIMARY KEY,
+  grp INT,
+  val_bin VARBINARY(4),
+  val_int BIGINT UNSIGNED
+) ENGINE=SPIDER REMOTE_SERVER='srv' REMOTE_TABLE='t2';
+INSERT INTO t2 VALUES
+  (1, 1, x'FF000000', 0xFF00000000000000),
+  (2, 1, x'0F0F0F0F', 0x0F0F0F0F00000000),
+  (3, 2, x'00FF0000', 0x00FF000000000000),
+  (4, 2, x'000000FF', 0x000000FF00000000);
+SELECT grp,
+  HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)),
+  BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int)
+FROM t2_s GROUP BY grp;
+DROP TABLE t2_s, t2;
+
+--echo # Partial results from several data nodes are merged locally.
+--echo # The data node without matching rows returns the neutral value.
+CREATE TABLE t3_1 (id INT PRIMARY KEY, val_bin VARBINARY(4)) ENGINE=InnoDB;
+CREATE TABLE t3_2 (id INT PRIMARY KEY, val_bin VARBINARY(4)) ENGINE=InnoDB;
+CREATE TABLE t3_s (id INT PRIMARY KEY, val_bin VARBINARY(4)) ENGINE=SPIDER
+PARTITION BY RANGE (id) (
+  PARTITION p1 VALUES LESS THAN (10) REMOTE_SERVER="srv" REMOTE_TABLE="t3_1",
+  PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="srv" REMOTE_TABLE="t3_2");
+INSERT INTO t3_s VALUES (1, x'FF00'), (2, x'0FF0'), (11, x'00FF'), (12, x'F00F');
+--disable_ps2_protocol
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+FROM t3_s;
+SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+FROM t3_s WHERE val_bin IN (x'FF00', x'0FF0');
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+--enable_ps2_protocol
+DROP TABLE t3_s, t3_1, t3_2;
+
+DROP TABLE t1_s, t1;
+DROP SERVER srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # End of 13.2 tests
+--echo #

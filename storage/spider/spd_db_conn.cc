@@ -2191,13 +2191,65 @@ int spider_db_fetch_for_item_sum_func(
         row->next();
       }
       break;
+    case Item_sum::SUM_BIT_FUNC:
+      {
+        Item_sum_bit *item_sum_bit= (Item_sum_bit *) item_sum;
+        const bool binary_mode= item_sum_bit->is_binary_mode();
+        if (row->is_null())
+        {
+          if (binary_mode)
+            item_sum_bit->direct_add((const String *) NULL, TRUE);
+          else
+            item_sum_bit->direct_add((ulonglong) 0, TRUE);
+        }
+        else
+        {
+          char buf[MAX_FIELD_WIDTH];
+          spider_string tmp_str(buf, MAX_FIELD_WIDTH, share->access_charset);
+          tmp_str.init_calc_mem(SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_3);
+          tmp_str.length(0);
+          if ((error_num= row->append_to_str(&tmp_str)))
+            DBUG_RETURN(error_num);
+
+          if (binary_mode)
+            item_sum_bit->direct_add(tmp_str.get_str(), FALSE);
+          else
+          {
+            /*
+              row->val_int() can not be used: it overflows for values
+              above LONGLONG_MAX.
+            */
+            int conv_error= 0;
+            char *endptr;
+            const char *end= tmp_str.ptr() + tmp_str.length();
+            ulonglong bits= system_charset_info->strntoull10rnd(
+                              tmp_str.ptr(), tmp_str.length(),
+                              1, &endptr, &conv_error);
+            if ((conv_error && conv_error != MY_ERRNO_ERANGE) ||
+                endptr != end)
+            {
+              /*
+                A wrong partial result can not be merged: any value, e.g.
+                0 for BIT_AND, would silently corrupt the final result.
+              */
+              push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                                  ER_TRUNCATED_WRONG_VALUE,
+                                  ER_THD(current_thd, ER_TRUNCATED_WRONG_VALUE),
+                                  "INTEGER", tmp_str.c_ptr_safe());
+              DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
+            }
+            item_sum_bit->direct_add(bits, FALSE);
+          }
+        }
+        row->next();
+      }
+      break;
     case Item_sum::COUNT_DISTINCT_FUNC:
     case Item_sum::SUM_DISTINCT_FUNC:
     case Item_sum::AVG_FUNC:
     case Item_sum::AVG_DISTINCT_FUNC:
     case Item_sum::STD_FUNC:
     case Item_sum::VARIANCE_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
     case Item_sum::UDF_SUM_FUNC:
     case Item_sum::GROUP_CONCAT_FUNC:
     default:
