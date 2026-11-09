@@ -22577,12 +22577,10 @@ void
 free_tmp_table(THD *thd, TABLE *entry)
 {
   MEM_ROOT own_root= entry->mem_root;
-  const char *save_proc_info;
   DBUG_ENTER("free_tmp_table");
   DBUG_PRINT("enter",("table: %s  alias: %s",entry->s->table_name.str,
                       entry->alias.c_ptr()));
 
-  save_proc_info=thd->proc_info;
   THD_STAGE_INFO(thd, stage_removing_tmp_table);
 
   if (entry->file && entry->is_created())
@@ -22618,7 +22616,6 @@ free_tmp_table(THD *thd, TABLE *entry)
   }
 
   free_root(&own_root, MYF(0)); /* the table is allocated in its own root */
-  thd_proc_info(thd, save_proc_info);
 
   DBUG_VOID_RETURN;
 }
