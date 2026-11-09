@@ -9499,7 +9499,8 @@ int Field_enum::store(const char *from,size_t length,CHARSET_INFO *cs)
 
 int Field_enum::store(double nr)
 {
-  return Field_enum::store((longlong) nr, FALSE);
+  DBUG_ASSERT(marked_for_write_or_computed());
+  return Field_enum::store(Converter_double_to_longlong(nr, false).result(), false);
 }
 
 
@@ -9671,6 +9672,13 @@ int Field_set::store(const char *from,size_t length,CHARSET_INFO *cs)
     set_warning(WARN_DATA_TRUNCATED, 1);
   store_type(tmp);
   return err;
+}
+
+
+int Field_set::store(double nr)
+{
+  DBUG_ASSERT(marked_for_write_or_computed());
+  return Field_set::store(Converter_double_to_longlong(nr, true).result(), true);
 }
 
 
@@ -10155,7 +10163,17 @@ int Field_bit::store_numeric(const char *from, size_t length, CHARSET_INFO *cs)
 
 int Field_bit::store(double nr)
 {
-  return Field_bit::store((longlong) nr, FALSE);
+  Converter_double_to_longlong conv(nr, true);     // BIT is unsigned
+  int error= Field_bit::store(conv.result(), true);
+  if (conv.error())
+  {
+    if (get_thd()->really_abort_on_warning())
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_DATA_TOO_LONG, 1);
+    else
+      set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
+    error= 1;
+  }
+  return error;
 }
 
 
