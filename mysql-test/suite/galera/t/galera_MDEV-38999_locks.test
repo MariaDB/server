@@ -1,0 +1,89 @@
+#
+# MDEV-38999: a transaction that holds a row lock from a locking read
+# (SELECT ... FOR UPDATE) must not attempt its own causal wait for a later
+# statement, even though no write has happened yet in this transaction.
+#
+# wsrep_has_changes(thd) only reflects writes (appended certification keys);
+# a locking read takes InnoDB row locks without appending any key, so it
+# stays false. Without wsrep_trx_locking_read_done tracking this separately,
+# a later statement whose wsrep_sync_wait bit is configured would still
+# attempt a fresh causal wait here - and since the local applier can be
+# blocked needing the very row this transaction already holds (X-)locked,
+# that wait has nothing to resolve it but the full repl.causal_read_timeout,
+# even though the BF-abort that actually unblocks everything happens within
+# about a second of the applier being released.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100), (2, 200);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 6;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_init.inc
+SET GLOBAL wsrep_provider_options = "repl.causal_read_timeout=PT20S";
+
+--connection node_2
+BEGIN;
+# Locking read: takes an X-lock on id=2 without writing anything, so
+# wsrep_has_changes(thd) alone would not notice it.
+SELECT * FROM t1 WHERE id=2 FOR UPDATE;
+
+--source include/galera_mdev38999_pause_applier.inc
+
+--connection node_1
+# Certified, but stuck applying on node_2 - conflicts with the X-lock above.
+UPDATE t1 SET f1=0 WHERE id=2;
+
+--source include/galera_mdev38999_wait_applier_paused.inc
+
+--connection node_2
+--let $t0 = `SELECT UNIX_TIMESTAMP()`
+# bit 4 (INSERT/REPLACE) is configured. This must NOT attempt its own causal
+# wait - this transaction already holds a lock (from the FOR UPDATE above),
+# so if it did, it would block until the applier is released AND then until
+# the full causal_read_timeout on top, since nothing but ending this
+# transaction can make the stuck applier's position catch up.
+--send INSERT INTO t1 VALUES (6, 600)
+
+--connection node_2a
+--sleep 1
+--source include/galera_mdev38999_resume_applier.inc
+
+--connection node_2
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
+--reap
+# A genuine BF-abort/deadlock error is (correctly, unlike a causal-wait
+# timeout) sticky until the transaction is explicitly ended, so node_2's
+# connection won't take plain queries cleanly yet - measure elapsed time via
+# node_2a instead, which was never part of the aborted transaction.
+--connection node_2a
+--let $dt = `SELECT UNIX_TIMESTAMP() - $t0`
+--disable_query_log
+--eval SELECT $dt < 10 AS returned_promptly
+--enable_query_log
+
+--connection node_2
+--error 0,ER_LOCK_WAIT_TIMEOUT,ER_LOCK_DEADLOCK
+COMMIT;
+
+# The transaction holding the FOR UPDATE lock on id=2 genuinely conflicts
+# with node_1's UPDATE to the same row, so COMMIT above is expected to get
+# BF-aborted (discarding the INSERT too) rather than succeed - don't assume
+# which; just wait for node_2 to converge to whatever node_1 ends up with.
+--connection node_1
+--let $final_count = `SELECT COUNT(*) FROM t1`
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = $final_count FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_cleanup.inc
