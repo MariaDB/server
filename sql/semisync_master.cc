@@ -1024,7 +1024,7 @@ int Repl_semi_sync_master::report_binlog_update(THD *trans_thd,
       */
       if ((log_info= trans_thd->semisync_info))
       {
-        log_info->log_file[0]= 0;
+        log_info->log_file= "";
         log_info->log_pos= 0;
       }
       return 0;
