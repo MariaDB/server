@@ -1338,79 +1338,131 @@ class Item_sum_bit :public Item_sum_int
 public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
     Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
-    as_window_function(FALSE), num_values_added(0) {}
-  Item_sum_bit(THD *thd, Item_sum_bit *item):
-    Item_sum_int(thd, item), reset_bits(item->reset_bits), bits(item->bits),
-    as_window_function(item->as_window_function),
-    num_values_added(item->num_values_added)
-  {
-    if (as_window_function)
-      memcpy(bit_counters, item->bit_counters, sizeof(bit_counters));
-  }
+    num_values_added(0), direct_bits(0), m_binary_bit_counters(nullptr),
+    m_binary_length(0), m_value_length(0),
+    as_window_function(FALSE), m_binary_mode(FALSE),
+    direct_added(FALSE), direct_reseted_field(FALSE),
+    direct_sum_is_null(FALSE) {}
+  Item_sum_bit(THD *thd, Item_sum_bit *item);
   enum Sumfunctype sum_func () const override { return SUM_BIT_FUNC;}
   void clear() override;
   longlong val_int() override;
+  double val_real() override;
+  my_decimal *val_decimal(my_decimal *) override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
   void reset_field() override;
   void update_field() override;
   const Type_handler *type_handler() const override
-  { return &type_handler_ulonglong; }
-  bool fix_length_and_dec(THD *thd) override
   {
-    if (args[0]->check_type_can_return_int(func_name_cstring()))
-      return true;
-    decimals= 0; max_length=21; unsigned_flag= 1;
-    base_flags&= ~item_base_t::MAYBE_NULL;
-    null_value= 0;
-    return FALSE;
+    /*
+      In binary mode the result is never longer than
+      MAX_BITWISE_AGGREGATE_BINARY_LENGTH, so VARBINARY is always enough.
+      A CHAR (BINARY(N)) handler must not be used: the temporary table
+      field would pad shorter values and change their length.
+    */
+    if (m_binary_mode)
+      return &type_handler_varchar;
+    return &type_handler_ulonglong;
   }
+  bool is_binary_mode() const { return m_binary_mode; }
   // block standard processor for never null
   bool add_maybe_null_after_ora_join_processor(void *arg) override
   { return 0; }
+  bool fix_length_and_dec(THD *thd) override;
+  String *val_str(String *str) override;
   void cleanup() override
   {
     bits= reset_bits;
+    m_binary_bit_counters= nullptr;
     if (as_window_function)
       clear_as_window();
+    direct_added= FALSE;
+    direct_reseted_field= FALSE;
     Item_sum_int::cleanup();
   }
-  void setup_window_func(THD *, Window_spec *) override
-  {
-    as_window_function= TRUE;
-    clear_as_window();
-  }
+  void setup_window_func(THD *thd, Window_spec *window_spec) override;
   void remove() override
   {
     if (as_window_function)
     {
-      ulonglong value= (ulonglong) args[0]->val_int();
-      if (!args[0]->null_value)
-        remove_as_window(value);
+      if (m_binary_mode)
+      {
+        StringBuffer<MAX_BITWISE_AGGREGATE_BINARY_LENGTH> arg_buf;
+        String *arg= args[0]->val_str(&arg_buf);
+        if (arg && !args[0]->null_value)
+          remove_binary_as_window(*arg);
+      }
+      else
+      {
+        ulonglong value= (ulonglong) args[0]->val_int();
+        if (!args[0]->null_value)
+          remove_as_window(value);
+      }
       return;
     }
     // Unless we're counting bits, we can not remove anything.
     DBUG_ASSERT(0);
   }
 
+  bool add() override;
   bool supports_removal() const override
   {
     return true;
   }
+  void direct_add(ulonglong add_bits, bool is_null);
+  void direct_add(const String *add_str, bool is_null);
 
 protected:
   enum bit_counters { NUM_BIT_COUNTERS= 64 };
-  ulonglong reset_bits,bits;
+  /* Maximum byte length of a binary string operand */
+  static constexpr uint MAX_BITWISE_AGGREGATE_BINARY_LENGTH= 512;
+
+  ulonglong reset_bits;
+  ulonglong bits;
+  ulonglong num_values_added;
+  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  ulonglong direct_bits;
+  uint32 *m_binary_bit_counters;
+  uint m_binary_length;  /* Declared (maximum) byte length of the operand */
+  /*
+    Byte length of the values aggregated so far, 0 if no value was
+    aggregated yet. All values of a group must have this same length.
+  */
+  uint m_value_length;
+
+  String m_str_value;    /* Binary accumulator */
+  String direct_str_value;
+
   /*
     Marks whether the function is to be computed as a window function.
   */
   bool as_window_function;
-  // When used as an aggregate window function, we need to store
-  // this additional information.
-  ulonglong num_values_added;
-  ulonglong bit_counters[NUM_BIT_COUNTERS];
+  bool m_binary_mode;
+  bool direct_added;
+  bool direct_reseted_field;
+  bool direct_sum_is_null;
+
   bool add_as_window(ulonglong value);
   bool remove_as_window(ulonglong value);
   bool clear_as_window();
+  bool add_binary_as_window(const String &value);
+  bool remove_binary_as_window(const String &value);
   virtual void set_bits_from_counters()= 0;
+
+  /* Combine an integer value into bits */
+  virtual void add_bits(ulonglong value)= 0;
+
+  /* Binary mode helpers */
+  void reset_binary_accumulator();
+  bool is_binary_neutral(const String *value) const;
+  bool check_binary_value_length(size_t length);
+  bool add_binary(const String *value);
+  uchar *prepare_binary_window_result(uint *length);
+  /* Byte value that does not change the result: 0x00 or 0xFF */
+  virtual uchar binary_neutral_byte() const= 0;
+  /* acc[i]= acc[i] OP val[i] for i in [0, length) */
+  virtual void binary_combine(uchar *acc, const uchar *val,
+                              size_t length) const= 0;
 };
 
 
@@ -1419,7 +1471,6 @@ class Item_sum_or final :public Item_sum_bit
 public:
   Item_sum_or(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_or(THD *thd, Item_sum_or *item) :Item_sum_bit(thd, item) {}
-  bool add() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING sum_name= {STRING_WITH_LEN("bit_or(") };
@@ -1429,6 +1480,14 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void add_bits(ulonglong value) override { bits|= value; }
+  uchar binary_neutral_byte() const override { return 0x00; }
+  void binary_combine(uchar *acc, const uchar *val,
+                      size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      acc[i]|= val[i];
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1442,7 +1501,6 @@ public:
   Item_sum_and(THD *thd, Item *item_par):
     Item_sum_bit(thd, item_par, ULONGLONG_MAX) {}
   Item_sum_and(THD *thd, Item_sum_and *item) :Item_sum_bit(thd, item) {}
-  bool add() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING sum_min_name= {STRING_WITH_LEN("bit_and(") };
@@ -1452,6 +1510,14 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void add_bits(ulonglong value) override { bits&= value; }
+  uchar binary_neutral_byte() const override { return 0xFF; }
+  void binary_combine(uchar *acc, const uchar *val,
+                      size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      acc[i]&= val[i];
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1463,7 +1529,6 @@ class Item_sum_xor final :public Item_sum_bit
 public:
   Item_sum_xor(THD *thd, Item *item_par): Item_sum_bit(thd, item_par, 0) {}
   Item_sum_xor(THD *thd, Item_sum_xor *item) :Item_sum_bit(thd, item) {}
-  bool add() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING sum_min_name= {STRING_WITH_LEN("bit_xor(") };
@@ -1473,6 +1538,14 @@ public:
 
 private:
   void set_bits_from_counters() override;
+  void add_bits(ulonglong value) override { bits^= value; }
+  uchar binary_neutral_byte() const override { return 0x00; }
+  void binary_combine(uchar *acc, const uchar *val,
+                      size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      acc[i]^= val[i];
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override

@@ -2921,6 +2921,51 @@ protected:
   { return get_item_copy<Item_func_find_in_set>(thd, this); }
 };
 
+/*
+  Check if a bitwise operator or a bitwise aggregate function should
+  process the argument as a binary string (byte by byte) rather than
+  as a 64-bit integer.
+
+  True for BINARY, VARBINARY and BLOB values. Hex hybrids (0xFF, x'FF')
+  keep the numeric behaviour.
+*/
+static inline bool is_binary_string_bitwise_arg(const Item *item)
+{
+  const Type_handler *th= item->type_handler();
+  return dynamic_cast<const Type_handler_longstr*>(th) != nullptr &&
+         dynamic_cast<const Type_handler_hex_hybrid*>(th) == nullptr &&
+         item->collation.collation == &my_charset_bin;
+}
+
+/*
+  Common part of the handlers of the bitwise operators in binary string
+  mode. The result is a binary string of the length of the operand(s).
+*/
+class Func_handler_bit_bin_to_bin: public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *
+    return_type_handler(const Item_handled_func *item) const override;
+  bool fix_length_and_dec(Item_handled_func *item) const override;
+};
+
+
+/*
+  Handler for the binary string mode of the operators '&', '|' and '^'.
+  Both operands must have the same length.
+*/
+class Func_handler_bit_op2_bin_to_bin: public Func_handler_bit_bin_to_bin
+{
+protected:
+  /* out[i]= a[i] OP b[i] for i in [0, length) */
+  virtual void combine(uchar *out, const uchar *a, const uchar *b,
+                       size_t length) const= 0;
+public:
+  bool fix_length_and_dec(Item_handled_func *item) const override;
+  String *val_str(Item_handled_func *item, String *to) const override;
+};
+
+
 /* Base class for all bit functions: '~', '|', '^', '&', '>>', '<<' */
 
 class Item_func_bit_operator: public Item_handled_func
