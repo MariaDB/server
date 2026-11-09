@@ -1027,6 +1027,7 @@ grant select (host) on mysql.user to u@localhost with grant option;
 revoke select (host) on mysql.user from u@localhost;
 connect con1, localhost, u;
 show grants;
+--error ER_DBACCESS_DENIED_ERROR
 show tables from mysql;
 select * from information_schema.tables where table_schema='mysql';
 disconnect con1;
@@ -1038,6 +1039,7 @@ grant execute on procedure mysql.p1 to u@localhost with grant option;
 revoke execute on procedure mysql.p1 from u@localhost;
 connect con1, localhost, u;
 show grants;
+--error ER_DBACCESS_DENIED_ERROR
 show tables from mysql;
 select * from information_schema.tables where table_schema='mysql';
 disconnect con1;
@@ -1188,3 +1190,37 @@ drop user u@localhost;
 drop database db;
 
 --echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-40730 SHOW DATABASES allows users with only GRANT OPTION privilege to read all databases names
+--echo #
+create user u@localhost;
+grant grant option on *.* to u@localhost;
+create database d1;
+create table d1.t1 (id int);
+--connect u,localhost,u
+show grants for current_user;
+show databases like '%1';
+select schema_name from information_schema.schemata where schema_name like '%1';
+select schema_name from information_schema.schemata where schema_name='d1';
+--error ER_DBACCESS_DENIED_ERROR
+show tables from d1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create table d1.t1;
+--connection default
+grant grant option on d1.t1 to u@localhost;
+--connection u
+show grants for current_user;
+show databases like '%1';
+select schema_name from information_schema.schemata where schema_name like '%1';
+select schema_name from information_schema.schemata where schema_name='d1';
+--error ER_DBACCESS_DENIED_ERROR
+show tables from d1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create table d1.t1;
+--disconnect u
+--connection default
+drop user u@localhost;
+drop database d1;
+
+--echo # End of 11.4 tests

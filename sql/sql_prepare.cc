@@ -337,6 +337,8 @@ private:
     }
     return false;
   }
+  /* DEFAULT is used in the statement text, not only in its parameters */
+  bool m_prepare_time_default_used;
 private:
   bool set_db(const LEX_CSTRING *db);
   bool set_parameters(String *expanded_query,
@@ -4136,7 +4138,8 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   bulk_optimized(0),
   m_sql_mode(thd->variables.sql_mode),
   m_prepare_time_thd_used_flags(0),
-  m_prepare_time_charset_collation_map_version(0)
+  m_prepare_time_charset_collation_map_version(0),
+  m_prepare_time_default_used(false)
 {
   init_sql_alloc(key_memory_prepared_statement_main_mem_root,
                  &main_mem_root, thd_arg->variables.query_alloc_block_size,
@@ -4536,6 +4539,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   m_prepare_time_thd_used_flags= thd->used;
   m_prepare_time_charset_collation_map_version=
     thd->variables.character_set_collations.version();
+  m_prepare_time_default_used= lex->default_used;
   DBUG_RETURN(error);
 }
 
@@ -4627,7 +4631,7 @@ Prepared_statement::set_parameters(String *expanded_query,
     res= set_params_data(this, expanded_query);
 #endif
   }
-  lex->default_used= thd->lex->default_used;
+  lex->default_used= m_prepare_time_default_used || thd->lex->default_used;
   thd->lex->default_used= false;
   if (res)
   {
@@ -4747,10 +4751,20 @@ reexecute:
     thd->clear_error();
 
 start_with_reprepare:
+    /*
+      reprepare() swaps in a freshly re-parsed lex (see
+      swap_prepared_statement()), which loses this execution's
+      default_used: set_parameters() above already folded "EXECUTE ...
+      USING DEFAULT" into it, but re-parsing the (unchanged) statement
+      text only reproduces the prepare-time contribution. Save it and
+      OR it back in once the new lex is in place.
+    */
+    bool execute_time_default_used= lex->default_used;
     error= reprepare();
 
     if (likely(!error))                         /* Success */
     {
+      lex->default_used|= execute_time_default_used;
 #ifdef PROTECT_STATEMENT_MEMROOT
       // There was reprepare so the counter of runs should be reset
       executed_counter= 0;
@@ -5228,6 +5242,10 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
                  copy->m_prepare_time_thd_used_flags);
 
   swap_variables(LEX_CSTRING, m_sql_path, copy->m_sql_path);
+
+  swap_variables(bool,
+                 m_prepare_time_default_used,
+                 copy->m_prepare_time_default_used);
 
   DBUG_ASSERT(param_count == copy->param_count);
   DBUG_ASSERT(thd == copy->thd);

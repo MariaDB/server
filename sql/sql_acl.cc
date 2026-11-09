@@ -2408,8 +2408,7 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (info->interface_version >= 0x0202 && info->preprocess_hash &&
-      auth->auth_string.length)
+  if (info->interface_version >= 0x0202 && info->preprocess_hash)
   {
     uchar buf[MAX_SCRAMBLE_LENGTH];
     size_t len= sizeof(buf);
@@ -3630,19 +3629,6 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
   auto buff= static_cast<const ACL_USER *>(buff_);
   *length=buff->hostname_length;
   return reinterpret_cast<const uchar *>(buff->host.hostname);
-}
-
-
-static void acl_update_role(const LEX_CSTRING &rolename,
-                            const privilege_t privileges)
-{
-  ACL_ROLE *role= find_acl_role(rolename, true);
-  if (role)
-  {
-    role->initial_role_access= role->access= privileges;
-    DBUG_ASSERT(strcasecmp(rolename.str, public_name.str) ||
-                           acl_public == role);
-  }
 }
 
 
@@ -4940,6 +4926,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  ACL_ROLE *role= NULL;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -5035,6 +5022,12 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     if (old_row_exists && !old_row_is_role)
     {
+      goto end;
+    }
+    role= find_acl_role(combo->user, true);
+    if ((role != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
     if (user_table.set_is_role(true))
@@ -5194,7 +5187,7 @@ end:
     {
       if (old_row_exists)
       {
-        acl_update_role(combo->user, rights);
+        role->initial_role_access= role->access= rights;
         if (cleanup_tables)
         {
           /*
@@ -5204,12 +5197,8 @@ end:
             role got its new (empty) privileges, so that roles and users that
             had this role granted don't keep its old privileges cached.
           */
-          ACL_ROLE *role= find_acl_role(combo->user, true);
-          if (role)
-          {
-            unlink_role_and_propagate(role);
-            reset_dynamic(&role->parent_grantee);
-          }
+          unlink_role_and_propagate(role);
+          reset_dynamic(&role->parent_grantee);
         }
       }
       else
@@ -9153,7 +9142,8 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
-
+    if (item->privs == GRANT_ACL)
+      continue;
     if (strcmp(item->user, sctx->priv_user) == 0 &&
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
@@ -9212,6 +9202,8 @@ bool check_grant_db(THD *thd, const char *db)
   {
     GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
                                                              idx);
+    if ((grant_table->cols | grant_table->privs) == GRANT_ACL)
+      continue;
     if (key.length() < grant_table->key_length &&
         !memcmp(grant_table->hash_key, key.ptr(), key.length()) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
@@ -14738,6 +14730,15 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
   Lex_ident_plugin client_plugin= Lex_cstring_strlen(next_field);
 
   /*
+    A valid name has at most SAFE_NAME_LEN characters. A longer one
+    stays invalid when cut to SAFE_NAME_LEN+1 characters, and
+    mysql_change_db() rejects it.
+  */
+  if (db)
+    db_len= MY_MIN(db_len, thd->charset()->charpos(db, db + db_len,
+                                                   SAFE_NAME_LEN + 1));
+
+  /*
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
@@ -15863,6 +15864,11 @@ static int old_password_get_salt(const char *hash, size_t hash_length,
 {
   DBUG_ASSERT(*out_length >= SALT_LENGTH_323);
 
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
   if (hash_length != SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), SCRAMBLED_PASSWORD_CHAR_LENGTH_323);

@@ -87,3 +87,22 @@ show grants;
 Grants for root@localhost
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
+#
+# MDEV-41123 show_role_grants: Assertion `pair' failed
+#
+create table mysql.global_priv_bak as select * from mysql.global_priv;
+create role i0;
+delete from mysql.global_priv;
+set sql_mode='';
+grant usage on *.* to i0;
+ERROR 28000: Can't find any matching row in the user table
+set sql_mode=default;
+drop role i0;
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ``@`%` TO `root`@`localhost` WITH GRANT OPTION
+insert mysql.global_priv select * from mysql.global_priv_bak;
+drop table mysql.global_priv_bak;
+flush privileges;
+# End of 10.11 tests
