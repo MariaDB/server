@@ -1,0 +1,53 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+#
+# MDEV-39196: INFORMATION_SCHEMA query must succeed with a
+# warning when a FederatedX remote table is unreachable.
+#
+connection slave;
+USE federated;
+CREATE TABLE t1 (
+id INT NOT NULL,
+name VARCHAR(64)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, 'foo');
+connection master;
+USE federated;
+CREATE TABLE t1 (
+id INT NOT NULL,
+name VARCHAR(64)
+) ENGINE=FEDERATED
+CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+# Verify the federated table works before dropping remote table.
+SELECT * FROM federated.t1;
+id	name
+1	foo
+# Drop the remote table to simulate unreachable/missing table.
+connection slave;
+USE federated;
+DROP TABLE t1;
+connection master;
+# INFORMATION_SCHEMA query must succeed and issue a warning.
+SELECT TABLE_NAME, TABLE_ROWS
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'federated'
+  AND TABLE_NAME = 't1';
+TABLE_NAME	TABLE_ROWS
+t1	1
+Warnings:
+Warning	1430	FederatedX: Table 't1' is inaccessible: 1146 : Remote table does not exist
+# Warning must be present.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1430	FederatedX: Table 't1' is inaccessible: 1146 : Remote table does not exist
+# Cleanup.
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

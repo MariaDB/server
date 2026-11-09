@@ -68,6 +68,8 @@ class federatedx_io_mysql :public federatedx_io
   DYNAMIC_ARRAY savepoints;
   bool requested_autocommit;
   bool actual_autocommit;
+  int stored_error_code;
+  char stored_error_msg[MYSQL_ERRMSG_SIZE];
 
   int actual_query(const char *buffer, size_t length);
   bool test_all_restrict() const;
@@ -134,12 +136,14 @@ federatedx_io *instantiate_io_mysql(MEM_ROOT *server_root,
 
 federatedx_io_mysql::federatedx_io_mysql(FEDERATEDX_SERVER *aserver)
   : federatedx_io(aserver),
-    requested_autocommit(TRUE), actual_autocommit(TRUE)
+    requested_autocommit(TRUE), actual_autocommit(TRUE),
+    stored_error_code(0)
 {
   DBUG_ENTER("federatedx_io_mysql::federatedx_io_mysql");
 
   bzero(&mysql, sizeof(MYSQL));
   bzero(&savepoints, sizeof(DYNAMIC_ARRAY));
+  stored_error_msg[0]= 0;
 
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &savepoints, sizeof(SAVEPT), 16, 16, MYF(0));
   
@@ -483,12 +487,19 @@ my_ulonglong federatedx_io_mysql::last_insert_id() const
 
 int federatedx_io_mysql::error_code()
 {
+  if (stored_error_code)
+    return stored_error_code;
   return mysql_errno(&mysql);
 }
 
 
 const char *federatedx_io_mysql::error_str()
 {
+  if (stored_error_code)
+  {
+    DBUG_ASSERT(stored_error_msg[0] != 0);
+    return stored_error_msg;
+  }
   return mysql_error(&mysql);
 }
 
@@ -583,7 +594,11 @@ bool federatedx_io_mysql::table_metadata(ha_statistics *stats,
     goto error;
 
   if (!(row= fetch_row(result)))
+  {
+    stored_error_code= 0;
+    stored_error_msg[0]= 0;
     goto error;
+  }
 
   /*
     deleted is set in ha_federatedx::info
@@ -618,8 +633,13 @@ bool federatedx_io_mysql::table_metadata(ha_statistics *stats,
 error:
   if (!mysql_errno(&mysql))
   {
-    mysql.net.last_errno= ER_NO_SUCH_TABLE;
-    strmake_buf(mysql.net.last_error, "Remote table does not exist");
+    stored_error_code= ER_NO_SUCH_TABLE;
+    strmake_buf(stored_error_msg, "Remote table does not exist");
+  }
+  else
+  {
+    stored_error_code= mysql_errno(&mysql);
+    strmake_buf(stored_error_msg, mysql_error(&mysql));
   }
   free_result(result);
   return 1;
