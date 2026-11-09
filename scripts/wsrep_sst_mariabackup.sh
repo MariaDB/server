@@ -135,6 +135,27 @@ timeit()
     return $extcode
 }
 
+#
+# Pipeline filter for the backup data stage: the donor prefixes its
+# stream with one "secret <value>" line before the actual mbstream
+# payload. Reject the connection, without letting any of it reach
+# mariadb-backup, unless that line matches our secret.
+#
+check_auth_stream()
+{
+    local line=""
+    # Bound both how long we wait and how much of a line with no newline
+    # we will buffer: the real secret line is a few dozen bytes, so 128
+    # is generous headroom without letting an attacker who never sends a
+    # newline tie up the connection or grow this read unboundedly.
+    IFS= read -r -t 30 -n 128 line
+    if [ "$line" != "$SECRET_TAG $MY_SECRET" ]; then
+        wsrep_log_error "Donor does not know my secret! (backup data stage)"
+        exit 1
+    fi
+    cat
+}
+
 get_keys()
 {
     # $encrypt -eq 1 is for internal purposes only
@@ -589,6 +610,31 @@ read_cnf()
         ;;
     esac
 
+    # By default every SST connection (both the small GTID stage and the
+    # actual backup data stage) must present a per-transfer secret,
+    # regardless of ssl-mode. This is a wire-protocol change: a donor on
+    # an unpatched version will not send the secret, so during a rolling
+    # upgrade set this to 1 on every node first (so an upgraded joiner
+    # still accepts an unpatched donor). Each node's own value only
+    # governs what that node itself expects (as joiner) and sends (as
+    # donor): there is no negotiation between them. So when later
+    # clearing it back to 0, do that in one pass across the whole
+    # cluster rather than a slow rolling restart -- while any node is
+    # still at 1, a node already back at 0 will reject SST from it (it
+    # expects the secret, that donor won't send one), the same way an
+    # SST from a genuinely unpatched donor would be rejected.
+    allow_unauthenticated_donor=$(parse_cnf sst \
+                                  'sst-mariabackup-allow-unauthenticated-donor' 0)
+    case "$allow_unauthenticated_donor" in
+        0|1) ;;
+        *)
+            wsrep_log_error "Invalid value for" \
+                "sst-mariabackup-allow-unauthenticated-donor: '$allow_unauthenticated_donor'" \
+                "(must be 0 or 1); treating as 0 (authentication required)"
+            allow_unauthenticated_donor=0
+            ;;
+    esac
+
     if [ $encrypt -eq 0 -o $encrypt -ge 2 ]; then
         if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
             check_server_ssl_config
@@ -646,6 +692,39 @@ read_cnf()
     cpat='.*\.pem$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
     [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     cpat=$(parse_cnf sst cpat "$cpat")
+
+    # Directories listed in ignore_db_dirs are not schemas; keep them out
+    # of the joiner's datadir wipe the same way the server itself skips
+    # them when scanning the datadir. Appended unconditionally, after any
+    # sst.cpat override, so a custom cpat cannot silently lose this
+    # protection. Only the joiner wipes its datadir, so only the joiner
+    # needs to parse ignore_db_dirs. mariabackup itself already excludes
+    # these directories from the backup stream on the donor (it reads
+    # @@ignore_db_dirs from the server it backs up).
+    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        local ignore_db_dirs
+        local ignore_db_dir
+        local data_regex
+        local alt='\|'
+        [ "$OS" = 'FreeBSD' ] && alt='|'
+        ignore_db_dirs=$(get_ignore_db_dirs '--mysqld')
+        if [ -n "$ignore_db_dirs" ]; then
+            # '.' and '+' are the only characters get_ignore_db_dirs()
+            # lets through that are also find -regex operators; escape
+            # them (and any in $DATA) as single-character bracket
+            # expressions so a directory actually named e.g. "a+b" is
+            # matched literally instead of silently not matching itself:
+            data_regex=$(printf '%s' "$DATA" | sed 's/[.+]/[&]/g')
+            local oldIFS="$IFS"
+            IFS=','
+            for ignore_db_dir in $ignore_db_dirs; do
+                [ -z "$ignore_db_dir" ] && continue
+                ignore_db_dir=$(printf '%s' "$ignore_db_dir" | sed 's/[.+]/[&]/g')
+                cpat="$cpat$alt$data_regex/$ignore_db_dir\$"
+            done
+            IFS="$oldIFS"
+        fi
+    fi
     scomp=$(parse_cnf sst compressor)
     sdecomp=$(parse_cnf sst decompressor)
 
@@ -725,6 +804,13 @@ get_stream()
             strmcmd="tar cf - '$INFO_FILE' '$DONOR_INFO_FILE'"
         fi
     fi
+    # strmcmd_authed mirrors strmcmd but with check_auth_stream spliced in
+    # right in front of the raw decoder. Every encrypt/decompress/progress
+    # wrapping applied to strmcmd below is applied to strmcmd_authed too,
+    # so recv_joiner() can simply pick whichever one it needs instead of
+    # trying to locate the decoder inside an already-wrapped string.
+    strmcmd_base="$strmcmd"
+    strmcmd_authed="check_auth_stream | $strmcmd_base"
     wsrep_log_info "Streaming with $sfmt"
 }
 
@@ -856,6 +942,7 @@ recv_joiner()
     local tmt=$3
     local checkf=$4
     local wait=$5
+    local authstream=${6:-0}
 
     if [ ! -d "$dir" ]; then
         # This indicates that IST is in progress
@@ -888,9 +975,20 @@ recv_joiner()
         wait_for_listen &
     fi
 
+    local lstrmcmd="$strmcmd"
+    if [ $authstream -ne 0 -a $allow_unauthenticated_donor -eq 0 -a \
+         -n "$MY_SECRET" ]; then
+        # strmcmd_authed is strmcmd with check_auth_stream spliced in right
+        # before the raw decoder (see get_stream()): it carries the same
+        # decrypt/decompress/progress wrapping as strmcmd, built in lockstep
+        # rather than reconstructed here, so it stays correct regardless of
+        # which of those layers happen to be active.
+        lstrmcmd="$strmcmd_authed"
+    fi
+
     cd "$dir"
     set +e
-    timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
+    timeit "$msg" "$ltcmd | $lstrmcmd; RC=( "\${PIPESTATUS[@]}" )"
     set -e
     cd "$OLD_PWD"
 
@@ -980,6 +1078,8 @@ monitor_process()
         fi
         sleep 0.1
     done
+    wait $sst_stream_pid
+    return $?
 }
 
 read_cnf
@@ -1108,7 +1208,46 @@ setup_commands()
     if [ -n "$use_memory" ]; then
         INNOEXTRA="$INNOEXTRA --use-memory=$use_memory"
     fi
-    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
+    # mariadb-backup --prepare gets no --defaults-file of its own, and the
+    # received backup-my.cnf's own plugin_dir is not locally trusted (it
+    # came from whoever answered the SST request). Pass our own,
+    # locally-configured plugin-dir explicitly, which wins over whatever
+    # backup-my.cnf says, unless the user already chose one of their own
+    # via inno-apply-opts: that is a deliberate local choice and takes
+    # priority over our default. Probe a mariadbd on PATH with the
+    # joiner's own --defaults-file/--defaults-group-suffix for the
+    # plugin-dir it would use, config file or compiled-in default,
+    # rather than only looking for an explicit cnf setting. This does
+    # not replay the running server's own command-line arguments
+    # (WSREP_SST_OPT_MYSQLD), so a plugin-dir set only on that server's
+    # actual command line, never in a config file, can still be missed.
+    local joiner_plugin_dir=""
+    local mysqld_bin=$(commandex mariadbd)
+    if [ -n "$mysqld_bin" ]; then
+        joiner_plugin_dir=$("$mysqld_bin" \
+            ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+            ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+            ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+            --verbose --help 2>/dev/null | \
+            awk '/^plugin-dir[ \t]/{print $2; exit}')
+    fi
+    if [ -z "$joiner_plugin_dir" ]; then
+        joiner_plugin_dir=$(parse_cnf '--mysqld' plugin-dir)
+    fi
+    local prepare_plugin_dir=""
+    if printf '%s' "$iapts" | \
+       grep -qE '(^|[[:space:]])--(loose[_-])?plugin[_-]dir(=|[[:space:]])'; then
+        : # the user already chose one explicitly; leave it alone
+    elif [ -n "$joiner_plugin_dir" ]; then
+        prepare_plugin_dir=" --plugin-dir='$joiner_plugin_dir'"
+    else
+        wsrep_log_error "Could not determine a local plugin-dir" \
+            "(mariadbd not found on PATH, its --verbose --help failed," \
+            "or no plugin-dir is configured anywhere); --prepare will" \
+            "fall back to whatever backup-my.cnf itself says, which is" \
+            "not locally trusted"
+    fi
+    INNOAPPLY="$BACKUP_BIN --prepare$disver$recovery${iapts:+ }$iapts$INNOEXTRA$prepare_plugin_dir --target-dir='$DATA' --datadir='$DATA'$mysqld_args $INNOAPPLY"
     INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts$INNOEXTRA --galera-info --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
     INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF --backup$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA'$mysqld_args $INNOBACKUP"
 }
@@ -1245,8 +1384,23 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
         setup_commands
 
+        # Prove to the joiner that we are the donor it asked for by
+        # prefixing the backup data stream with its secret, the same
+        # way send_magic() already does for the small GTID stage.
+        sst_source="$INNOBACKUP"
+        if [ $allow_unauthenticated_donor -eq 0 -a \
+             -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+            # Keep the secret out of timeit()'s "Evaluating ..." log
+            # line below: reference it through a shell variable that is
+            # only expanded when this string is eval'd, not when it is
+            # built (or logged) as text.
+            WSREP_SST_DONOR_SECRET=$(safe WSREP_SST_OPT_REMOTE_PSWD)
+            sst_source="{ printf '%s %s\n' '$SECRET_TAG' \
+                        \"\$WSREP_SST_DONOR_SECRET\"; $INNOBACKUP; }"
+        fi
+
         set +e
-        timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
+        timeit "$stagemsg-SST" "$sst_source | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
@@ -1302,26 +1456,41 @@ else # joiner
     MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
     ADDR="$WSREP_SST_OPT_HOST"
 
-    if [ "${tmode#VERIFY}" != "$tmode" ]; then
-        # backward-incompatible behavior:
-        CN=""
-        if [ -n "$tpem" ]; then
-            CN=$(openssl_getCN "$tpem")
-        fi
+    # The socat commonname= check for VERIFY_* modes is independent of
+    # the secret below and must stay active even when the secret is
+    # disabled for a rolling upgrade.
+    CN=""
+    if [ "${tmode#VERIFY}" != "$tmode" -a -n "$tpem" ]; then
+        CN=$(openssl_getCN "$tpem")
+    fi
+
+    # backward-incompatible behavior: generate a per-transfer secret
+    # regardless of ssl-mode, unless explicitly disabled for a rolling
+    # upgrade (see read_cnf()). VERIFY_* modes already generated this
+    # secret unconditionally before this change (it guards the small
+    # GTID stage there); keep doing so regardless of the rolling-upgrade
+    # setting, since an unpatched VERIFY_* donor already understands that
+    # stage's secret protocol and setting the option must not weaken
+    # VERIFY_* below its pre-existing baseline.
+    MY_SECRET=""
+    if [ "${tmode#VERIFY}" != "$tmode" -o $allow_unauthenticated_donor -eq 0 ]; then
         MY_SECRET="$(wsrep_gen_secret)"
+    fi
+
+    if [ -n "$CN" -o -n "$MY_SECRET" ]; then
         # Add authentication data to address
         ADDR="$CN:$MY_SECRET@$ADDR"
-    else
-        MY_SECRET="" # for check down in recv_joiner()
     fi
 
     get_keys
     if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
+        strmcmd_authed="$ecmd | $strmcmd_authed"
     fi
 
     if [ -n "$sdecomp" ]; then
         strmcmd="$sdecomp | $strmcmd"
+        strmcmd_authed="$sdecomp | $strmcmd_authed"
     fi
 
     check_sockets_utils
@@ -1347,9 +1516,11 @@ else # joiner
             if [ -n "$rcmd" ]; then
                 # redirect pv stderr to rcmd for tagging and output to parent
                 strmcmd="{ $pcmd 2>&3 | $strmcmd; } 3>&1 | $rcmd"
+                strmcmd_authed="{ $pcmd 2>&3 | $strmcmd_authed; } 3>&1 | $rcmd"
             else
                 # use user-configured pv output
                 strmcmd="$pcmd | $strmcmd"
+                strmcmd_authed="$pcmd | $strmcmd_authed"
             fi
         fi
 
@@ -1360,7 +1531,7 @@ else # joiner
             rm -rf "$DATA/.sst"
         fi
         mkdir -p "$DATA/.sst"
-        (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
+        (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0 1) &
         BACKUP_PID=$!
         wsrep_log_info "Proceeding with SST"
 
@@ -1418,7 +1589,12 @@ else # joiner
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
-        monitor_process $BACKUP_PID
+        if ! monitor_process $BACKUP_PID; then
+            BACKUP_PID=""
+            wsrep_log_error "Receiving the backup-data stream failed" \
+                            "(see earlier errors in this log for the cause)"
+            exit 32
+        fi
         BACKUP_PID=""
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then

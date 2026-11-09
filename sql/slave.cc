@@ -4150,22 +4150,60 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
 	exec_res = 0;
         break;
       default:
+        {
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
           /*
-            async replication thread should be stopped, if failure was
-            not due to optimistic parallel applying or if node
-            has dropped from cluster
+            wsrep_ready can stay ON for a while after the node has
+            actually dropped, since group communication fails before
+            the non-Primary view is delivered - use the wsrep client
+            error state instead. Stop and report on node-dropped, or
+            a wsrep error not covered by optimistic/aggressive
+            parallel retrying. A wsrep error left to that retrying
+            still needs a MariaDB error raised here, or nothing
+            retries or reports it; ER_LOCK_DEADLOCK is a normal
+            temporary error.
            */
+          const bool node_dropped= !wsrep_ready_get();
+          const bool wsrep_failed=
+            thd->wsrep_cs().current_error() != wsrep::e_success;
+          const bool conservative_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE;
+          const bool optimistic_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode > SLAVE_PARALLEL_CONSERVATIVE;
+
+          WSREP_DEBUG("apply_event_and_update_pos_apply: thd %lld exec_res %d "
+                      "node_dropped %d wsrep_failed %d conservative_parallel %d "
+                      "optimistic_parallel %d wsrep_err %s wsrep_trx_state %s "
+                      "query: %s",
+                      thd->thread_id, exec_res, node_dropped, wsrep_failed,
+                      conservative_parallel, optimistic_parallel,
+                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                      wsrep_thd_transaction_state_str(thd),
+                      wsrep_thd_query(thd));
+
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
-              ((rli->mi->using_parallel() &&
-                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-                !wsrep_ready_get())) {
+              (conservative_parallel || node_dropped ||
+               (wsrep_failed && !optimistic_parallel))) {
             rli->abort_slave= 1;
-            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                        "Node has dropped from cluster");
+            if (node_dropped)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Node has dropped from cluster");
+            else if (wsrep_failed)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "wsrep applying failed: %s",
+                          wsrep::to_c_string(thd->wsrep_cs().current_error()));
+            else
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Failed to apply event, wsrep transaction state: %s",
+                          wsrep_thd_transaction_state_str(thd));
           }
+          else if (wsrep_failed && optimistic_parallel && !thd->is_error())
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
           break;
+        }
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
@@ -5043,12 +5081,6 @@ pthread_handler_t handle_slave_io(void *arg)
   thd->set_psi(PSI_CALL_get_thread());
 
   pthread_detach_this_thread();
-  /*
-    Remember where our stack is. This is needed for this function as
-    there are a lot of stack variables. It will be fixed in store_globals()
-    called by init_slave_thread().
-  */
-  thd->thread_stack= (void*) &thd; // remember where our stack is
   mi->clear_error();
   if (init_slave_thread(thd, mi, SLAVE_THD_IO))
   {
@@ -5702,7 +5734,6 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
-  thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
 
   DBUG_ASSERT(rli->inited);
@@ -6839,17 +6870,6 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   case ROTATE_EVENT:
   {
     /*
-      This is normally done in Log_event::read_log_event(),
-      but we bypass it here because it's expensive and costs dynamic memory.
-    */
-    if (unlikely(ROTATE_EVENT >
-      mi->rli.relay_log.description_event_for_queue->number_of_event_types))
-    {
-      // The current FDE does not support `ROTATE_EVENT`.
-      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
-      goto err;
-    }
-    /*
       RSC_1 and RSC_2 below rewrite the fake Rotate (the one that opens a
       connection, naming the binary log file the dump starts in; the file
       switches later in the connection send more, but by then the first
@@ -6890,8 +6910,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     }
 
     Rotate_log_event rev(buf, event_has_checksum ?
-                         event_len - BINLOG_CHECKSUM_LEN : event_len,
-                         mi->rli.relay_log.description_event_for_queue);
+                         event_len - BINLOG_CHECKSUM_LEN : event_len);
     bool master_changed= false;
     bool maybe_crashed= false;
     // Exclude server start scenario
@@ -7121,8 +7140,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     Heartbeat_log_event hb(buf,
                            mi->rli.relay_log.relay_log_checksum_alg
                            != BINLOG_CHECKSUM_ALG_OFF ?
-                           event_len - BINLOG_CHECKSUM_LEN : event_len,
-                           mi->rli.relay_log.description_event_for_queue);
+                           event_len - BINLOG_CHECKSUM_LEN : event_len);
     if (!hb.is_valid())
     {
       error= ER_SLAVE_HEARTBEAT_FAILURE;
@@ -7242,8 +7260,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
 
     if (Gtid_log_event::peek(buf, event_len, checksum_alg,
                              &event_gtid.domain_id, &event_gtid.server_id,
-                             &event_gtid.seq_no, &gtid_flag,
-                             rli->relay_log.description_event_for_queue))
+                             &event_gtid.seq_no, &gtid_flag))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
       goto err;
@@ -7425,8 +7442,7 @@ dbug_gtid_accept:
   case QUERY_COMPRESSED_EVENT:
     inc_pos= event_len;
     if ((error=
-         query_event_uncompress(rli->relay_log.description_event_for_queue,
-                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+         query_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                 buf, event_len, new_buf_arr,
                                 sizeof(new_buf_arr),
                                 &is_malloc, &new_buf, &event_len)))
@@ -7450,8 +7466,7 @@ dbug_gtid_accept:
     inc_pos = event_len;
     {
       if ((error=
-           row_log_event_uncompress(rli->relay_log.description_event_for_queue,
-                                    checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+           row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                     buf, event_len, new_buf_arr,
                                     sizeof(new_buf_arr),
                                     &is_malloc, &new_buf, &event_len)))
@@ -7482,9 +7497,7 @@ dbug_gtid_accept:
       is_rows_event= true;
       mi->rows_event_tracker.update(mi->master_log_name,
                                     mi->master_log_pos,
-                                    buf,
-                                    mi->rli.relay_log.
-                                    description_event_for_queue);
+                                    buf);
 
       DBUG_EXECUTE_IF("simulate_stmt_end_rows_event_loss",
                       {
@@ -8754,19 +8767,16 @@ bool rpl_master_erroneous_autoinc(THD *thd)
 }
 
 
-static bool get_row_event_stmt_end(const uchar *buf,
-                                   const Format_description_log_event *fdle)
+static bool get_row_event_stmt_end(const uchar *buf)
 {
-  uint8 const common_header_len= fdle->common_header_len;
-  Log_event_type event_type= (Log_event_type)(uchar)buf[EVENT_TYPE_OFFSET];
-
-  uint8 const post_header_len= fdle->post_header_len[event_type-1];
+  uint8 const common_header_len=
+    Format_description_log_event::common_header_len;
   const uchar *flag_start= buf + common_header_len;
   /*
     The term 4 below signifies that master is of 'an intermediate source', see
     Rows_log_event::Rows_log_event.
   */
-  flag_start += RW_MAPID_OFFSET + ((post_header_len == 6) ? 4 : RW_FLAGS_OFFSET);
+  flag_start += RW_MAPID_OFFSET + RW_FLAGS_OFFSET;
 
   return (uint2korr(flag_start) & Rows_log_event::STMT_END_F) != 0;
 }
@@ -8792,8 +8802,7 @@ void Rows_event_tracker::reset()
 */
 
 void Rows_event_tracker::update(const char *file_name, my_off_t pos,
-                                const uchar *buf,
-                                const Format_description_log_event *fdle)
+                                const uchar *buf)
 {
   DBUG_ENTER("Rows_event_tracker::update");
   if (!first_seen)
@@ -8803,7 +8812,7 @@ void Rows_event_tracker::update(const char *file_name, my_off_t pos,
   }
   last_seen= pos;
   DBUG_ASSERT(stmt_end_seen == 0);              // We can only have one
-  stmt_end_seen= get_row_event_stmt_end(buf, fdle);
+  stmt_end_seen= get_row_event_stmt_end(buf);
   DBUG_VOID_RETURN;
 };
 

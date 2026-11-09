@@ -772,6 +772,51 @@ static void test_overlong_int(DYNAMIC_COLUMN_TYPE type, const char *msg)
   mariadb_dyncol_free(&str);
 }
 
+/*
+  A crafted record can encode a decimal's intg/frac digit count as a
+  var-uint wide enough that narrowing it to int wraps around into a
+  small, in-range value (2^32+1 truncates to 1 on 32-bit int). The
+  decoder must reject the value using its full width, before narrowing.
+  See MDEV-41144.
+*/
+static void test_decimal_precision_overflow()
+{
+  DYNAMIC_COLUMN str;
+  DYNAMIC_COLUMN bad;
+  DYNAMIC_COLUMN_VALUE val, res;
+  uint column_nr= 1;
+  int rc;
+  char num[]= "5";
+  char *end= num + 1;
+  /* var-uint encoding of 2^32+1, which truncates to 1 as a 32-bit int */
+  const uchar wide_intg[]= {0x81, 0x80, 0x80, 0x80, 0x10};
+
+  mariadb_dyncol_prepare_decimal(&val);
+  string2decimal(num, &val.x.decimal.value, &end);
+
+  rc= mariadb_dyncol_create_many_num(&str, 1, &column_nr, &val, 1);
+  ok(rc == ER_DYNCOL_OK, "create decimal");
+
+  /*
+    decimal "5" is stored as the last 3 bytes of the record: a 1-byte
+    intg (1), a 1-byte frac (0) and 1 byte of binary payload. Replace
+    the 1-byte intg with a 5-byte encoding of the same truncated value.
+  */
+  bad.length= str.length - 3 + sizeof(wide_intg) + 2;
+  bad.max_length= bad.length;
+  bad.alloc_increment= 0;
+  bad.str= (char *) malloc(bad.length);
+  memcpy(bad.str, str.str, str.length - 3);
+  memcpy(bad.str + str.length - 3, wide_intg, sizeof(wide_intg));
+  memcpy(bad.str + str.length - 3 + sizeof(wide_intg), str.str + str.length - 2, 2);
+
+  rc= mariadb_dyncol_get_num(&bad, column_nr, &res);
+  ok(rc == ER_DYNCOL_FORMAT, "wide intg varint rejected");
+
+  free(bad.str);
+  mariadb_dyncol_free(&str);
+}
+
 
 #define BIG_STRING_SIZE (1024*1024)
 int main(int argc __attribute__((unused)), char **argv)
@@ -780,7 +825,7 @@ int main(int argc __attribute__((unused)), char **argv)
   char *big_string= (char *)malloc(BIG_STRING_SIZE);
 
   MY_INIT(argv[0]);
-  plan(72);
+  plan(74);
 
   if (!big_string)
     exit(1);
@@ -916,6 +961,7 @@ int main(int argc __attribute__((unused)), char **argv)
   test_mdev_9773();
   test_overlong_int(DYN_COL_UINT, "uint");
   test_overlong_int(DYN_COL_INT, "sint");
+  test_decimal_precision_overflow();
 
   my_end(0);
   return exit_status();

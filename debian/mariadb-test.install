@@ -22,6 +22,8 @@ usr/lib/mysql/plugin/ha_example.so
 usr/lib/mysql/plugin/ha_test_sql_discovery.so
 usr/lib/mysql/plugin/libdaemon_example.so
 usr/lib/mysql/plugin/mypluglib.so
+usr/lib/mysql/plugin/plugin_name_ascii.so
+usr/lib/mysql/plugin/plugin_name_non_ascii.so
 usr/lib/mysql/plugin/qa_auth_interface.so
 usr/lib/mysql/plugin/qa_auth_server.so
 usr/lib/mysql/plugin/test_sql_service.so

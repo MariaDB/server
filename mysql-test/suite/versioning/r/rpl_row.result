@@ -74,6 +74,103 @@ i
 connection master;
 drop table t;
 #
+# MDEV-24646 ASAN heap-use-after-free in Field_blob::pack /
+#            THD::binlog_update_row upon DML on table with virtual column
+#
+connection master;
+create table t (a text, v blob as (a) virtual)
+with system versioning as select 'foo' as a;
+update t set a='bar';
+connection slave;
+select * from t;
+v	a
+bar	bar
+connection master;
+drop table t;
+#
+# MDEV-39711 UPDATE on System-Versioned Tables uses the after-value
+#            in Row-format Binlog's before-image
+#            for non-trivial Text/Blob Virtual Columns
+#
+connection master;
+create table t (a text, v text as (right(a, 1)) virtual)
+with system versioning as select 'before' as a;
+update t set a='after';
+connection slave;
+select * from t;
+v	a
+r	after
+connection master;
+drop table t;
+connection slave;
+#
+# MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+#            table (on UPDATE)
+#            Unversioned master, versioned slave, minimal row image
+#
+connection master;
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+key (v(10))) engine=innodb;
+connection slave;
+set statement sql_log_bin=0 for
+create table t (id int primary key, a text, v text as (right(a, 1)) virtual,
+rs timestamp(6) as row start invisible,
+re timestamp(6) as row end invisible,
+period for system_time (rs, re),
+w decimal(20,6) as (id + unix_timestamp(rs)) virtual,
+ws decimal(20,6) as (id + unix_timestamp(rs)) stored,
+key (v(10)), key (w), key (ws))
+engine=innodb with system versioning;
+connection master;
+set @old_row_image= @@binlog_row_image;
+set binlog_row_image= minimal;
+insert t (id, a) values (1, 'before'), (2, 'start');
+update t set a= 'after';
+set binlog_row_image= @old_row_image;
+connection slave;
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select id, a, v, ws = id + unix_timestamp(rs) as ok
+from t for system_time all force index (v) order by v, id;
+id	a	v	ok
+1	before	e	1
+1	after	r	1
+2	after	r	1
+2	start	t	1
+connection master;
+drop table t;
+connection slave;
+#
+# MDEV-39306 Index corruption on UPDATE when using versioned InnoDB
+#            table (on UPDATE)
+#            Unversioned master, versioned slave, failed update
+#
+connection master;
+set statement sql_log_bin=0 for
+create table t (id int primary key, a int) engine=innodb;
+connection slave;
+call mtr.add_suppression("Slave SQL.*Duplicate entry");
+set statement sql_log_bin=0 for
+create table t (id int primary key, a int, unique (a))
+engine=innodb with system versioning;
+connection master;
+insert t values (1, 1), (2, 2);
+update t set a= 2 where id = 1;
+include/wait_for_slave_sql_error_and_skip.inc [errno=1062]
+connection slave;
+select id, a, row_end > now(6) as current
+from t for system_time all order by id, current;
+id	a	current
+1	1	1
+2	2	1
+connection master;
+drop table t;
+connection slave;
+connection master;
+# End of 10.11 tests
+#
 # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 #
 flush binary logs;

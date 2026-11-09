@@ -288,4 +288,20 @@ t1test(1)
 1
 drop function t1test;
 drop table t1, T1;
+#
+# MDEV-41801 "performance_schema" is compared case-sensitively in the engine, case-insensitively elsewhere
+#
+select count(*) > 0 from `Performance_Schema`.threads;
+count(*) > 0
+1
+create database `PERFORMANCE_SCHEMA`;
+create table `PERFORMANCE_SCHEMA`.global_status (a int);
+ERROR 42S01: Table 'global_status' already exists
+create table t1 (a int);
+rename table t1 to `PERFORMANCE_SCHEMA`.session_status;
+ERROR 42S01: Table 'session_status' already exists
+drop table t1;
+drop database `PERFORMANCE_SCHEMA`;
+Warnings:
+Note	1051	Unknown table ...
 # End of 10.11 tests

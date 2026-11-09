@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2022, MariaDB
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1691,7 +1691,8 @@ static double n_sinus[SINUSES_CALCULATED+1]=
 
 static void get_n_sincos(int n, double *sinus, double *cosinus)
 {
-  DBUG_ASSERT(n > 0 && n < SINUSES_CALCULATED*2+1);
+  DBUG_ASSERT(n > 0);
+  DBUG_ASSERT(n < SINUSES_CALCULATED*2+1);
   if (n < (SINUSES_CALCULATED + 1))
   {
     *sinus= n_sinus[n];
@@ -1723,13 +1724,11 @@ static int fill_half_circle(Gcalc_shape_transporter *trn, double x, double y,
 }
 
 
-static int fill_gap(Gcalc_shape_transporter *trn,
-                    double x, double y,
+static int fill_gap(Gcalc_shape_transporter *trn, double x, double y,
                     double ax, double ay, double bx, double by, double d,
                     bool *empty_gap)
 {
-  double ab= ax * bx + ay * by;
-  double cosab= ab / (d * d) + GIS_ZERO;
+  double cosab= (ax/d) * (bx/d) + (ay/d) * (by/d) + GIS_ZERO;
   double n_sin, n_cos;
   double x_n, y_n;
   int n=1;
@@ -1764,7 +1763,7 @@ static void calculate_perpendicular(
   double q;
   *ex= x1 - x2;
   *ey= y1 - y2;
-  q= d / sqrt((*ex) * (*ex) + (*ey) * (*ey));
+  q= d / hypot(*ex, *ey);
   *px= (*ey) * q;
   *py= -(*ex) * q;
 }

@@ -113,7 +113,11 @@ partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_fi
   if (part_type == VERSIONING_PARTITION && vers_info)
   {
     // clone Vers_part_info; set now_part, hist_part
+    DBUG_EXECUTE_IF("partition_info_get_clone_vers_oom",
+                    DBUG_SET("+d,simulate_out_of_memory"););
     clone->vers_info= new (mem_root) Vers_part_info(*vers_info);
+    if (!clone->vers_info)
+      DBUG_RETURN(NULL);
     List_iterator<partition_element> it(clone->partitions);
     while ((part= it++))
     {

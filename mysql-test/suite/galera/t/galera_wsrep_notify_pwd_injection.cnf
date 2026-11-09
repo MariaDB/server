@@ -1,0 +1,8 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_notify_cmd=@ENV.WSREP_NOTIFY_CMD
+
+[ENV]
+WSREP_NOTIFY_CLIENT= @ENV.MYSQL_TEST_DIR/std_data/wsrep_notify_argv_recorder.sh
+WSREP_NOTIFY_PSWD=x' y='z

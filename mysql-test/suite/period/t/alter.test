@@ -190,3 +190,13 @@ show create table t1;
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-30297 Server crash / assertion failure in Compare_identifiers::operator upon dropping period with empty name
+--echo #
+create table t (a int);
+alter table t drop period if exists for ``;
+
+drop table t;
+
+--echo # End of 10.11 tests

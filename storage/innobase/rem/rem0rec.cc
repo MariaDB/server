@@ -2672,6 +2672,62 @@ rec_offs_make_nth_extern(
 # include "ha_prototypes.h"
 # include <mysql/service_wsrep.h>	/* wsrep_protocol_version */
 
+/** Room left in a write set key buffer for one column.
+
+A column that does not fit is cut, the same way wsrep_store_key_val_for_row()
+cuts the matching row key, so that the two keys still agree. Failing here
+instead fails the statement, and the caller turns the error into a fatal one.
+
+A nullable column spends one byte on the null flag. A SQL NULL value writes
+only that flag byte and nothing else, so it needs just the one byte. A
+non-NULL value needs the flag byte, if any, plus at least one more byte for
+the value itself, or, for a column that cannot be cut, all of it.
+
+A fixed-length column (DATA_INT, DATA_FLOAT, DATA_DOUBLE) cannot be cut: the
+caller reads it out of the record as a whole number, float or double and
+copies it as one unit, so a partial value is not a shorter version of it, it
+is a different value, or for FLOAT and DOUBLE not even a valid one, one that
+mach_float_read()/mach_double_read() reads past to build regardless. Such a
+column is only ever written whole; otherwise it is left out of the key the
+same way a value that does not fit at all is, one flag byte or nothing.
+
+@param buf_len    size of the key buffer
+@param key_len    bytes of the key written so far
+@param len        length of the column in the record, UNIV_SQL_NULL if it is
+                  SQL NULL
+@param col_ref    column of the referenced index
+@param fixed_len  the column cannot be cut: only its full length fits it,
+                  anything less does not
+@param[out] space  bytes left for the value of this column, the null flag
+                   already taken off
+@return false if not even the flag byte (SQL NULL), one byte of the value
+        (otherwise), or, for a column that cannot be cut, all of it, fits;
+        true otherwise */
+static
+bool
+wsrep_fk_key_space_left(
+	ulint			buf_len,
+	ulint			key_len,
+	ulint			len,
+	const dict_col_t*	col_ref,
+	bool			fixed_len,
+	ulint*			space)
+{
+	const ulint	flag_len = (len == UNIV_SQL_NULL
+				    || !(col_ref->prtype & DATA_NOT_NULL))
+				   ? 1 : 0;
+	const ulint	left = buf_len - key_len;
+	const ulint	needed = flag_len
+		+ (len == UNIV_SQL_NULL ? 0 : fixed_len ? len : 1);
+
+	if (left < needed) {
+		return false;
+	}
+
+	*space = left - flag_len;
+	return true;
+}
+
 int
 wsrep_rec_get_foreign_key(
 	byte 		*buf,     /* out: extracted key */
@@ -2679,7 +2735,8 @@ wsrep_rec_get_foreign_key(
 	const rec_t*	rec,	  /* in: physical record */
 	dict_index_t*	index_for,  /* in: index in foreign table */
 	dict_index_t*	index_ref,  /* in: index in referenced table */
-	ibool		new_protocol) /* in: protocol > 1 */
+	ibool		new_protocol, /* in: protocol > 1 */
+	bool*		truncated) /* out: key did not fit buf */
 {
 	const byte*	data;
 	ulint		len;
@@ -2703,11 +2760,11 @@ wsrep_rec_get_foreign_key(
 	ut_ad(rec);
 
 	key_parts = dict_index_get_n_unique_in_tree(index_for);
-	for (i = 0; 
-	     i < key_parts && 
-	       (index_for->type & DICT_CLUSTERED || i < key_parts - 1); 
+	for (i = 0;
+	     i < key_parts &&
+	       (index_for->type & DICT_CLUSTERED || i < key_parts - 1);
 	     i++) {
-		dict_field_t*	  field_f = 
+		dict_field_t*	  field_f =
 			dict_index_get_nth_field(index_for, i);
 		const dict_col_t* col_f = dict_field_get_col(field_f);
                 dict_field_t*	  field_r = 
@@ -2716,13 +2773,40 @@ wsrep_rec_get_foreign_key(
 
 		ut_ad(!rec_offs_nth_default(offsets, i));
 		data = rec_get_nth_field(rec, offsets, i, &len);
-		if (key_len + ((len != UNIV_SQL_NULL) ? len + 1 : 1) > 
-		    *buf_len) {
-			fprintf(stderr,
-				"WSREP: FK key len exceeded "
-				ULINTPF " " ULINTPF " " ULINTPF "\n",
-				key_len, len, *buf_len);
-			goto err_out;
+
+		ulint space;
+		/* Only the new protocol reads these three types out of the
+		record as a whole number, float or double (the switch below,
+		under new_protocol); the old protocol normalizes every type
+		as a string, which already cuts to whatever *buf_len allows
+		on its own. */
+		const bool fixed_len = new_protocol
+			&& (col_f->mtype == DATA_INT
+			    || col_f->mtype == DATA_FLOAT
+			    || col_f->mtype == DATA_DOUBLE);
+
+		if (!wsrep_fk_key_space_left(*buf_len, key_len, len, col_r,
+					     fixed_len, &space)) {
+			/* Not even one byte of this column fits, or it
+			cannot be cut and not all of it fits. */
+			if (truncated) {
+				*truncated = true;
+			}
+			break;
+		}
+
+		if (len != UNIV_SQL_NULL && len > space) {
+			/* Only the raw copy branches below need this: the
+			string branches are given the room they have and cut
+			the normalized value themselves. A fixed_len column
+			must not be cut to a length of its own, so it must not
+			reach here: wsrep_fk_key_space_left() already
+			guaranteed the whole of it fits. */
+			ut_ad(!fixed_len);
+			len = space;
+			if (truncated) {
+				*truncated = true;
+			}
 		}
 
 		if (len == UNIV_SQL_NULL) {
@@ -2738,7 +2822,7 @@ wsrep_rec_get_foreign_key(
 				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 				dtype_get_charset_coll(col_f->prtype),
 				data, buf, static_cast<uint>(len),
-				static_cast<uint>(*buf_len));
+				static_cast<uint>(*buf_len), truncated);
 		} else { /* new protocol */
 			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
@@ -2768,7 +2852,7 @@ wsrep_rec_get_foreign_key(
 					(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 					dtype_get_charset_coll(col_f->prtype),
 					0, data, len, buf,
-					*buf_len - key_len, false);
+					space, false, truncated);
 				break;
 			case DATA_CHAR:
 			case DATA_MYSQL:
@@ -2783,7 +2867,7 @@ wsrep_rec_get_foreign_key(
 					col_f->mbmaxlen
 					  ? col_f->len / col_f->mbmaxlen : 0,
 					data, len, buf,
-					*buf_len - key_len, false);
+					space, false, truncated);
 				break;
 			case DATA_FIXBINARY:
 				if (wsrep_protocol_version < 5
@@ -2798,13 +2882,14 @@ wsrep_rec_get_foreign_key(
 					Collate the reference key the same
 					way, so that the two match in a
 					cluster that has not fully upgraded
-					yet. See MDEV-41012. */
+					yet. */
 					len = wsrep_normalize_string(
 						(int)(col_f->prtype
 						      & DATA_MYSQL_TYPE_MASK),
 						dtype_get_charset_coll(
 							col_f->prtype),
-						data, buf, len, *buf_len);
+						data, buf, len, space,
+						truncated);
 					break;
 				}
 				/* fall through */
@@ -2817,12 +2902,14 @@ wsrep_rec_get_foreign_key(
 			case DATA_FLOAT:
 			{
 				float f = mach_float_read(data);
+				ut_ad(len == sizeof(float));
 				memcpy(buf, &f, sizeof(float));
 			}
 			break;
 			case DATA_DOUBLE:
 			{
 				double d = mach_double_read(data);
+				ut_ad(len == sizeof(double));
 				memcpy(buf, &d, sizeof(double));
 			}
 			break;
@@ -2843,11 +2930,5 @@ wsrep_rec_get_foreign_key(
 
 	*buf_len = key_len;
 	return DB_SUCCESS;
-
- err_out:
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
-	return DB_ERROR;
 }
 #endif // WITH_WSREP

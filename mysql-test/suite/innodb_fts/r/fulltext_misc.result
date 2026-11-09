@@ -194,3 +194,17 @@ b
 2
 DROP TABLE t1,t2;
 End of 5.1 tests
+#
+# MDEV-41281 Unbounded Recursion in InnoDB FTS Boolean-Mode
+#	causes Stack-Overflow fts_ast_visit
+#
+CREATE TABLE t1 (col TEXT, FULLTEXT KEY ftidx (col)) ENGINE=InnoDB;
+INSERT INTO t1 (col) VALUES ('word appears here for the fulltext');
+COUNT(*)
+1
+#
+# MDEV-41282  Recursion in InnoDB FTS AST causes
+#    stack-overflow (fts_ast_free_node/fts_ast_free_list)
+#
+ERROR HY000: Table handler out of memory
+DROP TABLE t1;

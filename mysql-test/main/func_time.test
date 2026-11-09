@@ -3287,4 +3287,12 @@ insert into t1 values (9430886, 9430886), (9430816, 9430816);
 select cast(c1 as time), cast(c2 as time) from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-40616: MSAN - use-of-uninitialized-value in extract_date_time()
+--echo #
+
+DO STR_TO_DATE(1, '%#');
+DO STR_TO_DATE(LOWER('q'), '%@');
+DO STR_TO_DATE(LOWER('.'), '%.');
+
 --echo # End of 10.11 tests

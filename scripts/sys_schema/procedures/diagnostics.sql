@@ -119,6 +119,8 @@ BEGIN
     -- The width of each of the status outputs in the summery
     DECLARE v_status_summary_width TINYINT UNSIGNED DEFAULT 50;
     DECLARE v_done BOOLEAN DEFAULT FALSE;
+    -- Not @log_bin: the sys procedures called below overwrite it
+    DECLARE v_log_bin BOOLEAN;
     -- Do not include the following ndbinfo views:
     --    'blocks'                    Static
     --    'config_params'             Static
@@ -183,8 +185,8 @@ BEGIN
     END IF;
 
     -- Temporary table are used - disable sql_log_bin if necessary to prevent them replicating
-    SET @log_bin := @@sql_log_bin;
-    IF (@log_bin = 1) THEN
+    SET v_log_bin = @@sql_log_bin;
+    IF (v_log_bin = 1) THEN
         SET sql_log_bin = 0;
     END IF;
 
@@ -1040,7 +1042,7 @@ SELECT ''UNIX_TIMESTAMP()'' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) A
 
     IF (in_auto_config <> 'current') THEN
         CALL sys.ps_setup_reload_saved();
-        SET sql_log_bin = @log_bin;
+        SET sql_log_bin = v_log_bin;
     END IF;
 
     -- Reset the @sys.diagnostics.% user variables internal to this procedure
@@ -1056,8 +1058,8 @@ SELECT ''UNIX_TIMESTAMP()'' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) A
         CALL sys.ps_setup_enable_thread(CONNECTION_ID());
     END IF;
 
-    IF (@log_bin = 1) THEN
-        SET sql_log_bin = @log_bin;
+    IF (v_log_bin = 1) THEN
+        SET sql_log_bin = v_log_bin;
     END IF;
 END$$
 

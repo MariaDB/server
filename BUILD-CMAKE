@@ -105,8 +105,8 @@ CONFIGURATION PARAMETERS
 ---------------------------------------------------------------
 The procedure above will build with default configuration.
 
-Let's you want to change the  configuration parameters and have archive
-storage engine compiled into the server instead of building it as pluggable 
+Lets you want to change the  configuration parameters and have archive
+storage engine compiled into the server instead of building it as pluggable
 module.
 
 1)You can provide parameters on the command line, like
@@ -115,10 +115,10 @@ shell> cmake .  -DWITH_ARCHIVE_STORAGE_ENGINE=1
 
 This can be done during the initial configuration or any time later.
 
-Note, that parameters are "sticky", that is they are remebered in the CMake 
+Note, that parameters are "sticky", that is they are remembered in the CMake
 cache (CMakeCache.txt file in the build directory)
 
-2) Configuration using cmake-gui (Windows, OSX, or Linux with cmake-gui 
+2) Configuration using cmake-gui (Windows, OSX, or Linux with cmake-gui
 installed)
 
 From the build directory, issue

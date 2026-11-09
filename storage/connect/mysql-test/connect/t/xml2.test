@@ -318,3 +318,52 @@ SELECT CAST(@a AS CHAR CHARACTER SET latin1);
 --remove_file $MYSQLD_DATADIR/test/xsample.xml
 --remove_file $MYSQLD_DATADIR/test/latin1.xml
 --remove_file $MYSQLD_DATADIR/test/cp1251.xml
+
+--echo #
+--echo # MDEV-41405 ASAN stack-buffer-overflow TDBXML::Initialize/TDBXML::OpenDB
+--echo # after insert into CONNECT table
+--echo #
+# Create x.xml so that the inserts below go into an existing file
+CREATE TABLE t1 (id INT)
+  ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='x.xml'
+  OPTION_LIST='XmlDB=root89,xmlsup=libxml2';
+INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+
+let $xmldb= `SELECT REPEAT('A', 240)`;
+--replace_result $xmldb XMLDB
+eval CREATE TABLE t2 (id INT)
+  ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='x.xml'
+  OPTION_LIST='XmlDB=$xmldb,xmlsup=libxml2';
+--replace_regex /A{60,}/XMLDB/
+--error ER_GET_ERRMSG
+INSERT INTO t2 VALUES (2);
+DROP TABLE t2;
+--remove_file $MYSQLD_DATADIR/test/x.xml
+
+# Long XmlDB node created by t3 must be found by t4 and t5
+--replace_result $xmldb XMLDB
+eval CREATE TABLE t3 (id INT)
+  ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=$xmldb,xmlsup=libxml2';
+--replace_result $xmldb XMLDB
+eval CREATE TABLE t4 (id INT)
+  ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=$xmldb,xmlsup=libxml2';
+--replace_result $xmldb XMLDB
+eval CREATE TABLE t5 (id INT)
+  ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='y.xml'
+  OPTION_LIST='XmlDB=/$xmldb,xmlsup=libxml2';
+INSERT INTO t3 VALUES (3);
+INSERT INTO t4 VALUES (4);
+INSERT INTO t5 VALUES (5);
+DROP TABLE t3, t4, t5;
+--chmod 0777 $MYSQLD_DATADIR/test/y.xml
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+--eval SET @a=LOAD_FILE('$MYSQLD_DATADIR/test/y.xml')
+SELECT REPLACE(@a, REPEAT('A', 240), 'XMLDB') AS y;
+--remove_file $MYSQLD_DATADIR/test/y.xml
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

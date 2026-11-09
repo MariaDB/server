@@ -1,0 +1,14 @@
+#
+# MDEV-42005 sys.diagnostics(), sys.ps_trace_thread() and sys.ps_trace_statement_digest() leave session sql_log_bin disabled
+#
+connect  con1,localhost,root,,;
+connection default;
+select @@sql_log_bin;
+@@sql_log_bin
+1
+call sys.ps_trace_thread(@thread_id, @outfile, 0, NULL, FALSE, TRUE, FALSE);
+select @@sql_log_bin;
+@@sql_log_bin
+1
+disconnect con1;
+# End of 10.11 tests

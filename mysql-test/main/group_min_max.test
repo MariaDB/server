@@ -15,10 +15,6 @@
 # - C IS NOT NULL
 # - HAVING clause
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 create table t1 (
   a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(248) default ' '
 );
@@ -2039,6 +2035,18 @@ insert into t1 values (4, NULL), (1, 14), (4, 3);
 SELECT MIN(b) FROM t1 WHERE b = 3 OR b IS NULL GROUP BY a;
 SELECT MIN(b) FROM t1 WHERE b IS NULL GROUP BY a;
 drop table t1;
+
+--echo #
+--echo # MDEV-41841 OOB read on loose index scan of MIN/MAX with IS [NOT] NULL
+--echo #
+
+CREATE TABLE t1 (a INT, b CHAR(30), KEY k(a, b));
+INSERT INTO t1 VALUES (1,'x'),(1,'y'),(2,'z'),(2,NULL),(3,'w'),(3,NULL);
+INSERT INTO t1 SELECT a + 10, b FROM t1;
+INSERT INTO t1 SELECT a + 20, b FROM t1;
+SELECT a, MIN(b) FROM t1 WHERE b IS NOT NULL GROUP BY a;
+SELECT a, MAX(b) FROM t1 WHERE b IS NULL GROUP BY a;
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.11 tests

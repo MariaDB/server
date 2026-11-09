@@ -28,12 +28,12 @@ set @@session.debug_dbug= @saved_dbug;
 connection slave;
 # Waiting for the IO thread to reject the compressed Query event
 include/wait_for_slave_io_error.inc [errno=1256, 1595]
-# Ensure the replica rejected the event on its recorded length
+# Ensure the slave rejected the event on its recorded length
 include/assert_grep.inc [The IO thread reported an oversized uncompressed length]
-# Move the replica past the corrupt event
+# Move the slave past the corrupt event
 include/stop_slave_sql.inc
 include/start_slave.inc
-# Ensure replication resumes
+# Ensure slavetion resumes
 connection master;
 insert into t1 values (1);
 include/save_master_gtid.inc
@@ -54,12 +54,12 @@ set @@session.debug_dbug= @saved_dbug;
 connection slave;
 # Waiting for the IO thread to reject the compressed Write_rows event
 include/wait_for_slave_io_error.inc [errno=1256, 1595]
-# Ensure the replica rejected the event on its recorded length
+# Ensure the slave rejected the event on its recorded length
 include/assert_grep.inc [The IO thread reported an oversized uncompressed length]
-# Move the replica past the corrupt event
+# Move the slave past the corrupt event
 include/stop_slave_sql.inc
 include/start_slave.inc
-# Ensure replication resumes
+# Ensure slavetion resumes
 connection master;
 insert into t1 values (2);
 include/save_master_gtid.inc

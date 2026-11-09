@@ -2974,6 +2974,8 @@ int ha_federated::extra(ha_extra_function operation)
 
 int ha_federated::reset(void)
 {
+  table_will_be_deleted= false;
+
   insert_dup_update= FALSE;
   ignore_duplicates= FALSE;
   replace_duplicates= FALSE;

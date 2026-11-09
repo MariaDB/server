@@ -24,9 +24,9 @@
 
 #include "event_parse_data.h"
 #include "thr_lock.h"                           /* thr_lock_type */
+#include "sql_class.h"                          /* Security_context */
 
 class Field;
-class THD;
 class Time_zone;
 struct TABLE;
 
@@ -172,6 +172,17 @@ public:
   sql_mode_t sql_mode;
 
   class Stored_program_creation_ctx *creation_ctx;
+
+  /*
+    DEFINER security context, active in thd->security_ctx during execute().
+    Kept here, not in execute(), to outlive it: a concurrent PROCESSLIST
+    scan may still read it. See Event_worker_thread::run().
+
+    acl_getroot() aliases user/host/ip to definer_user/definer_host
+    instead of copying them, so they must live in this object.
+    Never call event_sctx.destroy(): it would free strings not owned here.
+  */
+  Security_context event_sctx;
 
   Event_job_data();
 

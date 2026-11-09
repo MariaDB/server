@@ -1,5 +1,6 @@
 connection node_2;
 connection node_1;
+# Correct Galera library found
 CALL mtr.add_suppression("Aborting");
 CALL mtr.add_suppression("unknown option '--galera-unknown-option'");
 connection node_1;
@@ -22,7 +23,10 @@ f1	f2
 2	b
 3	c
 connection node_2;
-Starting server ...
+Starting server with an unknown option ...
+FOUND 1 /unknown option '--galera-unknown-option'/ in galera_restart_on_unknown_option.err
+FOUND 1 /State transfer interrupted, shutting down gracefully/ in galera_restart_on_unknown_option.err
+NOT FOUND /Assertion .* failed/ in galera_restart_on_unknown_option.err
 Starting server ...
 SELECT * FROM t1;
 f1	f2
@@ -39,7 +43,10 @@ f1	f2
 2	d
 3	d
 connection node_2;
-Starting server ...
+Starting server with an unknown option ...
+FOUND 1 /unknown option '--galera-unknown-option'/ in galera_restart_on_unknown_option.err
+FOUND 1 /State transfer interrupted, shutting down gracefully/ in galera_restart_on_unknown_option.err
+NOT FOUND /Assertion .* failed/ in galera_restart_on_unknown_option.err
 Starting server ...
 call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 SELECT * FROM t1;

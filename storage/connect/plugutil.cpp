@@ -7,6 +7,7 @@
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
 /*  (C) Copyright to the author Olivier BERTRAND          1993-2020    */
+/*  (C) Copyright MariaDB plc                             2026         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -181,6 +182,17 @@ PGLOBAL PlugInit(LPCSTR Language, size_t worksize)
 	g->jump_level = -1;   /* New setting to allow recursive call of Plug */
 	return(g);
 } /* end of PlugInit */
+
+/***********************************************************************/
+/*  PlugCleanSarea: zero the work area past its pool header, so that   */
+/*  padding of structures allocated there is initialized when they are */
+/*  written to a file as is.                                           */
+/***********************************************************************/
+void PlugCleanSarea(PGLOBAL g)
+{
+	constexpr size_t skip= sizeof(POOLHEADER);
+	memset((char*)g->Sarea + skip, 0, g->Sarea_Size - skip);
+} /* end of PlugCleanSarea */
 
 /***********************************************************************/
 /*  PlugExit: Terminate Plug operations.                               */
@@ -623,7 +635,31 @@ char *PlugDup(PGLOBAL g, const char *str)
   } else
     return NULL;
 
-} // end of PlugDup 
+} // end of PlugDup
+
+/***********************************************************************/
+/*  Print a column name or path at pos inside the buffer of size sz.   */
+/*  Return true with g->Message set if the result does not fit.        */
+/***********************************************************************/
+bool PlugFmtName(PGLOBAL g, char *buf, size_t sz, char *pos,
+                 const char *format, ...)
+{
+  va_list ap;
+  size_t  room = buf + sz - pos;
+  int     n;
+
+  va_start(ap, format);
+  n = vsnprintf(pos, room, format, ap);
+  va_end(ap);
+
+  if (n < 0 || (size_t)n >= room) {
+    snprintf(g->Message, sizeof(g->Message),
+             "Column name or path too long: %s", buf);
+    return true;
+  } // endif n
+
+  return false;
+} // end of PlugFmtName
 
 /*************************************************************************/
 /* This routine makes a pointer from an offset to a memory pointer.      */

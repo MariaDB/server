@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1278,6 +1278,7 @@ public:
   bool with_rownum:1;     /* rownum() function indicator */
   bool braces:1;    /* SELECT ... UNION (SELECT ... ) <- this braces */
   bool automatic_brackets:1; /* dummy select for INTERSECT precedence */
+  bool with_placeholder:1; /* parameter placeholder is used directly here */
   /* TRUE when having fix field called in processing of this SELECT */
   bool having_fix_field:1;
   /*
@@ -3260,6 +3261,9 @@ public:
   */
   my_ptrdiff_t clone_spec_offset;
 
+  /* number of CTE specification clones made while resolving references */
+  uint cte_references;
+
   Create_view_info *create_view;
 
   /* Query Plan Footprint of a currently running select  */
@@ -3464,6 +3468,10 @@ public:
   bool use_only_table_context:1;
   bool escape_used:1;
   bool default_used:1;    /* using default() function */
+  /* result of a subquery depends on a parameter placeholder */
+  bool subquery_with_placeholder:1;
+  /* ESCAPE of LIKE or JSON_SEARCH depends on a parameter placeholder */
+  bool escape_with_placeholder:1;
   bool with_rownum:1;     /* Using rownum() function */
   bool is_lex_started:1;  /* If lex_start() did run. For debugging. */
   /*
@@ -4813,6 +4821,13 @@ public:
     return false;
   }
   bool check_main_unit_semantics();
+  bool subquery_has_placeholder();
+  bool expr_has_placeholder(Item *expr);
+  void check_escape_placeholder(Item *escape)
+  {
+    if (expr_has_placeholder(escape))
+      escape_with_placeholder= true;
+  }
 
   SELECT_LEX_UNIT *parsed_select_expr_start(SELECT_LEX *s1, SELECT_LEX *s2,
                                             enum sub_select_type unit_type,
@@ -4824,9 +4839,12 @@ public:
   bool parsed_multi_operand_query_expression_body(SELECT_LEX_UNIT *unit);
   SELECT_LEX_UNIT *add_tail_to_query_expression_body(SELECT_LEX_UNIT *unit,
 						     Lex_order_limit_lock *l);
+  SELECT_LEX *push_select_for_ext_parens_tail(SELECT_LEX_UNIT *unit,
+                                              bool tail_has_order);
   SELECT_LEX_UNIT *
   add_tail_to_query_expression_body_ext_parens(SELECT_LEX_UNIT *unit,
-					       Lex_order_limit_lock *l);
+					       Lex_order_limit_lock *l,
+					       SELECT_LEX *tail_sel);
   SELECT_LEX_UNIT *parsed_body_ext_parens_primary(SELECT_LEX_UNIT *unit,
                                                   SELECT_LEX *primary,
                                               enum sub_select_type unit_type,

@@ -56,7 +56,6 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 --source include/kill_galera.inc
 
 --connection node_2
---source include/wait_until_disconnected.inc
 --echo Starting node_2
 --source include/start_mysqld.inc
 
@@ -73,7 +72,6 @@ SHOW STATUS LIKE 'wsrep_cluster_status';
 --source include/kill_galera.inc
 
 --connection node_3
---source include/wait_until_disconnected.inc
 --echo Starting node_3
 --source include/start_mysqld.inc
 

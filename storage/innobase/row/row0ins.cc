@@ -648,12 +648,12 @@ row_ins_cascade_calc_update_vec(
 			fts_get_next_doc_id(table, next_doc_id);
 			doc_id = fts_update_doc_id(table, ufield, next_doc_id);
 			n_fields_updated++;
-			fts_trx_add_op(trx, table, doc_id, FTS_INSERT, NULL);
+			fts_trx_add_op(trx, table, doc_id, FTS_INSERT);
 		} else  {
 			if (doc_id_updated) {
 				ut_ad(new_doc_id);
 				fts_trx_add_op(trx, table, new_doc_id,
-					       FTS_INSERT, NULL);
+					       FTS_INSERT);
 			} else {
 				ib::error() << "FTS Doc ID must be updated"
 					" along with FTS indexed column for"
@@ -1247,7 +1247,7 @@ row_ins_foreign_check_on_constraint(
 		}
 
 		if (foreign->affects_fulltext()) {
-			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
+			fts_trx_add_op(trx, table, doc_id, FTS_DELETE);
 		}
 
 		if (foreign->v_cols != NULL
@@ -1263,7 +1263,7 @@ row_ins_foreign_check_on_constraint(
 	} else if (table->fts && cascade->is_delete == PLAIN_DELETE
 		   && foreign->affects_fulltext()) {
 		/* dict_foreign_t::DELETE_CASCADE case */
-		fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
+		fts_trx_add_op(trx, table, doc_id, FTS_DELETE);
 	}
 
 	if (!node->is_delete
@@ -1312,7 +1312,7 @@ row_ins_foreign_check_on_constraint(
 		/* Mark the old Doc ID as deleted */
 		if (affects_fulltext) {
 			ut_ad(table->fts);
-			fts_trx_add_op(trx, table, doc_id, FTS_DELETE, NULL);
+			fts_trx_add_op(trx, table, doc_id, FTS_DELETE);
 		}
 	}
 

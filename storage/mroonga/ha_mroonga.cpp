@@ -1065,6 +1065,21 @@ static MYSQL_SYSVAR_STR(vector_column_delimiter, mrn_vector_column_delimiter,
                         &mrn_vector_column_delimiter_update,
                         " ");
 
+static int mrn_database_path_prefix_check(THD *thd,
+                                          struct st_mysql_sys_var *var,
+                                          void *save,
+                                          struct st_mysql_value *value)
+{
+  MRN_DBUG_ENTER_FUNCTION();
+  int length= 0;
+  const char *str= value->val_str(value, NULL, &length);
+  if (length >= MRN_MAX_PATH_SIZE)
+    DBUG_RETURN(1);
+  DBUG_ASSERT(!str || str[length] == 0); // val_str() guarantees that
+  *(const char**)save= str;
+  DBUG_RETURN(0);
+}
+
 static void mrn_database_path_prefix_update(THD *thd,
                                             struct st_mysql_sys_var *var,
                                             void *var_ptr, const void *save)
@@ -1089,7 +1104,7 @@ static MYSQL_SYSVAR_STR(database_path_prefix,
                         mrn::PathMapper::default_path_prefix,
                         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
                         "The database path prefix",
-                        NULL,
+                        &mrn_database_path_prefix_check,
                         &mrn_database_path_prefix_update,
                         NULL);
 

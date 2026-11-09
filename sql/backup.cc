@@ -592,46 +592,53 @@ static void stop_ddl_logging()
 }
 
 
-static inline char *add_str_to_buffer(char *ptr, const LEX_CSTRING *from)
+/*
+  Inline (stack) part of the log record buffer; enough for typical DDL,
+  longer records spill over to the heap.
+*/
+static constexpr size_t BACKUP_LOG_RECORD_PREALLOC= 512;
+
+static inline bool add_str_to_buffer(String *str, const LEX_CSTRING *from)
 {
-  if (from->length)                           // If length == 0, str may be 0
-    memcpy(ptr, from->str, from->length);
-  ptr[from->length]= '\t';
-  return ptr+ from->length + 1;
+  // If length == 0, str may be 0
+  return (from->length && str->append(from->str, from->length)) ||
+         str->append('\t');
 }
 
-static char *add_name_to_buffer(char *ptr, const LEX_CSTRING *from)
+static bool add_name_to_buffer(String *str, const LEX_CSTRING *from)
 {
-  LEX_CSTRING tmp;
-  char buff[NAME_LEN*4];
+  /* Each source byte gives at most mbmaxlen bytes, +1 for strconvert's '\0' */
+  size_t max_length= from->length * my_charset_filename.mbmaxlen + 1;
   uint errors;
 
-  tmp.str= buff;
-  tmp.length= strconvert(system_charset_info, from->str, from->length,
-                         &my_charset_filename, buff, sizeof(buff), &errors);
-  return add_str_to_buffer(ptr, &tmp);
+  if (str->reserve(max_length))
+    return true;
+  char *to= (char*) str->end();
+  str->length(str->length() +
+              strconvert(system_charset_info, from->str, from->length,
+                         &my_charset_filename, to, max_length, &errors));
+  return str->append('\t');
 }
 
 
-static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from)
+static bool add_id_to_buffer(String *str, const LEX_CUSTRING *from)
 {
   LEX_CSTRING tmp;
   char buff[MY_UUID_STRING_LENGTH];
 
   if (!from->length)
-    return add_str_to_buffer(ptr, (LEX_CSTRING*) from);
+    return add_str_to_buffer(str, (LEX_CSTRING*) from);
 
   tmp.str= buff;
   tmp.length= MY_UUID_STRING_LENGTH;
   my_uuid2str(from->str, buff, 1);
-  return add_str_to_buffer(ptr, &tmp);
+  return add_str_to_buffer(str, &tmp);
 }
 
 
-static char *add_bool_to_buffer(char *ptr, bool value) {
-  *(ptr++) = value ? '1' : '0';
-  *(ptr++) = '\t';
-  return ptr;
+static bool add_bool_to_buffer(String *str, bool value)
+{
+  return str->append(value ? '1' : '0') || str->append('\t');
 }
 
 /*
@@ -658,8 +665,7 @@ void backup_log_ddl(const backup_log_info *info)
       mysql_mutex_unlock(&LOCK_backup_log);
       return;
     }
-    /* Enough place for db.table *2 + query + engine_name * 2 + tabs+ uuids */
-    char buff[NAME_CHAR_LEN*4+20+40*2+10+MY_UUID_STRING_LENGTH*2], *ptr= buff;
+    StringBuffer<BACKUP_LOG_RECORD_PREALLOC> buff;
     char timebuff[20];
     struct tm current_time;
     LEX_CSTRING tmp_lex;
@@ -675,25 +681,32 @@ void backup_log_ddl(const backup_log_info *info)
                              current_time.tm_hour,
                              current_time.tm_min,
                              current_time.tm_sec);
-    ptr= add_str_to_buffer(ptr, &tmp_lex);
+    bool error= add_str_to_buffer(&buff, &tmp_lex);
 
-    ptr= add_str_to_buffer(ptr,  &info->query);
-    ptr= add_str_to_buffer(ptr,  &info->org_storage_engine_name);
-    ptr= add_bool_to_buffer(ptr, info->org_partitioned);
-    ptr= add_name_to_buffer(ptr, &info->org_database);
-    ptr= add_name_to_buffer(ptr, &info->org_table);
-    ptr= add_id_to_buffer(ptr,   &info->org_table_id);
+    error|= add_str_to_buffer(&buff,  &info->query);
+    error|= add_str_to_buffer(&buff,  &info->org_storage_engine_name);
+    error|= add_bool_to_buffer(&buff, info->org_partitioned);
+    error|= add_name_to_buffer(&buff, &info->org_database);
+    error|= add_name_to_buffer(&buff, &info->org_table);
+    error|= add_id_to_buffer(&buff,   &info->org_table_id);
 
     /* The following fields are only set in case of rename */
-    ptr= add_str_to_buffer(ptr,  &info->new_storage_engine_name);
-    ptr= add_bool_to_buffer(ptr, info->new_partitioned);
-    ptr= add_name_to_buffer(ptr, &info->new_database);
-    ptr= add_name_to_buffer(ptr, &info->new_table);
-    ptr= add_id_to_buffer(ptr,   &info->new_table_id);
+    error|= add_str_to_buffer(&buff,  &info->new_storage_engine_name);
+    error|= add_bool_to_buffer(&buff, info->new_partitioned);
+    error|= add_name_to_buffer(&buff, &info->new_database);
+    error|= add_name_to_buffer(&buff, &info->new_table);
+    error|= add_id_to_buffer(&buff,   &info->new_table_id);
 
-    ptr[-1]= '\n';                              // Replace last tab with nl
-    if (mysql_file_write(backup_log, (uchar*) buff, (size_t) (ptr-buff),
-                         MYF(MY_FNABP)))
+    if (!error)
+    {
+      buff.length(buff.length() - 1);          // Remove last tab
+      error= buff.append('\n');                // ... and replace it with nl
+    }
+
+    if (error)
+      backup_log_error= ENOMEM;
+    else if (mysql_file_write(backup_log, (const uchar*) buff.ptr(),
+                              buff.length(), MYF(MY_FNABP)))
       backup_log_error= my_errno;
     mysql_mutex_unlock(&LOCK_backup_log);
   }

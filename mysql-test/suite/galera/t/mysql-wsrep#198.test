@@ -1,5 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_debug_sync.inc
 
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
@@ -12,26 +13,51 @@ LOCK TABLE t2 WRITE;
 
 --connect node_2_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2_ctrl
-SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_sync_wait = 0;
+
+#
+# Both DDLs below have to be parked before we release the table lock, and
+# OPTIMIZE has to enter total order isolation before REPAIR asks for it, so
+# that the two queue up in a known order.
+#
+# Neither state can be observed through INFORMATION_SCHEMA.PROCESSLIST:
+#
+# - "acquiring total order isolation" is set with thd_proc_info() in
+#   wsrep_TOI_begin() and overwritten by THD_STAGE_INFO() two lines later,
+#   so it never reaches the process list at all.
+#
+# - while a statement waits for a metadata lock, MDL_context::acquire_lock()
+#   waits in one second slices, and the thread state alternates between
+#   "Waiting for table metadata lock" (inside the wait) and the stage that
+#   is restored when the wait is left, which for a statement that already
+#   holds total order isolation is "Waiting for TOI DDL".
+#
+# Use the debug sync points instead.
+#
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
+# OPTIMIZE enters total order isolation and then blocks on the metadata
+# lock for t2 held by the LOCK TABLE above. mdl_acquire_lock_wait is
+# reached only after the waiting ticket has been queued, so it tells us
+# the statement is parked for good.
+SET DEBUG_SYNC = 'mdl_acquire_lock_wait SIGNAL optimize_blocked';
 --send OPTIMIZE TABLE t1,t2;
 
 --connection node_2_ctrl
-SET SESSION wsrep_sync_wait = 0;
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
---let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
---source include/wait_condition_with_debug_and_kill.inc
+SET DEBUG_SYNC = 'now WAIT_FOR optimize_blocked';
 
 --connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2b
+# REPAIR cannot be granted total order isolation while OPTIMIZE holds it,
+# so it parks inside wsrep_TOI_begin(). wsrep_before_toi_begin is the last
+# point reached before that.
+SET DEBUG_SYNC = 'wsrep_before_toi_begin SIGNAL repair_at_toi';
 --send REPAIR TABLE t1,t2;
 
 --connection node_2_ctrl
---let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%' OR STATE LIKE 'acquiring total order isolation%' OR STATE LIKE 'Waiting to execute in isolation%';
---let $wait_condition_on_error_output = SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST
---source include/wait_condition_with_debug_and_kill.inc
+SET DEBUG_SYNC = 'now WAIT_FOR repair_at_toi';
+SET DEBUG_SYNC = 'RESET';
 
 --connection node_1
 # We have LOCK TABLE in node_2 so this could fail on lock wait
@@ -44,9 +70,11 @@ UNLOCK TABLES;
 
 --connection node_2a
 --reap
+SET DEBUG_SYNC = 'RESET';
 
 --connection node_2b
 --reap
+SET DEBUG_SYNC = 'RESET';
 
 DROP TABLE t1;
 DROP TABLE t2;

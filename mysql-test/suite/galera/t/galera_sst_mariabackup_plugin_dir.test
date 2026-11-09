@@ -1,0 +1,271 @@
+# mariadb-backup --prepare must never trust plugin_dir from the received
+# backup-my.cnf: a donor-attacker (or a party who merely captured a
+# legitimate backup stream) could point it at an attacker-controlled
+# directory and have the joiner dlopen() from there. The joiner must
+# always pass its own, locally-resolved --plugin-dir on the --prepare
+# command line instead, which wins over whatever backup-my.cnf says.
+#
+# STEPS
+#  - bring up a 2-node cluster and note node_2's SST address/datadir
+#  - shut node_2 down so its datadir is safe to overwrite
+#  - start the real wsrep_sst_mariabackup joiner-role script directly,
+#    bypassing galera negotiation entirely
+#  - deliver a normal, legitimate-looking two-stage backup stream to it
+#    ourselves (this test is not about authentication, only about the
+#    plugin_dir substitution)
+#  - the backup-data stream's backup-my.cnf claims an attacker-chosen
+#    plugin_dir and requests loading a plugin by a name that does not
+#    exist anywhere but in that attacker directory
+#  - assert mariadb-backup --prepare never references the attacker
+#    directory, even though it did attempt to load the requested plugin
+#    name (proving the plugin_load value itself was not simply dropped),
+#    and that the joiner's own plugin-dir lookup never silently failed
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+
+--connection node_2
+--let $node2_datadir = `SELECT @@datadir`
+--let $node2_sst_addr = `SELECT @@global.wsrep_sst_receive_address`
+
+--connection node_1
+--let $node1_pid_file = `SELECT @@pid_file`
+
+--connection node_2
+--echo # Shutting down node_2 so its datadir is inert
+--source include/shutdown_mysqld.inc
+
+--let $joiner_log = $MYSQLTEST_VARDIR/tmp/mdev42091_joiner.log
+--let $joiner_pidfile = $MYSQLTEST_VARDIR/tmp/mdev42091_joiner.pid
+--let $prepare_log = $node2_datadir/mariabackup.prepare.log
+--error 0,1
+--remove_file $joiner_log
+--error 0,1
+--remove_file $joiner_pidfile
+--error 0,1
+--remove_file $prepare_log
+
+--let MDEV42091_SST_ADDR = $node2_sst_addr
+--let MDEV42091_DATADIR = $node2_datadir
+--let MDEV42091_PARENT_PIDFILE = $node1_pid_file
+--let MDEV42091_JOINER_LOG = $joiner_log
+--let MDEV42091_JOINER_PIDFILE = $joiner_pidfile
+--let MDEV42091_DEFAULTS_FILE = $MYSQLTEST_VARDIR/my.cnf
+
+--echo # Launching the joiner-role SST script directly, then delivering a
+--echo # normal two-stage backup stream whose backup-my.cnf claims an
+--echo # attacker-chosen plugin_dir
+perl;
+  use strict;
+  use warnings;
+  use File::Basename;
+  use IO::Socket::INET;
+  use POSIX ":sys_wait_h";
+
+  my $addr       = $ENV{MDEV42091_SST_ADDR} or die "no SST address";
+  my $datadir    = $ENV{MDEV42091_DATADIR} or die "no datadir";
+  my $joiner_log = $ENV{MDEV42091_JOINER_LOG};
+  my $pidfile    = $ENV{MDEV42091_JOINER_PIDFILE};
+  my $defaults_file = $ENV{MDEV42091_DEFAULTS_FILE} or die "no defaults file";
+  my ($host, $port) = $addr =~ /^(.*):(\d+)$/ or die "bad address $addr";
+
+  open(my $pf, '<', $ENV{MDEV42091_PARENT_PIDFILE}) or die "no parent pidfile: $!";
+  my $parent_pid = <$pf>;
+  chomp $parent_pid;
+  close($pf);
+
+  my $xtrabackup = $ENV{XTRABACKUP} or die "XTRABACKUP not set";
+  my $xbstream   = $ENV{XBSTREAM} or die "XBSTREAM not set";
+  my $backup_dir = dirname($xtrabackup);
+  my $scripts_dir = dirname(dirname($backup_dir)) . "/scripts";
+  $scripts_dir = $backup_dir unless -x "$scripts_dir/wsrep_sst_mariabackup";
+  my $sst_script = "$scripts_dir/wsrep_sst_mariabackup";
+  die "cannot find wsrep_sst_mariabackup near $xtrabackup" unless -x $sst_script;
+
+  # mariadb-backup and the SST script live next to each other, but
+  # mariadbd itself is typically a different build directory; the fix
+  # under test probes mariadbd on PATH, so make sure it is actually
+  # there rather than hoping the inherited PATH happens to include it.
+  my $mysqld_dir = $ENV{MYSQLD} ? dirname($ENV{MYSQLD})
+                                 : dirname(dirname($backup_dir)) . "/sql";
+
+  my $attack = "$datadir/../mdev42091_attack";
+  mkdir $attack;
+  my $stage1 = "$attack/stage1";
+  my $stage2 = "$attack/stage2";
+  my $attacker_plugins = "$attack/attacker_plugins";
+  mkdir $stage1;
+  mkdir $stage2;
+  mkdir $attacker_plugins;
+
+  # a real file at the attacker-chosen path: if mariadb-backup ever
+  # resolves plugin_dir from the received backup-my.cnf, it would find
+  # and reference this.
+  open(my $so, '>', "$attacker_plugins/mdev42091_poc.so") or die $!;
+  print $so "not a real shared object, just needs to exist";
+  close($so);
+
+  my $coords = "00000000-0000-0000-0000-000000000000:1 0\n";
+  my $checkpoints = "backup_type = full-backuped\nfrom_lsn = 0\nto_lsn = 0\n" .
+                     "last_lsn = 0\nrecover_binlog_info = 0\n";
+  my $backup_cnf = "[mysqld]\nplugin_dir=$attacker_plugins\n" .
+                   "plugin_load=mdev42091_poc=mdev42091_poc\n";
+
+  for my $dir ($stage1, $stage2) {
+    open(my $fh, '>', "$dir/mariadb_backup_galera_info") or die $!; print $fh $coords; close $fh;
+    open(my $fh2, '>', "$dir/xtrabackup_galera_info") or die $!; print $fh2 $coords; close $fh2;
+  }
+  open(my $fh, '>', "$stage2/donor_galera_info") or die $!; print $fh $coords; close $fh;
+  open($fh, '>', "$stage2/mariadb_backup_checkpoints") or die $!; print $fh $checkpoints; close $fh;
+  open($fh, '>', "$stage2/xtrabackup_checkpoints") or die $!; print $fh $checkpoints; close $fh;
+  open($fh, '>', "$stage2/backup-my.cnf") or die $!; print $fh $backup_cnf; close $fh;
+
+  sub pack_stream {
+    my ($dir, $out, @files) = @_;
+    open(my $outfh, '>', $out) or die "open $out: $!";
+    my $pid = fork();
+    die "fork: $!" unless defined $pid;
+    if ($pid == 0) {
+      chdir $dir or die $!;
+      open(STDOUT, '>&', $outfh) or exit(1);
+      exec($xbstream, '-c', @files) or exit(1);
+    }
+    waitpid($pid, 0);
+    close($outfh);
+    die "mbstream pack of @files failed" if $? != 0;
+  }
+
+  pack_stream($stage2, "$attack/stage2.mbstream",
+              "mariadb_backup_galera_info", "xtrabackup_galera_info",
+              "donor_galera_info", "mariadb_backup_checkpoints",
+              "xtrabackup_checkpoints", "backup-my.cnf");
+  pack_stream($stage1, "$attack/stage1.mbstream",
+              "mariadb_backup_galera_info", "xtrabackup_galera_info");
+
+  # Poll a log file until its content matches $regex, or give up after
+  # $timeout seconds.
+  sub wait_for_log {
+    my ($file, $regex, $timeout) = @_;
+    my $deadline = time() + $timeout;
+    while (time() < $deadline) {
+      if (open(my $lf, '<', $file)) {
+        local $/;
+        my $text = <$lf>;
+        close($lf);
+        return 1 if defined($text) && $text =~ $regex;
+      }
+      select(undef, undef, undef, 0.1);
+    }
+    return 0;
+  }
+
+  sub deliver {
+    my ($host, $port, $bytes, $deadline) = @_;
+    while (time() < $deadline) {
+      my $sock = IO::Socket::INET->new(PeerHost => $host, PeerPort => $port,
+                                        Proto => 'tcp', Timeout => 2);
+      if ($sock) {
+        print $sock $bytes;
+        shutdown($sock, 1);
+        my $drain;
+        1 while $sock->recv($drain, 4096);
+        close($sock);
+        return;
+      }
+      select(undef, undef, undef, 0.05);
+    }
+    die "could not deliver payload to $host:$port";
+  }
+
+  # Launch the real joiner-role SST script, detached, exactly as mariadbd
+  # would, except that no mariadbd is actually running on the joiner side.
+  # Everything from here on is wrapped so the joiner always gets torn
+  # down, even if a later step dies: it runs setsid()'d and detached, so
+  # a skipped teardown would otherwise leak the SST port and attack
+  # directory into later tests.
+  my $jpid = fork();
+  die "fork: $!" unless defined $jpid;
+  if ($jpid == 0) {
+    POSIX::setsid();
+    local $ENV{PATH} = "$backup_dir:$scripts_dir:$mysqld_dir:$ENV{PATH}";
+    open(STDOUT, '>', $joiner_log) or exit(1);
+    open(STDERR, '>&STDOUT') or exit(1);
+    exec($sst_script,
+         '--role', 'joiner',
+         '--address', $addr,
+         '--datadir', "$datadir/",
+         '--defaults-file', $defaults_file,
+         '--defaults-group-suffix', '.2',
+         '--parent', $parent_pid,
+         '--progress', '0',
+         '--mysqld-args', '--no-defaults') or exit(1);
+  }
+  open(my $pidf, '>', $pidfile) or die $!;
+  print $pidf $jpid;
+  close($pidf);
+
+  eval {
+    die "joiner never became ready in $joiner_log"
+      unless wait_for_log($joiner_log, qr/^ready\s/m, 30);
+
+    my $stage1_bytes = do { local(@ARGV,$/)=("$attack/stage1.mbstream"); <> };
+    my $stage2_bytes = do { local(@ARGV,$/)=("$attack/stage2.mbstream"); <> };
+
+    deliver($host, $port, $stage1_bytes, time() + 60);
+    deliver($host, $port, $stage2_bytes, time() + 60);
+
+    # Wait for the joiner to run mariadb-backup --prepare (which must
+    # fail, since the only plugin it could legitimately find is not
+    # installed) and exit, or for this test to time out trying. The
+    # script runs under "set -e", so a failing --prepare takes it
+    # straight to its EXIT trap rather than through its own "apply
+    # finished with errors" message; the trap's own log line is the
+    # reliable signal here.
+    die "joiner did not run mariadb-backup --prepare on the delivered stream"
+      unless wait_for_log($joiner_log,
+          qr/Cleanup after exit with status: [1-9]/, 60);
+  };
+  my $failure = $@;
+
+  kill('TERM', -$jpid);
+  select(undef, undef, undef, 1);
+  kill('KILL', -$jpid);
+
+  die $failure if $failure;
+EOF
+
+--let SEARCH_FILE = $prepare_log
+--let SEARCH_PATTERN = mdev42091_poc
+--let SEARCH_ABORT = NOT FOUND
+--source include/search_pattern_in_file.inc
+
+# the attacker's chosen directory must never be searched or referenced,
+# even though a real file sits there and backup-my.cnf asked for it by
+# name, and even though --prepare did attempt (and fail) to load the
+# plugin name it requested
+--let SEARCH_PATTERN = mdev42091_attack/attacker_plugins
+--let SEARCH_ABORT = FOUND
+--source include/search_pattern_in_file.inc
+
+# the joiner's own plugin-dir lookup must not have silently failed
+# (which would otherwise leave --prepare trusting backup-my.cnf again)
+--let SEARCH_FILE = $joiner_log
+--let SEARCH_PATTERN = Could not determine a local plugin-dir
+--let SEARCH_ABORT = FOUND
+--source include/search_pattern_in_file.inc
+
+--echo # Restoring node_2 with a clean, legitimate full SST
+--connection node_2
+--rmdir $node2_datadir
+--mkdir $node2_datadir
+--remove_file $joiner_log
+--remove_file $joiner_pidfile
+--rmdir $node2_datadir/../mdev42091_attack
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--source include/galera_end.inc

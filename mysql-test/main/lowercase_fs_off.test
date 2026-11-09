@@ -166,4 +166,18 @@ select t1test(1);
 drop function t1test;
 drop table t1, T1;
 
+--echo #
+--echo # MDEV-41801 "performance_schema" is compared case-sensitively in the engine, case-insensitively elsewhere
+--echo #
+select count(*) > 0 from `Performance_Schema`.threads;
+create database `PERFORMANCE_SCHEMA`;
+--error ER_TABLE_EXISTS_ERROR
+create table `PERFORMANCE_SCHEMA`.global_status (a int);
+create table t1 (a int);
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to `PERFORMANCE_SCHEMA`.session_status;
+drop table t1;
+--replace_regex /Unknown table .*/Unknown table .../
+drop database `PERFORMANCE_SCHEMA`;
+
 --echo # End of 10.11 tests

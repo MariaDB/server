@@ -1,0 +1,130 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-41548 InnoDB: Cannot replay rename because the target file exists
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE t2 TO t3, t1 TO t2;
+
+--source include/kill_mysqld.inc
+--move_file $MARIADB_DATADIR/test/t2.ibd $MARIADB_DATADIR/test/t1.ibd
+--move_file $MARIADB_DATADIR/test/t3.ibd $MARIADB_DATADIR/test/t2.ibd
+--source include/start_mysqld.inc
+
+SELECT * FROM t2;
+SELECT * FROM t3;
+DROP TABLE t2, t3;
+
+# Table ta is renamed 3 times in a row: ta->tb->tc->td.
+# In between, table td is renamed once: td->tb.
+# So the two tables keep swapping the names tb and td.
+# Each of the 5 blocks below simulates the server being killed
+# at a different point: with 0, 1, 2, 3, or 4 of these renames
+# not yet done on disk. Recovery must replay exactly the
+# missing renames, in the same order, to end up with the
+# same two tables every time.
+
+# 0 renames left to replay: the files already match the final state
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+
+--source include/kill_mysqld.inc
+--source include/start_mysqld.inc
+
+SELECT * FROM tb;
+SELECT * FROM td;
+DROP TABLE tb, td;
+
+# 1 rename left to replay: (id1,tc,td)
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+
+--source include/kill_mysqld.inc
+--move_file $MARIADB_DATADIR/test/td.ibd $MARIADB_DATADIR/test/tc.ibd
+--source include/start_mysqld.inc
+
+SELECT * FROM tb;
+SELECT * FROM td;
+DROP TABLE tb, td;
+
+# 2 renames left to replay: (id2,td,tb) (id1,tc,td)
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+
+--source include/kill_mysqld.inc
+--move_file $MARIADB_DATADIR/test/td.ibd $MARIADB_DATADIR/test/tc.ibd
+--move_file $MARIADB_DATADIR/test/tb.ibd $MARIADB_DATADIR/test/td.ibd
+--source include/start_mysqld.inc
+
+SELECT * FROM tb;
+SELECT * FROM td;
+DROP TABLE tb, td;
+
+# 3 renames left to replay: (id1,tb,tc) (id2,td,tb) (id1,tc,td)
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+
+--source include/kill_mysqld.inc
+--move_file $MARIADB_DATADIR/test/td.ibd $MARIADB_DATADIR/test/tc.ibd
+--move_file $MARIADB_DATADIR/test/tb.ibd $MARIADB_DATADIR/test/td.ibd
+--move_file $MARIADB_DATADIR/test/tc.ibd $MARIADB_DATADIR/test/tb.ibd
+--source include/start_mysqld.inc
+
+SELECT * FROM tb;
+SELECT * FROM td;
+DROP TABLE tb, td;
+
+# 4 renames left to replay: all of them, back to the original names
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+
+--source include/kill_mysqld.inc
+--move_file $MARIADB_DATADIR/test/td.ibd $MARIADB_DATADIR/test/tc.ibd
+--move_file $MARIADB_DATADIR/test/tb.ibd $MARIADB_DATADIR/test/td.ibd
+--move_file $MARIADB_DATADIR/test/tc.ibd $MARIADB_DATADIR/test/tb.ibd
+--move_file $MARIADB_DATADIR/test/tb.ibd $MARIADB_DATADIR/test/ta.ibd
+--source include/start_mysqld.inc
+
+SELECT * FROM tb;
+SELECT * FROM td;
+DROP TABLE tb, td;

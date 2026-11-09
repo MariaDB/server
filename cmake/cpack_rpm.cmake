@@ -133,6 +133,12 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
+
+# https://bugzilla.redhat.com/show_bug.cgi?id=2390105
+%if 0%{?fedora} >= 43
+%undefine _preserve_static_debuginfo
+%define _find_debuginfo_opts --no-ar-files
+%endif
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html

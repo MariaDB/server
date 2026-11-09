@@ -765,3 +765,32 @@ drop procedure user1_proc;
 drop procedure user1_proc2;
 drop procedure sensitive_proc;
 drop database rtest;
+use test;
+#
+# MDEV-41626 definer check in CREATE PROCEDURE is too lax
+#
+create user foo@localhost;
+create schema foodb;
+grant all privileges on foodb.* to foo@localhost;
+create table foodb.t1 as select 100 as a;
+create user u@localhost;
+grant all privileges on test.* to u@localhost, foo@localhost;
+create role foo;
+grant foo to u@localhost;
+connect u,localhost,u;
+select * from foodb.t1;
+ERROR 42000: SELECT command denied to user 'u'@'localhost' for table `foodb`.`t1`
+create definer=foo@localhost procedure getfoo() select * from foodb.t1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+set role foo;
+create definer=foo@localhost procedure getfoo() select * from foodb.t1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+disconnect u;
+connection default;
+drop procedure if exists getfoo;
+Warnings:
+Note	1305	PROCEDURE test.getfoo does not exist
+drop user foo@localhost, u@localhost;
+drop role foo;
+drop schema foodb;
+# End of 10.11 tests

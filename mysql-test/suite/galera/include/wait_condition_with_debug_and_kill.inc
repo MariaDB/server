@@ -4,7 +4,13 @@
 #
 #    Waits until the passed statement returns true, or the operation
 #    times out.  If the operation times out, the additional error
-#    statement will be executed and server is killed.
+#    statement will be executed, the server is killed to leave a core
+#    for post-mortem analysis, and the test is aborted.
+#
+#    The abort is essential: the node is gone once we return, so any
+#    statement the caller would execute next runs against a dead server
+#    and fails in an unrelated and non-deterministic way, hiding the
+#    timeout that actually caused the failure.
 #
 # USAGE
 #
@@ -32,4 +38,5 @@
 if (!$success)
 {
   --source include/kill_galera.inc
+  --die Timeout in wait_condition_with_debug_and_kill.inc for $wait_condition
 }

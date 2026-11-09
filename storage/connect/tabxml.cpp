@@ -820,6 +820,23 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   } // end of LoadTableFile
 
 /***********************************************************************/
+/*  Return name as an Xpath. If name is not an Xpath, construct one    */
+/*  that will find it anywhere.                                        */
+/***********************************************************************/
+static char *MakeXpath(PGLOBAL g, PCSZ name)
+  {
+  size_t len = strlen(name) + 3;
+  char  *xpath = (char*)PlugSubAlloc(g, NULL, len);
+
+  if (!strchr(name, '/'))
+    snprintf(xpath, len, "//%s", name);
+  else
+    snprintf(xpath, len, "%s", name);
+
+  return xpath;
+  } // end of MakeXpath
+
+/***********************************************************************/
 /*  Initialize the processing of the XML file.                         */
 /*  Note: this function can be called several times, eventally before  */
 /*  the columns are known (from TBL for instance)                      */
@@ -850,7 +867,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 #else
 	if (!Root) {
 #endif
-		char tabpath[64], filename[_MAX_PATH];
+		char filename[_MAX_PATH];
 
 		//  We used the file name relative to recorded datapath
 		PlugSetPath(filename, Xfile, GetPath());
@@ -866,15 +883,8 @@ bool TDBXML::Initialize(PGLOBAL g)
 				goto error;
 			} // endif Root
 
-		// If tabname is not an Xpath,
-		// construct one that will find it anywhere
-			if (!strchr(Tabname, '/'))
-				snprintf(tabpath, sizeof(tabpath), "//%s", Tabname);
-			else
-				snprintf(tabpath, sizeof(tabpath), "%s", Tabname);
-
 			// Evaluate table xpath
-			if ((TabNode = Root->SelectSingleNode(g, tabpath))) {
+			if ((TabNode = Root->SelectSingleNode(g, MakeXpath(g, Tabname)))) {
 				if (TabNode->GetType() != XML_ELEMENT_NODE) {
 					snprintf(g->Message, sizeof(g->Message), MSG(BAD_NODE_TYPE), TabNode->GetType());
 					goto error;
@@ -882,15 +892,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 
 			} else if (Mode == MODE_INSERT && XmlDB) {
 				// We are adding a new table to a multi-table file
-
-				// If XmlDB is not an Xpath,
-				// construct one that will find it anywhere
-				if (!strchr(XmlDB, '/'))
-					strcat(strcpy(tabpath, "//"), XmlDB);
-				else
-					strcpy(tabpath, XmlDB);
-
-				if (!(DBnode = Root->SelectSingleNode(g, tabpath))) {
+				if (!(DBnode = Root->SelectSingleNode(g, MakeXpath(g, XmlDB)))) {
 					// DB node does not exist yet; we cannot create it
 					// because we don't know where it should be placed
 					snprintf(g->Message, sizeof(g->Message), MSG(MISSING_NODE), XmlDB, Xfile);

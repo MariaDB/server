@@ -59,7 +59,8 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
   /* Bail out early if statement succeeded. */
   if (! rv)
   {
-    thd->get_stmt_da()->set_ok_status(0, 0, NULL);
+    if (!thd->in_bulk_sub_stmt())
+      thd->get_stmt_da()->set_ok_status(0, 0, NULL);
     DBUG_RETURN(false);
   }
 
@@ -81,7 +82,7 @@ Sql_cmd_get_diagnostics::execute(THD *thd)
                              message);
 
   /* Appending might have failed. */
-  if (unlikely(!(rv= thd->is_error())))
+  if (unlikely(!(rv= thd->is_error())) && !thd->in_bulk_sub_stmt())
     thd->get_stmt_da()->set_ok_status(0, 0, NULL);
 
   DBUG_RETURN(rv);

@@ -41,10 +41,8 @@ let $wait_condition=
   where state = 'Sending data' and
         info LIKE 'SET STATEMENT innodb_lock_wait_timeout%';
 --source include/wait_condition.inc
-
-SET innodb_lock_wait_timeout=1;
 --error ER_LOCK_WAIT_TIMEOUT
-DROP TABLE t2;
+SET STATEMENT lock_wait_timeout=1 FOR DROP TABLE t2;
 
 disconnect con1;
 
@@ -56,7 +54,7 @@ XA ROLLBACK 'x';
 SELECT * FROM t1;
 
 --error ER_LOCK_WAIT_TIMEOUT
-DROP TABLE t2;
+SET STATEMENT lock_wait_timeout=1 FOR DROP TABLE t2;
 XA ROLLBACK 'y';
 DROP TABLE t2;
 CREATE TABLE t3(a INT PRIMARY KEY REFERENCES t1(a)) ENGINE=InnoDB;

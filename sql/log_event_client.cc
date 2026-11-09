@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -970,7 +970,15 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
     columns. Master writes one bit for each affected column.
    */
 
-  value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  int bitmap_size= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  if (unlikely(m_rows_end - value < bitmap_size))
+  {
+    if (!no_fill_output)
+      my_b_printf(file, "***Corrupted replication event was detected."
+                  " Not printing the value***\n");
+    goto err;
+  }
+  value+= bitmap_size;
 
   if (!no_fill_output)
     if (my_b_printf(file, "%s", prefix))
@@ -991,7 +999,8 @@ Rows_log_event::print_verbose_one_row(IO_CACHE *file, table_def *td,
 
     if (!is_null)
     {
-      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
+      size_t fsize= td->calc_field_size((uint)i, (uchar*) value,
+                                        (size_t) (m_rows_end - value));
       if (value + fsize > m_rows_end)
       {
         if (!no_fill_output)
@@ -1339,7 +1348,10 @@ Rows_log_event::calc_row_event_length(table_def *td,
     columns. Master writes one bit for each affected column.
    */
 
-  value+= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  int bitmap_size= (bitmap_bits_set(cols_bitmap) + 7) / 8;
+  if (unlikely(m_rows_end - value < bitmap_size))
+    return 0;
+  value+= bitmap_size;
 
   for (uint i= 0; i < (uint)td->size(); i ++)
   {
@@ -1352,7 +1364,8 @@ Rows_log_event::calc_row_event_length(table_def *td,
     if (!is_null)
     {
       size_t size;
-      size_t fsize= td->calc_field_size((uint)i, (uchar*) value);
+      size_t fsize= td->calc_field_size((uint)i, (uchar*) value,
+                                        (size_t) (m_rows_end - value));
       if (value + fsize > m_rows_end)
       {
         /* Corrupted replication event was detected, skipping entry */
@@ -1626,32 +1639,27 @@ bool Log_event::print_base64(IO_CACHE* file,
     switch (ev_type) {
       case WRITE_ROWS_EVENT:
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT;
-        ev= new Delete_rows_log_event(ptr, tmp_size,
-                                       glob_description_event);
+        ev= new Delete_rows_log_event(ptr, tmp_size);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case WRITE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT_V1;
-        ev= new Delete_rows_log_event(ptr, tmp_size,
-                                       glob_description_event);
+        ev= new Delete_rows_log_event(ptr, tmp_size);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT;
-        ev= new Write_rows_log_event(ptr, tmp_size,
-                                       glob_description_event);
+        ev= new Write_rows_log_event(ptr, tmp_size);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT_V1;
-        ev= new Write_rows_log_event(ptr, tmp_size,
-                                       glob_description_event);
+        ev= new Write_rows_log_event(ptr, tmp_size);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case UPDATE_ROWS_EVENT:
       case UPDATE_ROWS_EVENT_V1:
-        ev= new Update_rows_log_event(ptr, tmp_size,
-                                       glob_description_event);
+        ev= new Update_rows_log_event(ptr, tmp_size);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       default:
@@ -1697,8 +1705,7 @@ bool Log_event::print_base64(IO_CACHE* file,
     case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map; 
-      map= new Table_map_log_event(ptr, size, 
-                                   glob_description_event);
+      map= new Table_map_log_event(ptr, size);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       if (need_flashback_review)
       {
@@ -1712,43 +1719,37 @@ bool Log_event::print_base64(IO_CACHE* file,
     case WRITE_ROWS_EVENT:
     case WRITE_ROWS_EVENT_V1:
     {
-      ev= new Write_rows_log_event(ptr, size,
-                                   glob_description_event);
+      ev= new Write_rows_log_event(ptr, size);
       break;
     }
     case DELETE_ROWS_EVENT:
     case DELETE_ROWS_EVENT_V1:
     {
-      ev= new Delete_rows_log_event(ptr, size,
-                                    glob_description_event);
+      ev= new Delete_rows_log_event(ptr, size);
       break;
     }
     case UPDATE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT_V1:
     {
-      ev= new Update_rows_log_event(ptr, size,
-                                    glob_description_event);
+      ev= new Update_rows_log_event(ptr, size);
       break;
     }
     case WRITE_ROWS_COMPRESSED_EVENT:
     case WRITE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Write_rows_compressed_log_event(ptr, size,
-                                              glob_description_event);
+      ev= new Write_rows_compressed_log_event(ptr, size);
       break;
     }
     case UPDATE_ROWS_COMPRESSED_EVENT:
     case UPDATE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Update_rows_compressed_log_event(ptr, size,
-                                               glob_description_event);
+      ev= new Update_rows_compressed_log_event(ptr, size);
       break;
       }
     case DELETE_ROWS_COMPRESSED_EVENT:
     case DELETE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Delete_rows_compressed_log_event(ptr, size,
-                                               glob_description_event);
+      ev= new Delete_rows_compressed_log_event(ptr, size);
       break;
     }
     default:
@@ -3175,13 +3176,12 @@ err:
     other - Error
 */
 
-int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
-                                    const Format_description_log_event* desc)
+int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len)
 {
   DBUG_ENTER("Table_map_log_event::rewrite_db");
   DBUG_ASSERT(temp_buf);
 
-  uint header_len= MY_MIN(desc->common_header_len,
+  uint header_len= MY_MIN(Format_description_log_event::common_header_len,
                        LOG_EVENT_MINIMAL_HEADER_LEN) + TABLE_MAP_HEADER_LEN;
   int len_diff;
 
@@ -3708,8 +3708,7 @@ bool Write_rows_compressed_log_event::print(FILE *file,
   uchar *new_buf;
   ulong len;
   bool is_malloc = false;
-  if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  if(!row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {
@@ -3745,8 +3744,7 @@ bool Delete_rows_compressed_log_event::print(FILE *file,
   uchar *new_buf;
   ulong len;
   bool is_malloc = false;
-  if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  if(!row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {
@@ -3782,8 +3780,7 @@ Update_rows_compressed_log_event::print(FILE *file,
   uchar *new_buf;
   ulong len;
   bool is_malloc= false;
-  if(!row_log_event_uncompress(glob_description_event,
-                               checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
+  if(!row_log_event_uncompress(checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
                                temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
                                &new_buf, &len))
   {

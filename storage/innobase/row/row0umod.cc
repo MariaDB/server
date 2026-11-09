@@ -42,6 +42,12 @@ Created 2/27/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "que0que.h"
 #include "log0log.h"
+#include "debug_sync.h"
+
+#ifdef ENABLED_DEBUG_SYNC
+extern void *thd_attach_thd(THD*);
+extern void thd_detach_thd(void*);
+#endif
 
 /* Considerations on undoing a modify operation.
 (1) Undoing a delete marking: all index records should be found. Some of
@@ -1450,6 +1456,21 @@ rollback_clust:
 			}
 		}
 	}
+
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("rollback_wait",
+			if (node->trx->mysql_thd || current_thd);
+			else if (THD *recovery_thd= trx_sys.recovery_thd())
+			{
+			  DBUG_SET("-d,rollback_wait");
+			  void *thd_ctx= thd_attach_thd(recovery_thd);
+			  debug_sync_set_action
+			    (recovery_thd,
+			     STRING_WITH_LEN("now SIGNAL rollback_parked "
+					     "WAIT_FOR rollback_resume"));
+			  thd_detach_thd(thd_ctx);
+			});
+#endif
 
 	node->table->release();
 	node->table = NULL;

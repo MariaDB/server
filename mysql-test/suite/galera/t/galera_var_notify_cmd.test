@@ -1,7 +1,12 @@
 #
-# Test wsrep_notify_cmd. We use a version of the support-files/wsrep_notify.sh script that writes
-# notifications into a table.
+# Test wsrep_notify_cmd. We use the support-files/wsrep_notify.sh script, which writes
+# the current view into a table.
 #
+
+if (!$WSREP_NOTIFY_CMD)
+{
+  --skip Needs the shipped wsrep_notify script
+}
 
 --source include/galera_cluster.inc
 --source include/force_restart.inc
@@ -12,7 +17,7 @@
 
 SELECT COUNT(DISTINCT uuid) AS EXPECT_2 FROM mtr_wsrep_notify.membership;
 SELECT MAX(size) AS EXPECT_2 FROM mtr_wsrep_notify.status;
-SELECT COUNT(DISTINCT idx) AS EXPECT_2 FROM mtr_wsrep_notify.status;
+SELECT COUNT(*) AS EXPECT_1 FROM mtr_wsrep_notify.status, INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'WSREP_LOCAL_INDEX' AND idx = VARIABLE_VALUE;
 
 # CLEANUP
 DROP SCHEMA mtr_wsrep_notify;

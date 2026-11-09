@@ -9,3 +9,4 @@ CheckDataDirectory
 CheckDBInUse
 CheckServiceUpgrades
 CheckInstallDirectory
+FakeFailure

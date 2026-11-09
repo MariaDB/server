@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -895,9 +895,9 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
 
-    int error= writefile(shadow_frm_name, lpt->alter_info->db.str,
-                         lpt->alter_info->table_name.str,
-                         lpt->create_info->tmp_table(), frm.str, frm.length);
+    error= writefile(shadow_frm_name, lpt->alter_info->db.str,
+                     lpt->alter_info->table_name.str,
+                     lpt->create_info->tmp_table(), frm.str, frm.length);
     my_free(const_cast<uchar*>(frm.str));
 
     if (unlikely(error) ||
@@ -5457,7 +5457,21 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     bool conflict= false;
     char *real_end= end;
     if (round == 1 && own_name_base)
-        *end++= '_';
+    {
+      /*
+        A '_' plus a numeric suffix is appended from here on, so truncate
+        on a character boundary to make room, both in bytes (to stay
+        inside buff) and in characters (so the result still respects
+        NAME_CHAR_LEN) -- but only now that a suffix is actually needed.
+      */
+      size_t avail= sizeof(buff) - (1 + MY_INT32_NUM_DECIMAL_DIGITS + 1);
+      size_t avail_chars= NAME_CHAR_LEN - (1 + MY_INT32_NUM_DECIMAL_DIGITS);
+      end= buff + Well_formed_prefix(system_charset_info, buff,
+                                     MY_MIN(size_t(end - buff), avail),
+                                     avail_chars)
+                   .length();
+      *end++= '_';
+    }
     // if own_base_name provided, try it first
     if (round != 0 || !own_name_base)
       real_end= int10_to_str((*nr)++, end, 10);
