@@ -1,0 +1,20 @@
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+BACKUP SERVER TO '$targetdir';
+INSERT INTO tr VALUES (4,'r-four');
+# restart: with restart_parameters
+SELECT * FROM tr;
+a	b
+1	r-one
+2	r-two
+3	r-three
+DROP TABLE tr;
+# restart
+SELECT * FROM tr;
+a	b
+1	r-one
+2	r-two
+3	r-three
+4	r-four
+DROP TABLE tr;

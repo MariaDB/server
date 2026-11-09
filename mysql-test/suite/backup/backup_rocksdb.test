@@ -1,0 +1,26 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_dir
+--error 0,1
+--rmdir $targetdir
+--evalp BACKUP SERVER TO '$targetdir'
+--file_exists $targetdir/#rocksdb
+
+INSERT INTO tr VALUES (4,'r-four');
+
+--let $restart_parameters=--datadir=$targetdir
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+
+SELECT * FROM tr;
+DROP TABLE tr;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM tr;
+DROP TABLE tr;
+--rmdir $targetdir
