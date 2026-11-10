@@ -132,7 +132,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_AUDIT_PLUGIN           5  /**< Audit plugin               */
 #define MYSQL_REPLICATION_PLUGIN     6  /**< Replication plugin         */
 #define MYSQL_AUTHENTICATION_PLUGIN  7  /**< Authentication plugin      */
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    12
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    13
 
 /* MariaDB plugin types */
 /** Client and server password validation */
@@ -143,6 +143,8 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MariaDB_DATA_TYPE_PLUGIN  10
 /**< Plugins for new native SQL functions */
 #define MariaDB_FUNCTION_PLUGIN 11
+/**< Plugins that handle SQL statements the server's parser rejects */
+#define MariaDB_SQL_EXTENSION_PLUGIN 12
 
 /** @} */
 
