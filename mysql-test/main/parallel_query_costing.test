@@ -3,10 +3,13 @@
 #
 # The join-order search prices the driving table's scan both ways -- serially,
 # and divided among parallel_worker_threads workers plus the cost of setting
-# them up -- and the plan is only run in the workers when the divided reading
-# won (parallel_scan_cost, position_cost_in_plan). Two things follow, and this
-# test pins both on the same pair of tables: a five-row dimension of which one
-# row matches, and a 20000-row fact table with a non-indexed filter.
+# them up -- extends both readings, and the plan is only run in the workers
+# when the divided one won as a complete plan (parallel_scan_cost,
+# add_parallel_driver_candidates, position_cost_in_plan). Three things
+# follow. The first two are pinned on the same pair of tables: a five-row
+# dimension of which one row matches, and a 20000-row fact table with a
+# non-indexed filter. The third on a 2000-row dimension and a 200000-row
+# fact table.
 #
 # A scan too small to repay the setup is not divided. Everything here is too
 # small for the default setup cost, so with it the plan is the serial one and
@@ -21,6 +24,13 @@
 # whole fact-table join on one worker, and the scan cannot repay even that
 # setup. Only with no setup cost at all is it divided, which is what the
 # workers did with every such plan before the scan was costed.
+#
+# The divided reading is judged as a plan, not on the driving table alone. A
+# 2000-row dimension of which 200 rows match, each with 100 fact rows under
+# it, has a scan too small to repay the default setup on its own, and is
+# still the plan to divide: the 20000 fact rows read spread over the workers
+# save far more than the setup costs. It drives the join divided, whether
+# the search orders the join or STRAIGHT_JOIN fixes the order.
 #
 --source include/have_innodb.inc
 --source include/have_sequence.inc
@@ -114,7 +124,39 @@ SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim d, fact f
 SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
   WHERE VARIABLE_NAME = 'Parallel_queries_executed';
 
+--echo #
+--echo # A driving table whose scan alone cannot repay the default setup, but
+--echo # whose join can: the dimension drives the join divided, since the
+--echo # fact lookups under it are spread over the workers.
+--echo #
 SET SESSION optimizer_parallel_setup_cost= @save_cost;
+CREATE TABLE dim2 (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO dim2 SELECT seq, IF(seq % 10 = 0, 'match', 'other')
+  FROM seq_1_to_2000;
+CREATE TABLE fact2 (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
+  ENGINE=InnoDB;
+INSERT INTO fact2 SELECT seq, seq % 2000 + 1, seq % 1000 FROM seq_1_to_200000;
+ANALYZE TABLE dim2, fact2 PERSISTENT FOR ALL;
+EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.name = 'match';
+FLUSH STATUS;
+SELECT COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.name = 'match';
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
+--echo #
+--echo # The same with the order fixed: STRAIGHT_JOIN costs the order both
+--echo # ways too.
+--echo #
+EXPLAIN SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.name = 'match';
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.name = 'match';
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
-DROP TABLE dim, fact;
+DROP TABLE dim, fact, dim2, fact2;

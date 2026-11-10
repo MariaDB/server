@@ -517,8 +517,8 @@ friend  pwt_worker;
 
 extern bool   table_can_be_parallel_scanned(TABLE *table);
 extern bool   parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
-                                 double rows_out, double *parallel_cost,
-                                 double *divisor);
+                                 double rows_scanned, double rows_out,
+                                 double *parallel_cost, double *divisor);
 extern bool   pwt_query_shape_allows_workers(JOIN *join, bool trace= false);
 
 extern bool   can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab,

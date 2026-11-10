@@ -2080,6 +2080,14 @@ public:
   */
   bool parallel_candidates_allowed{false};
   /*
+    Set while the join-order search costs a candidate for the driving
+    position a second time, as the parallel reading of its scan
+    (add_parallel_driver_candidates, optimize_straight_join). Without it
+    best_access_path() costs the scan serially, so that both readings of
+    every candidate are offered and the complete plans compared.
+  */
+  bool parallel_driver_costing{false};
+  /*
     Set by choose_plan(): the plan it settled on has its driving table costed
     as a parallel scan (best_positions[const_tables].parallel_divisor > 1).
     parallel_join_check() runs the workers only for such a plan: one whose
