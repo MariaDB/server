@@ -910,4 +910,45 @@ pk	js
 107	["value-107"]
 108	["value-108"]
 DROP TABLE t3;
+# IS [NOT] NULL
+create table t1 (
+pk int primary key,
+js json,
+index i1(cast(js as char(30) array))
+);
+insert into t1 values (1, '["a", "b"]'), (2, '["b"]'), (4, '["a"]');
+insert into t1 select seq, concat('["v', seq, '"]') from seq_100_to_300;
+# IS [NOT] NULL builds no range on the ARRAY key part, so ANDing
+# it with MEMBER OF keeps the range on i1
+explain select pk from t1 where js is not null and 'a' member of (js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where js is not null and 'a' member of (js);
+pk
+1
+4
+select pk from t1 ignore index(i1) where js is not null and 'a' member of (js);
+pk
+1
+4
+explain select pk from t1 where 'a' member of (js) and js is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+explain select pk from t1 where js is null and 'a' member of (js);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 where js is null and 'a' member of (js);
+pk
+# IS NULL alone: no range on i1, correct rows
+explain select pk from t1 where js is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	i1	NULL	NULL	NULL	#	Using where
+select pk from t1 where js is null;
+pk
+select pk from t1 where js is not null and pk < 5;
+pk
+1
+2
+4
+drop table t1;
 # End of 13.3 tests

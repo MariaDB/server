@@ -9678,6 +9678,8 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
   SEL_ARG *tree;
   if (!(tree= new (alloc) SEL_ARG(field, is_null_string, is_null_string)))
     DBUG_RETURN(0);
+  if (key_part->image_type == Field::itMVI)
+    DBUG_RETURN(0);
   if (type == Item_func::ISNOTNULL_FUNC)
   {
     tree->min_flag=NEAR_MIN;		    /* IS NOT NULL ->  X > NULL */
