@@ -1,0 +1,40 @@
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-41165: KILL / max_statement_time arriving after the WHERE
+--echo # condition was evaluated must not be lost on the I_S fast path
+--echo #
+CREATE TABLE t1 (a INT);
+let $q= SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+
+--echo # Fast path is used: rows are not written to the I_S temporary table
+FLUSH STATUS;
+eval $q;
+SHOW SESSION STATUS LIKE 'Handler_tmp_write';
+
+--echo # KILL QUERY after the scan, before EOF is sent
+connect (con1,localhost,root,,test);
+let $id= `SELECT CONNECTION_ID()`;
+SET debug_sync='i_s_fast_path_before_eof SIGNAL reached WAIT_FOR go';
+send_eval $q;
+connection default;
+SET debug_sync='now WAIT_FOR reached';
+evalp KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con1;
+connection default;
+SET debug_sync='RESET';
+
+--echo # max_statement_time expiring after the scan, before EOF is sent
+SET debug_sync='i_s_fast_path_before_eof WAIT_FOR go TIMEOUT 2';
+--error ER_STATEMENT_TIMEOUT
+eval SET STATEMENT max_statement_time=0.5 FOR $q;
+
+SET debug_sync='RESET';
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

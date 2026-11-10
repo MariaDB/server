@@ -4333,12 +4333,6 @@ static bool is_simple_is_query(THD *thd)
     DBUG_PRINT("info", ("has LIMIT ROWS EXAMINED, using fallback path"));
     return false;
   }
-  /* The statement timer can interrupt the scan, use the regular path. */
-  if (thd->variables.max_statement_time)
-  {
-    DBUG_PRINT("info", ("max_statement_time is set, using fallback path"));
-    return false;
-  }
   return true;
 }
 
@@ -10389,7 +10383,10 @@ bool get_schema_tables_result(JOIN *join,
         }
         /* FOUND_ROWS() without SQL_CALC_FOUND_ROWS is rows sent. */
         thd->limit_found_rows= plan->sent_rows;
+        DEBUG_SYNC(thd, "i_s_fast_path_before_eof");
         /* Evaluating the WHERE (KILL, timeout) can have set an error */
+        if (thd->killed && !thd->is_error())
+          thd->send_kill_message();
         if (!thd->is_error())
           my_eof(thd);
         result= 1;
