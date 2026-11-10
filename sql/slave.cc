@@ -1198,6 +1198,27 @@ terminate_slave_thread(THD *thd,
 
     mysql_mutex_lock(&thd->LOCK_thd_kill);
     mysql_mutex_lock(&thd->LOCK_thd_data);
+#ifndef _WIN32
+    /*
+      The slave thread may be blocked in poll() or read() while (re)connecting
+      to the master. Until the connect succeeds its vio is not the THD's
+      active_vio, so THD::awake() cannot shut it down. The thread is
+      interrupted with a signal instead; its handler is set up in
+      init_signals().
+      The signal can be missed if it comes before the thread blocks, hence
+      it is resent in each iteration of this loop.
+
+      Not implemented on Windows: there is no signal that interrupts a blocking
+      socket call in another thread.
+    */
+    /*
+      Error codes from pthread_kill are:
+      EINVAL: invalid signal number (can't happen)
+      ESRCH: thread already killed (can happen, should be ignored)
+    */
+    int err __attribute__((unused))= pthread_kill(thd->real_id, SIGUSR1);
+    DBUG_ASSERT(err != EINVAL);
+#endif
     thd->awake_no_mutex(NOT_KILLED);
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
@@ -1205,6 +1226,10 @@ terminate_slave_thread(THD *thd,
 
     DEBUG_SYNC(current_thd, "after_thd_awake_kill");
 
+    /*
+      There is a small chance that slave thread might miss the first
+      alarm. To protect againts it, resend the signal until it reacts
+    */
     struct timespec abstime;
     set_timespec(abstime,2);
     error= mysql_cond_timedwait(term_cond, term_lock, &abstime);
@@ -7605,6 +7630,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+#ifndef _WIN32
+  slave_wakeup_signal= 0;
+#endif
 
   /* we disallow empty users */
   if (mi->user[0] == 0)
@@ -7621,6 +7649,19 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
           mysql_real_connect(mysql, mi->host, mi->user, mi->password, 0,
                              mi->port, 0, client_flag) == 0))
   {
+#ifndef _WIN32
+    if (int sig= slave_wakeup_signal)
+    {
+      slave_wakeup_signal= 0;
+      DBUG_PRINT("info", ("connect to master interrupted by signal %d", sig));
+      if (global_system_variables.log_warnings > 2)
+        sql_print_information("Slave I/O thread: %s to master '%s@%s:%d' "
+                              "was interrupted by signal %d (%s)",
+                              (reconnect ? "reconnect" : "connect"),
+                              mi->user, mi->host, mi->port,
+                              sig, strsignal(sig));
+    }
+#endif
     /* Don't repeat last error */
     if ((int)mysql_errno(mysql) != last_errno && !io_slave_killed(mi))
     {

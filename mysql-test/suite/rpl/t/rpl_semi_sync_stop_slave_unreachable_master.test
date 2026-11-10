@@ -1,0 +1,85 @@
+--source include/not_windows.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+#
+# MDEV-42004: STOP SLAVE must not wait for slave_net_timeout when the primary
+# is unreachable and the slave is semi-sync.
+#
+# Master is frozen with SIGSTOP. The IO thread's read times out and it
+# reconnects. STOP SLAVE has to interrupt that wait.
+#
+# The test sets slave_net_timeout, rpl_semi_sync_slave_kill_conn_timeout and
+# log_warnings (the interrupt is reported at log_warnings > 2), and restores
+# them at the end. master_retry_count, which is not a system variable, is set
+# in the -slave.opt file.
+#
+
+# Set to 1 to print how long STOP SLAVE takes. The time is too unstable on a
+# loaded host to be a part of the recorded result.
+--let $debug_test= 0
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connection slave
+--source include/stop_slave.inc
+SET @old_slave_net_timeout= @@GLOBAL.slave_net_timeout;
+SET @old_semi_sync_slave= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET @old_kill_conn_timeout= @@GLOBAL.rpl_semi_sync_slave_kill_conn_timeout;
+SET @old_log_warnings= @@GLOBAL.log_warnings;
+SET GLOBAL slave_net_timeout= 3;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 1;
+SET GLOBAL log_warnings= 3;
+--connection master
+SET @old_master_sync= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+--connection slave
+--source include/start_slave.inc
+--connection master
+INSERT INTO t1 VALUES (1),(2),(3);
+--sync_slave_with_master
+
+--let $status= query_get_value(SHOW STATUS LIKE 'Rpl_semi_sync_slave_status', Value, 1)
+--echo # slave semi-sync status: $status
+
+--connection master
+--let $master_pid_file= `SELECT @@pid_file`
+--connection slave
+--let $net= `SELECT @@global.slave_net_timeout`
+
+--exec kill -STOP `cat $master_pid_file`
+# Let the IO thread time out its read and block in the reconnect.
+--let $wait= `SELECT $net + 0.5`
+--sleep $wait
+if ($debug_test)
+{
+  --let $t0= `SELECT UNIX_TIMESTAMP(NOW(6))`
+}
+STOP SLAVE;
+if ($debug_test)
+{
+  --let $e= `SELECT ROUND(UNIX_TIMESTAMP(NOW(6)) - $t0, 1)`
+  --let $kill= `SELECT @@global.rpl_semi_sync_slave_kill_conn_timeout`
+  --echo # slave_net_timeout=$net kill_conn_timeout=$kill STOP SLAVE took $e s
+  --let $returned_early= `SELECT $e < $net`
+  --echo # STOP SLAVE returned before slave_net_timeout elapsed: $returned_early
+}
+--exec kill -CONT `cat $master_pid_file`
+
+# STOP SLAVE interrupts the IO thread's reconnect, instead of waiting for
+# slave_net_timeout. The IO thread reports the interrupt (log_warnings > 2).
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let SEARCH_PATTERN= Slave I/O thread: reconnect to master .* was interrupted by signal [0-9]+
+--source include/search_pattern_in_file.inc
+
+SET GLOBAL slave_net_timeout= @old_slave_net_timeout;
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_semi_sync_slave;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= @old_kill_conn_timeout;
+SET GLOBAL log_warnings= @old_log_warnings;
+--source include/start_slave.inc
+--connection master
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_sync;
+DROP TABLE t1;
+--source include/rpl_end.inc

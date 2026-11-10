@@ -1,0 +1,35 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+connection slave;
+include/stop_slave.inc
+SET @old_slave_net_timeout= @@GLOBAL.slave_net_timeout;
+SET @old_semi_sync_slave= @@GLOBAL.rpl_semi_sync_slave_enabled;
+SET @old_kill_conn_timeout= @@GLOBAL.rpl_semi_sync_slave_kill_conn_timeout;
+SET @old_log_warnings= @@GLOBAL.log_warnings;
+SET GLOBAL slave_net_timeout= 3;
+SET GLOBAL rpl_semi_sync_slave_enabled= 1;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= 1;
+SET GLOBAL log_warnings= 3;
+connection master;
+SET @old_master_sync= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET GLOBAL rpl_semi_sync_master_enabled= 1;
+connection slave;
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (1),(2),(3);
+connection slave;
+# slave semi-sync status: ON
+connection master;
+connection slave;
+STOP SLAVE;
+FOUND 1 /Slave I/O thread: reconnect to master .* was interrupted by signal [0-9]+/ in mysqld.2.err
+SET GLOBAL slave_net_timeout= @old_slave_net_timeout;
+SET GLOBAL rpl_semi_sync_slave_enabled= @old_semi_sync_slave;
+SET GLOBAL rpl_semi_sync_slave_kill_conn_timeout= @old_kill_conn_timeout;
+SET GLOBAL log_warnings= @old_log_warnings;
+include/start_slave.inc
+connection master;
+SET GLOBAL rpl_semi_sync_master_enabled= @old_master_sync;
+DROP TABLE t1;
+include/rpl_end.inc

@@ -3254,7 +3254,22 @@ mariadb_dbug_assert_failed(const char *assert_expr, const char *file,
 #define SA_NODEFER 0
 #endif /* SA_NODEFER */
 
+/* The signal that last interrupted this thread, see slave_thread_wakeup() */
+thread_local volatile sig_atomic_t slave_wakeup_signal;
+
 #ifndef EMBEDDED_LIBRARY
+
+/*
+  Handler for SIGUSR1. terminate_slave_thread() sends the signal to a slave
+  thread to interrupt (EINTR) a blocking system call, e.g. the poll() of a
+  reconnect to the master, where THD::awake() cannot reach the vio as it is
+  not yet active. The handler only records the signal, for the interrupted
+  thread to report.
+*/
+static void slave_thread_wakeup(int sig)
+{
+  slave_wakeup_signal= sig;
+}
 
 void init_signals(void)
 {
@@ -3322,6 +3337,11 @@ void init_signals(void)
     sigaddset(&set,SIGTSTP);
 #endif
   }
+
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags= 0;                               /* no SA_RESTART */
+  sa.sa_handler= slave_thread_wakeup;  // handler for terminate_slave_thread()
+  sigaction(SIGUSR1, &sa, NULL);
 
   sigprocmask(SIG_SETMASK,&set,NULL);
   pthread_sigmask(SIG_SETMASK,&set,NULL);
