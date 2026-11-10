@@ -11,7 +11,7 @@ ADD_DEFINITIONS(-DEMBEDDED_LIBRARY -UMYSQL_CLIENT)
 
 
 MYSQL_ADD_EXECUTABLE(test-connect-t test-connect.cc
-               COMPONENT Test)
+               COMPONENT Test DESTINATION ${INSTALL_LIBEXECDIR})
 TARGET_LINK_LIBRARIES(test-connect-t mysqlserver )
 MY_ADD_TEST(test-connect)
 
