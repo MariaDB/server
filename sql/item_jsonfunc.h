@@ -972,7 +972,10 @@ public:
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
   enum Functype rev_functype() const override
-  { return functype(); }
+  {
+    /* JSON_OVERLAPS(a,b) is the same as JSON_OVERLAPS(b,a) */
+    return functype();
+  }
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
                              Field *field, Item *value) override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,

@@ -22,6 +22,9 @@ let $q= select * from t3 where json_contains('["value-100", "value-101", "value-
 eval explain $q;
 eval $q;
 
+set optimizer_trace=1;
+analyze select * from t3  where js is null;
+
 DROP TABLE t3;
 
 --echo #
@@ -285,3 +288,65 @@ explain select pk from t1 where json_contains(js, @w);
 select pk from t1 where json_contains(js, @w);
 
 drop table t1;
+
+--echo #
+--echo # ARRAY index together with other indexes on the same table
+--echo #
+create table t4 (
+  pk int primary key,
+  a int,
+  js1 json,
+  js2 json,
+  key ka(a),
+  index i1(cast(js1 as char(30) array))
+);
+insert into t4 select seq, seq % 10,
+  concat('["c", "v', seq, '"]'),
+  concat('["c", "w', seq, '"]')
+from seq_1_to_1000;
+
+--echo # A selective B-tree range wins over a non-selective ARRAY range
+let $cond= json_contains(js1, '"c"') and pk between 1 and 3;
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # A selective ARRAY range wins over a non-selective B-tree range
+let $cond= json_contains(js1, '"v501"') and a between 1 and 2;
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # Two JSON columns, only js1 has an ARRAY index
+let $cond= json_contains(js1, '"v500"') and json_contains(js2, '"w500"');
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+let $cond= json_contains(js1, '"c"') and json_contains(js2, '"w500"');
+--replace_column 9 #
+eval explain select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 where $cond;
+--sorted_result
+eval select pk from t4 ignore index(i1) where $cond;
+
+--echo # Only one ARRAY (hlindex) index per table
+--error ER_NOT_SUPPORTED_YET
+create table t5 (
+  js1 json,
+  js2 json,
+  index (cast(js1 as char(10) array)),
+  index (cast(js2 as char(10) array))
+);
+
+drop table t4;

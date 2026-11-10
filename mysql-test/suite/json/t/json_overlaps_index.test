@@ -277,4 +277,23 @@ eval explain $q;
 --sorted_result
 eval $q;
 
+--echo # MAYBE_KEY on i1 ANDed into an index_merge disjunct clones the
+--echo # SEL_ARG_ARRAY, the clone must still be a SEL_ARG_ARRAY
+create table t4 (pk int primary key, j json);
+insert into t4 values (1, '["a"]'), (2, '["d"]');
+create table t5 (
+  pk int primary key,
+  a int,
+  js json,
+  key(a),
+  index i1(cast(js as char(30) array))
+);
+insert into t5 values (1, 1, '["e"]'), (2, 2, '["f"]'), (3, 3, '["e", "g"]');
+insert into t5 select seq, seq, concat('["v', seq, '"]') from seq_100_to_300;
+--sorted_result
+select straight_join t5.pk, t4.pk from t4, t5
+where (json_overlaps(t5.js, '["e"]') or t5.pk = 200)
+  and t5.js > t4.j and t5.a > t4.pk;
+drop table t4, t5;
+
 drop table t1, t2;
