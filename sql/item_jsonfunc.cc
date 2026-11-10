@@ -1002,25 +1002,88 @@ bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 
 String *Item_func_json_quote::val_str(String *str)
 {
-  String *s= args[0]->val_str(&tmp_s);
-
-  if ((null_value= (args[0]->null_value ||
-                    args[0]->result_type() != STRING_RESULT)))
-    return NULL;
-
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
+  /*
+    Decide the result type before evaluating the argument, so that the
+    argument is evaluated exactly once.  Evaluating it more than once would
+    repeat side effects such as NEXTVAL(), @var:= or stored functions.
+
+    Stored function calls can report ROW_RESULT with a single column; use
+    the type of that column.
+  */
+  Item_result t= args[0]->result_type();
+  if (t == ROW_RESULT && args[0]->cols() == 1)
+    t= args[0]->element_index(0)->result_type();
+
+  switch (t)
   {
-    /* Report an error. */
-    null_value= 1;
-    return 0;
+  case STRING_RESULT:
+  case TIME_RESULT:
+  {
+    String *s= args[0]->val_str(&tmp_s);
+    if ((null_value= args[0]->null_value || !s))
+      return 0;
+    /*
+      Strings are quoted and escaped.  Temporal values are already
+      well-formatted text and need no escaping beyond the quotes.
+    */
+    if (str->append('"') ||
+        (t == STRING_RESULT ? st_append_escaped(str, s) : str->append(*s)) ||
+        str->append('"'))
+      goto err;
+    return str;
   }
 
-  return str;
+  case INT_RESULT:
+  {
+    /*
+      A number is a valid JSON value and is returned unquoted.
+      Use val_int() rather than val_str() to avoid ZEROFILL padding.
+    */
+    longlong ival= args[0]->val_int();
+    if ((null_value= args[0]->null_value))
+      return 0;
+    if (args[0]->unsigned_flag ? str->append_ulonglong((ulonglong) ival)
+                               : str->append_longlong(ival))
+      goto err;
+    return str;
+  }
+
+  case DECIMAL_RESULT:
+  {
+    my_decimal dec_buf;
+    my_decimal *dec= args[0]->val_decimal(&dec_buf);
+    if ((null_value= args[0]->null_value || !dec))
+      return 0;
+    if (!dec->to_string(&tmp_s) || str->append(tmp_s))
+      goto err;
+    return str;
+  }
+
+  case REAL_RESULT:
+  {
+    /* my_gcvt() gives a shortest round-trip representation. */
+    char rbuf[MY_GCVT_MAX_FIELD_WIDTH + 4];
+    double rval= args[0]->val_real();
+    if ((null_value= args[0]->null_value))
+      return 0;
+    size_t rlen= my_gcvt(rval, MY_GCVT_ARG_DOUBLE,
+                         MY_GCVT_MAX_FIELD_WIDTH, rbuf, NULL);
+    if (str->append(rbuf, rlen))
+      goto err;
+    return str;
+  }
+
+  case ROW_RESULT:
+  default:
+    break;
+  }
+
+err:
+  null_value= 1;
+  return 0;
 }
 
 
