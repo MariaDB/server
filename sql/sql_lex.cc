@@ -1426,6 +1426,143 @@ Yacc_state::~Yacc_state()
   }
 }
 
+/**
+  Skip a C-style comment body starting at ptr (just after the opening
+  marker), allowing at most max_nesting nested comments.
+
+  @return pointer just past the closing marker, or end if unclosed
+*/
+static const char *skip_c_comment(const char *ptr, const char *end,
+                                  int max_nesting)
+{
+  int depth= 0;
+  while (ptr + 1 < end)
+  {
+    if (ptr[0] == '*' && ptr[1] == '/')
+    {
+      ptr+= 2;
+      if (depth-- == 0)
+        return ptr;
+      continue;
+    }
+    if (ptr[0] == '/' && ptr[1] == '*' && depth < max_nesting)
+    {
+      ptr+= 2;
+      depth++;
+      continue;
+    }
+    ptr++;
+  }
+  return end;
+}
+
+
+/**
+  Look ahead after the MEMBER keyword and decide whether the next token is OF.
+
+  MEMBER is not reserved, so it is returned as MEMBER_SYM only when followed
+  by OF; otherwise it remains usable as an identifier (e.g. an alias).
+
+  Comments are skipped the same way the lexer does: regular comments are
+  ignored, while the content of executable comments (slash-star-bang and
+  slash-star-M-bang) is treated as SQL when its version condition holds, so
+  that MEMBER followed by OF inside an executable comment is recognized.
+
+  @param cs               connection character set
+  @param ptr              position just after MEMBER
+  @param end              end of the query
+  @param in_exec_comment  true if MEMBER itself is inside an executable comment
+
+  @return true if the next token is OF
+*/
+static bool member_followed_by_of(CHARSET_INFO *cs, const char *ptr,
+                                  const char *end, bool in_exec_comment)
+{
+  const uchar *const ident_map= cs->ident_map;
+
+  for (;;)
+  {
+    while (ptr < end && my_isspace(cs, *ptr))
+      ptr++;
+
+    if (in_exec_comment && ptr + 1 < end && ptr[0] == '*' && ptr[1] == '/')
+    {
+      /* End of the executable comment containing the preceding tokens. */
+      ptr+= 2;
+      in_exec_comment= false;
+      continue;
+    }
+
+    if (ptr + 1 < end && ptr[0] == '/' && ptr[1] == '*')
+    {
+      ptr+= 2;
+      bool maria_syntax= ptr + 1 < end && ptr[0] == 'M' && ptr[1] == '!';
+      if (!in_exec_comment && ptr < end && (*ptr == '!' || maria_syntax))
+      {
+        ptr+= maria_syntax ? 2 : 1;
+        bool reversed= ptr < end && *ptr == '!';
+        if (reversed)
+          ptr++;
+
+        uint length= 0;
+        while (length < 6 && ptr + length < end &&
+               my_isdigit(cs, ptr[length]))
+          length++;
+
+        if (length < 5)
+        {
+          /* No version number: the content is always executed. */
+          in_exec_comment= true;
+          continue;
+        }
+
+        ulong version= 0;
+        for (uint i= 0; i < length; i++)
+          version= version * 10 + (ptr[i] - '0');
+
+        if ((!reversed && version <= MYSQL_VERSION_ID &&
+             (version < 50700 || version > 99999 || maria_syntax)) ||
+            (reversed && MYSQL_VERSION_ID < version))
+        {
+          ptr+= length;
+          in_exec_comment= true;
+          continue;
+        }
+        /* Version condition not met: the whole comment is discarded. */
+        ptr= skip_c_comment(ptr + length, end, 1);
+        continue;
+      }
+      ptr= skip_c_comment(ptr, end, 0);
+      continue;
+    }
+
+    if (ptr + 2 < end && ptr[0] == '-' && ptr[1] == '-' &&
+        my_isspace(cs, ptr[2]))
+    {
+      ptr+= 3;
+      while (ptr < end && *ptr != '\n')
+        ptr++;
+      continue;
+    }
+
+    if (ptr < end && *ptr == '#')
+    {
+      ptr++;
+      while (ptr < end && *ptr != '\n')
+        ptr++;
+      continue;
+    }
+
+    break;
+  }
+
+  return ptr + 2 <= end &&
+         (ptr[0] == 'o' || ptr[0] == 'O') &&
+         (ptr[1] == 'f' || ptr[1] == 'F') &&
+         (ptr + 2 == end || !ident_map[(uchar) ptr[2]]);
+}
+
+
 int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
                                    uint len, bool function) const
 {
@@ -1463,6 +1600,11 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       case VARCHAR2_MARIADB_SYM:       return VARCHAR2_ORACLE_SYM;
       }
     }
+
+    if (symbol->tok == MEMBER_SYM)
+      return member_followed_by_of(m_thd->charset(), m_ptr, m_end_of_query,
+                                   in_comment == DISCARD_COMMENT) ?
+             MEMBER_SYM : 0;
 
     if ((symbol->tok == NOT_SYM) &&
         (m_thd->variables.sql_mode & MODE_HIGH_NOT_PRECEDENCE))
