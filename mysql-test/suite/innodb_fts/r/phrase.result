@@ -82,3 +82,26 @@ id	title	body
 9	mysql good database	
 10	mysql good database	NULL
 DROP TABLE articles;
+#
+# MDEV-41757 Phrase search misses rows of a FULLTEXT index built over
+# rows with an empty string in an earlier indexed column
+#
+CREATE TABLE articles (
+id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
+title VARCHAR(200),
+body TEXT
+) ENGINE=InnoDB;
+INSERT INTO articles (title,body) VALUES
+(NULL, 'mysql good database'),
+('', 'mysql good database'),
+('', ' mysql good database'),
+('mysql good database', '');
+ALTER TABLE articles ADD FULLTEXT (title,body);
+SELECT * FROM articles WHERE MATCH(title, body)
+AGAINST('"mysql good database"' IN BOOLEAN MODE) ORDER BY id;
+id	title	body
+1	NULL	mysql good database
+2		mysql good database
+3		 mysql good database
+4	mysql good database	
+DROP TABLE articles;

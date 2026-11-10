@@ -49,7 +49,15 @@ int maria_rename(const char *old_name, const char *new_name)
   _ma_check_table_is_closed(new_name,"rename new table2");
 #endif
   /** @todo LOCK take X-lock on table */
-  if (!(info= maria_open(old_name, O_RDWR, HA_OPEN_FOR_REPAIR, 0)))
+  info= maria_open(old_name, O_RDWR, HA_OPEN_FOR_REPAIR, 0);
+  /*
+    Retry with HA_OPEN_FROM_SQL_LAYER only for tables that need it, so that
+    its state LSN side effect does not apply to other tables.
+  */
+  if (!info && my_errno == HA_ERR_UNSUPPORTED && maria_in_ha_maria)
+    info= maria_open(old_name, O_RDWR,
+                     HA_OPEN_FOR_REPAIR | HA_OPEN_FROM_SQL_LAYER, 0);
+  if (!info)
   {
     int error= my_errno;
     /*

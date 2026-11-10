@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# The ngram case of MySQL's innodb_fts.plugin_1
+
+--echo #
+--echo # BUG#21638891 NGRAM PARSER: FAILING ASSERTION: STATE->DEPTH > 0
+--echo #
+
+CREATE TABLE t1 (
+        a VARCHAR(200),
+        FULLTEXT (a) WITH PARSER ngram
+        )ENGINE = InnoDB;
+
+SELECT * FROM t1 WHERE MATCH(a) AGAINST("')'@7" IN BOOLEAN MODE);
+
+DROP TABLE t1;
