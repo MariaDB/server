@@ -1,0 +1,15 @@
+include/master-slave.inc
+[connection master]
+include/start_slave.inc
+include/stop_slave.inc
+include/start_slave.inc
+INSERT INTO t (c) VALUES (1);
+include/stop_slave.inc
+include/start_slave.inc
+# Server did not crash -- the race was handled cleanly.
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+# Cleanup
+include/stop_slave.inc
+include/rpl_end.inc
