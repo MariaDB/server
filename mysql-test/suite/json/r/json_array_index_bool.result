@@ -303,6 +303,31 @@ count(*)
 select count(*) from t1 ignore index(i1) where json_contains(js, '"e"') or not json_overlaps(js, '["a", "d"]');
 count(*)
 206
+# Many points, with duplicates
+select json_arrayagg(concat('v', seq mod 150 + 100)) into @big from seq_1_to_3000;
+explain select count(*) from t1 force index(i1) where json_overlaps(js, @big);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select count(*) from t1 force index(i1) where json_overlaps(js, @big);
+count(*)
+150
+select count(*) from t1 ignore index(i1) where json_overlaps(js, @big);
+count(*)
+150
+# Fewer index dives than points: OR extrapolates the estimate,
+# JSON_CONTAINS uses only the first distinct elements
+set eq_range_index_dive_limit= 5;
+select count(*) from t1 force index(i1) where json_overlaps(js, @big);
+count(*)
+150
+set eq_range_index_dive_limit= 1;
+explain select pk from t1 force index(i1) where json_contains(js, '["b", "a", "c"]');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	i1	i1	19	NULL	#	Using where
+select pk from t1 force index(i1) where json_contains(js, '["b", "a", "c"]');
+pk
+1
+set eq_range_index_dive_limit= default;
 # With other indexes
 explain select pk from t1 where (json_contains(js, '["a", "b"]') or pk = 200) and ('c' member of (js) or a = 200);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

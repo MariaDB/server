@@ -897,14 +897,18 @@ public:
   Mem_root_array<const uchar*, true> points;
   /* Length of an encoded element */
   uint point_len;
+  uint keynr;
+  bool normalized;
+  bool estimated;
   /* Estimated number of rows containing any of the elements */
   ha_rows rows;
   /* Cost of reading the rows */
   Cost_estimate cost;
 
-  SEL_ARG_ARRAY(MEM_ROOT *root, Field *field, const uchar *point, uint len)
+  SEL_ARG_ARRAY(MEM_ROOT *root, Field *field, const uchar *point, uint len,
+                uint keynr_arg)
    :SEL_ARG(field, point, point), points(root), point_len(len),
-    rows(HA_POS_ERROR)
+    keynr(keynr_arg), normalized(true), estimated(false), rows(HA_POS_ERROR)
   {
     maybe_null= false;
     min_flag= GEOM_FLAG;
@@ -913,13 +917,14 @@ public:
   SEL_ARG *clone_node(MEM_ROOT *root) override
   {
     SEL_ARG_ARRAY *tmp;
-    if (!(tmp= new (root) SEL_ARG_ARRAY(root, field, min_value, point_len)) ||
-        tmp->points.reserve(points.size()))
+    if (!(tmp= new (root) SEL_ARG_ARRAY(root, field, min_value, point_len,
+                                        keynr)) ||
+        tmp->add_points(this))
       return 0;
-    for (size_t i= 0; i < points.size(); i++)
-      tmp->points.push_back(points.at(i));
     tmp->part= part;
     tmp->maybe_flag= maybe_flag;
+    tmp->normalized= normalized;
+    tmp->estimated= estimated;
     tmp->rows= rows;
     tmp->cost= cost;
     return tmp;
@@ -929,12 +934,22 @@ public:
   {
     return arg->type == SEL_ARG::KEY_RANGE && arg->min_flag == GEOM_FLAG;
   }
-  bool has_point(const uchar *point) const
+  bool add_points(const SEL_ARG_ARRAY *other)
   {
-    for (size_t i= 0; i < points.size(); i++)
-      if (!memcmp(points.at(i), point, point_len))
+    for (size_t i= 0; i < other->points.size(); i++)
+      if (points.push_back(other->points.at(i)))
         return true;
+    normalized= false;
+    estimated= false;
     return false;
+  }
+  void normalize();
+  void estimate(RANGE_OPT_PARAM *param);
+  ha_rows get_rows(RANGE_OPT_PARAM *param)
+  {
+    if (!estimated)
+      estimate(param);
+    return rows;
   }
 };
 
