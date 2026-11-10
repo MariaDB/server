@@ -5627,8 +5627,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     best_extension_by_limited_search need sort space for 2POSITIION
     objects per remaining table, which gives us
     2*(T +  T-1 + T-2 + T-3...1 POSITIONS) = 2*(T+1)/2*T = (T*T+T)
+    plus 2 more per table for the driving position, where every candidate
+    may be offered a second time with its scan costed as a parallel one
+    (add_parallel_driver_candidates).
   */
-  join->sort_space= sort_space= (table_count*table_count + table_count);
+  join->sort_space= sort_space= (table_count*table_count + 3*table_count);
 
   /*
     best_positions is ok to allocate with alloc() as we copy things to it with
@@ -10176,12 +10179,16 @@ best_access_path(JOIN      *join,
         share of the scan plus the cost of setting the workers up -- and
         says by how many workers the rows that survive this table's WHERE are
         spread, which the join-order search then divides the cost of every
-        later table by. The cheaper of the two readings is kept, so a table
-        too small to repay the setup stays serial while a large one can win
-        the driving position over a tiny table it would lose to serially.
+        later table by. Which reading is kept is not decided here: the search
+        costs each candidate for the driving position twice, serially and,
+        with parallel_driver_costing set, divided, and compares the complete
+        plans (add_parallel_driver_candidates). A table too small to repay
+        the setup loses as a plan, and a large one can win the driving
+        position over a tiny table it would lose to serially.
       */
       if (idx == join->const_tables && (type == JT_ALL || type == JT_RANGE) &&
-          join->parallel_candidates_allowed && !filter &&
+          join->parallel_candidates_allowed &&
+          join->parallel_driver_costing && !filter &&
           (type == JT_RANGE || s->cached_covering_key == MAX_KEY))
       {
         /*
@@ -10191,7 +10198,9 @@ best_access_path(JOIN      *join,
           do not divide (see can_parallel_scan_jointab_access).
         */
         double parallel_cost;
-        if (parallel_scan_cost(join, table, cur_cost, best.records_out,
+        if (parallel_scan_cost(join, table, cur_cost,
+                               rows2double(s->found_records),
+                               best.records_out,
                                &parallel_cost, &parallel_divisor))
         {
           if (unlikely(trace_access_scan.trace_started()))
@@ -10203,6 +10212,8 @@ best_access_path(JOIN      *join,
           parallel_scan= true;
           scan_type= "parallel_scan";
         }
+        else if (unlikely(trace_access_scan.trace_started()))
+          trace_access_scan.add("parallel_scan", "unavailable");
       }
     }
     else
@@ -10643,8 +10654,8 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
 
   /*
     Whether the plan found has its driving table costed as a parallel scan.
-    parallel_join_check() runs the workers only then: a plan whose driving
-    table the optimizer found no cheaper to divide is run serially.
+    parallel_join_check() runs the workers only then: a plan the optimizer
+    found no cheaper with its driving table divided is run serially.
   */
   if (!emb_sjm_nest)
     join->parallel_plan_chosen=
@@ -10923,7 +10934,8 @@ position_cost_in_plan(JOIN *join, uint idx, const POSITION *position)
 
 
 static void
-optimize_straight_join(JOIN *join, table_map remaining_tables)
+cost_straight_join(JOIN *join, table_map remaining_tables,
+                   double *record_count_arg, double *read_time_arg)
 {
   JOIN_TAB *s;
   uint idx= join->const_tables;
@@ -11029,8 +11041,46 @@ optimize_straight_join(JOIN *join, table_map remaining_tables)
     }
     read_time= COST_ADD(read_time, sort_cost);
   }
+  *record_count_arg= record_count;
+  *read_time_arg= read_time;
+}
+
+
+/*
+  Cost the fixed join order in join->best_ref into join->positions, with the
+  driving table's scan read serially and, where the workers could divide it,
+  once more as a parallel scan (parallel_driver_costing), and keep the
+  cheaper of the two plans as best_positions/best_read.
+*/
+
+static void
+optimize_straight_join(JOIN *join, table_map remaining_tables)
+{
+  const uint n_positions= join->table_count;
+  double record_count, read_time;
+
+  cost_straight_join(join, remaining_tables, &record_count, &read_time);
+  if (join->parallel_candidates_allowed)
+  {
+    double parallel_record_count, parallel_read_time;
+    memcpy((uchar*) join->best_positions, (uchar*) join->positions,
+           sizeof(POSITION)*n_positions);
+    join->parallel_driver_costing= true;
+    cost_straight_join(join, remaining_tables, &parallel_record_count,
+                       &parallel_read_time);
+    join->parallel_driver_costing= false;
+    if (join->positions[join->const_tables].parallel_scan &&
+        parallel_read_time + COST_EPS < read_time)
+    {
+      record_count= parallel_record_count;
+      read_time= parallel_read_time;
+    }
+    else
+      memcpy((uchar*) join->positions, (uchar*) join->best_positions,
+             sizeof(POSITION)*n_positions);
+  }
   memcpy((uchar*) join->best_positions, (uchar*) join->positions,
-         sizeof(POSITION)*idx);
+         sizeof(POSITION)*n_positions);
   join->join_record_count= record_count;
   join->best_read= read_time;
 }
@@ -12007,6 +12057,66 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
 
 /*
   @brief
+    Offer each candidate for the driving position a second time, with its
+    scan costed as a parallel one.
+
+  @detail
+    get_costs_for_tables() has costed every candidate for the first position
+    with its scan read serially. Each is costed once more here with
+    join->parallel_driver_costing set, so that best_access_path() prices a
+    full or range scan as one worker's share of it plus the setup of the
+    workers (parallel_scan_cost()), and the result is appended to the
+    candidates when that parallel scan is what best_access_path() chose --
+    when it lost to a ref or range the candidate is the serial one again
+    and is dropped. The search then extends both readings and compares the
+    complete plans. That comparison cannot be made on the driving table
+    alone: its parallel reading is often the dearer, when the setup costs
+    more than the scan it divides, and still the cheaper plan by far once
+    the join under it is divided among the workers too.
+
+    The POSITIONs come from join->sort_positions, which
+    make_join_statistics() sized for them; best_extension_by_limited_search()
+    releases them with the others.
+*/
+
+static void
+add_parallel_driver_candidates(JOIN *join, table_map remaining_tables,
+                               uint idx, double record_count,
+                               SORT_POSITION *sort, SORT_POSITION **sort_end)
+{
+  THD *thd= join->thd;
+  SORT_POSITION *serial_end= *sort_end;
+  POSITION *sort_position= join->next_sort_position;
+  DBUG_ENTER("add_parallel_driver_candidates");
+  DBUG_ASSERT(idx == join->const_tables);
+
+  join->parallel_driver_costing= true;
+  for (SORT_POSITION *pos= sort; pos < serial_end; pos++)
+  {
+    JOIN_TAB *s= *pos->join_tab;
+    bool hint_forces_jbuf=
+      hint_table_state(thd, s->table, BNL_HINT_ENUM, false);
+    bool disable_jbuf=
+      (thd->variables.join_cache_level == 0) && !hint_forces_jbuf;
+    Json_writer_object wrapper(thd);
+    best_access_path(join, s, remaining_tables, join->positions, idx,
+                     disable_jbuf, record_count,
+                     sort_position, sort_position + 1);
+    if (!sort_position->parallel_scan)
+      continue;
+    (*sort_end)->join_tab= pos->join_tab;
+    (*sort_end)->position= sort_position;
+    (*sort_end)++;
+    sort_position+= 2;
+  }
+  join->parallel_driver_costing= false;
+  join->next_sort_position= sort_position;
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  @brief
     Check if it is potentially possible to short-cut the JOIN execution due to
     ORDER BY ... LIMIT clause
 
@@ -12463,11 +12573,17 @@ best_extension_by_limited_search(JOIN      *join,
   /*
     The pruning heuristics compare a partial plan with the best seen at this
     depth, on rows and on cost, and drop one that is worse on both. A partial
-    plan whose driving table is a parallel scan is costed per worker and is
-    compared only with its own kind: next to the serial prefixes it has more
-    rows and a higher cost than a tiny first table, which is exactly the
-    prefix the heuristic exists to drop, and exactly the one that the cost of
-    the join under it, divided among the workers, can still win.
+    plan whose driving table is a parallel scan that spreads its rows over
+    the workers (parallel_divisor > 1) is costed per worker and is compared
+    only with its own kind: next to the serial prefixes it has more rows and
+    a higher cost than a tiny first table, which is exactly the prefix the
+    heuristic exists to drop, and exactly the one that the cost of the join
+    under it, divided among the workers, can still win. A parallel scan that
+    spreads nothing -- a driving table of which a single row survives --
+    divides none of the join under it and is compared with the serial
+    prefixes, which it is one of but for the setup it is charged; left among
+    the parallel ones it would drop every prefix that does spread, since it
+    beats them all on rows and on cost.
   */
   struct Prune_state
   {
@@ -12481,7 +12597,14 @@ best_extension_by_limited_search(JOIN      *join,
   uint accepted_tables __attribute__((unused));
   table_map found_eq_ref_tables= 0, used_eq_ref_table= 0;
   table_map allowed_tables, allowed_current_tables;
-  SORT_POSITION *sort= (SORT_POSITION*) alloca(sizeof(SORT_POSITION)*tables_left);
+  /*
+    Twice the candidates at the driving position, where each table may be
+    offered serially and as a parallel scan (add_parallel_driver_candidates).
+  */
+  const bool parallel_drivers= (idx == join->const_tables &&
+                                join->parallel_candidates_allowed);
+  SORT_POSITION *sort= (SORT_POSITION*)
+    alloca(sizeof(SORT_POSITION) * tables_left * (parallel_drivers ? 2 : 1));
   SORT_POSITION *sort_end;
   DBUG_ENTER("best_extension_by_limited_search");
   DBUG_EXECUTE_IF("show_explain_probe_best_ext_lim_search",
@@ -12560,6 +12683,9 @@ best_extension_by_limited_search(JOIN      *join,
                            &trace_one_table, best_ref, &sort_end, &table_map,
                            0);
     }
+    if (parallel_drivers)
+      add_parallel_driver_candidates(join, remaining_tables, idx,
+                                     record_count, sort, &sort_end);
     found_tables= (uint) (sort_end - sort);
     DBUG_ASSERT(found_tables > 0);
 
@@ -12601,8 +12727,9 @@ best_extension_by_limited_search(JOIN      *join,
         position when idx == const_tables -- so this picks by the candidate
         itself at the first depth and by its prefix's driver below it.
       */
-      Prune_state &prune= join->positions[join->const_tables].parallel_scan
-                          ? prune_parallel : prune_serial;
+      Prune_state &prune=
+        join->positions[join->const_tables].parallel_divisor > 1.0
+        ? prune_parallel : prune_serial;
 
       /* Compute the cost of the new plan extended with 's' */
       current_record_count= COST_MULT(record_count, position->records_out);

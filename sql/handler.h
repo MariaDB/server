@@ -3879,6 +3879,17 @@ public:
   virtual uint32 parallel_scan_support() const { return 0; }
 
   /**
+    Into how many pieces, at most, a parallel scan of the whole table can be
+    divided: the parts of it the engine hands to the workers separately. The
+    optimizer spreads the rows of a parallel scan over no more workers than
+    this (parallel_scan_cost()), so that a table the engine cannot divide --
+    a single-page B-tree, say -- is not credited with a division of the join
+    under it that the workers cannot make. 1 means the scan is not
+    divisible.
+  */
+  virtual ha_rows parallel_scan_pieces() const { return 1; }
+
+  /**
     To be called from the master thread to initiate the parallel scanning.
 
     @param n_workers  number of workers to partition the scan for

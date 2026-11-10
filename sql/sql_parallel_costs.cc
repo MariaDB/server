@@ -49,17 +49,34 @@
     a THD each, opening every non-const table once per worker, building and
     draining the result containers -- and is charged per table because the
     opening is the part of it that grows with the join. It is the term that
-    keeps a scan too small to repay it serial.
+    keeps a scan too small to repay it serial -- but whether it is repaid is
+    not decided here. The join-order search offers the driving position both
+    readings of every candidate (add_parallel_driver_candidates) and keeps
+    the cheaper complete plan: a parallel reading dearer than the serial one
+    on the driving table alone, when the setup costs more than the scan it
+    divides, is still the cheaper plan by far once the join under it is
+    divided among the workers as well.
 
     *divisor is by how many workers the rows that survive the table's own
-    WHERE are spread: min(N, rows_out). The join-order search divides the
-    read_time of every later position by it, because each worker joins only
-    its share of the driving rows and the plan's cost is one worker's. It is
-    capped by rows_out rather than fixed at N because a driving table that
-    yields fewer rows than there are workers cannot spread them any further: a
-    five-row table of which one row survives puts the whole join under it on
-    one worker, whatever N is, and crediting it with 1/N of that join is what
-    made the optimizer split exactly such tables.
+    WHERE are spread. The join-order search divides the read_time of every
+    later position by it, because each worker joins only its share of the
+    driving rows and the plan's cost is one worker's. It is not simply N,
+    for two reasons. The engine hands the workers pieces of the table, and
+    a table it cannot cut into N pieces -- a single-page B-tree, or a range
+    reading a page or two of a larger one -- reaches fewer workers than
+    that, however many there are: W = min(N, parallel_scan_pieces() scaled
+    by the share of the table the scan reads). And a driving table that
+    yields fewer rows than that cannot spread them any further, while the
+    join under it runs at the pace of the worker with the most of them:
+    with R rows over W workers the busiest holds ceil(R/W), so the divisor
+    is R / ceil(R/W). A five-row table of which one row survives puts the
+    whole join under it on one worker, whatever N is, and five rows over
+    four workers go 2-1-1-1, a division by 2.5 and not by 4. Crediting such
+    a table with 1/N of the join under it is what made the optimizer split
+    exactly such tables. The scan's own cost is divided by N regardless: a
+    scan the engine cannot cut into pieces is at most a couple of pages,
+    whose cost is nothing next to the setup, and what has to be honest is
+    the join under it, which is where the cost is.
 
     Eligibility is the table-level half of the runtime gate
     (table_can_be_parallel_scanned); the query-level half was asked by
@@ -68,18 +85,19 @@
   @param join            the join being ordered
   @param table           the driving table
   @param serial_cost     best_access_path()'s cost of scanning it serially
+  @param rows_scanned    rows the scan reads: the table, or the range's share
   @param rows_out        rows that survive the table's own WHERE
   @param parallel_cost   [out] the cost of the parallel reading
   @param divisor         [out] what later positions' costs are divided by
 
   @return
-    true   the parallel reading is cheaper: *parallel_cost and *divisor are set
-    false  parallel scan unavailable or no cheaper; outputs untouched
+    true   the parallel reading is priced: *parallel_cost and *divisor are set
+    false  parallel scan unavailable; outputs untouched
 */
 
 bool parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
-                        double rows_out, double *parallel_cost,
-                        double *divisor)
+                        double rows_scanned, double rows_out,
+                        double *parallel_cost, double *divisor)
 {
   THD *thd= join->thd;
   const uint n= (uint) thd->variables.parallel_worker_threads;
@@ -89,12 +107,20 @@ bool parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
 
   const double setup= (thd->variables.optimizer_parallel_setup_cost *
                        (join->table_count - join->const_tables));
-  const double cost= serial_cost / (double) n + setup;
-  if (cost + COST_EPS >= serial_cost)
-    return false;
+  *parallel_cost= serial_cost / (double) n + setup;
 
-  *parallel_cost= cost;
-  *divisor= MY_MIN((double) n, MY_MAX(rows_out, 1.0));
+  /*
+    The workers the scan's rows can reach: the pieces the engine can cut
+    the scan into, or the range's share of them, but no more than there are
+    workers and no fewer than one.
+  */
+  double pieces= (double) table->file->parallel_scan_pieces();
+  const double table_rows= rows2double(table->file->stats.records);
+  if (table_rows > 0.0 && rows_scanned < table_rows)
+    pieces*= rows_scanned / table_rows;
+  const double workers= MY_MAX(MY_MIN((double) n, floor(pieces)), 1.0);
+  const double rows= MY_MAX(rows_out, 1.0);
+  *divisor= rows / ceil(rows / workers);
   return true;
 }
 

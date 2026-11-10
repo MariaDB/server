@@ -523,6 +523,8 @@ public:
 				PSCAN_INDEX_RANGE;
 	}
 
+	ha_rows parallel_scan_pieces() const override;
+
 	/* Parallel work, coordinator thread methods */
 
 	int parallel_init_coordinator(size_t n_threads, uint keynr,

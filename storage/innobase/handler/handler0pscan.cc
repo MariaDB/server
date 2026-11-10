@@ -557,6 +557,20 @@ of a scan and allocates the object the first time the SQL layer asks it to
 play that side, so a handler that never takes part in one costs two pointers.
 *****************************************************************************/
 
+/*
+  The leaf pages of the clustered index. The partitioner cuts the tree at
+  the level below the root, one chunk per page there, and re-splits a chunk
+  down to its leaves when workers run short (Parallel_scan_partitioner), so
+  a scan has at most as many separately scannable pieces as leaf pages, and
+  a tree that is a single leaf has one.
+*/
+ha_rows ha_innobase::parallel_scan_pieces() const
+{
+  const dict_index_t *index= dict_table_get_first_index(m_prebuilt->table);
+  return index ? std::max<ha_rows>(index->stat_n_leaf_pages, 1) : 1;
+}
+
+
 int ha_innobase::parallel_init_coordinator(
 	size_t n_threads, uint keynr,
 	const Dynamic_array<KEY_MULTI_RANGE> &ranges)
