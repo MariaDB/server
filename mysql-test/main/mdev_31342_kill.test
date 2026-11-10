@@ -5,6 +5,8 @@
 --echo # MDEV-41165: KILL / max_statement_time arriving after the WHERE
 --echo # condition was evaluated must not be lost on the I_S fast path
 --echo #
+--disable_view_protocol
+--disable_cursor_protocol
 CREATE TABLE t1 (a INT);
 let $q= SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
 
@@ -36,5 +38,7 @@ eval SET STATEMENT max_statement_time=0.5 FOR $q;
 
 SET debug_sync='RESET';
 DROP TABLE t1;
+--enable_view_protocol
+--enable_cursor_protocol
 
 --echo # End of 13.2 tests
