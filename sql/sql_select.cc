@@ -11512,12 +11512,17 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     }
     if (adjust_sel)
     {
-      /* 
-        If ref == 0 and there are no fields in the multiple equality
-        item_equal that belong to the tables joined prior to s
-        then the selectivity of multiple equality will be set to 1.0.
+      /*
+        The selectivity of the multiple equality is the largest of the
+        selectivities of its fields that belong to the tables joined prior
+        to s, each being that field's average frequency over its table's
+        row count. If there are no such fields (ref == 0 and nothing in
+        item_equal is joined yet) the selectivity stays 1.0. An average
+        frequency of 0 means the column has no statistics, not that no row
+        matches, and says nothing.
       */
       double eq_fld_sel= 1.0;
+      bool found_prior_field= false;
       fi.rewind();
       while ((fi++))
       {
@@ -11527,8 +11532,12 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           continue;
         curr_eq_fld_sel= get_column_avg_frequency(fld) /
                          fld->table->stat_records();
-        if (curr_eq_fld_sel < 1.0)
-          set_if_bigger(eq_fld_sel, curr_eq_fld_sel);
+        if (curr_eq_fld_sel > 0.0 && curr_eq_fld_sel < 1.0)
+        {
+          if (!found_prior_field || curr_eq_fld_sel > eq_fld_sel)
+            eq_fld_sel= curr_eq_fld_sel;
+          found_prior_field= true;
+        }
       }
       sel*= eq_fld_sel;
     }
@@ -11789,17 +11798,33 @@ double table_after_join_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     /*
       We have now calculated a more exact 'records_out' taking more index
       costs into account.
-      pos->records_out previously contained the smallest record count for
-      all range or ref access, which should not be smaller than what we
-      calculated above.
     */
     records_out= pos->records_init * sel;
-    set_if_smaller(records_out, pos->records_out);
+  }
+  else
+  {
+    /*
+      A scan: the rows it reads after the table's own WHERE, which is what
+      the equalities with the earlier tables below have yet to be applied to.
+    */
+    records_out= pos->records_read;
   }
 
   sel= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
   records_out*= sel;
+
+  /*
+    pos->records_out is the smallest row count any access method considered
+    for this table estimated, ref accesses included, and so may already
+    account for an equality with an earlier table that the factor above
+    accounts for as well: a scan whose estimate was capped by that of a ref
+    on the same equality, or a ref capped by another ref's. Take the smaller
+    of the two estimates rather than multiply them, which also leaves this
+    function free to be called more than once for the same position
+    (optimize_wo_join_buffering() does).
+  */
+  set_if_smaller(records_out, pos->records_out);
 
   /*
     Update sel to be relative pos->records_read as that is what some old

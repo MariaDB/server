@@ -1,0 +1,41 @@
+#
+# MDEV-42165 Selectivity of a multiple equality with an earlier table is never applied
+#
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+SET @save_sel= @@optimizer_use_condition_selectivity;
+SET @save_ust= @@use_stat_tables;
+SET @save_jcl= @@join_cache_level;
+SET optimizer_use_condition_selectivity= 4;
+SET use_stat_tables= PREFERABLY;
+SET join_cache_level= 2;
+
+CREATE TABLE dim (d_id INT PRIMARY KEY, d_name VARCHAR(20)) ENGINE=InnoDB;
+INSERT INTO dim SELECT seq, CONCAT('name', seq) FROM seq_1_to_20;
+
+# fact.d_id has no index, so the join to dim can only be a BNL join
+CREATE TABLE fact (f_id INT PRIMARY KEY, d_id INT NOT NULL, val INT) ENGINE=InnoDB;
+INSERT INTO fact SELECT seq, seq % 20 + 1, seq FROM seq_1_to_2000;
+
+CREATE TABLE detail (f_id INT PRIMARY KEY, extra INT) ENGINE=InnoDB;
+INSERT INTO detail SELECT seq, seq * 2 FROM seq_1_to_2000;
+
+ANALYZE TABLE dim, fact, detail PERSISTENT FOR ALL;
+
+# one of 20 dim rows survives, so one twentieth of fact joins it and detail is looked up 100 times
+EXPLAIN EXTENDED
+SELECT STRAIGHT_JOIN COUNT(*) FROM dim, fact, detail
+WHERE fact.d_id = dim.d_id AND detail.f_id = fact.f_id AND dim.d_name = 'name7';
+
+--source include/analyze-format.inc
+ANALYZE FORMAT=JSON
+SELECT STRAIGHT_JOIN COUNT(*) FROM dim, fact, detail
+WHERE fact.d_id = dim.d_id AND detail.f_id = fact.f_id AND dim.d_name = 'name7';
+
+DROP TABLE dim, fact, detail;
+SET optimizer_use_condition_selectivity= @save_sel;
+SET use_stat_tables= @save_ust;
+SET join_cache_level= @save_jcl;
+
+--echo # end of 10.11 tests
