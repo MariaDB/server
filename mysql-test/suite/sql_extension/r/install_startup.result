@@ -1,0 +1,32 @@
+#
+# MDEV-41962 SQL extension plugins loaded at server start-up: all seven plugins of
+# the library are loaded; the overlapping and invalid ones are refused
+# and the server starts with the others.
+#
+call mtr.add_suppression("Plugin 'test_sql_extension.*' registration as a SQL EXTENSION failed");
+call mtr.add_suppression("SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps");
+call mtr.add_suppression("Invalid SQL extension descriptor in plugin 'test_sql_extension_");
+SELECT plugin_name, plugin_type, plugin_status
+FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+plugin_name	plugin_type	plugin_status
+test_sql_extension	SQL EXTENSION	ACTIVE
+test_sql_extension_recognizer	SQL EXTENSION	ACTIVE
+# The refusals are in the error log, with the plugin and the reason
+FOUND 1 /SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps prefix 'TEST SQLEXT' of plugin 'test_sql_extension'/ in mysqld.1.err
+FOUND 1 /Plugin 'test_sql_extension_overlap' registration as a SQL EXTENSION failed/ in mysqld.1.err
+FOUND 1 /Invalid SQL extension descriptor in plugin 'test_sql_extension_bad': execute\(\) is not set/ in mysqld.1.err
+FOUND 1 /Plugin 'test_sql_extension_bad' registration as a SQL EXTENSION failed/ in mysqld.1.err
+FOUND 1 /Invalid SQL extension descriptor in plugin 'test_sql_extension_empty': neither prefixes nor recognize\(\) is set/ in mysqld.1.err
+FOUND 1 /Invalid SQL extension descriptor in plugin 'test_sql_extension_bad_prefix': a keyword must start with a letter or '_'/ in mysqld.1.err
+FOUND 1 /Invalid SQL extension descriptor in plugin 'test_sql_extension_mixed': both prefixes and recognize\(\) are set/ in mysqld.1.err
+# The plugins loaded at start-up are in the registry: the prefix
+# plugin, the recognizer, and the refused prefix belongs to the plugin
+# that kept it
+TEST SQLEXT OK;
+affected rows: 0
+TEST RECOGNIZE x;
+affected rows: 0
+TEST SQLEXT OVERLAP x;
+ERROR HY000: test_sql_extension: unknown 'OVERLAP'
+# End of 13.2 tests

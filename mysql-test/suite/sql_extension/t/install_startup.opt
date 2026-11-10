@@ -1,0 +1,1 @@
+--plugin-load-add=$TEST_SQL_EXTENSION_SO

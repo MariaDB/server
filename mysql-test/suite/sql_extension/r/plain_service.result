@@ -1,0 +1,37 @@
+#
+# MDEV-41962 SQL a plugin runs through the plain SQL service outside an
+# extension statement is offered to the extension plugins as well (the
+# dispatch in execute_server_code()). test_sql_service runs it from
+# SET GLOBAL and stores what happened in the variable.
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_service SONAME 'test_sql_service';
+# On the client's THD: the statement is claimed (OK, or the plugin's
+# error, not a parse error)
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST SQLEXT OK';
+SELECT @@test_sql_service_execute_sql_local AS r;
+r
+Query affected 0 rows.
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST SQLEXT ERROR';
+SELECT @@test_sql_service_execute_sql_local AS r;
+r
+Error 1105 returned. test_sql_extension: error
+# On the THD of the plugin's own connection
+SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT OK';
+SELECT @@test_sql_service_execute_sql_global AS r;
+r
+Query affected 0 rows.
+SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT ERROR';
+SELECT @@test_sql_service_execute_sql_global AS r;
+r
+Error 1105 returned. test_sql_extension: error
+# An unclaimed statement keeps its parse error
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST NOTHING';
+SELECT @@test_sql_service_execute_sql_local AS r;
+r
+Error 1064 returned. You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST NOTHING' at line 1
+UNINSTALL PLUGIN test_sql_service;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

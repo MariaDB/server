@@ -40,6 +40,7 @@
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
 #include <mysql/plugin_sql_extension.h>
+#include "sql_extension.h"
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
 
@@ -126,14 +127,16 @@ plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
   initialize_audit_plugin, 0, 0, 0, initialize_encryption_plugin,
-  initialize_data_type_plugin, 0
+  initialize_data_type_plugin, 0,
+  initialize_sql_extension_plugin
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
   0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
   finalize_audit_plugin, 0, 0, 0, finalize_encryption_plugin, 0,
-  0 // FUNCTION
+  0, // FUNCTION
+  finalize_sql_extension_plugin
 };
 
 /*

@@ -27,10 +27,10 @@ wait/synch/rwlock/sql/LOCK_dboptions	YES	YES
 wait/synch/rwlock/sql/LOCK_grant	YES	YES
 wait/synch/rwlock/sql/LOCK_rmdir	YES	YES
 wait/synch/rwlock/sql/LOCK_SEQUENCE	YES	YES
+wait/synch/rwlock/sql/LOCK_sql_extension	YES	YES
 wait/synch/rwlock/sql/LOCK_ssl_refresh	YES	YES
 wait/synch/rwlock/sql/LOCK_system_variables_hash	YES	YES
 wait/synch/rwlock/sql/LOCK_sys_init_connect	YES	YES
-wait/synch/rwlock/sql/LOCK_sys_init_slave	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (

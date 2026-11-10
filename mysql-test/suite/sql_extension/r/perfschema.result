@@ -1,0 +1,48 @@
+#
+# MDEV-41962 Extension statements in the performance schema: the
+# statement/sql/sql_extension event
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# Saved, to be restored at the end
+CREATE TEMPORARY TABLE saved_instruments AS
+SELECT name, enabled, timed FROM performance_schema.setup_instruments
+WHERE name LIKE 'statement/%';
+CREATE TEMPORARY TABLE saved_consumers AS
+SELECT name, enabled FROM performance_schema.setup_consumers
+WHERE name = 'events_statements_history_long';
+UPDATE performance_schema.setup_consumers SET enabled= 'YES'
+  WHERE name = 'events_statements_history_long';
+UPDATE performance_schema.setup_instruments SET enabled= 'YES', timed= 'YES'
+  WHERE name LIKE 'statement/%';
+TRUNCATE performance_schema.events_statements_history_long;
+# A claimed statement, a failing one, an unclaimed one (text protocol:
+# a COM_STMT_PREPARE/EXECUTE pair is recorded as statement/com/Prepare
+# and Execute without the text, as for any statement)
+TEST SQLEXT OK;
+TEST SQLEXT ERROR;
+ERROR HY000: test_sql_extension: error
+TEST SQLEXTRA OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXTRA OK' at line 1
+# Prepared: the outer statement is recorded, as for any prepared one
+PREPARE s FROM 'TEST SQLEXT OK';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SELECT event_name, sql_text, mysql_errno, rows_sent
+FROM performance_schema.events_statements_history_long
+WHERE thread_id = (SELECT thread_id FROM performance_schema.threads
+WHERE processlist_id = CONNECTION_ID())
+AND (sql_text LIKE '%SQLEXT%' OR sql_text LIKE 'EXECUTE%')
+ORDER BY event_id;
+event_name	sql_text	mysql_errno	rows_sent
+statement/sql/sql_extension	TEST SQLEXT OK	0	0
+statement/sql/sql_extension	TEST SQLEXT ERROR	1105	0
+statement/sql/error	TEST SQLEXTRA OK	1064	0
+statement/sql/prepare_sql	PREPARE s FROM 'TEST SQLEXT OK'	0	0
+statement/sql/execute_sql	EXECUTE s	0	0
+UPDATE performance_schema.setup_instruments i JOIN saved_instruments s
+USING (name) SET i.enabled= s.enabled, i.timed= s.timed;
+UPDATE performance_schema.setup_consumers c JOIN saved_consumers s
+USING (name) SET c.enabled= s.enabled;
+DROP TEMPORARY TABLE saved_instruments, saved_consumers;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

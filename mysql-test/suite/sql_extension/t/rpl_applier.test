@@ -1,0 +1,93 @@
+--echo #
+--echo # MDEV-41962 A replication applier never hands a statement to an SQL
+--echo # extension plugin: a statement event whose text a plugin would claim
+--echo # fails on the replica with the parse error, even with the plugin
+--echo # installed. Masters never log such text, so the test patches a binary
+--echo # log and feeds it to the replica as its relay log.
+--echo #
+--source include/not_embedded.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("Slave SQL.*You have an error in your SQL syntax");
+call mtr.add_suppression("Slave: You have an error in your SQL syntax");
+--source include/stop_slave.inc
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo # A statement event of the right length, in a binary log without
+--echo # checksums, so that its text can be replaced in place
+--connection master
+SET @old_binlog_checksum= @@global.binlog_checksum;
+SET GLOBAL binlog_checksum= NONE;
+FLUSH BINARY LOGS;
+--let $binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir= `SELECT @@datadir`
+CREATE DATABASE sqlext_placeholder_db;
+FLUSH BINARY LOGS;
+SET GLOBAL binlog_checksum= @old_binlog_checksum;
+SET sql_log_bin= 0;
+DROP DATABASE sqlext_placeholder_db;
+SET sql_log_bin= 1;
+
+--connection slave
+--let $old_master_host= query_get_value(SHOW SLAVE STATUS, Master_Host, 1)
+--let $old_relay_log_purge= `SELECT @@global.relay_log_purge`
+RESET SLAVE;
+--let $relay_log= query_get_value(SHOW VARIABLES LIKE 'relay_log', Value, 1)
+--let $slave_datadir= `SELECT @@datadir`
+--let SQLEXT_BINLOG_IN= $datadir/$binlog
+--let SQLEXT_SLAVE_DATADIR= $slave_datadir
+--let SQLEXT_RELAY_LOG= $relay_log
+perl;
+  my $old= 'CREATE DATABASE sqlext_placeholder_db';
+  my $new= sprintf('%-*s', length($old), 'TEST SQLEXT OK');
+  open(my $in, '<:raw', $ENV{SQLEXT_BINLOG_IN}) or die "open: $!";
+  local $/; my $log= <$in>; close($in);
+  my $count= () = $log =~ /\Q$old\E/g;
+  die "expected the statement once, found it $count times" if $count != 1;
+  $log =~ s/\Q$old\E/$new/;
+  # The replica's relay log, and its index (entries relative to the
+  # datadir, as include/setup_fake_relay_log.inc writes them)
+  my $name= "$ENV{SQLEXT_RELAY_LOG}-sqlext.000001";
+  my $dir= $ENV{SQLEXT_SLAVE_DATADIR};
+  open(my $out, '>:raw', "$dir/$name") or die "open: $!";
+  print $out $log; close($out);
+  open(my $index, '>', "$dir/$ENV{SQLEXT_RELAY_LOG}.index") or die "open: $!";
+  print $index ($^O eq 'MSWin32' ? ".\\" : "./") . "$name\n"; close($index);
+EOF
+
+--echo # The patched log becomes the replica's relay log (the steps of
+--echo # include/setup_fake_relay_log.inc, which would print a local path)
+--disable_query_log
+eval CHANGE MASTER TO MASTER_HOST='dummy.localdomain',
+  RELAY_LOG_FILE='$relay_log-sqlext.000001', RELAY_LOG_POS=4,
+  MASTER_USE_GTID=NO;
+--enable_query_log
+
+--echo # The applier refuses it with the parse error; the plugin never runs
+--let $before= query_get_value(SHOW GLOBAL STATUS LIKE 'Com_sql_extension', Value, 1)
+START SLAVE SQL_THREAD;
+--let $slave_sql_errno= 1064
+--source include/wait_for_slave_sql_error.inc
+--let $after= query_get_value(SHOW GLOBAL STATUS LIKE 'Com_sql_extension', Value, 1)
+--let $ran= `SELECT $after - $before`
+--echo # Extension statements run by the applier: $ran
+--echo # The same text from a client is claimed
+--enable_info
+TEST SQLEXT OK;
+--disable_info
+
+--disable_query_log
+# On 12.3 RESET SLAVE notes that it changes Using_Gtid
+--disable_warnings
+RESET SLAVE;
+--enable_warnings
+eval SET @@global.relay_log_purge= $old_relay_log_purge;
+eval CHANGE MASTER TO MASTER_HOST= '$old_master_host';
+--enable_query_log
+UNINSTALL PLUGIN test_sql_extension;
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
+
+--echo # End of 13.2 tests

@@ -110,7 +110,8 @@ begin
       "memory/csv/TINA_SHARE",
       "memory/sql/tz_storage",
       "memory/sql/servers_cache",
-      "memory/sql/udf_mem"
+      "memory/sql/udf_mem",
+      "memory/sql/sql_extension"
     ))
   into count_global_expected;
 
