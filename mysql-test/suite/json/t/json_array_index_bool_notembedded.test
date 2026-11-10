@@ -48,6 +48,13 @@ select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')
        json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
 from information_schema.optimizer_trace;
 
+--echo # OR: points are sorted, duplicates removed
+--sorted_result
+select pk from t1 where json_overlaps(js, '["d", "b", "d"]') or 'b' member of (js);
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
 --echo # Nested: ('a' OR 'd') AND 'e'
 --sorted_result
 select pk from t1 where ('a' member of (js) or 'd' member of (js)) and json_contains(js, '"e"');

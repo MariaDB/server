@@ -1662,6 +1662,14 @@ bool Item_func_json_extract::val_bool()
   return i != 0;
 }
 
+static const uchar *json_range_element_key(const void *p, size_t *len,
+                                           my_bool)
+{
+  const LEX_CSTRING *s= static_cast<const LEX_CSTRING *>(p);
+  *len= s->length;
+  return (const uchar *) s->str;
+}
+
 /*
   Parse `value' as a list of scalar elements using column's charset.
   Succeeds only if value is an array or a scalar.
@@ -1691,33 +1699,62 @@ Json_range_elements json_get_range_elements(THD *thd, Item *value,
     return Json_range_elements::NO_RANGE;
 
   is_array= je.value_type == JSON_VALUE_ARRAY;
+
+  HASH seen;
+  Json_range_elements res= Json_range_elements::OK;
+  if (my_hash_init(PSI_INSTRUMENT_ME, &seen, &my_charset_bin, 32, 0, 0,
+                   json_range_element_key, NULL, HASH_UNIQUE))
+    return Json_range_elements::NO_RANGE;
   for (;;)
   {
     if (is_array)
     {
       if (json_scan_next(&je))
-        return Json_range_elements::NO_RANGE;
+      {
+        res= Json_range_elements::NO_RANGE;
+        break;
+      }
       if (je.state == JST_ARRAY_END)
         break;
       if (je.state != JST_VALUE || json_read_value(&je))
-        return Json_range_elements::NO_RANGE;
+      {
+        res= Json_range_elements::NO_RANGE;
+        break;
+      }
     }
     if (!json_value_scalar(&je))
-      return Json_range_elements::NO_RANGE;
+    {
+      res= Json_range_elements::NO_RANGE;
+      break;
+    }
 
     size_t len= (size_t) (je.value_end - je.value_begin);
-    char *str= thd->strmake((const char *) je.value_begin, len);
-    Item *elem;
-    if (!str ||
-        !(elem= new (thd->mem_root) Item_string(thd, str, len, cs)) ||
-        elements->push_back(elem, thd->mem_root))
-      return Json_range_elements::NO_RANGE;
+    if (!my_hash_search(&seen, je.value_begin, len))
+    {
+      LEX_CSTRING *key= (LEX_CSTRING *) thd->alloc(sizeof(LEX_CSTRING));
+      Item *elem;
+      if (!key ||
+          !(key->str= thd->strmake((const char *) je.value_begin, len)))
+      {
+        res= Json_range_elements::NO_RANGE;
+        break;
+      }
+      key->length= len;
+      if (my_hash_insert(&seen, (const uchar *) key) ||
+          !(elem= new (thd->mem_root) Item_string(thd, key->str, len, cs)) ||
+          elements->push_back(elem, thd->mem_root))
+      {
+        res= Json_range_elements::NO_RANGE;
+        break;
+      }
+    }
 
     /* A scalar, expressed as a singleton */
     if (!is_array)
       break;
   }
-  return Json_range_elements::OK;
+  my_hash_free(&seen);
+  return res;
 }
 
 bool Item_func_json_contains::fix_length_and_dec(THD *thd)
@@ -7076,24 +7113,10 @@ static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
   SEL_ARG_ARRAY *tree;
   if (!(tree= new (param->mem_root) SEL_ARG_ARRAY(param->mem_root, field,
                                                   key_buf,
-                                                  JSON_INDEX_KEY_MAX_LEN)) ||
+                                                  JSON_INDEX_KEY_MAX_LEN,
+                                                  keynr)) ||
       tree->points.push_back(key_buf))
     return 0; // out of memory
-
-  /*
-    Estimate rows and cost for the key.
-    TODO: this causes one index access per point.
-    TODO: records_in_range() both gets the row estimates and computes
-    the cost estimates. It would be cleaner and more efficient for it
-    to get row estimates only (just like the handler method of the
-    same name), and split off a json_index::range_cost method to get
-    the cost, called once in check_quick_select_array().
-  */
-  tree->rows=
-    param->table->hli->records_in_range(param->table,
-                                        param->table->key_info + keynr,
-                                        key_buf, JSON_INDEX_KEY_MAX_LEN,
-                                        &tree->cost);
   return tree;
 }
 

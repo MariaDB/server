@@ -238,6 +238,24 @@ eval explain select pk from t1 where $cond;
 eval select count(*) from t1 where $cond;
 eval select count(*) from t1 ignore index(i1) where $cond;
 
+--echo # Many points, with duplicates
+select json_arrayagg(concat('v', seq mod 150 + 100)) into @big from seq_1_to_3000;
+let $cond= json_overlaps(js, @big);
+--replace_column 9 #
+eval explain select count(*) from t1 force index(i1) where $cond;
+eval select count(*) from t1 force index(i1) where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+--echo # Fewer index dives than points: OR extrapolates the estimate,
+--echo # JSON_CONTAINS uses only the first distinct elements
+set eq_range_index_dive_limit= 5;
+eval select count(*) from t1 force index(i1) where $cond;
+set eq_range_index_dive_limit= 1;
+let $cond= json_contains(js, '["b", "a", "c"]');
+--replace_column 9 #
+eval explain select pk from t1 force index(i1) where $cond;
+eval select pk from t1 force index(i1) where $cond;
+set eq_range_index_dive_limit= default;
+
 --echo # With other indexes
 let $cond= (json_contains(js, '["a", "b"]') or pk = 200) and ('c' member of (js) or a = 200);
 --replace_column 9 #
