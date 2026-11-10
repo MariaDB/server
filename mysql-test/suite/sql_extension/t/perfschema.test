@@ -28,6 +28,10 @@ TEST SQLEXT OK;
 TEST SQLEXT ERROR;
 --error ER_PARSE_ERROR
 TEST SQLEXTRA OK;
+--echo # Rows sent through the service count as rows sent: 2, and 1 + 1 in
+--echo # two result sets with an OK between them
+TEST SQLEXT ROWS;
+TEST SQLEXT MULTI;
 --enable_ps_protocol
 --echo # Prepared: the outer statement is recorded, as for any prepared one
 PREPARE s FROM 'TEST SQLEXT OK';

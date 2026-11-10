@@ -32,7 +32,12 @@
   plugin, and EXECUTE ... USING is refused. They never come
   from the body of a stored program, view, trigger or event, nor from
   replication, which carries the SQL a handler ran as the client rather
-  than the extension statement.
+  than the extension statement. They also reach it from the SQL another
+  plugin runs through the plain SQL service (service_sql.h): such SQL
+  runs with no grants checked, and under LOCK TABLES on a connection of
+  its own, so sql_extension_check_access() then grants everything but
+  what the built-in rules deny to every user (information_schema,
+  performance_schema).
 
   execute() runs on the client's connection, in the client's thread,
   while the statement executes: the plugin stays locked until it returns,
@@ -53,6 +58,7 @@
 */
 
 #include <mysql/plugin.h>
+#include <mysql/service_sql_extension.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -140,7 +146,10 @@ struct st_mariadb_sql_extension
     @param query   the claimed statement text, in the client character set
     @param length  its length in bytes
 
-    @return 0 on success, non-zero on failure.
+    @return 0 on success, non-zero on failure. A failure without an error
+            raised is reported as ER_SQL_EXTENSION_FAILED. An OK or end of
+            rows set on the connection by other means than the service is
+            refused as an invalid result.
   */
   int (*execute)(MYSQL_THD thd, const char *query, size_t length);
 

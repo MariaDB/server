@@ -29,6 +29,52 @@
                                 FAIL             fails without an error
                                 ECHO             raises an error showing the
                                                  exact text it was given
+                                ROWS             sends a result set
+                                EMPTY            sends a result set with
+                                                 columns s, i and d (DECIMAL)
+                                                 and no rows
+                                NULLS            the same with two rows of
+                                                 NULLs only
+                                TYPES            sends a result set with one
+                                                 column of every type not
+                                                 covered by ROWS
+                                INFO [MAX|LONG|ILL_FORMED]
+                                                 sends an OK with 3 affected
+                                                 rows and a message; or a
+                                                 message of 511 bytes
+                                                 (the longest allowed), of
+                                                 512 bytes, or of ill-formed
+                                                 utf8mb4: both refused
+                                WARN             adds a note and a warning
+                                ACCESS [<priv>] <db> [<t>]
+                                                 checks a privilege (SELECT
+                                                 if none) on db or db.t;
+                                                 NOPRIV passes none, BADBIT
+                                                 an unknown bit, and '' an
+                                                 empty table name
+                                TWICE            sends OK twice
+                                MULTI            sends rows, an OK, rows
+                                MULTI ERROR      sends rows, then an error
+                                FLAGS            sends the client flags
+                                BAD <type> <text>
+                                                 sends <text> as a cell of a
+                                                 column of <type> (STRING,
+                                                 INTEGER, DOUBLE, DECIMAL,
+                                                 DATE, TIME, DATETIME,
+                                                 JSON...): refused if it is
+                                                 not a valid value; the text
+                                                 ILL_FORMED stands for
+                                                 ill-formed utf8mb4
+                                BAD2 <type> <text1> <text2>
+                                                 the same with two rows
+                                BADSET NOCOLS|NONAME|BADTYPE|NOCELLS
+                                                 sends a malformed result
+                                                 set: no columns, a column
+                                                 without a name, a column
+                                                 of an unknown type, a row
+                                                 without cells
+                                BADTHD           calls the service with no
+                                                 thd
   test_sql_extension_overlap  claims "TEST OVERLAP FREE" and "TEST SQLEXT
                               OVERLAP": refused while test_sql_extension
                               is installed, the free prefix too; counts its
@@ -42,6 +88,13 @@
                               not keywords): refused
   test_sql_extension_mixed    invalid descriptor (both prefixes and
                               recognize()): refused
+  test_sql_extension_bad_priority
+                              invalid descriptor (a priority with
+                              prefixes): refused
+  test_sql_extension_bad_init claims "TEST BADINIT", but its init() fails:
+                              refused; counts its init() and deinit()
+                              calls in status variables of
+                              test_sql_extension
   test_sql_extension_recognizer
                               recognizer: claims "TEST RECOGNIZE ..." up to
                               the first ';', or only up to the word SHORT
@@ -51,6 +104,14 @@
                               "TEST RECOGNIZE WAIT", recognize() stops at
                               the debug sync point
                               test_sql_extension_recognize
+  test_sql_extension_priority recognizer with priority 10: claims
+                              "TEST RECOGNIZE ..." unless the word LOW is
+                              in it, so it takes precedence over
+                              test_sql_extension_recognizer (priority 0)
+                              whenever it is installed; also "TEST SQLEXT
+                              PRIORITY" (owned by test_sql_extension's
+                              prefix when that plugin is installed); sends
+                              OK with its name as the message
 */
 
 #include <my_global.h>
@@ -136,6 +197,243 @@ static int echo(const char *query, size_t length)
   return 1;
 }
 
+static int send_one_row(MYSQL_THD thd, const char *name, const char *value)
+{
+  sql_extension_column col= { name, SQL_EXTENSION_COLUMN_STRING };
+  sql_extension_cell cell= { value, strlen(value) };
+  return sql_extension_send_result_set(thd, 1, &col, 1, &cell);
+}
+
+static int send_multi(MYSQL_THD thd, const char *p, const char *end)
+{
+  const char *word;
+  size_t len;
+  next_word(p, end, &word, &len);
+  if (word_is(word, len, "ERROR"))
+  {
+    if (send_one_row(thd, "first", "1"))
+      return 1;
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: error after rows",
+                    0);
+    return 1;
+  }
+  return send_one_row(thd, "first", "1") ||
+         sql_extension_send_ok(thd, 2, "test_sql_extension: second") ||
+         send_one_row(thd, "third", "3");
+}
+
+static int send_flags(MYSQL_THD thd)
+{
+  static const sql_extension_column cols[]=
+  {
+    { "multi_results", SQL_EXTENSION_COLUMN_INTEGER },
+    { "multi_statements", SQL_EXTENSION_COLUMN_INTEGER }
+  };
+  unsigned int flags= sql_extension_client_flags(thd);
+  sql_extension_cell cells[]=
+  {
+    { (flags & SQL_EXTENSION_CLIENT_MULTI_RESULTS) ? "1" : "0", 1 },
+    { (flags & SQL_EXTENSION_CLIENT_MULTI_STATEMENTS) ? "1" : "0", 1 }
+  };
+  return sql_extension_send_result_set(thd, 2, cols, 1, cells);
+}
+
+static int send_rows(MYSQL_THD thd)
+{
+  static const sql_extension_column cols[]=
+  {
+    { "s", SQL_EXTENSION_COLUMN_STRING },
+    { "b", SQL_EXTENSION_COLUMN_BINARY },
+    { "i", SQL_EXTENSION_COLUMN_INTEGER },
+    { "u", SQL_EXTENSION_COLUMN_UNSIGNED }
+  };
+  static const sql_extension_cell cells[]=
+  {
+    { "caf\xC3\xA9", 5 }, { "b\xFFn", 3 }, { "-9223372036854775808", 20 },
+    { "18446744073709551615", 20 },
+    { "", 0 }, { NULL, 0 }, { "0", 1 }, { NULL, 0 }
+  };
+  return sql_extension_send_result_set(thd, 4, cols, 2, cells);
+}
+
+/* Columns s, i and d with no rows (EMPTY), or two rows of NULLs (NULLS) */
+static int send_no_values(MYSQL_THD thd, bool nulls)
+{
+  static const sql_extension_column cols[]=
+  {
+    { "s", SQL_EXTENSION_COLUMN_STRING },
+    { "i", SQL_EXTENSION_COLUMN_INTEGER },
+    { "d", SQL_EXTENSION_COLUMN_DECIMAL }
+  };
+  static const sql_extension_cell cells[]=
+  { { NULL, 0 }, { NULL, 0 }, { NULL, 0 }, { NULL, 0 }, { NULL, 0 },
+    { NULL, 0 } };
+  return sql_extension_send_result_set(thd, 3, cols, nulls ? 2 : 0, cells);
+}
+
+/* One column of each type that ROWS does not cover, and a row of NULLs */
+static int send_types(MYSQL_THD thd)
+{
+  static const sql_extension_column cols[]=
+  {
+    { "d", SQL_EXTENSION_COLUMN_DOUBLE },
+    { "n", SQL_EXTENSION_COLUMN_DECIMAL },
+    { "dt", SQL_EXTENSION_COLUMN_DATE },
+    { "t", SQL_EXTENSION_COLUMN_TIME },
+    { "ts", SQL_EXTENSION_COLUMN_DATETIME },
+    { "j", SQL_EXTENSION_COLUMN_JSON }
+  };
+  static const sql_extension_cell cells[]=
+  {
+    { "1.5", 3 }, { "-12.5", 5 }, { "2026-11-06", 10 },
+    { "-838:59:59", 10 }, { "2026-11-06 10:20:30.5", 21 },
+    { "{\"a\": [1, 2]}", 13 },
+
+    { "-2e-3", 5 }, { "3.125", 5 }, { "0000-00-00", 10 },
+    { "1 02:03:04.123456", 17 }, { "2026-11-06 10:20:30", 19 },
+    { "null", 4 },
+
+    { NULL, 0 }, { NULL, 0 }, { NULL, 0 }, { NULL, 0 }, { NULL, 0 },
+    { NULL, 0 }
+  };
+  return sql_extension_send_result_set(thd, 6, cols, 3, cells);
+}
+
+/*
+  BAD <type> <text>: a one-cell result set of the named type; BAD2
+  (two_rows) sends the cell in two rows
+*/
+static int send_bad(MYSQL_THD thd, const char *p, const char *end,
+                    bool two_rows)
+{
+  static const char *const names[]=
+  {
+    "STRING", "BINARY", "INTEGER", "UNSIGNED", "DOUBLE", "DECIMAL", "DATE",
+    "TIME", "DATETIME", "JSON", NULL
+  };
+  const char *word;
+  size_t len;
+  next_word(p, end, &word, &len);
+  int type= 0;
+  while (names[type] && !word_is(word, len, names[type]))
+    type++;
+  if (!names[type])
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: no type '%.*s'", 0,
+                    (int) len, word);
+    return 1;
+  }
+  sql_extension_column col= { "c", type };
+  if (two_rows)
+  {
+    /* Two words, one cell each */
+    sql_extension_cell two[2];
+    for (sql_extension_cell &c : two)
+    {
+      next_word(word + len, end, &word, &len);
+      c= { word, len };
+    }
+    return sql_extension_send_result_set(thd, 1, &col, 2, two);
+  }
+  /* The text is everything after one space following the type */
+  const char *text= word + len;
+  if (text < end)
+    text++;
+  sql_extension_cell cell= { text, (size_t) (end - text) };
+  /* A statement cannot carry ill-formed utf8mb4: a word stands for it */
+  next_word(text, end, &word, &len);
+  if (word_is(word, len, "ILL_FORMED"))
+    cell= { "caf\xC3", 4 };                      // a truncated 'é'
+  return sql_extension_send_result_set(thd, 1, &col, 1, &cell);
+}
+
+static int send_info(MYSQL_THD thd, const char *p, const char *end)
+{
+  const char *word;
+  size_t len;
+  char text[513];
+  next_word(p, end, &word, &len);
+  if (word_is(word, len, "MAX") || word_is(word, len, "LONG"))
+  {
+    size_t n= word_is(word, len, "MAX") ? 511 : 512;
+    memset(text, 'x', n);
+    text[n]= 0;
+    return sql_extension_send_ok(thd, 0, text);
+  }
+  if (word_is(word, len, "ILL_FORMED"))
+    return sql_extension_send_ok(thd, 0, "caf\xC3");  // a truncated 'é'
+  return sql_extension_send_ok(thd, 3, "test_sql_extension: info");
+}
+
+static int check_access(MYSQL_THD thd, const char *p, const char *end)
+{
+  static const struct { const char *name; unsigned long long priv; } privs[]=
+  {
+    { "SELECT",         SQL_EXTENSION_PRIV_SELECT },
+    { "INSERT",         SQL_EXTENSION_PRIV_INSERT },
+    { "REFERENCES",     SQL_EXTENSION_PRIV_REFERENCES },
+    { "GRANT_OPTION",   SQL_EXTENSION_PRIV_GRANT_OPTION },
+    { "DELETE_HISTORY", SQL_EXTENSION_PRIV_DELETE_HISTORY },
+    { "CREATE_TEMPORARY_TABLES",
+                        SQL_EXTENSION_PRIV_CREATE_TEMPORARY_TABLES },
+    { "LOCK_TABLES",    SQL_EXTENSION_PRIV_LOCK_TABLES },
+    { "EVENT",          SQL_EXTENSION_PRIV_EVENT },
+    { "SHOW_CREATE_ROUTINE", SQL_EXTENSION_PRIV_SHOW_CREATE_ROUTINE },
+    { "NOPRIV",         0 },
+    { "BADBIT",         1ULL << 62 },
+  };
+  char db[256], table[256];
+  const char *word;
+  size_t len;
+  unsigned long long priv= SQL_EXTENSION_PRIV_SELECT;
+  next_word(p, end, &word, &len);
+  for (const auto &pr : privs)
+    if (word_is(word, len, pr.name))
+    {
+      priv= pr.priv;
+      next_word(word + len, end, &word, &len);
+      break;
+    }
+  snprintf(db, sizeof(db), "%.*s", (int) len, word);
+  next_word(word + len, end, &word, &len);
+  snprintf(table, sizeof(table), "%.*s", (int) len, word);
+  if (!strcmp(table, "''"))
+    table[0]= 0;
+  return sql_extension_check_access(thd, priv, db, len ? table : NULL);
+}
+
+/*
+  Malformed result sets: no columns, a column without a name, a bad type,
+  a row without cells
+*/
+static int send_badset(MYSQL_THD thd, const char *p, const char *end)
+{
+  const char *word;
+  size_t len;
+  next_word(p, end, &word, &len);
+  sql_extension_cell cell= { "x", 1 };
+  if (word_is(word, len, "NOCOLS"))
+    return sql_extension_send_result_set(thd, 0, NULL, 0, NULL);
+  if (word_is(word, len, "NONAME"))
+  {
+    sql_extension_column col= { NULL, SQL_EXTENSION_COLUMN_STRING };
+    return sql_extension_send_result_set(thd, 1, &col, 1, &cell);
+  }
+  if (word_is(word, len, "BADTYPE"))
+  {
+    sql_extension_column col= { "c", 99 };
+    return sql_extension_send_result_set(thd, 1, &col, 1, &cell);
+  }
+  if (word_is(word, len, "NOCELLS"))
+  {
+    sql_extension_column col= { "c", SQL_EXTENSION_COLUMN_STRING };
+    return sql_extension_send_result_set(thd, 1, &col, 1, NULL);
+  }
+  my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: unknown '%.*s'", 0,
+                  (int) len, word);
+  return 1;
+}
+
 static int execute_main(MYSQL_THD thd, const char *query, size_t length)
 {
   const char *end= query + length;
@@ -155,6 +453,35 @@ static int execute_main(MYSQL_THD thd, const char *query, size_t length)
     return 1;
   if (word_is(word, len, "ECHO"))
     return echo(query, length);
+  if (word_is(word, len, "EMPTY") || word_is(word, len, "NULLS"))
+    return send_no_values(thd, word_is(word, len, "NULLS"));
+  if (word_is(word, len, "ROWS"))
+    return send_rows(thd);
+  if (word_is(word, len, "TYPES"))
+    return send_types(thd);
+  if (word_is(word, len, "BAD") || word_is(word, len, "BAD2"))
+    return send_bad(thd, word + len, end, len == 4);
+  if (word_is(word, len, "BADSET"))
+    return send_badset(thd, word + len, end);
+  if (word_is(word, len, "BADTHD"))
+    return sql_extension_send_ok(NULL, 0, NULL);
+  if (word_is(word, len, "INFO"))
+    return send_info(thd, word + len, end);
+  if (word_is(word, len, "WARN"))
+  {
+    my_printf_error(1, "test_sql_extension: note", ME_NOTE);
+    my_printf_error(2, "test_sql_extension: warning", ME_WARNING);
+    return 0;
+  }
+  if (word_is(word, len, "ACCESS"))
+    return check_access(thd, word + len, end);
+  if (word_is(word, len, "TWICE"))
+    return sql_extension_send_ok(thd, 0, NULL) ||
+           sql_extension_send_ok(thd, 0, NULL);
+  if (word_is(word, len, "MULTI"))
+    return send_multi(thd, word + len, end);
+  if (word_is(word, len, "FLAGS"))
+    return send_flags(thd);
   my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: unknown '%.*s'", 0,
                   (int) len, word);
   return 1;
@@ -295,6 +622,52 @@ static st_mariadb_sql_extension mixed_descriptor=
 };
 
 
+/* A priority with prefixes: invalid */
+static const char *const bad_priority_prefixes[]=
+  { "TEST BADPRIORITY", nullptr };
+
+static st_mariadb_sql_extension bad_priority_descriptor=
+{
+  MariaDB_SQL_EXTENSION_INTERFACE_VERSION,
+  bad_priority_prefixes,
+  nullptr,
+  execute_noop,
+  1
+};
+
+
+/*
+  Like recognize_test(), but leaves "TEST RECOGNIZE LOW ..." to others.
+  Also claims "TEST SQLEXT PRIORITY", a text test_sql_extension owns by its
+  prefix: a claimed prefix comes before any recognizer.
+*/
+static size_t recognize_priority(const char *query, size_t length)
+{
+  size_t claimed= recognize_test(query, length);
+  if (claimed)
+  {
+    /* 14: the length of "TEST RECOGNIZE"; PAST claims beyond the end */
+    const char *end= query + (claimed < length ? claimed : length);
+    return after_word(query + 14, end, "LOW") ? 0 : claimed;
+  }
+  return starts_with(query, length, "TEST SQLEXT PRIORITY") ? length : 0;
+}
+
+static int execute_priority(MYSQL_THD thd, const char *, size_t)
+{
+  return sql_extension_send_ok(thd, 0, "test_sql_extension_priority");
+}
+
+static st_mariadb_sql_extension priority_descriptor=
+{
+  MariaDB_SQL_EXTENSION_INTERFACE_VERSION,
+  nullptr,
+  recognize_priority,
+  execute_priority,
+  10
+};
+
+
 /*
   init() and deinit() of test_sql_extension_overlap, counted: a plugin
   refused after its init() succeeded must get its deinit() too. Shown by
@@ -319,10 +692,44 @@ static int overlap_deinit(void *p)
   return 0;
 }
 
+
+/*
+  test_sql_extension_bad_init: a valid descriptor whose init() fails. The
+  plugin is refused, and its deinit() must not run.
+*/
+static const char *const bad_init_prefixes[]= { "TEST BADINIT", nullptr };
+
+static st_mariadb_sql_extension bad_init_descriptor=
+{
+  MariaDB_SQL_EXTENSION_INTERFACE_VERSION,
+  bad_init_prefixes,
+  nullptr,
+  execute_noop,
+  0
+};
+
+static int bad_init_inits= 0, bad_init_deinits= 0;
+
+static int bad_init_init(void *)
+{
+  bad_init_inits++;
+  return 1;
+}
+
+static int bad_init_deinit(void *)
+{
+  bad_init_deinits++;
+  return 0;
+}
+
 static struct st_mysql_show_var main_status[]=
 {
   { "test_sql_extension_overlap_inits", (char *) &overlap_inits, SHOW_INT },
   { "test_sql_extension_overlap_deinits", (char *) &overlap_deinits,
+    SHOW_INT },
+  { "test_sql_extension_bad_init_inits", (char *) &bad_init_inits,
+    SHOW_INT },
+  { "test_sql_extension_bad_init_deinits", (char *) &bad_init_deinits,
     SHOW_INT },
   { NULL, NULL, SHOW_UNDEF }
 };
@@ -409,10 +816,49 @@ maria_declare_plugin(test_sql_extension)
 },
 {
   MariaDB_SQL_EXTENSION_PLUGIN,
+  &bad_priority_descriptor,
+  "test_sql_extension_bad_priority",
+  "MariaDB plc",
+  "SQL extension test: a priority with prefixes",
+  PLUGIN_LICENSE_GPL,
+  NULL, NULL,
+  0x0100,
+  NULL, NULL,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+},
+{
+  MariaDB_SQL_EXTENSION_PLUGIN,
+  &bad_init_descriptor,
+  "test_sql_extension_bad_init",
+  "MariaDB plc",
+  "SQL extension test: init() fails",
+  PLUGIN_LICENSE_GPL,
+  bad_init_init, bad_init_deinit,
+  0x0100,
+  NULL, NULL,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+},
+{
+  MariaDB_SQL_EXTENSION_PLUGIN,
   &recognizer_descriptor,
   "test_sql_extension_recognizer",
   "MariaDB plc",
   "SQL extension test: recognizer",
+  PLUGIN_LICENSE_GPL,
+  NULL, NULL,
+  0x0100,
+  NULL, NULL,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+},
+{
+  MariaDB_SQL_EXTENSION_PLUGIN,
+  &priority_descriptor,
+  "test_sql_extension_priority",
+  "MariaDB plc",
+  "SQL extension test: recognizer with priority 10",
   PLUGIN_LICENSE_GPL,
   NULL, NULL,
   0x0100,

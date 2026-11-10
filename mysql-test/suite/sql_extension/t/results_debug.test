@@ -1,0 +1,41 @@
+--echo #
+--echo # MDEV-41962 Results for clients that accept neither several results nor several
+--echo # statements, simulated with debug flags (the rest is in results.test)
+--echo #
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo # A client that does not accept several results gets one
+SET debug_dbug= '+d,sql_extension_no_client_multi_results';
+--disable_ps_protocol
+TEST SQLEXT FLAGS;
+--enable_ps_protocol
+--enable_info
+TEST SQLEXT ROWS;
+--disable_info
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT TWICE;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT MULTI;
+--echo # and only the error after rows
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT MULTI ERROR;
+SET debug_dbug= '';
+
+--echo # An OK the plugin set itself, not through the service (a plugin
+--echo # built with the server headers can call my_ok()), is refused: at
+--echo # the end of the statement, and at the first result of the service,
+--echo # so that the client gets none of the results
+SET debug_dbug= '+d,sql_extension_plugin_sets_ok';
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT OK;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT MULTI;
+SET debug_dbug= '';
+TEST SQLEXT OK;
+
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

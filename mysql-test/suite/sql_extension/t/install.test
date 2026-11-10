@@ -4,6 +4,7 @@
 --source include/not_embedded.inc
 
 call mtr.add_suppression("Plugin 'test_sql_extension.*' registration as a SQL EXTENSION failed");
+call mtr.add_suppression("Plugin 'test_sql_extension_bad_init' init function returned error");
 
 let $plugins= SELECT plugin_name, plugin_type, plugin_status
   FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
@@ -39,6 +40,22 @@ INSTALL PLUGIN test_sql_extension_empty SONAME 'test_sql_extension';
 INSTALL PLUGIN test_sql_extension_bad_prefix SONAME 'test_sql_extension';
 --error ER_SQL_EXTENSION_BAD_DESCRIPTOR
 INSTALL PLUGIN test_sql_extension_mixed SONAME 'test_sql_extension';
+--error ER_SQL_EXTENSION_BAD_DESCRIPTOR
+INSTALL PLUGIN test_sql_extension_bad_priority SONAME 'test_sql_extension';
+
+--echo # A plugin whose init() fails is refused: nothing claims its prefix,
+--echo # and its deinit() does not run
+let $inits= query_get_value(SHOW STATUS LIKE 'test_sql_extension_bad_init_inits', Value, 1);
+let $deinits= query_get_value(SHOW STATUS LIKE 'test_sql_extension_bad_init_deinits', Value, 1);
+--error ER_CANT_INITIALIZE_UDF
+INSTALL PLUGIN test_sql_extension_bad_init SONAME 'test_sql_extension';
+--error ER_PARSE_ERROR
+TEST BADINIT x;
+let $inits_after= query_get_value(SHOW STATUS LIKE 'test_sql_extension_bad_init_inits', Value, 1);
+let $deinits_after= query_get_value(SHOW STATUS LIKE 'test_sql_extension_bad_init_deinits', Value, 1);
+--disable_query_log
+eval SELECT $inits_after - $inits AS inits, $deinits_after - $deinits AS deinits;
+--enable_query_log
 
 --echo # A recognizer installs next to prefix plugins
 INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';

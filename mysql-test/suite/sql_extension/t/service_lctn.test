@@ -1,0 +1,33 @@
+--echo #
+--echo # MDEV-41962 sql_extension_check_access() with lower_case_table_names=1:
+--echo # the names are lower-cased as a statement's would be, so the grants
+--echo # are found whatever the case the plugin gives them in
+--echo #
+--source include/not_embedded.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT);
+CREATE TABLE db1.t2 (a INT);
+CREATE USER u1@localhost;
+GRANT SELECT ON db1.t1 TO u1@localhost;
+GRANT EVENT ON db1.* TO u1@localhost;
+
+connect (u1, localhost, u1,,);
+--echo # A table grant
+TEST SQLEXT ACCESS DB1 T1;
+TEST SQLEXT ACCESS Db1 t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS DB1 T2;
+--echo # A database grant
+TEST SQLEXT ACCESS EVENT DB1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS LOCK_TABLES DB1;
+disconnect u1;
+connection default;
+
+DROP USER u1@localhost;
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

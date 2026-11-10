@@ -1,0 +1,286 @@
+#
+# MDEV-41962 SQL extension service: results, warnings and access checks
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+#
+# Results
+#
+SET NAMES utf8mb4;
+TEST SQLEXT ROWS;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	16	5	N	1	39	224
+def					b	253	3	3	Y	128	39	63
+def					i	8	21	20	N	32897	0	63
+def					u	8	21	20	Y	32928	0	63
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+# Also as a prepared statement, which has no columns at PREPARE
+PREPARE s FROM 'TEST SQLEXT ROWS';
+EXECUTE s;
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+EXECUTE s;
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+DEALLOCATE PREPARE s;
+TEST SQLEXT INFO;
+affected rows: 3
+info: test_sql_extension: info
+# An OK message of 511 bytes is sent whole; a longer or ill-formed
+# one is refused, not cut or sent as '?'
+TEST SQLEXT INFO MAX;
+affected rows: 0
+info: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TEST SQLEXT INFO LONG;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: an OK message longer than 511 bytes
+TEST SQLEXT INFO ILL_FORMED;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: an OK message that is not well-formed utf8mb4
+SET NAMES DEFAULT;
+TEST SQLEXT WARN;
+Warnings:
+Note	1	test_sql_extension: note
+Warning	2	test_sql_extension: warning
+SHOW WARNINGS;
+Level	Code	Message
+Note	1	test_sql_extension: note
+Warning	2	test_sql_extension: warning
+# Several results per statement: see results.test
+#
+# Column types: the metadata follows the cells (DECIMAL scale,
+# fractional seconds, nullability)
+#
+# Text protocol only: with --ps-protocol the client computes other
+# "Max length" values and, as for CALL, does not show the JSON format
+# of columns first sent at EXECUTE
+TEST SQLEXT TYPES;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					d	5	22	6	Y	32896	31	63
+def					n	246	7	7	Y	32896	3	63
+def					dt	10	10	10	Y	128	0	63
+def					t	11	17	17	Y	128	6	63
+def					ts	12	21	21	Y	128	1	63
+def					j	253 (format=json)	52	13	Y	128	39	224
+d	n	dt	t	ts	j
+1.5	-12.500	2026-11-06	-838:59:59.000000	2026-11-06 10:20:30.5	{"a": [1, 2]}
+-0.002	3.125	0000-00-00	26:03:04.123456	2026-11-06 10:20:30.0	null
+NULL	NULL	NULL	NULL	NULL	NULL
+# With no rows, and with only NULLs, the metadata still describes
+# each column (strings at least 1 character wide; nullable only if
+# a NULL was sent)
+TEST SQLEXT EMPTY;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	4	0	N	1	39	224
+def					i	8	21	0	N	32897	0	63
+def					d	246	2	0	N	32897	0	63
+s	i	d
+TEST SQLEXT NULLS;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	4	0	Y	0	39	224
+def					i	8	21	0	Y	32896	0	63
+def					d	246	2	0	Y	32896	0	63
+s	i	d
+NULL	NULL	NULL
+NULL	NULL	NULL
+PREPARE s FROM 'TEST SQLEXT TYPES';
+EXECUTE s;
+d	n	dt	t	ts	j
+1.5	-12.500	2026-11-06	-838:59:59.000000	2026-11-06 10:20:30.5	{"a": [1, 2]}
+-0.002	3.125	0000-00-00	26:03:04.123456	2026-11-06 10:20:30.0	null
+NULL	NULL	NULL	NULL	NULL	NULL
+DEALLOCATE PREPARE s;
+# Values at the limits of each type are accepted
+TEST SQLEXT BAD INTEGER -9223372036854775808;
+c
+-9223372036854775808
+TEST SQLEXT BAD UNSIGNED 18446744073709551615;
+c
+18446744073709551615
+TEST SQLEXT BAD DOUBLE 1.7976931348623157e308;
+c
+1.7976931348623157e308
+TEST SQLEXT BAD DECIMAL 123456789012345678901234567.12345678901234567890123456789012345678;
+c
+123456789012345678901234567.12345678901234567890123456789012345678
+TEST SQLEXT BAD DECIMAL 0.00000000000000000000000000000000000001;
+c
+0.00000000000000000000000000000000000001
+TEST SQLEXT BAD TIME 838:59:59;
+c
+838:59:59
+TEST SQLEXT BAD TIME -34 22:59:59.999999;
+c
+-838:59:59.999999
+TEST SQLEXT BAD DATETIME 9999-12-31 23:59:59.999999;
+c
+9999-12-31 23:59:59.999999
+TEST SQLEXT BAD JSON [1, "two", {"three": null}];
+c
+[1, "two", {"three": null}]
+TEST SQLEXT BAD STRING cafÃ©;
+c
+cafÃ©
+# Other values are refused before anything is sent
+TEST SQLEXT BAD STRING ILL_FORMED;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid utf8mb4 string
+# Malformed result sets are refused as well
+TEST SQLEXT BADSET NOCOLS;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: a result set needs columns
+TEST SQLEXT BADSET NONAME;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: column 1 has no name
+TEST SQLEXT BADSET BADTYPE;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: column `c` has the unknown type 99
+TEST SQLEXT BADSET NOCELLS;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: rows were given without cells
+# A call with a thd other than execute()'s is an invalid argument
+TEST SQLEXT BADTHD;
+ERROR HY000: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_send_ok.
+TEST SQLEXT BAD INTEGER 12x;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid integer
+TEST SQLEXT BAD INTEGER 9223372036854775808;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid integer
+TEST SQLEXT BAD UNSIGNED -1;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid unsigned integer
+TEST SQLEXT BAD DOUBLE abc;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DOUBLE 1e400;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DOUBLE;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DECIMAL 1.2.3;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid decimal
+TEST SQLEXT BAD DECIMAL 1234567890123456789012345678901234567890123456789012345678901234567;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+TEST SQLEXT BAD DECIMAL 0.000000000000000000000000000000000000001;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+# Two cells that fit on their own, but not in one DECIMAL column:
+# 60 digits before the point and 11 after
+TEST SQLEXT BAD2 DECIMAL 123456789012345678901234567890123456789012345678901234567890 0.12345678901;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+TEST SQLEXT BAD DATE 2026-13-01;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid date
+TEST SQLEXT BAD DATE 2026-11-06 10:20:30;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid date
+TEST SQLEXT BAD DATETIME 2026-11-06;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid datetime
+TEST SQLEXT BAD DATETIME 2026-11-06 10:20:30.1234567;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid datetime
+TEST SQLEXT BAD TIME 839:00:00;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid time
+TEST SQLEXT BAD TIME 10:61:00;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid time
+TEST SQLEXT BAD JSON {"a": ;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid JSON document
+TEST SQLEXT BAD NOSUCHTYPE x;
+ERROR HY000: test_sql_extension: no type 'NOSUCHTYPE'
+#
+# Access checks
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE db1.t2 (a INT);
+INSERT INTO db1.t1 VALUES (1);
+CREATE USER u1@localhost;
+GRANT SELECT ON db1.t1 TO u1@localhost;
+connect  u1, localhost, u1,,;
+TEST SQLEXT ACCESS db1 t1;
+# An invalid call names the argument
+TEST SQLEXT ACCESS;
+ERROR HY000: Invalid argument error: db is NULL or empty in function sql_extension_check_access.
+TEST SQLEXT ACCESS db1 '';
+ERROR HY000: Invalid argument error: table is empty in function sql_extension_check_access.
+TEST SQLEXT ACCESS NOPRIV db1;
+ERROR HY000: Invalid argument error: privileges is 0 in function sql_extension_check_access.
+TEST SQLEXT ACCESS BADBIT db1;
+ERROR HY000: Invalid argument error: privileges has unknown bits in function sql_extension_check_access.
+# Names are checked as a statement's would be
+TEST SQLEXT ACCESS SELECT a2345678901234567890123456789012345678901234567890123456789012345;
+ERROR 42000: Incorrect database name 'a2345678901234567890123456789012345678901234567890123456789012345'
+TEST SQLEXT ACCESS SELECT db1 b2345678901234567890123456789012345678901234567890123456789012345;
+ERROR 42000: Incorrect table name 'b2345678901234567890123456789012345678901234567890123456789012345'
+TEST SQLEXT ACCESS db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+TEST SQLEXT ACCESS db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+# Every privilege GRANT accepts on a database can be checked
+connection default;
+GRANT LOCK TABLES, EVENT ON db1.* TO u1@localhost;
+GRANT REFERENCES ON db1.t1 TO u1@localhost;
+connection u1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS EVENT db1;
+TEST SQLEXT ACCESS REFERENCES db1 t1;
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+TEST SQLEXT ACCESS SHOW_CREATE_ROUTINE db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+TEST SQLEXT ACCESS DELETE_HISTORY db1 t1;
+ERROR 42000: DELETE HISTORY command denied to user 'u1'@'localhost' for table `db1`.`t1`
+TEST SQLEXT ACCESS GRANT_OPTION db1 t1;
+ERROR 42000: GRANT command denied to user 'u1'@'localhost' for table `db1`.`t1`
+# A database name is checked as a name, not as a GRANT pattern
+connection default;
+CREATE DATABASE my_db;
+GRANT SELECT ON `my\_db`.* TO u1@localhost WITH GRANT OPTION;
+connection u1;
+TEST SQLEXT ACCESS SELECT my_db;
+TEST SQLEXT ACCESS GRANT_OPTION my_db;
+# Databases with built-in access rules
+TEST SQLEXT ACCESS SELECT information_schema;
+TEST SQLEXT ACCESS INSERT information_schema;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'information_schema'
+TEST SQLEXT ACCESS SELECT performance_schema;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'performance_schema'
+# The current database is checked through the privileges cached for it
+USE db1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+# Global grants count
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON *.* TO u2@localhost;
+connect  u2, localhost, u2,,;
+TEST SQLEXT ACCESS SELECT db1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+TEST SQLEXT ACCESS INSERT db1;
+ERROR 42000: Access denied for user 'u2'@'localhost' to database 'db1'
+disconnect u2;
+# Grants of the active role and of PUBLIC count
+connection default;
+CREATE ROLE r1;
+GRANT SELECT ON db1.t2 TO r1;
+GRANT r1 TO u1@localhost;
+GRANT INSERT ON db1.* TO PUBLIC;
+connection u1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+SET ROLE r1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE NONE;
+TEST SQLEXT ACCESS SELECT db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+TEST SQLEXT ACCESS INSERT db1;
+TEST SQLEXT ACCESS INSERT db1 t2;
+connection default;
+REVOKE INSERT ON db1.* FROM PUBLIC;
+DELETE FROM mysql.global_priv WHERE user = 'PUBLIC';
+FLUSH PRIVILEGES;
+DROP ROLE r1;
+connection u1;
+# The current database's grants are cached until the next USE, as
+# for any statement
+TEST SQLEXT ACCESS INSERT db1;
+USE db1;
+TEST SQLEXT ACCESS INSERT db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+disconnect u1;
+connection default;
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP DATABASE my_db;
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

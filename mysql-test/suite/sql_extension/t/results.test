@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-41962 Several results per statement
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+--echo # Text protocol where the flags or several statements matter: a
+--echo # prepared statement never allows several statements
+--disable_ps_protocol
+TEST SQLEXT FLAGS;
+--enable_ps_protocol
+
+--echo #
+--echo # Results made by the plugin: each but the last is followed by more
+--echo #
+--enable_info
+TEST SQLEXT TWICE;
+TEST SQLEXT MULTI;
+--disable_info
+--echo # An error after a result: the result, then the error
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT MULTI ERROR;
+--echo # Prepared: the same results, and never several statements
+PREPARE s FROM 'TEST SQLEXT MULTI';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'TEST SQLEXT FLAGS';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # A client that does not accept several results: see results_debug.test
+
+UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 13.2 tests

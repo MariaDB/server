@@ -40,6 +40,7 @@ SET(MYSQLSERVICES_SOURCES
   wsrep_service.c
   json_service.c
   sql_service.c
+  sql_extension_service.c
   provider_service_bzip2.c
   provider_service_lz4.c
   provider_service_lzma.c

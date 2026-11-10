@@ -713,6 +713,51 @@ void thd_set_ha_data(THD* thd, const struct transaction_participant *hton,
 void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 }
 extern "C" {
+enum sql_extension_column_type
+{
+  SQL_EXTENSION_COLUMN_STRING= 0,
+  SQL_EXTENSION_COLUMN_BINARY= 1,
+  SQL_EXTENSION_COLUMN_INTEGER= 2,
+  SQL_EXTENSION_COLUMN_UNSIGNED= 3,
+  SQL_EXTENSION_COLUMN_DOUBLE= 4,
+  SQL_EXTENSION_COLUMN_DECIMAL= 5,
+  SQL_EXTENSION_COLUMN_DATE= 6,
+  SQL_EXTENSION_COLUMN_TIME= 7,
+  SQL_EXTENSION_COLUMN_DATETIME= 8,
+  SQL_EXTENSION_COLUMN_JSON= 9
+};
+struct sql_extension_column
+{
+  const char *name;
+  int type;
+};
+struct sql_extension_cell
+{
+  const char *str;
+  size_t length;
+};
+extern struct sql_extension_service_st {
+  int (*send_result_set_func)(THD* thd, size_t ncols,
+                              const struct sql_extension_column *cols,
+                              size_t nrows,
+                              const struct sql_extension_cell *cells);
+  int (*send_ok_func)(THD* thd, unsigned long long affected_rows,
+                      const char *message);
+  int (*check_access_func)(THD* thd, unsigned long long privileges,
+                           const char *db, const char *table);
+  unsigned int (*client_flags_func)(THD* thd);
+} *sql_extension_service;
+int sql_extension_send_result_set(THD* thd, size_t ncols,
+                                  const struct sql_extension_column *cols,
+                                  size_t nrows,
+                                  const struct sql_extension_cell *cells);
+int sql_extension_send_ok(THD* thd, unsigned long long affected_rows,
+                          const char *message);
+int sql_extension_check_access(THD* thd, unsigned long long privileges,
+                               const char *db, const char *table);
+unsigned int sql_extension_client_flags(THD* thd);
+}
+extern "C" {
 struct st_mariadb_sql_extension
 {
   int interface_version;
