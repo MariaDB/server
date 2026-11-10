@@ -30,7 +30,10 @@ while ($count)
         --reap
 
         --connection node_2
-        --error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY,ER_LOCK_WAIT_TIMEOUT,ER_QUERY_INTERRUPTED
+        # wsrep_sync_wait=0 lets node_2's DELETE run before node_1's
+        # CREATE TABLE replicates, so the first iteration can legitimately
+        # race a not-yet-existing t1 (MDEV-42141).
+        --error 0,ER_LOCK_DEADLOCK,ER_DUP_ENTRY,ER_LOCK_WAIT_TIMEOUT,ER_QUERY_INTERRUPTED,ER_NO_SUCH_TABLE
         --reap
 
         --dec $count
