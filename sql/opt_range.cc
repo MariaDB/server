@@ -119,6 +119,7 @@
 #include "opt_hints.h"
 #include "index/hlindex.h"     // hlindex (TABLE::hli)
 #include "index/json.h"        // JSON_INDEX_VALUE_MAX_LEN
+#include <algorithm>
 
 #ifndef EXTRA_DEBUG
 #define test_rb_tree(A,B) {}
@@ -9773,8 +9774,12 @@ static SEL_TREE *json_get_func_mm_tree(RANGE_OPT_PARAM *param, Field *field,
                                    param->max_keys);
   List_iterator_fast<Item> it(elements);
   Item *elem;
+  uint limit= param->thd->variables.eq_range_index_dive_limit;
+  uint n_elements= 0;
   while ((elem= it++))
   {
+    if (conjunctive && limit && n_elements++ >= limit)
+      break;
     SEL_TREE *t= get_mm_parts(elem);
     if (conjunctive)
       tree= tree_and(param, tree, t);
@@ -11083,8 +11088,8 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
   /* For two SEL_ARG_ARRAYs, keep the rarer one */
   if (SEL_ARG_ARRAY::is_array(key1) && SEL_ARG_ARRAY::is_array(key2))
   {
-    if (static_cast<SEL_ARG_ARRAY*>(key2)->rows <
-        static_cast<SEL_ARG_ARRAY*>(key1)->rows)
+    if (static_cast<SEL_ARG_ARRAY*>(key2)->get_rows(param) <
+        static_cast<SEL_ARG_ARRAY*>(key1)->get_rows(param))
       swap_variables(SEL_ARG *, key1, key2);
     key2->use_count--;
     return key1;
@@ -11258,29 +11263,91 @@ SEL_ARG *key_and_with_limit(RANGE_OPT_PARAM *param, uint keyno,
 static SEL_ARG *key_or_array(RANGE_OPT_PARAM *param, SEL_ARG_ARRAY *key1,
                              SEL_ARG_ARRAY *key2)
 {
-  SEL_ARG_ARRAY *res;
-  /* TODO: this makes a copy even if key1->use_count == 0 */
-  if (!(res= new (param->mem_root)
-               SEL_ARG_ARRAY(param->mem_root,
-                             key1->field, key1->min_value, key1->point_len)))
-    return 0;
-  res->part= key1->part;
-  res->max_part_no= key1->max_part_no;
-  for (size_t i= 0; i < key1->points.size(); i++)
-    if (res->points.push_back(key1->points.at(i)))
+  if (key1 == key2)
+  {
+    key1->use_count++;
+    return key1;
+  }
+  if (key2->points.size() > key1->points.size())
+    swap_variables(SEL_ARG_ARRAY *, key1, key2);
+  if (key1->use_count > 0)
+  {
+    if (!(key1= static_cast<SEL_ARG_ARRAY*>(key1->clone_node(param->mem_root))))
       return 0;
-  /* TODO: has_point has a linear memcmp scan */
-  for (size_t i= 0; i < key2->points.size(); i++)
-    if (!res->has_point(key2->points.at(i)) &&
-        res->points.push_back(key2->points.at(i)))
-      return 0;
-  if (key1->rows == HA_POS_ERROR || key2->rows == HA_POS_ERROR)
-    res->rows= HA_POS_ERROR;
+  }
   else
-    res->rows= key1->rows + key2->rows;
-  res->cost= key1->cost;
-  res->cost.add(&key2->cost);
-  return res;
+    key1->use_count++;
+  if (key1->add_points(key2))
+    return 0;
+  return key1;
+}
+
+
+void SEL_ARG_ARRAY::normalize()
+{
+  if (normalized)
+    return;
+  uint len= point_len;
+  std::sort(points.begin(), points.end(),
+            [len](const uchar *a, const uchar *b)
+            { return memcmp(a, b, len) < 0; });
+  const uchar **end= std::unique(points.begin(), points.end(),
+                                 [len](const uchar *a, const uchar *b)
+                                 { return !memcmp(a, b, len); });
+  size_t n= (size_t) (end - points.begin());
+  if (n < points.size())
+    points.chop(n);
+  normalized= true;
+}
+
+
+void SEL_ARG_ARRAY::estimate(RANGE_OPT_PARAM *param)
+{
+  TABLE *table= param->table;
+  KEY *keyinfo= table->key_info + keynr;
+  uint limit= param->thd->variables.eq_range_index_dive_limit;
+  size_t n, dives;
+
+  normalize();
+  n= points.size();
+  dives= (limit && n >= limit) ? limit : n;
+  estimated= true;
+  rows= 0;
+  cost.reset();
+  for (size_t i= 0; i < dives; i++)
+  {
+    Cost_estimate point_cost;
+    /*
+      TODO: records_in_range() both gets the row estimates and
+      computes the cost estimates. It would be cleaner and more
+      efficient for it to get row estimates only (just like the
+      handler method of the same name), and split off a
+      json_index::range_cost method to get the cost, called once in
+      check_quick_select_array().
+    */
+    ha_rows point_rows=
+      table->hli->records_in_range(table, keyinfo, points.at(i * n / dives),
+                                   point_len, &point_cost);
+    if (point_rows == HA_POS_ERROR)
+    {
+      rows= HA_POS_ERROR;
+      return;
+    }
+    rows+= point_rows;
+    cost.add(&point_cost);
+  }
+  if (dives < n)
+  {
+    double scale= (double) n / dives;
+    rows= (ha_rows) (rows2double(rows) * scale);
+    cost.index_cost.io*= scale;
+    cost.index_cost.cpu*= scale;
+    cost.row_cost.io*= scale;
+    cost.row_cost.cpu*= scale;
+    cost.copy_cost*= scale;
+    cost.comp_cost*= scale;
+    cost.cpu_cost*= scale;
+  }
 }
 
 
@@ -12830,7 +12897,7 @@ ha_rows check_quick_select_array(PARAM *param, uint keynr, SEL_ARG *tree,
   if (param->table->hlindex_open(keynr) || param->table->hlindex_lock(keynr))
     return HA_POS_ERROR;
 
-  rows= array->rows;
+  rows= array->get_rows(param);
   param->quick_rows[keynr]= rows;
   if (rows == HA_POS_ERROR)
     return HA_POS_ERROR;
@@ -13300,6 +13367,7 @@ bool get_quick_keys_array(PARAM *param, QUICK_RANGE_SELECT_ARRAY *quick,
     return 1;
   }
   SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(key_tree);
+  array->normalize();
   uint len= array->point_len;
   size_t n= array->points.size();
 
@@ -18273,6 +18341,7 @@ static void trace_ranges(Json_writer_array *range_trace, PARAM *param,
   {
     SEL_ARG_ARRAY *array= static_cast<SEL_ARG_ARRAY*>(keypart);
     hlindex *hli= key_parts->field->table->hli;
+    array->normalize();
     for (size_t i= 0; i < array->points.size(); i++)
     {
       StringBuffer<128> str;

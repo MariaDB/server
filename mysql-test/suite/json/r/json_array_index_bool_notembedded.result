@@ -58,6 +58,23 @@ idx	ranges
         "(\"d\") MEMBER OF js"
     ]
 ]
+# OR: points are sorted, duplicates removed
+select pk from t1 where json_overlaps(js, '["d", "b", "d"]') or 'b' member of (js);
+pk
+1
+2
+5
+7
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+idx	ranges
+["i1"]	[
+    [
+        "(\"b\") MEMBER OF js",
+        "(\"d\") MEMBER OF js"
+    ]
+]
 # Nested: ('a' OR 'd') AND 'e'
 select pk from t1 where ('a' member of (js) or 'd' member of (js)) and json_contains(js, '"e"');
 pk
