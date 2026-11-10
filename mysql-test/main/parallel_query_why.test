@@ -66,6 +66,17 @@ SELECT s, n, SUM(n) FROM t1 GROUP BY s ORDER BY NULL;
 --enable_result_log
 --source include/parallel_query_why.inc
 
+--echo # a GROUP BY column the WHERE binds to a constant: dropped from the plan's
+--echo # group key as constant, named by the query's GROUP BY, so read by the
+--echo # select list it is still a group column, and the plan is run divided
+--enable_result_log
+SELECT s, n, SUM(a) FROM t1 WHERE n = 3 GROUP BY s, n ORDER BY s;
+--source include/parallel_query_why.inc
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS divided
+  FROM information_schema.optimizer_trace;
+--disable_result_log
+
 --echo # an index supplying the ORDER BY
 --disable_result_log
 SELECT a FROM t1 ORDER BY a;

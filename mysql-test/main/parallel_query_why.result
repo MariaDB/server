@@ -25,6 +25,19 @@ why
 # a select list column that GROUP BY does not name
 why
 ["grouped: a select list item reads a column outside an aggregate that GROUP BY does not name, so its value is whichever row the terminal happened to hold"]
+# a GROUP BY column the WHERE binds to a constant: dropped from the plan's
+# group key as constant, named by the query's GROUP BY, so read by the
+# select list it is still a group column, and the plan is run divided
+s	n	SUM(a)
+s0	3	1750
+s1	3	1948
+s2	3	2156
+s3	3	1844
+s4	3	2052
+why
+NULL
+divided
+["t1"]
 # an index supplying the ORDER BY
 why
 ["an index supplies the ORDER BY order, rows aren't splittable", "no table this plan reads can be divided"]
