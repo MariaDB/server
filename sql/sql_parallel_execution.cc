@@ -501,9 +501,23 @@ static Item *pwt_table_cond(JOIN_TAB *tab)
 class Pwt_group_checker : public Field_enumerator
 {
   ORDER *group;
+  COND_EQUAL *cond_equal;
+  /* The WHERE binds the column to a constant: col = 3, or col = c and c = 3 */
+  bool bound_to_constant(Field *field) const
+  {
+    if (!cond_equal)
+      return false;
+    List_iterator_fast<Item_equal> it(cond_equal->current_level);
+    Item_equal *ie;
+    while ((ie= it++))
+      if (ie->get_const() && ie->contains(field))
+        return true;
+    return false;
+  }
 public:
   bool all_grouped;
-  Pwt_group_checker(ORDER *group_arg) : group(group_arg), all_grouped(true) {}
+  Pwt_group_checker(ORDER *group_arg, COND_EQUAL *cond_equal_arg)
+    : group(group_arg), cond_equal(cond_equal_arg), all_grouped(true) {}
   void visit_field(Item_field *item) override
   {
     if (!item->field)
@@ -515,6 +529,8 @@ public:
           ((Item_field *) it)->field == item->field)
         return;
     }
+    if (bound_to_constant(item->field))
+      return;
     all_grouped= false;
   }
 };
@@ -541,14 +557,26 @@ public:
     carrying one is refused rather than guessed at: being wrong in the
     permissive direction here is wrong results.
 
+    A column the WHERE binds to a constant -- d_year = 2000, found in the
+    join's multiple equalities -- counts as a group column whether or not
+    'group' names it: it has the one value in every group. The two gates
+    need this to agree. The one asked before the plan sees the GROUP BY as
+    written, with d_year in it; by the time the one after the plan asks,
+    remove_const() has dropped d_year from the group list as having one
+    value everywhere, and a check against the trimmed list refused a select
+    list that reads d_year. The search had chosen a parallel plan on the
+    first answer, the workers never ran it on the second, and the query was
+    left with a serial plan it never meant to have.
+
   @return  true if some field outside an aggregate is not a group column.
 */
 
-static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
+static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group,
+                                             COND_EQUAL *cond_equal)
 {
   if (!item->with_sum_func())
   {
-    Pwt_group_checker check(group);
+    Pwt_group_checker check(group, cond_equal);
     item->walk(&Item::enumerate_field_refs_processor, (void *) &check, 0);
     return !check.all_grouped;
   }
@@ -557,13 +585,14 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
   case Item::SUM_FUNC_ITEM:
     return false;                     // its arguments are the aggregate's own
   case Item::REF_ITEM:
-    return pwt_ungrouped_outside_aggregates(item->real_item(), group);
+    return pwt_ungrouped_outside_aggregates(item->real_item(), group,
+                                            cond_equal);
   case Item::COND_ITEM:
   {
     List_iterator<Item> li(*((Item_cond *) item)->argument_list());
     Item *arg;
     while ((arg= li++))
-      if (pwt_ungrouped_outside_aggregates(arg, group))
+      if (pwt_ungrouped_outside_aggregates(arg, group, cond_equal))
         return true;
     return false;
   }
@@ -571,7 +600,8 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group)
   {
     Item_func *f= (Item_func *) item;
     for (uint i= 0; i < f->argument_count(); i++)
-      if (pwt_ungrouped_outside_aggregates(f->arguments()[i], group))
+      if (pwt_ungrouped_outside_aggregates(f->arguments()[i], group,
+                                           cond_equal))
         return true;
     return false;
   }
@@ -747,7 +777,7 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   {
     if (it->const_item())
       continue;
-    if (pwt_ungrouped_outside_aggregates(it, g))
+    if (pwt_ungrouped_outside_aggregates(it, g, join->cond_equal))
       return pwt_decline(join, trace,
                          "grouped: a select list item reads a column "
                          "outside an aggregate that GROUP BY does not "
@@ -889,7 +919,7 @@ static bool pwt_whole_table_preagg_supported(JOIN *join, bool trace)
   {
     if (it->const_item())
       continue;
-    if (pwt_ungrouped_outside_aggregates(it, nullptr))
+    if (pwt_ungrouped_outside_aggregates(it, nullptr, join->cond_equal))
       return pwt_decline(join, trace,
                          "whole-table: a select list item reads a column "
                          "outside an aggregate, so its value is whichever "
@@ -1079,7 +1109,7 @@ bool pwt_query_shape_allows_workers(JOIN *join, bool trace)
     {
       if (it->const_item())
         continue;
-      if (pwt_ungrouped_outside_aggregates(it, group))
+      if (pwt_ungrouped_outside_aggregates(it, group, join->cond_equal))
         return pwt_decline(join, trace,
                  group
                  ? "grouped: a select list item reads a column outside an "
