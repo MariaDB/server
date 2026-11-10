@@ -139,6 +139,7 @@ SET (SQL_SOURCE
                sql_list.cc sql_load.cc sql_manager.cc
                sql_oracle_outer_join.cc
                sql_parse.cc sql_bootstrap.cc
+               sql_extension_matcher.cc
                sql_partition.cc sql_partition_auto_interval.cc
                sql_plugin.cc sql_prepare.cc sql_rename.cc
                debug_sync.cc debug.cc

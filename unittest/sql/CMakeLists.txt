@@ -40,3 +40,7 @@ ADD_EXECUTABLE(json_reader-t json_reader-t.cc dummy_builtins.cc)
 TARGET_LINK_LIBRARIES(json_reader-t sql mytap)
 MY_ADD_TEST(json_reader)
 
+ADD_EXECUTABLE(sql_extension_matcher-t sql_extension_matcher-t.cc
+               dummy_builtins.cc)
+TARGET_LINK_LIBRARIES(sql_extension_matcher-t sql mytap)
+MY_ADD_TEST(sql_extension_matcher)
