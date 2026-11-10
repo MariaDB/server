@@ -1,0 +1,84 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+
+--echo #
+--echo # MDEV-19629 Implement MySQL 8.0 native functions:
+--echo #            PS_THREAD_ID() and PS_CURRENT_THREAD_ID()
+--echo #
+
+--echo # Function plugins of the performance schema library
+SELECT PLUGIN_NAME, PLUGIN_STATUS, PLUGIN_TYPE, PLUGIN_LIBRARY
+FROM information_schema.PLUGINS
+WHERE PLUGIN_NAME IN ('ps_thread_id', 'ps_current_thread_id')
+ORDER BY PLUGIN_NAME;
+
+SELECT THREAD_ID INTO @tid FROM performance_schema.threads
+WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+SELECT PS_CURRENT_THREAD_ID() = @tid;
+SELECT PS_THREAD_ID(CONNECTION_ID()) = @tid;
+SELECT PS_THREAD_ID(CONNECTION_ID()) = PS_CURRENT_THREAD_ID();
+
+--echo # Another connection
+connect (con1,localhost,root,,);
+let $con1_id= `SELECT CONNECTION_ID()`;
+let $con1_tid= `SELECT PS_CURRENT_THREAD_ID()`;
+connection default;
+--disable_query_log
+eval SELECT PS_THREAD_ID($con1_id) = $con1_tid AS con1;
+
+--echo # Same answer as performance_schema.threads for both connections
+eval SELECT COUNT(*) FROM performance_schema.threads
+WHERE PROCESSLIST_ID IN (CONNECTION_ID(), $con1_id)
+AND PS_THREAD_ID(PROCESSLIST_ID) = THREAD_ID;
+--enable_query_log
+
+disconnect con1;
+let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.processlist
+                     WHERE id = $con1_id;
+--source include/wait_condition.inc
+--disable_query_log
+eval SELECT PS_THREAD_ID($con1_id) AS con1_after_disconnect;
+--enable_query_log
+
+--echo # NULL for unknown, NULL, zero, negative and non-integer arguments
+SELECT PS_THREAD_ID(234623462376);
+SELECT PS_THREAD_ID(NULL);
+SELECT PS_THREAD_ID(0);
+SELECT PS_THREAD_ID(-1);
+SELECT PS_THREAD_ID(1.9);
+SELECT PS_THREAD_ID(18446744073709551615);
+SELECT PS_THREAD_ID('abc');
+
+--echo # Prepared statements
+PREPARE s FROM 'SELECT PS_THREAD_ID(?) = PS_CURRENT_THREAD_ID()';
+SET @cid= CONNECTION_ID();
+EXECUTE s USING @cid;
+EXECUTE s USING NULL;
+DEALLOCATE PREPARE s;
+
+--echo # Result type
+CREATE TABLE t1 AS SELECT PS_THREAD_ID(1) AS a, PS_CURRENT_THREAD_ID() AS b;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # Wrong argument count
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT PS_THREAD_ID();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT PS_THREAD_ID(1, 2);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT PS_CURRENT_THREAD_ID(1);
+
+--echo # Allowed in VIRTUAL columns, not in PERSISTENT ones (like CONNECTION_ID())
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_THREAD_ID(a)) VIRTUAL,
+                 c BIGINT UNSIGNED AS (PS_CURRENT_THREAD_ID()) VIRTUAL);
+DROP TABLE t1;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_THREAD_ID(a)) PERSISTENT);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1 (a INT, b BIGINT UNSIGNED AS (PS_CURRENT_THREAD_ID()) PERSISTENT);
+
+--echo #
+--echo # End of 13.2 tests
+--echo #
