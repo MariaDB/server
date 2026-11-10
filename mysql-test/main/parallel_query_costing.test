@@ -8,7 +8,7 @@
 # add_parallel_driver_candidates, position_cost_in_plan). Three things
 # follow. The first two are pinned on the same pair of tables: a five-row
 # dimension of which one row matches, and a 20000-row fact table with a
-# non-indexed filter. The third on a 2000-row dimension and a 200000-row
+# non-indexed filter. The third on a 20000-row dimension and a 200000-row
 # fact table.
 #
 # A scan too small to repay the setup is not divided. Everything here is too
@@ -26,11 +26,14 @@
 # workers did with every such plan before the scan was costed.
 #
 # The divided reading is judged as a plan, not on the driving table alone. A
-# 2000-row dimension of which 200 rows match, each with 100 fact rows under
-# it, has a scan too small to repay the default setup on its own, and is
-# still the plan to divide: the 20000 fact rows read spread over the workers
-# save far more than the setup costs. It drives the join divided, whether
-# the search orders the join or STRAIGHT_JOIN fixes the order.
+# 20000-row dimension of which the first 2000 rows match, each with 10 fact
+# rows under it, has a scan too small to repay the default setup on its own,
+# and is still the plan to divide: the 20000 fact rows read spread over the
+# workers save far more than the setup costs. It drives the join divided,
+# whether the search orders the join or STRAIGHT_JOIN fixes the order. The
+# matching rows lie together in the primary key, over four of the table's
+# pages, which is the most workers the optimizer lets them reach
+# (parallel_scan_cost) and as many as there are here.
 #
 --source include/have_innodb.inc
 --source include/have_sequence.inc
@@ -131,11 +134,11 @@ SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_
 --echo #
 SET SESSION optimizer_parallel_setup_cost= @save_cost;
 CREATE TABLE dim2 (id INT PRIMARY KEY, name VARCHAR(10)) ENGINE=InnoDB;
-INSERT INTO dim2 SELECT seq, IF(seq % 10 = 0, 'match', 'other')
-  FROM seq_1_to_2000;
+INSERT INTO dim2 SELECT seq, IF(seq <= 2000, 'match', 'other')
+  FROM seq_1_to_20000;
 CREATE TABLE fact2 (id INT PRIMARY KEY, dim_id INT, val INT, KEY(dim_id))
   ENGINE=InnoDB;
-INSERT INTO fact2 SELECT seq, seq % 2000 + 1, seq % 1000 FROM seq_1_to_200000;
+INSERT INTO fact2 SELECT seq, seq % 20000 + 1, seq % 1000 FROM seq_1_to_200000;
 ANALYZE TABLE dim2, fact2 PERSISTENT FOR ALL;
 EXPLAIN SELECT COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
   WHERE f.dim_id = d.id AND d.name = 'match';
