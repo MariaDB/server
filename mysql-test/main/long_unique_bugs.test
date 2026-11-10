@@ -792,4 +792,28 @@ as select 'x' as a;
 delete from t;
 drop table t;
 
+--echo #
+--echo # MDEV-41977 UNIQUE HASH prefix on utf8mb4 TEXT allows rows with equal
+--echo # indexed prefixes
+--echo #
+create table t1 (a text character set utf8mb4 collate utf8mb4_bin,
+                 unique key (a(1)) using hash) engine=innodb;
+insert into t1 values ('aa');
+--error ER_DUP_ENTRY
+insert into t1 values ('ab');
+insert into t1 values ('ba');
+--error ER_DUP_ENTRY
+update t1 set a='bb' where a='aa';
+insert ignore into t1 values ('ac'), ('bc'), ('ca');
+select * from t1 order by a;
+drop table t1;
+
+create table t1 (a varchar(10) character set utf8mb4 collate utf8mb4_bin,
+                 unique key (a(1)) using hash) engine=innodb;
+insert into t1 values ('aa');
+--error ER_DUP_ENTRY
+insert into t1 values ('ab');
+select * from t1;
+drop table t1;
+
 --echo # End of 10.11 tests
