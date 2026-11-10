@@ -20,6 +20,8 @@
 #include "sql_cmd.h"
 #include "sql_parse.h"
 #include "sql_acl.h"                            // check_access
+#include "sql_prepare.h"     // mysql_real_connect_local_as_client
+#include "sql_common.h"      // set_mysql_extended_error
 #include "sql_type_json.h"                      // Type_handler_json_common
 #include "my_decimal.h"
 #include <json_lib.h>
@@ -412,6 +414,72 @@ namespace {
 class Result_sequence;
 
 /**
+  The error that came with a rollback of the client's transaction that an
+  engine or the MDL subsystem asked for during an extension statement, and
+  whether a stored program handled it. The statement fails with it unless
+  the program did (see sql_extension_note_implicit_rollback() and the
+  functions after it).
+*/
+class Rollback_error
+{
+  uint m_sql_errno= 0;                          // 0: none
+  /**
+    The statement that got it. Query ids only grow, and each instruction of
+    a stored program takes a new one, so a statement started at or after
+    a given id has one at or above it.
+  */
+  query_id_t m_query_id= 0;
+  /**
+    A handler of a stored program took it, and the run of SQL that got it
+    did not fail after all
+  */
+  bool m_handled= false;
+  char m_message[MYSQL_ERRMSG_SIZE];
+
+public:
+  /** The statement fails with this error */
+  bool pending() const { return m_sql_errno && !m_handled; }
+  uint sql_errno() const { return m_sql_errno; }
+  const char *message() const { return m_message; }
+
+  /** A rollback with this error: the first one not handled wins */
+  void note(uint sql_errno, const char *message, query_id_t query_id)
+  {
+    if (pending())
+      return;
+    m_sql_errno= sql_errno;
+    m_query_id= query_id;
+    m_handled= false;
+    strmake_buf(m_message, message);
+  }
+
+  /**
+    A handler took an error. It is this rollback's if the number is the same
+    and the rollback came from the instruction the handler guards
+    (handler_query_id) or from a routine it called, which got later ids. A
+    later error of the same number (another deadlock, a SIGNAL) has a later
+    id than the instruction that got the rollback.
+  */
+  void handler_took(uint sql_errno, query_id_t handler_query_id)
+  {
+    if (m_sql_errno == sql_errno && m_query_id >= handler_query_id)
+      m_handled= true;
+  }
+
+  /**
+    A run of SQL, started when the next query id was run_start, failed: if
+    the rollback came from it, the error escaped the handler that took it
+    (RESIGNAL, another error) or the program failed later on
+  */
+  void run_failed(query_id_t run_start)
+  {
+    if (m_sql_errno && m_query_id >= run_start)
+      m_handled= false;
+  }
+};
+
+
+/**
   The extension statement executing on this thread: its THD (NULL if none),
   plugin and results. Deliberately thread-local, not a THD member: handler
   SQL runs on the same OS thread, on the client's THD or on a THD of its
@@ -426,16 +494,85 @@ struct Running_extension
   const char *plugin_name;
   /** Where the service functions put its results */
   Result_sequence *results;
+  /** Unique to the statement among all those of the server */
+  ulonglong serial;
+  /** The error of SQL that rolled back the client's transaction */
+  Rollback_error *rollback;
 };
-thread_local Running_extension running= { nullptr, nullptr, nullptr };
+thread_local Running_extension running=
+  { nullptr, nullptr, nullptr, 0, nullptr };
+/*
+  Shared by all threads: under the thread pool the statements of one
+  connection run on different threads, so a counter of each thread could
+  give two of them the same serial
+*/
+Atomic_counter<ulonglong> last_serial(0);
+
+} // namespace
+
+
+bool sql_extension_sql_as_client(const THD *thd)
+{
+  /*
+    True inside an extension statement on this THD. The callers rely on
+    this: while execute() is in progress, nothing but the SQL its handler
+    runs reaches them on this THD. False for the private THD the plain SQL
+    service may create on this thread, which is not the client's.
+  */
+  return thd && running.thd == thd;
+}
+
+
+ulonglong sql_extension_statement_serial(const THD *thd)
+{
+  return thd && running.thd == thd ? running.serial : 0;
+}
+
+
+void sql_extension_note_implicit_rollback(THD *thd)
+{
+  /*
+    Only a rollback an engine or the MDL subsystem asked for: a deadlock,
+    a lock wait timeout with innodb_rollback_on_timeout, an INSERT ...
+    SELECT whose bulk insert could not be undone on its own. The error
+    kept is the one the statement failed with (the deadlock, the timeout,
+    or for that INSERT the error that stopped it, a duplicate key say).
+    Not the rollback CHECK TABLE and the like do for a corrupt table:
+    their statement succeeds, and they commit any transaction before they
+    start.
+  */
+  if (running.thd != thd || !thd->transaction_rollback_request)
+    return;
+  const Diagnostics_area *da= thd->get_stmt_da();
+  if (da->is_error())
+    running.rollback->note(da->sql_errno(), da->message(), thd->query_id);
+}
+
+
+void sql_extension_note_error_handled(THD *thd, uint sql_errno)
+{
+  if (running.thd == thd)
+    running.rollback->handler_took(sql_errno, thd->query_id);
+}
+
+
+void sql_extension_note_sql_done(THD *thd, query_id_t run_start, bool failed)
+{
+  if (failed && running.thd == thd)
+    running.rollback->run_failed(run_start);
+}
+
+
+namespace {
 
 class Extension_running_guard
 {
   Running_extension m_saved;
 public:
   Extension_running_guard(THD *thd, const char *plugin_name,
-                          Result_sequence *results) : m_saved(running)
-  { running= { thd, plugin_name, results }; }
+                          Result_sequence &results, Rollback_error &rollback)
+    : m_saved(running)
+  { running= { thd, plugin_name, &results, ++last_serial, &rollback }; }
   ~Extension_running_guard() { running= m_saved; }
   Extension_running_guard(const Extension_running_guard &)= delete;
   Extension_running_guard &operator=(const Extension_running_guard &)= delete;
@@ -614,6 +751,7 @@ bool Sql_cmd_sql_extension::execute(THD *thd)
   auto *d= static_cast<const st_mariadb_sql_extension *>
              (plugin_decl(plugin)->info);
   Result_sequence results;
+  Rollback_error rollback;
   int rc;
   {
     /*
@@ -624,7 +762,8 @@ bool Sql_cmd_sql_extension::execute(THD *thd)
       cursor, which skips the lookup: cleared here for every path.
     */
     thd->query_cache_is_applicable= 0;
-    Extension_running_guard guard(thd, m_plugin_name.str, &results);
+    Extension_running_guard guard(thd, m_plugin_name.str, results,
+                                  rollback);
     rc= d->execute(thd, m_text.str, m_text.length);
     /* A plugin built with the server headers can call my_ok() itself */
     DBUG_EXECUTE_IF("sql_extension_plugin_sets_ok",
@@ -633,6 +772,33 @@ bool Sql_cmd_sql_extension::execute(THD *thd)
   plugin_unlock(NULL, plugin);
 
   Diagnostics_area *da= thd->get_stmt_da();
+  if (!thd->is_error() && thd->killed != NOT_KILLED)
+  {
+    /*
+      A kill (KILL, max_statement_time) fails the statement even if
+      the handler did not pass on the error its SQL got: that SQL may have
+      stopped halfway. The error is the statement's final packet; what a
+      handler that went on sent still reaches a client that accepts
+      several results, before the error, as the results of a CALL do.
+    */
+    char msg[MYSQL_ERRMSG_SIZE];
+    if (int err= thd->killed_error(msg, sizeof(msg)))
+    {
+      da->reset_diagnostics_area();
+      my_message(err, msg, MYF(0));
+    }
+  }
+  if (!thd->is_error() && rollback.pending())
+  {
+    /*
+      Likewise, SQL whose error (a deadlock, say) rolled back the client's
+      transaction fails the statement with that error even if the handler
+      did not pass it on: otherwise the client would go on as if the work
+      of its transaction were still pending.
+    */
+    da->reset_diagnostics_area();
+    my_message(rollback.sql_errno(), rollback.message(), MYF(0));
+  }
   if (rc && !thd->is_error())
   {
     /* Failure must come with an error, or the client gets nothing */
@@ -678,6 +844,11 @@ bool invalid_result(const char *what)
 }
 
 
+/** The argument of ER_STD_INVALID_ARGUMENT for a call on the wrong thd */
+const char not_execute_thd[]=
+  "thd is not the connection of the execute() in progress";
+
+
 /**
   Check that a service function is called from execute(), on its THD.
   With `result`, the function starts a result: the statement must have no
@@ -690,8 +861,7 @@ bool check_service_call(THD *thd, const char *func, bool result)
   if (!thd || thd != running.thd || thd != current_thd)
   {
     /* A plugin bug, reported to the plugin as the header promises */
-    my_error(ER_STD_INVALID_ARGUMENT, MYF(0),
-             "thd is not the connection of the execute() in progress", func);
+    my_error(ER_STD_INVALID_ARGUMENT, MYF(0), not_execute_thd, func);
     return true;
   }
   if (!result)
@@ -1370,6 +1540,89 @@ int sql_extension_check_access(MYSQL_THD thd, unsigned long long privileges,
 }
 
 
+struct st_mysql *sql_extension_connect_as_client(MYSQL_THD thd,
+                                                 struct st_mysql *mysql)
+{
+  static const char func[]= "sql_extension_connect_as_client";
+  /* Raises the error, or logs it on a thread of the plugin without a THD */
+  bool wrong_thd= check_service_call(thd, func, false);
+  if (!mysql)
+  {
+    if (!wrong_thd)                     // one error for one invalid call
+      my_error(ER_STD_INVALID_ARGUMENT, MYF(0), "mysql is NULL", func);
+    return NULL;
+  }
+  if (wrong_thd)
+  {
+    /*
+      On the handle too, where the plugin looks for it. From what was
+      raised, not read back from a diagnostics area: one may hold an older
+      error, or none if a handler took the condition.
+    */
+    set_mysql_extended_error(mysql, ER_STD_INVALID_ARGUMENT,
+                             mysql_errno_to_sqlstate(ER_STD_INVALID_ARGUMENT),
+                             ER_THD_OR_DEFAULT(current_thd,
+                                               ER_STD_INVALID_ARGUMENT),
+                             not_execute_thd, func);
+    return NULL;
+  }
+  return mysql_real_connect_local_as_client(mysql);
+}
+
+
+int sql_extension_forward_sql(MYSQL_THD thd, const char *query, size_t length)
+{
+  if (check_service_call(thd, "sql_extension_forward_sql", true))
+    return 1;
+  if (!query)
+  {
+    my_error(ER_STD_INVALID_ARGUMENT, MYF(0), "query is NULL",
+             "sql_extension_forward_sql");
+    return 1;
+  }
+  Diagnostics_area da(thd->query_id, false, true);
+  bool failed= execute_sql_as_client(thd, { query, length }, &da);
+
+  /* Its conditions become the extension statement's, its error too */
+  Diagnostics_area *stmt_da= thd->get_stmt_da();
+  Diagnostics_area::Sql_condition_iterator it= da.sql_conditions();
+  const Sql_condition *cond;
+  while ((cond= it++))
+    stmt_da->push_warning(thd, cond);
+  if (failed)
+  {
+    if (da.is_error())
+      stmt_da->set_error_status(da.sql_errno(), da.message(),
+                                da.get_sqlstate(), NULL);
+    /* Or it was killed while it ran, which may leave no error */
+    else if (!thd->send_kill_message())
+    {
+      DBUG_ASSERT(0);                   // a failure should come with an error
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "forwarded SQL failed without an error");
+    }
+    return 1;
+  }
+  /* Its final packet, held like that of any other result */
+  if (da.is_ok())
+    stmt_da->set_ok_status(da.affected_rows(), da.last_insert_id(),
+                           da.message());
+  else if (da.is_eof())
+    stmt_da->set_eof_status(thd);
+  else
+  {
+    /*
+      Not expected: a statement that succeeds ends with an OK or an end
+      of rows. An OK, as Protocol::end_statement() sends for an empty area.
+    */
+    DBUG_ASSERT(0);
+    my_ok(thd);
+  }
+  running.results->hold(thd);
+  return 0;
+}
+
+
 unsigned int sql_extension_client_flags(MYSQL_THD thd)
 {
   if (check_service_call(thd, "sql_extension_client_flags", false))
@@ -1559,7 +1812,8 @@ bool sql_extension_dispatch(THD *thd, Parser_state *parser_state)
         store under that text: the first SELECT the handler runs on the
         client's protocol would be registered under the carrier's text
         and served to the next client sending it, without the plugin
-        running.
+        running. Sql_cmd_sql_extension::execute() clears it again, for
+        EXECUTE of a prepared statement too.
       */
       thd->query_cache_is_applicable= 0;
       lex->m_sql_cmd= cmd;

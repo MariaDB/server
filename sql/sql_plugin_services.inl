@@ -272,6 +272,8 @@ static struct sql_extension_service_st sql_extension_handler=
   sql_extension_send_result_set,
   sql_extension_send_ok,
   sql_extension_check_access,
+  sql_extension_connect_as_client,
+  sql_extension_forward_sql,
   sql_extension_client_flags
 };
 

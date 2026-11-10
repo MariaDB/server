@@ -31,8 +31,8 @@
   execute(), on the THD it was given.
 
   A statement answers with one or more results, each a result set or an OK
-  packet, sent with sql_extension_send_result_set() or
-  sql_extension_send_ok(); or with an error raised with my_error() /
+  packet, sent with sql_extension_send_result_set(), sql_extension_send_ok()
+  or sql_extension_forward_sql(); or with an error raised with my_error() /
   my_printf_error(). When execute() returns 0 without sending anything, the
   client gets a plain OK. Notes and warnings are added to the statement
   with my_printf_error() and ME_NOTE or ME_WARNING.
@@ -54,8 +54,8 @@
 
   Functions returning int return 0 on success and non-zero after raising
   an error, which execute() should then return. Any other invalid call (a
-  thd other than the one execute() was given, an empty database or table
-  name, privileges of 0 or with unknown bits)
+  thd other than the one execute() was given, a NULL handle or query, an
+  empty database or table name, privileges of 0 or with unknown bits)
   raises ER_STD_INVALID_ARGUMENT naming the argument, in all builds (not
   only an assertion). sql_extension_client_flags() then returns 0, which
   is also a valid result: execute() should then fail.
@@ -65,6 +65,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct st_mysql;
 
 /**
   Column types of a result set. Every cell is given as text, in the format
@@ -146,6 +148,9 @@ extern struct sql_extension_service_st {
                       const char *message);
   int (*check_access_func)(MYSQL_THD thd, unsigned long long privileges,
                            const char *db, const char *table);
+  struct st_mysql *(*connect_as_client_func)(MYSQL_THD thd,
+                                             struct st_mysql *mysql);
+  int (*forward_sql_func)(MYSQL_THD thd, const char *query, size_t length);
   unsigned int (*client_flags_func)(MYSQL_THD thd);
 } *sql_extension_service;
 
@@ -157,6 +162,10 @@ extern struct sql_extension_service_st {
   sql_extension_service->send_ok_func(thd, affected_rows, message)
 #define sql_extension_check_access(thd, privileges, db, table) \
   sql_extension_service->check_access_func(thd, privileges, db, table)
+#define sql_extension_connect_as_client(thd, mysql) \
+  sql_extension_service->connect_as_client_func(thd, mysql)
+#define sql_extension_forward_sql(thd, query, length) \
+  sql_extension_service->forward_sql_func(thd, query, length)
 #define sql_extension_client_flags(thd) \
   sql_extension_service->client_flags_func(thd)
 
@@ -191,6 +200,55 @@ int sql_extension_send_ok(MYSQL_THD thd, unsigned long long affected_rows,
 */
 int sql_extension_check_access(MYSQL_THD thd, unsigned long long privileges,
                                const char *db, const char *table);
+
+/**
+  Connect a MYSQL handle, from mysql_init() of the SQL service, that runs
+  SQL on the client's connection, as the client:
+  - with the client's privileges, current database and transaction;
+  - binary-logged according to the client's sql_log_bin;
+  - interrupted by KILL (QUERY or CONNECTION) and max_statement_time of
+    the statement;
+  - under LOCK TABLES, with the client's locked tables.
+  Statements claimed by SQL extension plugins fail with
+  ER_SQL_EXTENSION_NESTED. Warnings and errors of the SQL stay on the
+  handle; the plugin decides what to pass on to the client, except after
+  a kill (KILL, max_statement_time) or an error that rolled back
+  the client's transaction (a deadlock, a lock wait timeout with
+  innodb_rollback_on_timeout) and that no stored program in the SQL
+  handled: the statement then fails with that error, after
+  whatever the plugin sent, even if the plugin did not pass it on.
+  The handle must be closed with mysql_close() before execute() returns:
+  it belongs to that one execution of that statement, and a query on it
+  from a later statement, or from another thread, fails with an error on
+  the handle.
+
+  Run the SQL of a statement through this connection, or through
+  sql_extension_forward_sql(), not through the plain SQL service
+  (mysql_real_connect_local()): that one runs as an internal user that
+  skips the grants and does not write the binary log.
+
+  @return mysql, or NULL on failure, with the error on the handle. An
+          invalid call (see the start of this group) also raises
+          ER_STD_INVALID_ARGUMENT on the calling thread's statement, or
+          writes it to the error log when called from a thread without
+          a THD. With mysql NULL there is no handle: the error is only
+          raised (or logged).
+*/
+struct st_mysql *sql_extension_connect_as_client(MYSQL_THD thd,
+                                                 struct st_mysql *mysql);
+
+/**
+  Run one SQL statement as the client, like sql_extension_connect_as_client(),
+  and send its result to the client as it is: the result sets, metadata
+  and rows of the server, or its OK packet. A CALL sends every result of
+  the procedure, so one that returns result sets needs a client that
+  accepts several results, as when the client runs the CALL itself.
+  The warnings of the statement, and its error if it fails, become the
+  extension statement's. Like any other result, it is refused when the
+  statement already sent one and the client does not accept several.
+*/
+int sql_extension_forward_sql(MYSQL_THD thd, const char *query,
+                              size_t length);
 
 /**
   What the client accepts in this statement: SQL_EXTENSION_CLIENT_*.

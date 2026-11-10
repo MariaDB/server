@@ -1,0 +1,51 @@
+--echo #
+--echo # MDEV-41962 Galera: a transaction from another node that conflicts
+--echo # with the client's aborts the client's transaction (a BF abort) while
+--echo # SQL an SQL extension handler runs as the client is in progress. The
+--echo # client gets what it gets for the same SQL sent directly, and its
+--echo # transaction is gone, also when the handler drops the error.
+--echo #
+if (!$TEST_SQL_EXTENSION_SO) {
+  skip Needs the test_sql_extension plugin;
+}
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 CHAR(10)) ENGINE=InnoDB;
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--echo # The same SQL sent directly, for comparison
+--let $bf_stmt= SELECT SLEEP(100) AS s
+--source suite/galera/include/sql_extension_bf_abort.inc
+--echo # Relayed by the handler
+--let $bf_stmt= TEST SQLEXT SQL SELECT SLEEP(100) AS s
+--source suite/galera/include/sql_extension_bf_abort.inc
+--echo # Dropped by the handler
+--let $bf_stmt= TEST SQLEXT SWALLOW SELECT SLEEP(100) AS s
+--source suite/galera/include/sql_extension_bf_abort.inc
+--let $bf_stmt= TEST SQLEXT SWALLOW OK SELECT SLEEP(100) AS s
+--source suite/galera/include/sql_extension_bf_abort.inc
+
+--echo # An abort that comes between statements fails the next one, before
+--echo # any handler runs
+--connection node_2
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+--connection node_1
+INSERT INTO t1 VALUES (1, 'node_1');
+--connection node_2a
+--let $wait_condition= SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'node_1'
+--source include/wait_condition.inc
+--connection node_2
+--error ER_LOCK_DEADLOCK
+TEST SQLEXT SQL INSERT INTO t1 VALUES (2, 'node_2');
+SELECT @@in_transaction;
+SELECT * FROM t1 ORDER BY f1;
+
+--disconnect node_2a
+--connection node_1
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+--source include/galera_end.inc

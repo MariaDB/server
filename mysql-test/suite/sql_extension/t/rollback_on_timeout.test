@@ -1,0 +1,46 @@
+--echo #
+--echo # MDEV-41962 With innodb_rollback_on_timeout, a lock wait timeout of SQL
+--echo # an SQL extension handler runs rolls back the client's transaction:
+--echo # the statement fails with that error, even if the handler drops it,
+--echo # unless a stored procedure handled it. (Without the option, only the
+--echo # statement that timed out is rolled back: see service.test.)
+--echo #
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE DATABASE db1;
+CREATE TABLE db1.t5 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO db1.t5 VALUES (1, 0), (2, 0);
+CREATE TABLE db1.t6 (a INT) ENGINE=InnoDB;
+
+--echo # In a transaction
+let $sqlext_lw_verb= SWALLOW;
+let $sqlext_lw_stmt= UPDATE db1.t5 SET v= 1 WHERE id= 2;
+let $sqlext_lw_in_trx= 1;
+let $sqlext_lw_error= ER_LOCK_WAIT_TIMEOUT;
+--source suite/sql_extension/include/lock_wait_timeout.inc
+--echo # In autocommit
+let $sqlext_lw_in_trx= 0;
+--source suite/sql_extension/include/lock_wait_timeout.inc
+--echo # A stored procedure that handles the timeout succeeds, as when the
+--echo # client calls it; the transaction is gone all the same
+DELIMITER |;
+CREATE PROCEDURE db1.p_lw()
+BEGIN
+  DECLARE CONTINUE HANDLER FOR 1205 SET @lw= 'timeout handled';
+  UPDATE db1.t5 SET v= 1 WHERE id= 2;
+END|
+DELIMITER ;|
+SET @lw= NULL;
+let $sqlext_lw_verb= SQL;
+let $sqlext_lw_stmt= CALL db1.p_lw();
+let $sqlext_lw_in_trx= 1;
+let $sqlext_lw_error= 0;
+--source suite/sql_extension/include/lock_wait_timeout.inc
+SELECT @lw;
+
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

@@ -4075,7 +4075,10 @@ static bool execute_server_code(THD *thd,
   lex_start(thd);
 
   error= parse_sql(thd, &parser_state, NULL) || thd->is_error();
-  /* SQL run by a plugin: extension statements, or the nesting error */
+  /*
+    SQL run by a plugin (SQL service, sql_extension_forward_sql()):
+    extension statements, or the nesting error
+  */
   if (unlikely(error) && sql_extension_dispatch(thd, &parser_state))
     error= false;
 
@@ -4083,6 +4086,13 @@ static bool execute_server_code(THD *thd,
     goto end;
 
   thd->lex->set_trg_event_type_for_tables();
+
+  /*
+    SQL run as the client is a statement of its own: LIMIT ROWS EXAMINED
+    counts from zero, not from what the previous one examined
+  */
+  if (sql_extension_sql_as_client(thd))
+    thd->accessed_rows_and_keys= 0;
 
   parent_locker= thd->m_statement_psi;
   thd->m_statement_psi= NULL;
@@ -5847,12 +5857,35 @@ public:
   ulonglong client_capabilities;
 
   my_bool do_log_bin;
+  /**
+    Non-zero for a handle that runs on the client's THD as the client (SQL
+    extension handlers): the serial of the extension statement it was
+    opened for. 0 for the plain service.
+  */
+  const ulonglong as_client_serial;
 
-  Protocol_local(THD *thd_arg, THD *new_thd_arg) :
+  Protocol_local(THD *thd_arg, THD *new_thd_arg, bool as_client_arg) :
     Protocol_text(thd_arg),
     cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
-    new_thd(new_thd_arg), do_log_bin(FALSE)
-  {}
+    new_thd(new_thd_arg), do_log_bin(FALSE),
+    as_client_serial(as_client_arg ?
+                     sql_extension_statement_serial(thd_arg) : 0)
+  {
+    DBUG_ASSERT(!as_client_arg || as_client_serial);  // inside execute()
+    DBUG_ASSERT(!as_client() || !new_thd);      // always the client's THD
+  }
+
+  /*
+    Run on the client's THD as the client: keep its security context and
+    sql_log_bin, and honour its kill state
+  */
+  bool as_client() const { return as_client_serial != 0; }
+  /*
+    Runs SQL on the client's THD for an SQL extension statement: as the
+    client, or through the plain service on the client's THD
+  */
+  bool on_client_thd() const
+  { return as_client() || sql_extension_sql_as_client(thd); }
  
   void set_binlog_vars(my_bool *sav_log_bin)
   {
@@ -6415,6 +6448,21 @@ static my_bool loc_read_query_result(MYSQL *mysql)
 }
 
 
+/*
+  Put the error of a kill (KILL QUERY, max_statement_time...) on the
+  handle. Returns false for a kill without an error (LIMIT ROWS EXAMINED).
+*/
+static bool set_kill_error(MYSQL *mysql, THD *thd)
+{
+  NET *net= &mysql->net;
+  if (!(net->last_errno= thd->killed_error(net->last_error,
+                                           sizeof(net->last_error))))
+    return false;
+  strmov(net->sqlstate, mysql_errno_to_sqlstate(net->last_errno));
+  return true;
+}
+
+
 static my_bool
 loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
                      const uchar *header, ulong header_length,
@@ -6425,9 +6473,31 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   Protocol_local *p= (Protocol_local *) mysql->thd;
   NET *net= &mysql->net;
 
+  if (p->as_client() &&
+      (p->thd != current_thd ||
+       sql_extension_statement_serial(p->thd) != p->as_client_serial))
+  {
+    /* Kept past the execute() it was opened in, or taken to another thread */
+    set_mysql_extended_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate,
+                             "This connection can only be used by the "
+                             "execute() of the SQL extension statement it "
+                             "was opened for");
+    return 1;
+  }
+
   if (p->thd && p->thd->killed != NOT_KILLED)
   {
-    if (p->thd->killed < KILL_CONNECTION)
+    /*
+      The statement is being killed: so is the SQL run for it, on the
+      as-client connection, and on the plain service when it runs on the
+      client's THD during an extension statement
+    */
+    if (p->on_client_thd())
+    {
+      if (set_kill_error(mysql, p->thd))
+        return 1;
+    }
+    else if (p->thd->killed < KILL_CONNECTION)
       p->thd->killed= NOT_KILLED;
     else
       return 1;
@@ -6441,8 +6511,14 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     goto end;
   }
 
-  /* Clear result variables */
-  p->thd->clear_error(1);
+  /*
+    Clear result variables. Not the THD's error when it is the client's,
+    during an extension statement: that error is the statement's own,
+    raised by the handler before it ran this SQL, which runs in a
+    diagnostics area of its own (Ed_connection).
+  */
+  if (!p->on_client_thd())
+    p->thd->clear_error(1);
   mysql->affected_rows= ~(my_ulonglong) 0;
   mysql->field_count= 0;
   net_clear_error(net);
@@ -6480,17 +6556,25 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     ulonglong cap_orig= p->thd->client_capabilities;
     MYSQL_LEX_STRING sql_text;
     my_bool log_bin_orig;
-    p->set_binlog_vars(&log_bin_orig);
+    if (!p->as_client())
+    {
+      p->set_binlog_vars(&log_bin_orig);
+      p->thd->security_ctx= &p->empty_ctx;
+    }
 
     DBUG_ASSERT(current_thd == p->thd);
     sql_text.str= (char *) arg;
     sql_text.length= arg_length;
-    p->thd->security_ctx= &p->empty_ctx;
     p->thd->client_capabilities= p->client_capabilities;
+    query_id_t run_start= get_query_id();
     result= con.execute_direct(p, sql_text);
+    sql_extension_note_sql_done(p->thd, run_start, result);
     p->thd->client_capabilities= cap_orig;
-    p->thd->security_ctx= ctx_orig;
-    p->restore_binlog_vars(log_bin_orig);
+    if (!p->as_client())
+    {
+      p->thd->security_ctx= ctx_orig;
+      p->restore_binlog_vars(log_bin_orig);
+    }
   }
   if (skip_check)
     result= 0;
@@ -6614,18 +6698,30 @@ static MYSQL_METHODS local_methods=
 
 Atomic_counter<uint32_t> local_connection_thread_count;
 
-extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
+static MYSQL *connect_local(MYSQL *mysql, bool as_client)
 {
   THD *thd_orig= current_thd;
   THD *new_thd;
   Protocol_local *p;
   ulonglong client_flag;
-  DBUG_ENTER("mysql_real_connect_local");
+  DBUG_ENTER("connect_local");
 
   /* Test whether we're already connected */
   if (mysql->server_version)
   {
     set_mysql_error(mysql, CR_ALREADY_CONNECTED, unknown_sqlstate);
+    DBUG_RETURN(0);
+  }
+  if (as_client && !(thd_orig && sql_extension_statement_serial(thd_orig)))
+  {
+    /*
+      Refused, not made a plain service connection: that one would skip
+      the grants and the binary log
+    */
+    set_mysql_extended_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate,
+                             "A connection as the client can only be "
+                             "opened by the execute() of an SQL extension "
+                             "statement");
     DBUG_RETURN(0);
   }
 
@@ -6637,7 +6733,16 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
   mysql->info_buffer= (char *) my_malloc(PSI_INSTRUMENT_ME,
                                          MYSQL_ERRMSG_SIZE, MYF(0));
-  if (!thd_orig || thd_orig->lock)
+  if (as_client)
+  {
+    /*
+      Always the client's THD, also under LOCK TABLES (thd->lock is set
+      then): the SQL uses the client's locked tables, like SQL in a stored
+      procedure called under LOCK TABLES.
+    */
+    new_thd= NULL;
+  }
+  else if (!thd_orig || thd_orig->lock)
   {
     /*
       When we start with the empty current_thd (that happens when plugins
@@ -6671,7 +6776,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   else
     new_thd= NULL;
 
-  p= new Protocol_local(thd_orig, new_thd);
+  p= new Protocol_local(thd_orig, new_thd, as_client);
   if (new_thd)
     new_thd->protocol= p;
   else
@@ -6687,4 +6792,40 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
+}
+
+
+extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
+{
+  return connect_local(mysql, false);
+}
+
+
+MYSQL *mysql_real_connect_local_as_client(MYSQL *mysql)
+{
+  return connect_local(mysql, true);
+}
+
+
+bool execute_sql_as_client(THD *thd, LEX_CSTRING sql_text,
+                           Diagnostics_area *da)
+{
+  DBUG_ASSERT(thd == current_thd);
+  Diagnostics_area *save_da= thd->get_stmt_da();
+  thd->set_stmt_da(da);
+  /* The statement is being killed: so is the SQL run for it */
+  if (thd->send_kill_message())
+  {
+    thd->set_stmt_da(save_da);
+    return true;
+  }
+  Prepared_statement stmt(thd);
+  /* Only read: execute_server_code() copies the text */
+  Execute_sql_statement runnable({ const_cast<char *>(sql_text.str),
+                                   sql_text.length });
+  query_id_t run_start= get_query_id();
+  bool rc= stmt.execute_server_runnable(&runnable) || da->is_error();
+  sql_extension_note_sql_done(thd, run_start, rc);
+  thd->set_stmt_da(save_da);
+  return rc;
 }

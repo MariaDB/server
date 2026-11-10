@@ -713,6 +713,7 @@ void thd_set_ha_data(THD* thd, const struct transaction_participant *hton,
 void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 }
 extern "C" {
+struct st_mysql;
 enum sql_extension_column_type
 {
   SQL_EXTENSION_COLUMN_STRING= 0,
@@ -745,6 +746,9 @@ extern struct sql_extension_service_st {
                       const char *message);
   int (*check_access_func)(THD* thd, unsigned long long privileges,
                            const char *db, const char *table);
+  struct st_mysql *(*connect_as_client_func)(THD* thd,
+                                             struct st_mysql *mysql);
+  int (*forward_sql_func)(THD* thd, const char *query, size_t length);
   unsigned int (*client_flags_func)(THD* thd);
 } *sql_extension_service;
 int sql_extension_send_result_set(THD* thd, size_t ncols,
@@ -755,6 +759,10 @@ int sql_extension_send_ok(THD* thd, unsigned long long affected_rows,
                           const char *message);
 int sql_extension_check_access(THD* thd, unsigned long long privileges,
                                const char *db, const char *table);
+struct st_mysql *sql_extension_connect_as_client(THD* thd,
+                                                 struct st_mysql *mysql);
+int sql_extension_forward_sql(THD* thd, const char *query,
+                              size_t length);
 unsigned int sql_extension_client_flags(THD* thd);
 }
 extern "C" {

@@ -1,0 +1,69 @@
+#
+# MDEV-41962 Galera: SQL that an SQL extension handler runs as the client replicates
+# as plain SQL. The extension statement itself is never replicated, and
+# INSTALL PLUGIN and UNINSTALL PLUGIN replicate as the DDL they are.
+#
+connection node_2;
+connection node_1;
+# Counters are global and survive --repeat: compare with their
+# value before the test
+connection node_2;
+connection node_1;
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1, 'sql');
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (2, 'forward');
+TEST SQLEXT FORWARD UPDATE t1 SET b = 'updated' WHERE a = 1;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3, 'rolled back');
+ROLLBACK;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (4, 'committed');
+COMMIT;
+# A handler that changes data and then fails, in a transaction and
+# in autocommit: the other node ends up with what this one kept
+BEGIN|
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (6, "trx"); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+COMMIT|
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (7, "autocommit"); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+connection node_2;
+# The other node has the changes, and the plugin (INSTALL PLUGIN
+# replicated), but ran no extension statement
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	forward
+4	committed
+6	trx
+7	autocommit
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+WHERE plugin_name LIKE 'test_sql_extension%';
+plugins
+1
+extension_statements_run_here
+0
+# Extension statements work on this node too
+TEST SQLEXT SQL INSERT INTO t1 VALUES (5, 'node 2');
+connection node_1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	forward
+4	committed
+5	node 2
+6	trx
+7	autocommit
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+connection node_2;
+# UNINSTALL PLUGIN replicated as well. A statement that fails to parse
+# does not wait for replication (wsrep_sync_wait), so wait first
+TEST SQLEXT OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXT OK' at line 1
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+WHERE plugin_name LIKE 'test_sql_extension%';
+plugins
+0
+# End of 13.2 tests

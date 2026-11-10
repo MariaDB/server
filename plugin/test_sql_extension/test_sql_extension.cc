@@ -21,8 +21,9 @@
                               "CREATE PROCEDURE SQLEXT". The last two start
                               valid SQL (a CTE, a procedure named SQLEXT),
                               for statements the parser rejects in other
-                              ways than a plain syntax error. The word after
-                              the prefix
+                              ways than a plain syntax error; "WITH
+                              SQLEXT" is also a carrier the query cache
+                              looks up. The word after the prefix
                               selects what execute() does:
                                 OK (or nothing)  success, the server sends OK
                                 ERROR            raises an error
@@ -56,6 +57,21 @@
                                 MULTI            sends rows, an OK, rows
                                 MULTI ERROR      sends rows, then an error
                                 FLAGS            sends the client flags
+                                FORWARD <stmt>   runs <stmt> as the client,
+                                                 its result goes to the
+                                                 client as it is;
+                                                 FORWARD '<text>' forwards
+                                                 <text> as it is, ';'
+                                                 included
+                                SCRIPT '<s1>; <s2>...'
+                                                 forwards each statement
+                                                 (strings in them in double
+                                                 quotes);
+                                                 several need
+                                                 CLIENT_MULTI_STATEMENTS;
+                                                 debug sync point
+                                                 test_sql_extension_script
+                                                 between two statements
                                 BAD <type> <text>
                                                  sends <text> as a cell of a
                                                  column of <type> (STRING,
@@ -75,6 +91,55 @@
                                                  without cells
                                 BADTHD           calls the service with no
                                                  thd
+                                BADCALL MYSQL|HANDLE|QUERY|FORWARD
+                                                 invalid calls: connects a
+                                                 NULL handle, connects one
+                                                 with no thd (the handle's
+                                                 error added as a note),
+                                                 forwards a NULL query,
+                                                 forwards with no thd
+                                SQL <stmt>       runs <stmt> as the client,
+                                                 relays its result or error
+                                KEEP <stmt>      the same, on a connection
+                                                 kept open afterwards;
+                                                 REUSE <stmt> runs on it,
+                                                 KEEP CLOSE closes it
+                                SQL2 <stmt>      runs <stmt> twice as the
+                                                 client, relays the second;
+                                                 sync point in between:
+                                                 test_sql_extension_sql2
+                                LOCAL SQL <stmt> runs <stmt> through the plain
+                                                 SQL service, relays its
+                                                 error; LOCAL SQL2 <stmt>
+                                                 runs it twice, as SQL2
+                                [LOCAL] RAISE <stmt>
+                                                 raises an error, then runs
+                                                 <stmt> as the client (or
+                                                 through the plain SQL
+                                                 service), ignoring its
+                                                 result, and fails: the
+                                                 client gets the raised
+                                                 error
+                                [LOCAL] SWALLOW [OK|ROWS] <stmt>
+                                                 runs <stmt> as the client
+                                                 (or through the plain SQL
+                                                 service), ignores its
+                                                 result and its error, and
+                                                 succeeds; with OK or ROWS
+                                                 it then sends an OK or a
+                                                 row. <stmt> may be a quoted
+                                                 script, '<s1>; <s2>...',
+                                                 run statement by statement
+                                NOTHD            connects as the client from
+                                                 a thread of its own, with
+                                                 no THD, and raises the
+                                                 error the handle got
+                                THREAD <stmt>    connects as the client,
+                                                 runs <stmt> on the handle
+                                                 from a thread of its own
+                                                 during the statement, and
+                                                 raises the error the handle
+                                                 got
   test_sql_extension_overlap  claims "TEST OVERLAP FREE" and "TEST SQLEXT
                               OVERLAP": refused while test_sql_extension
                               is installed, the free prefix too; counts its
@@ -120,6 +185,7 @@
 #include <mysqld_error.h>
 #include <string.h>
 #include <stdio.h>
+#include <thread>
 
 #ifndef STRING_WITH_LEN                         // used by DEBUG_SYNC()
 #define STRING_WITH_LEN(X) (X), ((size_t) (sizeof(X) - 1))
@@ -197,6 +263,135 @@ static int echo(const char *query, size_t length)
   return 1;
 }
 
+/* Send what a statement run on a local connection produced: rows or OK */
+static int relay_result(MYSQL_THD thd, MYSQL *mysql, MYSQL_RES *res)
+{
+  if (!res)
+    return sql_extension_send_ok(thd, mysql_affected_rows(mysql), NULL);
+
+  unsigned int ncols= mysql_num_fields(res);
+  size_t nrows= (size_t) mysql_num_rows(res);
+  MYSQL_FIELD *fields= mysql_fetch_fields(res);
+  sql_extension_column *cols= new sql_extension_column[ncols];
+  sql_extension_cell *cells= new sql_extension_cell[nrows * ncols + 1];
+  for (unsigned int c= 0; c < ncols; c++)
+    cols[c]= { fields[c].name, SQL_EXTENSION_COLUMN_STRING };
+  sql_extension_cell *cell= cells;
+  while (MYSQL_ROW row= mysql_fetch_row(res))
+  {
+    unsigned long *lengths= mysql_fetch_lengths(res);
+    for (unsigned int c= 0; c < ncols; c++, cell++)
+      *cell= { row[c], row[c] ? (size_t) lengths[c] : 0 };
+  }
+  int rc= sql_extension_send_result_set(thd, ncols, cols, nrows, cells);
+  delete[] cells;
+  delete[] cols;
+  return rc;
+}
+
+static int out_of_memory()
+{
+  my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: out of memory", 0);
+  return 1;
+}
+
+/* Make the error of a local connection the statement's */
+static int relay_error(MYSQL *mysql)
+{
+  my_printf_error(mysql_errno(mysql), "%s", 0, mysql_error(mysql));
+  return 1;
+}
+
+/*
+  A local connection on the client's connection: as the client, or through
+  the plain SQL service (no grants, no binary log, a THD of its own under
+  LOCK TABLES). NULL, with the error raised, on failure.
+*/
+static MYSQL *connect_handle(MYSQL_THD thd, bool as_client)
+{
+  MYSQL *mysql= mysql_init(NULL);
+  if (mysql && (as_client ? sql_extension_connect_as_client(thd, mysql)
+                          : mysql_real_connect_local(mysql)))
+    return mysql;
+  my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: connect: %s", 0,
+                  mysql ? mysql_error(mysql) : "out of memory");
+  if (mysql)
+    mysql_close(mysql);
+  return NULL;
+}
+
+/*
+  Run one statement on a local connection; with relay, send its rows or OK
+  to the client. A failure, also one while reading the rows (e.g. killed),
+  becomes the statement's error.
+*/
+static int query_and_relay(MYSQL_THD thd, MYSQL *mysql, const char *sql,
+                           size_t length, bool relay)
+{
+  if (mysql_real_query(mysql, sql, (unsigned long) length))
+    return relay_error(mysql);
+  MYSQL_RES *res= mysql_store_result(mysql);
+  if (!res && mysql_errno(mysql))
+    return relay_error(mysql);
+  int rc= relay ? relay_result(thd, mysql, res) : 0;
+  if (res)
+    mysql_free_result(res);
+  return rc;
+}
+
+/*
+  Run SQL on the client's connection, times times (SQL2 runs it twice);
+  as the client, the result of the last run is relayed
+*/
+static int run_sql(MYSQL_THD thd, const char *sql, size_t length,
+                   bool as_client, int times)
+{
+  MYSQL *mysql= connect_handle(thd, as_client);
+  if (!mysql)
+    return 1;
+  int rc= 0;
+  while (times-- && !rc)
+  {
+    rc= query_and_relay(thd, mysql, sql, length, as_client && !times);
+    if (!rc && times)
+      DEBUG_SYNC(thd, "test_sql_extension_sql2");
+  }
+  mysql_close(mysql);
+  return rc;
+}
+
+/*
+  KEEP <stmt> runs <stmt> on an as-client connection that is kept open
+  across statements; REUSE <stmt> runs <stmt> on it; KEEP CLOSE closes it
+*/
+static MYSQL *kept_handle;
+
+/* A handle a test left kept is closed at UNINSTALL, not leaked */
+static int main_deinit(void *)
+{
+  if (kept_handle)
+    mysql_close(kept_handle);
+  kept_handle= NULL;
+  return 0;
+}
+
+static int run_kept(MYSQL_THD thd, const char *sql, size_t length, bool open)
+{
+  if (open)
+  {
+    if (kept_handle)
+      mysql_close(kept_handle);
+    if (!(kept_handle= connect_handle(thd, true)))
+      return 1;
+  }
+  if (!kept_handle)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: nothing kept", 0);
+    return 1;
+  }
+  return query_and_relay(thd, kept_handle, sql, length, true);
+}
+
 static int send_one_row(MYSQL_THD thd, const char *name, const char *value)
 {
   sql_extension_column col= { name, SQL_EXTENSION_COLUMN_STRING };
@@ -236,6 +431,50 @@ static int send_flags(MYSQL_THD thd)
     { (flags & SQL_EXTENSION_CLIENT_MULTI_STATEMENTS) ? "1" : "0", 1 }
   };
   return sql_extension_send_result_set(thd, 2, cols, 1, cells);
+}
+
+/*
+  Forward each ';'-separated statement of a script written as one quoted
+  string, '<s1>; <s2>...', as a plugin running a script would. The quotes
+  keep its ';' inside the extension statement, which otherwise ends at the
+  first one. The split is naive: no quote and no ';' inside the
+  statements (write their strings in double quotes).
+*/
+static int forward_script(MYSQL_THD thd, const char *p, const char *end)
+{
+  while (end > p && is_space(end[-1]))
+    end--;
+  if (end - p < 2 || *p != '\'' || end[-1] != '\'')
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: SCRIPT needs "
+                    "a quoted script", 0);
+    return 1;
+  }
+  p++;
+  end--;
+  const char *semicolon= (const char *) memchr(p, ';', (size_t) (end - p));
+  if (semicolon && skip_space(semicolon + 1, end) != end &&
+      !(sql_extension_client_flags(thd) &
+        SQL_EXTENSION_CLIENT_MULTI_STATEMENTS))
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: several "
+                    "statements need CLIENT_MULTI_STATEMENTS", 0);
+    return 1;
+  }
+  while (p < end)
+  {
+    const char *stmt_end= (const char *) memchr(p, ';', (size_t) (end - p));
+    if (!stmt_end)
+      stmt_end= end;
+    if (skip_space(p, stmt_end) != stmt_end &&
+        sql_extension_forward_sql(thd, p, (size_t) (stmt_end - p)))
+      return 1;
+    p= stmt_end + 1;
+    /* Lets a test act between two statements of the script */
+    if (p < end)
+      DEBUG_SYNC(thd, "test_sql_extension_script");
+  }
+  return 0;
 }
 
 static int send_rows(MYSQL_THD thd)
@@ -465,6 +704,28 @@ static int execute_main(MYSQL_THD thd, const char *query, size_t length)
     return send_badset(thd, word + len, end);
   if (word_is(word, len, "BADTHD"))
     return sql_extension_send_ok(NULL, 0, NULL);
+  if (word_is(word, len, "BADCALL"))
+  {
+    next_word(word + len, end, &word, &len);
+    if (word_is(word, len, "MYSQL"))
+      return sql_extension_connect_as_client(thd, NULL) ? 0 : 1;
+    if (word_is(word, len, "QUERY"))
+      return sql_extension_forward_sql(thd, NULL, 0);
+    if (word_is(word, len, "FORWARD"))
+      return sql_extension_forward_sql(NULL, "SELECT 1", 8);
+    if (word_is(word, len, "HANDLE"))
+    {
+      MYSQL *mysql= mysql_init(NULL);
+      if (!mysql)
+        return out_of_memory();
+      if (sql_extension_connect_as_client(NULL, mysql))
+        return 0;
+      my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: handle: %s",
+                      ME_NOTE, mysql_error(mysql));
+      mysql_close(mysql);
+      return 1;
+    }
+  }
   if (word_is(word, len, "INFO"))
     return send_info(thd, word + len, end);
   if (word_is(word, len, "WARN"))
@@ -482,6 +743,138 @@ static int execute_main(MYSQL_THD thd, const char *query, size_t length)
     return send_multi(thd, word + len, end);
   if (word_is(word, len, "FLAGS"))
     return send_flags(thd);
+  if (word_is(word, len, "FORWARD"))
+  {
+    const char *sql= skip_space(word + len, end);
+    /* Quoted: the text as it is, as the claim ends at the first ';' */
+    const char *sql_end= end;
+    while (sql_end > sql && is_space(sql_end[-1]))
+      sql_end--;
+    if (sql_end - sql >= 2 && *sql == '\'' && sql_end[-1] == '\'')
+    {
+      sql++;
+      sql_end--;
+    }
+    else
+      sql_end= end;
+    return sql_extension_forward_sql(thd, sql, (size_t) (sql_end - sql));
+  }
+  if (word_is(word, len, "SCRIPT"))
+    return forward_script(thd, skip_space(word + len, end), end);
+  if (word_is(word, len, "KEEP") || word_is(word, len, "REUSE"))
+  {
+    bool open= len == 4;
+    const char *sql= skip_space(word + len, end);
+    if (open && after_word(word, end, "CLOSE") == end)
+    {
+      if (kept_handle)
+        mysql_close(kept_handle);
+      kept_handle= NULL;
+      return 0;
+    }
+    return run_kept(thd, sql, (size_t) (end - sql), open);
+  }
+  bool as_client= true;
+  if (word_is(word, len, "LOCAL"))
+  {
+    as_client= false;
+    next_word(word + len, end, &word, &len);
+  }
+  if (as_client && word_is(word, len, "NOTHD"))
+  {
+    MYSQL *mysql= mysql_init(NULL);
+    if (!mysql)
+      return out_of_memory();
+    MYSQL *connected= NULL;
+    std::thread([&] { connected= sql_extension_connect_as_client(thd, mysql); })
+      .join();
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: %s: %s", 0,
+                    connected ? "connected" : "refused", mysql_error(mysql));
+    mysql_close(mysql);
+    return 1;
+  }
+  if (as_client && word_is(word, len, "THREAD"))
+  {
+    const char *sql= skip_space(word + len, end);
+    MYSQL *mysql= connect_handle(thd, true);
+    if (!mysql)
+      return 1;
+    int failed= 0;
+    std::thread([&] {
+      failed= mysql_real_query(mysql, sql, (unsigned long) (end - sql));
+    }).join();
+    my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: %s: %s", 0,
+                    failed ? "refused" : "ran", mysql_error(mysql));
+    mysql_close(mysql);
+    return 1;
+  }
+  if (word_is(word, len, "SWALLOW"))
+  {
+    const char *sql= word + len;
+    const char *then;
+    size_t then_len;
+    next_word(sql, end, &then, &then_len);
+    bool send_ok= word_is(then, then_len, "OK");
+    bool send_row= word_is(then, then_len, "ROWS");
+    if (send_ok || send_row)
+      sql= then + then_len;
+    sql= skip_space(sql, end);
+    MYSQL *mysql= mysql_init(NULL);
+    if (!mysql)
+      return out_of_memory();
+    if (as_client ? sql_extension_connect_as_client(thd, mysql) != NULL
+                  : mysql_real_connect_local(mysql) != NULL)
+    {
+      /* A quoted script: each statement, ignoring the error of each */
+      const char *stop= end;
+      while (stop > sql && is_space(stop[-1]))
+        stop--;
+      bool script= stop - sql >= 2 && *sql == '\'' && stop[-1] == '\'';
+      if (script)
+      {
+        sql++;
+        stop--;
+      }
+      while (sql < stop)
+      {
+        const char *stmt_end= script ? (const char *)
+          memchr(sql, ';', (size_t) (stop - sql)) : NULL;
+        if (!stmt_end)
+          stmt_end= stop;
+        if (skip_space(sql, stmt_end) != stmt_end &&
+            !mysql_real_query(mysql, sql, (unsigned long) (stmt_end - sql)))
+          mysql_free_result(mysql_store_result(mysql));
+        sql= stmt_end + 1;
+      }
+    }
+    mysql_close(mysql);
+    if (send_ok)
+      return sql_extension_send_ok(thd, 0, NULL);
+    if (send_row)
+      return send_one_row(thd, "r", "after");
+    return 0;
+  }
+  if (word_is(word, len, "RAISE"))
+  {
+    const char *sql= skip_space(word + len, end);
+    my_printf_error(ER_UNKNOWN_ERROR,
+                    "test_sql_extension: raised before its SQL", 0);
+    MYSQL *mysql= mysql_init(NULL);
+    if (!mysql)
+      return 1;
+    if (as_client ? sql_extension_connect_as_client(thd, mysql) != NULL
+                  : mysql_real_connect_local(mysql) != NULL)
+      if (!mysql_real_query(mysql, sql, (unsigned long) (end - sql)))
+        mysql_free_result(mysql_store_result(mysql));
+    mysql_close(mysql);
+    return 1;
+  }
+  if (word_is(word, len, "SQL") || word_is(word, len, "SQL2"))
+  {
+    const char *sql= skip_space(word + len, end);
+    return run_sql(thd, sql, (size_t) (end - sql), as_client,
+                   len == 4 ? 2 : 1);
+  }
   my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: unknown '%.*s'", 0,
                   (int) len, word);
   return 1;
@@ -498,7 +891,8 @@ static int execute_recognizer(MYSQL_THD, const char *query, size_t length)
 /*
   "WITH SQLEXT" and "CREATE PROCEDURE SQLEXT" start valid SQL, so a
   statement with them can fail to parse for a reason the dispatch must
-  respect.
+  respect. "WITH SQLEXT" is also a carrier the query cache looks up (its
+  text starts with WIT).
 */
 static const char *const main_prefixes[]= { "TEST SQLEXT", "WITH SQLEXT",
                                             "CREATE PROCEDURE SQLEXT",
@@ -743,7 +1137,7 @@ maria_declare_plugin(test_sql_extension)
   "MariaDB plc",
   "SQL extension test: claims TEST SQLEXT",
   PLUGIN_LICENSE_GPL,
-  NULL, NULL,
+  NULL, main_deinit,
   0x0100,
   main_status, NULL,
   "1.0",

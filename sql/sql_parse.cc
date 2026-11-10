@@ -3048,7 +3048,9 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ulonglong affected_rows;
   if (sp->m_flags & sp_head::MULTI_RESULTS)
   {
-    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
+    bool multi_results= (thd->client_capabilities & CLIENT_MULTI_RESULTS) != 0;
+    DBUG_EXECUTE_IF("sp_no_client_multi_results", multi_results= false;);
+    if (!multi_results)
     {
       /* The client does not support multiple result sets being sent back */
       my_error(ER_SP_BADSELECT, MYF(0), ErrConvDQName(sp).ptr());
@@ -5951,7 +5953,13 @@ finish:
         if (! thd->get_stmt_da()->is_set())
           thd->send_kill_message();
       }
-      thd->reset_kill_query();
+      /*
+        SQL run for an extension statement leaves the kill state to that
+        statement, so that a kill also fails the SQL its handler runs next;
+        the extension statement resets it when it ends, here
+      */
+      if (!sql_extension_sql_as_client(thd))
+        thd->reset_kill_query();
     }
 
     /*

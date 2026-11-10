@@ -32,7 +32,7 @@ class Parser_state;
   Called after parse_sql() failed, from exactly three places: mysql_parse()
   (client statements), Prepared_statement::prepare() (PREPARE, EXECUTE
   IMMEDIATE, COM_STMT_PREPARE) and execute_server_code() (SQL that plugins
-  run through the SQL service). Proceeds only on ER_PARSE_ERROR (the code
+  run through the SQL service, and through sql_extension_forward_sql()). Proceeds only on ER_PARSE_ERROR (the code
   of every syntax error of the parser; ER_SYNTAX_ERROR is only a text in
   it) that is not fatal, outside replication appliers (asynchronous and
   Galera), stored functions, triggers, the parsing of a stored program
@@ -55,6 +55,14 @@ class Parser_state;
   @return true if claimed: the caller executes the statement as if parsed
 */
 bool sql_extension_dispatch(THD *thd, Parser_state *parser_state);
+
+/**
+  A number unique to the extension statement executing on thd among all
+  those of the server, or 0 if none is executing. Lets the as-client
+  connection of the SQL service refuse use by a later statement
+  (sql_extension_sql_as_client() is declared in sql_class.h).
+*/
+ulonglong sql_extension_statement_serial(const THD *thd);
 
 /**
   Set up the registry. Called once, before plugins are initialized.

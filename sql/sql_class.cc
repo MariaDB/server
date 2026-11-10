@@ -3481,6 +3481,17 @@ bool select_send::send_eof()
   if (WSREP(thd))
     goto end;
 
+  /*
+    SQL run on the client's THD for an SQL extension statement: no early
+    end of statement. Forwarded SQL (sql_extension_forward_sql()) needs
+    that: its final packet is held back and sent by the extension
+    statement. For SQL on a MYSQL handle (as the client, or the plain SQL
+    service on the client's THD) it makes no difference: its results go
+    to the handle, which gets its end of statement when the SQL ends.
+  */
+  if (sql_extension_sql_as_client(thd))
+    goto end;
+
   if (likely(!thd->transaction->stmt.is_trx_read_write()))
   {
     /*
