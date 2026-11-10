@@ -259,6 +259,7 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
         DBUG_ASSERT(cache.cache_log.type != READ_CACHE);
         mysql_mutex_lock(binlog->get_log_lock());
         error= binlog->write_cache_raw(thd, &cache.cache_log);
+        binlog->log_written();
         mysql_mutex_unlock(binlog->get_log_lock());
         if (!is_ending_transaction)
           cache.reset();
