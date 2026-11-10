@@ -124,9 +124,9 @@ enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 
 /*
-  COLUMNS_READ:       A column is goind to be read.
+  COLUMNS_READ:       A column is going to be read.
   COLUMNS_WRITE:      A column is going to be written to.
-  MARK_COLUMNS_READ:  A column is goind to be read.
+  MARK_COLUMNS_READ:  A column is going to be read.
                       A bit in read set is set to inform handler that the field
                       is to be read. If field list contains duplicates, then
                       thd->dup_field is set to point to the last found
@@ -153,7 +153,7 @@ enum enum_binlog_row_image {
 };
 
 
-/* Bits for different SQL modes modes (including ANSI mode) */
+/* Bits for different SQL modes (including ANSI mode) */
 #define MODE_REAL_AS_FLOAT              (1ULL << 0)
 #define MODE_PIPES_AS_CONCAT            (1ULL << 1)
 #define MODE_ANSI_QUOTES                (1ULL << 2)
@@ -639,7 +639,7 @@ enum killed_state : uint32_t
   /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
-    an even number (becasue of HARD bit)!
+    an even number (because of HARD bit)!
   */
   KILL_CONNECTION= 12,
   KILL_CONNECTION_HARD= 13,
@@ -693,7 +693,7 @@ typedef struct system_variables
     They both should have the same 'version' and 'size'.
     When attempting to access a dynamic variable, if the session version
     is out of date, then the session version is updated and realloced if
-    neccessary and bytes copied from global to make up for missing data.
+    necessary and bytes copied from global to make up for missing data.
 
     Note that one should use my_bool instead of bool here, as the variables
     are used with my_getopt.c
@@ -2467,7 +2467,7 @@ struct wait_for_commit
   {
     /*
       Do the check inline, so only the wakeup case takes the cost of a function
-      call for every commmit.
+      call for every commit.
 
       Note that the check is done without locking. It is the responsibility of
       the user of the wakeup facility to ensure that no waiters can register
@@ -3542,7 +3542,7 @@ private:
   /**
     Stores the result of ROW_COUNT() function.
 
-    ROW_COUNT() function is a MySQL extention, but we try to keep it
+    ROW_COUNT() function is a MySQL extension, but we try to keep it
     similar to ROW_COUNT member of the GET DIAGNOSTICS stack of the SQL
     standard (see SQL99, part 2, search for ROW_COUNT). It's value is
     implementation defined for anything except INSERT, DELETE, UPDATE.
@@ -5094,7 +5094,7 @@ public:
   void raise_note(uint code);
 
   /**
-    Raise an completion condition (note), with a formatted message.
+    Raise a completion condition (note), with a formatted message.
     @param code the MYSQL_ERRNO error code of the note
   */
   void raise_note_printf(uint code, ...);
@@ -6676,7 +6676,7 @@ public:
   */
   uint	quick_group;
   /**
-    Enabled when we have atleast one outer_sum_func. Needed when used
+    Enabled when we have at least one outer_sum_func. Needed when used
     along with distinct.
 
     @see create_tmp_table
@@ -6812,7 +6812,7 @@ public:
     ("c"),("b"),("c"),("c"),("a"),("b"),("g")
     ("c"),("a"),("b"),("d"),("b"),("e")
 
-  - Let's demonstrate how the set operation INTERSECT ALL is proceesed
+  - Let's demonstrate how the set operation INTERSECT ALL is processed
     for the query
               SELECT f FROM t1 INTERSECT ALL SELECT f FROM t2
 
@@ -6860,7 +6860,7 @@ public:
       |0      |1      |c  |
       |0      |1      |c  |
 
-  - Let's demonstrate how the set operation EXCEPT ALL is proceesed
+  - Let's demonstrate how the set operation EXCEPT ALL is processed
     for the query
               SELECT f FROM t1 EXCEPT ALL SELECT f FROM t3
 
@@ -7636,7 +7636,7 @@ public:
 
   This flag should be set for statements that will implicitly
   open and take metadata locks on system tables that should not
-  be carried for the whole duration of a active transaction.
+  be carried for the whole duration of an active transaction.
 */
 #define CF_IMPLICIT_COMMIT_END    (1U << 7)
 /**
@@ -7922,7 +7922,7 @@ void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
    condition.
 
    @param thd      The thread entering the condition, NULL means current thread
-   @param stage    The process message, ususally this should be the old process
+   @param stage    The process message, usually this should be the old process
                    message before calling @f thd_enter_cond
    @param src_function The caller source function name
    @param src_file The caller source file name

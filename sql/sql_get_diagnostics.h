@@ -275,7 +275,7 @@ private:
   /** The name of this condition information item. */
   Name m_name;
 
-  /** Create an string item to represent a condition item string. */
+  /** Create a string item to represent a condition item string. */
   Item *make_utf8_string_item(THD *thd, const String *str);
 };
 
