@@ -1285,6 +1285,15 @@ public:
     spreads nothing over the workers.
   */
   bool parallel_scan;
+  /*
+    The parallel reading of the scan costs less than the serial one: the
+    scan is large enough that one worker's share of it plus the setup is
+    below the whole. With parallel_divisor this says where the reading's
+    advantage, if any, lies -- in the scan, in the join under it, or
+    nowhere -- which is how best_extension_by_limited_search() decides
+    which prefixes it is compared with.
+  */
+  bool parallel_scan_pays;
 
   /*
     Number of expected rows before applying the full WHERE clause. This

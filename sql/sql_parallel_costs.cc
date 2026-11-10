@@ -65,18 +65,30 @@
     a table it cannot cut into N pieces -- a single-page B-tree, or a range
     reading a page or two of a larger one -- reaches fewer workers than
     that, however many there are: W = min(N, parallel_scan_pieces() scaled
-    by the share of the table the scan reads). And a driving table that
-    yields fewer rows than that cannot spread them any further, while the
-    join under it runs at the pace of the worker with the most of them:
-    with R rows over W workers the busiest holds ceil(R/W), so the divisor
-    is R / ceil(R/W). A five-row table of which one row survives puts the
-    whole join under it on one worker, whatever N is, and five rows over
-    four workers go 2-1-1-1, a division by 2.5 and not by 4. Crediting such
-    a table with 1/N of the join under it is what made the optimizer split
-    exactly such tables. The scan's own cost is divided by N regardless: a
-    scan the engine cannot cut into pieces is at most a couple of pages,
-    whose cost is nothing next to the setup, and what has to be honest is
-    the join under it, which is where the cost is.
+    by the share of the table the scan reads). Nor do the rows that
+    survive the WHERE reach more workers than the pieces they lie in, and
+    where they lie is not known: the rows of date_dim for one year are a
+    few pages next to each other in the primary key, and so are the rows
+    of any table whose filtered column follows its key, which a dimension
+    table's dates and a fact table's dates and keys commonly do. Taken as
+    lying together, R surviving rows of a T-row table of P pieces fill
+    ceil(R * P / T) of them, and W is capped by that as well. For rows
+    spread evenly through the table that is pessimistic, and the cap only
+    bites when the survivors are fewer than N pieces' worth; for rows that
+    do lie together it is what the workers will find, and a plan chosen
+    on a division the workers cannot make costs more than a division not
+    made. And a driving table that yields fewer rows than W cannot spread
+    them any further, while the join under it runs at the pace of the
+    worker with the most of them: with R rows over W workers the busiest
+    holds ceil(R/W), so the divisor is R / ceil(R/W). A five-row table of
+    which one row survives puts the whole join under it on one worker,
+    whatever N is, and five rows over four workers go 2-1-1-1, a division
+    by 2.5 and not by 4. Crediting such a table with 1/N of the join under
+    it is what made the optimizer split exactly such tables. The scan's
+    own cost is divided by N regardless: a scan the engine cannot cut into
+    pieces is at most a couple of pages, whose cost is nothing next to the
+    setup, and what has to be honest is the join under it, which is where
+    the cost is.
 
     Eligibility is the table-level half of the runtime gate
     (table_can_be_parallel_scanned); the query-level half was asked by
@@ -111,15 +123,24 @@ bool parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
 
   /*
     The workers the scan's rows can reach: the pieces the engine can cut
-    the scan into, or the range's share of them, but no more than there are
-    workers and no fewer than one.
+    the scan into, or the range's share of them, and no more pieces than
+    the surviving rows fill if they lie together; but no more than there
+    are workers and no fewer than one.
   */
-  double pieces= (double) table->file->parallel_scan_pieces();
-  const double table_rows= rows2double(table->file->stats.records);
-  if (table_rows > 0.0 && rows_scanned < table_rows)
-    pieces*= rows_scanned / table_rows;
-  const double workers= MY_MAX(MY_MIN((double) n, floor(pieces)), 1.0);
   const double rows= MY_MAX(rows_out, 1.0);
+  const double table_pieces= (double) table->file->parallel_scan_pieces();
+  const double table_rows= rows2double(table->file->stats.records);
+  double scan_pieces= table_pieces, out_pieces= table_pieces;
+  if (table_rows > 0.0)
+  {
+    if (rows_scanned < table_rows)
+      scan_pieces*= rows_scanned / table_rows;
+    if (rows < table_rows)
+      out_pieces= ceil(table_pieces * rows / table_rows);
+  }
+  const double workers= MY_MAX(MY_MIN((double) n,
+                                      MY_MIN(floor(scan_pieces), out_pieces)),
+                               1.0);
   *divisor= rows / ceil(rows / workers);
   return true;
 }

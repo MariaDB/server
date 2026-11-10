@@ -479,6 +479,7 @@ POSITION::POSITION()
   prefix_record_count= 0.0;
   parallel_divisor= 1.0;
   parallel_scan= false;
+  parallel_scan_pays= false;
   key= 0;
   forced_index= 0;
   use_join_buffer= 0;
@@ -8953,6 +8954,7 @@ struct best_plan
   bool use_join_buffer;
   double parallel_divisor;               // see POSITION::parallel_divisor
   bool parallel_scan;                    // scan costed as a parallel one
+  bool parallel_scan_pays;               // and costs less than serially
 };
 
 
@@ -9008,6 +9010,7 @@ best_access_path(JOIN      *join,
   best.identical_keys= 0;
   best.parallel_divisor= 1.0;
   best.parallel_scan= false;
+  best.parallel_scan_pays= false;
   best.filter= 0;
   best.key= 0;
   best.max_key_part= 0;
@@ -10150,7 +10153,7 @@ best_access_path(JOIN      *join,
     }
 
     double parallel_divisor= 1.0;
-    bool parallel_scan= false;
+    bool parallel_scan= false, parallel_scan_pays= false;
 
      /*
        Note: the condition checked here is very out of date and incorrect.
@@ -10208,6 +10211,7 @@ best_access_path(JOIN      *join,
               add("serial_cost", cur_cost).
               add("parallel_scan_cost", parallel_cost).
               add("parallel_divisor", parallel_divisor);
+          parallel_scan_pays= parallel_cost < cur_cost;
           cur_cost= parallel_cost;
           parallel_scan= true;
           scan_type= "parallel_scan";
@@ -10321,6 +10325,7 @@ best_access_path(JOIN      *join,
       best.type= type;
       best.parallel_divisor= parallel_divisor;
       best.parallel_scan= parallel_scan;
+      best.parallel_scan_pays= parallel_scan_pays;
       trace_access_scan.add("chosen", true);
     }
     else
@@ -10361,6 +10366,7 @@ best_access_path(JOIN      *join,
   pos->refills=  best.refills;
   pos->parallel_divisor= best.parallel_divisor;
   pos->parallel_scan= best.parallel_scan;
+  pos->parallel_scan_pays= best.parallel_scan_pays;
 
   loose_scan_opt.save_to_position(s, record_count, pos->records_out,
                                   loose_scan_pos);
@@ -12573,17 +12579,19 @@ best_extension_by_limited_search(JOIN      *join,
   /*
     The pruning heuristics compare a partial plan with the best seen at this
     depth, on rows and on cost, and drop one that is worse on both. A partial
-    plan whose driving table is a parallel scan that spreads its rows over
-    the workers (parallel_divisor > 1) is costed per worker and is compared
-    only with its own kind: next to the serial prefixes it has more rows and
-    a higher cost than a tiny first table, which is exactly the prefix the
-    heuristic exists to drop, and exactly the one that the cost of the join
-    under it, divided among the workers, can still win. A parallel scan that
-    spreads nothing -- a driving table of which a single row survives --
-    divides none of the join under it and is compared with the serial
-    prefixes, which it is one of but for the setup it is charged; left among
-    the parallel ones it would drop every prefix that does spread, since it
-    beats them all on rows and on cost.
+    plan whose driving table is a parallel scan with something to gain by it
+    -- rows spread over the workers (parallel_divisor > 1), or a scan large
+    enough that its own division repays the setup (parallel_scan_pays) --
+    is costed per worker and is compared only with its own kind: next to the
+    serial prefixes it has more rows and a higher cost than a tiny first
+    table, which is exactly the prefix the heuristic exists to drop, and
+    exactly the one that the cost of the join under it, divided among the
+    workers, or of the scan itself, can still win. A parallel scan with
+    neither -- a tiny driving table of which a single row survives -- gains
+    nothing anywhere and is compared with the serial prefixes, which it is
+    one of but for the setup it is charged; left among the parallel ones it
+    would drop every prefix that does gain, since it beats them all on rows
+    and on cost.
   */
   struct Prune_state
   {
@@ -12727,8 +12735,9 @@ best_extension_by_limited_search(JOIN      *join,
         position when idx == const_tables -- so this picks by the candidate
         itself at the first depth and by its prefix's driver below it.
       */
+      const POSITION &driver= join->positions[join->const_tables];
       Prune_state &prune=
-        join->positions[join->const_tables].parallel_divisor > 1.0
+        (driver.parallel_divisor > 1.0 || driver.parallel_scan_pays)
         ? prune_parallel : prune_serial;
 
       /* Compute the cost of the new plan extended with 's' */
