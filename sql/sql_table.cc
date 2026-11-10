@@ -6227,7 +6227,6 @@ static void open_gtt_on_error(TABLE *table)
 
 my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
                                     TABLE_LIST *out_table,
-                                    MDL_ticket *mdl_ticket,
                                     Open_table_context *ot_ctx)
 {
   // Replica shouldn't use global temporary tables.
@@ -6319,21 +6318,16 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       return TRUE;
     }
 
-    ++thd->temporary_tables->global_temporary_tables_count;
     table= create_info.table;
 
     TMP_TABLE_SHARE *share= (TMP_TABLE_SHARE*)table->s;
 
     share->table_type= TABLE_TYPE_NORMAL;
-
-    MDL_REQUEST_INIT_BY_KEY(&share->mdl_request, &out_table->mdl_request.key,
-                            MDL_SHARED, MDL_EXPLICIT);
-    share->mdl_request.ticket= mdl_ticket; // It'll be cloned.
-    if (thd->mdl_context.clone_ticket(&share->mdl_request))
-    {
-      open_gtt_on_error(&global_table);
-      return TRUE;
-    }
+    /*
+      The GTT instance holds no MDL lock on the GTT definition. The
+      instance is local to this connection, like a local temporary
+      table, so other connections can ALTER or DROP the definition.
+    */
     share->table_creation_was_logged= 2;        // Force ROW LOGGING
     closefrm(&global_table);
   }

@@ -2035,7 +2035,6 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
-  MDL_request mdl_request;
 };
 
 /**
@@ -5976,7 +5975,6 @@ public:
                                         enum_tmp_table_type find_kind,
                                         bool use_base_name = 0);
 
-  void global_tmp_tables_set_explicit_lock_duration();
   bool use_real_global_temporary_share(const TABLE_LIST *table) const;
 
   bool open_temporary_table_impl(TABLE_LIST *tl, TABLE **table,

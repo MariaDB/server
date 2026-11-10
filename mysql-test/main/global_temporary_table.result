@@ -164,17 +164,14 @@ drop table t;
 ERROR HY000: Table `test`.`t` is in use.
 truncate t;
 drop table t;
-create global temporary table t (x int) on commit PRESERVE rows;
+create global temporary table gtt (x int) on commit PRESERVE rows;
 connect  con1,localhost,root,,;
-insert t values(1);
+insert gtt values(1);
 connection default;
-alter table t add j int;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-set statement lock_wait_timeout=0 for drop table t;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+alter table gtt add j int;
 disconnect con1;
 connection default;
-drop table t;
+drop table gtt;
 create global temporary table t (x int) partition by hash(x);
 ERROR HY000: Partitioned tables do not support CREATE GLOBAL TEMPORARY TABLE
 create global temporary table t (x int) with system versioning;
@@ -323,7 +320,7 @@ connection con1;
 insert t2 values (1);
 connection default;
 rename table t2 NOWAIT to tx;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+rename table tx NOWAIT to t2;
 connection con1;
 truncate t2;
 connection default;
@@ -1043,7 +1040,6 @@ select * from t;
 c
 connection default;
 alter table t add x int;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection con1;
 truncate t;
 connection default;
@@ -1095,18 +1091,13 @@ drop table t;
 # MDEV-37850 Wrong error on DROP TABLE GTT after DROP DATABASE
 create database test2;
 use test2;
-create global temporary table t (c int) on commit preserve rows;
-insert t values(1);
+create global temporary table gtt (c int) on commit preserve rows;
+insert gtt values(1);
 connection con1;
-set statement lock_wait_timeout= 0 for
 drop database test2;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
-drop database test2;
 create database test2;
 use test2;
-drop table t;
-ERROR 42S02: Unknown table 'test2.t'
 drop database test2;
 use test;
 create global temporary table t (c int) on commit preserve rows;

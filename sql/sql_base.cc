@@ -2094,7 +2094,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
           !thd->use_real_global_temporary_share(table_list))
       {
         share= table->s;
-        mdl_ticket= table->mdl_ticket;
         goto open_gtt;
       }
       goto reset;
@@ -2322,7 +2321,7 @@ retry_share:
       {
       open_gtt: // Label for Locked tables mode.
         my_bool err= open_global_temporary_table(thd, share, table_list,
-                                                 mdl_ticket, ot_ctx);
+                                                 ot_ctx);
         if (unlikely(err))
         {
           if (thd->locked_tables_mode && !(flags & MYSQL_OPEN_GET_NEW_TABLE))

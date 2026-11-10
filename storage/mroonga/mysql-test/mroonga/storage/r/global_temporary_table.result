@@ -1,0 +1,5 @@
+create global temporary table t (c int);
+create table t (d int primary key);
+ERROR 42S01: Table 't' already exists
+insert t values (0);
+drop table t;

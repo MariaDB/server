@@ -330,25 +330,6 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
   DBUG_RETURN(result);
 }
 
-void THD::global_tmp_tables_set_explicit_lock_duration()
-{
-  bool locked= lock_temporary_tables();
-
-  All_tmp_tables_list::Iterator it(*temporary_tables);
-  while (TMP_TABLE_SHARE *share= it++)
-  {
-    if (!share->global_tmp_table())
-      continue;
-    mdl_context.set_lock_duration(share->mdl_request.ticket, MDL_EXPLICIT);
-  }
-
-  if (locked)
-  {
-    DBUG_ASSERT(m_tmp_tables_locked);
-    unlock_temporary_tables();
-  }
-}
-
 bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
 {
   return (table->open_strategy == TABLE_LIST::OPEN_STUB ||
@@ -1134,7 +1115,6 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
-  share->mdl_request = {};
 
   /*
     We need to alloc & initialize temporary_tables if this happens
@@ -1155,9 +1135,15 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
     }
   }
 
-  /* Add share to the head of the temporary table share list. */
+  /*
+    Add share to the head of the temporary table share list.
+    GTT instances are added to the end and counted.
+  */
   if (share->global_tmp_table())
+  {
     temporary_tables->push_back(share);
+    temporary_tables->global_temporary_tables_count++;
+  }
   else
     temporary_tables->push_front(share);
 
@@ -1756,13 +1742,12 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       DBUG_ASSERT(share->hlindexes() == 1);
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
-
-    if (share->global_tmp_table() && share->mdl_request.ticket)
-    {
-      mdl_context.release_lock(share->mdl_request.ticket);
-      DBUG_ASSERT(temporary_tables->global_temporary_tables_count > 0);
-      --temporary_tables->global_temporary_tables_count;
-    }
+  }
+  if (share->global_tmp_table())
+  {
+    /* Counted in create_temporary_table() */
+    DBUG_ASSERT(temporary_tables->global_temporary_tables_count > 0);
+    temporary_tables->global_temporary_tables_count--;
   }
   free_table_share(share);
   my_free(share);
