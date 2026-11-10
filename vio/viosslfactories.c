@@ -410,11 +410,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
 
   if (crl_file || crl_path)
   {
-#ifdef HAVE_WOLFSSL
-    /* CRL does not work with WolfSSL. */
-    DBUG_ASSERT(0);
-    goto err2;
-#else
     X509_STORE *store= SSL_CTX_get_cert_store(ssl_fd->ssl_context);
     /* Load crls from the trusted ca */
     if (X509_STORE_load_locations(store, crl_file, crl_path) == 0 ||
@@ -427,7 +422,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file, const char *ca_file,
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
       goto err2;
     }
-#endif
   }
 
   if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file,
