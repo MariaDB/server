@@ -7200,7 +7200,10 @@ Item_func_json_contains::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                                         SARGABLE_PARAM **sargables)
 {
   if (arg_count != 2)
+  {
+    /* No optimization for the JSON_CONTAINS(a, b, path) variant */
     return;
+  }
   if (Item_field *field_item= get_local_field(args[0]))
     add_key_equal_fields(join, key_fields, *and_level, this, field_item,
                          false, args + 1, 1, usable_tables, sargables);

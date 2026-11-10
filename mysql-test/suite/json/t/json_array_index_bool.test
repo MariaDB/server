@@ -1,0 +1,278 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-25848 AND/OR of MEMBER OF, JSON_CONTAINS and JSON_OVERLAPS
+--echo # on one ARRAY index
+--echo #
+--echo # Each condition: EXPLAIN, result with the index, result without it.
+--echo # The two results must be identical.
+--echo #
+
+create table t1 (
+  pk int primary key,
+  a int,
+  js json,
+  key(a),
+  index i1(cast(js as char(30) array))
+);
+
+insert into t1 values
+  (1,  1,  '["a", "b", "c"]'),
+  (2,  2,  '["b", "d"]'),
+  (3,  3,  '["e"]'),
+  (4,  4,  '["a", "e"]'),
+  (5,  5,  '["c", "d", "e"]'),
+  (6,  6,  '[]'),
+  (7,  7,  '["b", "b"]');
+insert into t1 select seq, seq, concat('["v', seq, '", "w', seq, '"]')
+from seq_100_to_300;
+
+--echo # AND of the same function: the range is the cheaper side
+let $cond= 'b' member of (js) and 'v150' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["a", "b"]') and json_overlaps(js, '["v150", "w150"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["a", "b"]') and json_contains(js, '"c"');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # AND of different functions
+let $cond= 'a' member of (js) and json_contains(js, '["b", "c"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["a", "d"]') and 'e' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["a", "v150"]') and json_contains(js, '["a", "e"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'v150' member of (js) and json_overlaps(js, '["w150", "x"]') and json_contains(js, '["v150", "w150"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # AND that is always false
+let $cond= 'a' member of (js) and 'v150' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # OR of the same function: the range is the union of points
+let $cond= 'a' member of (js) or 'e' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_overlaps(js, '["a"]') or json_overlaps(js, '["e", "v150"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["a", "b"]') or json_contains(js, '["c", "e"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # OR of different functions, with points in common
+let $cond= 'b' member of (js) or json_overlaps(js, '["b", "d"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '["c", "e"]') or 'a' member of (js) or json_overlaps(js, '["v150", "a"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Nested AND/OR
+let $cond= ('a' member of (js) or 'd' member of (js)) and json_contains(js, '"e"');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= ('a' member of (js) and 'c' member of (js)) or json_overlaps(js, '["v150"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= (json_overlaps(js, '["a", "b"]') and json_contains(js, '["c"]')) or ('e' member of (js) and json_overlaps(js, '["d"]'));
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= (json_contains(js, '["a"]') or json_contains(js, '["d"]')) and (json_overlaps(js, '["b", "e"]') or 'v150' member of (js));
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo # Impossible and no-range operands
+let $cond= 'a' member of (js) or json_overlaps(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) and json_overlaps(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) or json_contains(js, NULL);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) and json_contains(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) or json_contains(js, '[]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) and json_overlaps(js, '{"a": 1}');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) or json_overlaps(js, '{"a": 1}');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '"e"') and not json_overlaps(js, '["a", "d"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= json_contains(js, '"e"') or not json_overlaps(js, '["a", "d"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select count(*) from t1 where $cond;
+eval select count(*) from t1 ignore index(i1) where $cond;
+
+--echo # With other indexes
+let $cond= (json_contains(js, '["a", "b"]') or pk = 200) and ('c' member of (js) or a = 200);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= (json_overlaps(js, '["e"]') or pk = 200) and json_contains(js, '["c"]');
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+--echo #
+--echo # MAYBE_KEY on i1 ANDed into an index_merge disjunct clones the
+--echo # SEL_ARG_ARRAY, which is then ANDed and ORed with other
+--echo # SEL_ARG_ARRAYs
+--echo #
+create table t2 (pk int primary key, j json);
+insert into t2 values (1, '["a"]'), (2, '["d"]');
+
+let $q= select straight_join t1.pk, t2.pk from t2, t1
+        where (json_overlaps(t1.js, '["a", "e"]') or t1.pk = 200)
+          and t1.js > t2.j and t1.a > t2.pk
+          and (json_contains(t1.js, '"e"') or 'v200' member of (t1.js));
+--sorted_result
+eval $q;
+--sorted_result
+eval select straight_join t1.pk, t2.pk from t2, t1 ignore index(i1)
+     where (json_overlaps(t1.js, '["a", "e"]') or t1.pk = 200)
+       and t1.js > t2.j and t1.a > t2.pk
+       and (json_contains(t1.js, '"e"') or 'v200' member of (t1.js));
+
+drop table t1, t2;

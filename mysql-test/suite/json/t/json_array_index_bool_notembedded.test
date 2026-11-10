@@ -1,0 +1,66 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-25848 AND/OR of MEMBER OF, JSON_CONTAINS and JSON_OVERLAPS
+--echo # on one ARRAY index: the ranges built for i1, from the optimizer trace
+--echo #
+
+create table t1 (
+  pk int primary key,
+  a int,
+  js json,
+  key(a),
+  index i1(cast(js as char(30) array))
+);
+
+insert into t1 values
+  (1,  1,  '["a", "b", "c"]'),
+  (2,  2,  '["b", "d"]'),
+  (3,  3,  '["e"]'),
+  (4,  4,  '["a", "e"]'),
+  (5,  5,  '["c", "d", "e"]'),
+  (6,  6,  '[]'),
+  (7,  7,  '["b", "b"]');
+insert into t1 select seq, seq, concat('["v', seq, '", "w', seq, '"]')
+from seq_100_to_300;
+
+set optimizer_trace='enabled=on';
+
+--echo # AND: the range keeps only the cheaper side ('v150')
+--sorted_result
+select pk from t1 where 'b' member of (js) and 'v150' member of (js);
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
+--echo # JSON_CONTAINS is an AND of its elements
+--sorted_result
+select pk from t1 where json_contains(js, '["v150", "b"]');
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
+--echo # OR: the union of points, 'b' only once
+--sorted_result
+select pk from t1 where 'b' member of (js) or 'c' member of (js) or json_overlaps(js, '["b", "d"]');
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
+--echo # Nested: ('a' OR 'd') AND 'e'
+--sorted_result
+select pk from t1 where ('a' member of (js) or 'd' member of (js)) and json_contains(js, '"e"');
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
+--echo # index_merge: the AND is pushed into each disjunct
+--sorted_result
+select pk from t1 where (json_overlaps(js, '["e"]') or pk = 200) and json_contains(js, '["c"]');
+select json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].index')) as idx,
+       json_detailed(json_extract(trace, '$**.range_scan_alternatives[*].ranges')) as ranges
+from information_schema.optimizer_trace;
+
+set optimizer_trace='enabled=off';
+drop table t1;

@@ -7072,38 +7072,28 @@ static SEL_ARG *json_array_point_leaf(RANGE_OPT_PARAM *param, Field *field,
   if (param->table->hli->make_key(param->thd, json_value, key_buf))
     return &sel_arg_impossible_member_of; // NULL, or a JSON object/array
 
-  SEL_ARG *tree;
-  if (!(tree= new (param->mem_root) SEL_ARG(field, key_buf, key_buf)))
+  /* Make a single-point SEL_ARG_ARRAY with the encoded key */
+  SEL_ARG_ARRAY *tree;
+  if (!(tree= new (param->mem_root) SEL_ARG_ARRAY(param->mem_root, field,
+                                                  key_buf,
+                                                  JSON_INDEX_KEY_MAX_LEN)) ||
+      tree->points.push_back(key_buf))
     return 0; // out of memory
 
   /*
-    This constructor sets maybe_null from field->real_maybe_null(), i.e.
-    whether the JSON column itself is nullable -- not whether key_buf is a
-    null-indicator-prefixed key image the way a real nullable key part's
-    min_value/max_value would be. key_buf is always a real {typ, value}
-    key built by make_key() (typ is never 0, see
-    json_index_encode_token()), never a null marker, regardless of the
-    column's own nullability -- a NULL row simply has no hlindex entry to
-    find (json_index::insert_row() skips it), so this tree is never used
-    to search for NULL. Leaving maybe_null set would make
-    SEL_ARG::is_null_interval() and friends misread that always-nonzero
-    typ byte as "NULL", corrupting every lookup once the column is
-    nullable (see also key_parts->null_bit in test_quick_select(),
-    opt_range.cc, same reasoning).
+    Estimate rows and cost for the key.
+    TODO: this causes one index access per point.
+    TODO: records_in_range() both gets the row estimates and computes
+    the cost estimates. It would be cleaner and more efficient for it
+    to get row estimates only (just like the handler method of the
+    same name), and split off a json_index::range_cost method to get
+    the cost, called once in check_quick_select_array().
   */
-  tree->maybe_null= false;
-
-  /*
-    Reuse GEOM_FLAG as the generic "opaque, don't combine algebraically"
-    marker (SEL_ARG::min_flag/max_flag are uint8 and GEOM_FLAG=128 is
-    already the top bit): key_and()/key_or()'s refusal to AND/OR-combine
-    two GEOM_FLAG ranges on the same keypart applies here too, and is the
-    correct, conservative behavior for MEMBER OF -- two differently-valued
-    membership tests against the same array are not contradictory the way
-    two differently-valued equalities on a scalar field would be.
-  */
-  tree->min_flag= GEOM_FLAG;
-  tree->max_flag= NO_MAX_RANGE;
+  tree->rows=
+    param->table->hli->records_in_range(param->table,
+                                        param->table->key_info + keynr,
+                                        key_buf, JSON_INDEX_KEY_MAX_LEN,
+                                        &tree->cost);
   return tree;
 }
 

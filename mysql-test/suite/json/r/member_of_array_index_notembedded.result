@@ -81,7 +81,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                     "range_scan_alternatives": [
                       {
                         "index": "arr_idx",
-                        "ranges": ["(2) MEMBER OF (tags)"],
+                        "ranges": ["(2) MEMBER OF tags"],
                         "rowid_ordered": false,
                         "using_mrr": false,
                         "index_only": false,
@@ -103,7 +103,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                       "type": "range_scan",
                       "index": "arr_idx",
                       "rows": 1,
-                      "ranges": ["(2) MEMBER OF (tags)"]
+                      "ranges": ["(2) MEMBER OF tags"]
                     },
                     "rows_for_plan": 1,
                     "cost_for_plan": 0.002040096,
@@ -289,24 +289,13 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                     "range_scan_alternatives": [
                       {
                         "index": "arr_idx",
-                        "ranges": ["(2) MEMBER OF (tags)"],
+                        "ranges": ["(2) MEMBER OF tags"],
                         "rowid_ordered": false,
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
                         "cost": 0.002040096,
                         "chosen": true
-                      },
-                      {
-                        "index": "arr_idx",
-                        "ranges": ["(5) MEMBER OF (tags)"],
-                        "rowid_ordered": false,
-                        "using_mrr": false,
-                        "index_only": false,
-                        "rows": 1,
-                        "cost": 0.002040096,
-                        "chosen": false,
-                        "cause": "cost"
                       }
                     ],
                     "analyzing_roworder_intersect": {
@@ -322,7 +311,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                       "type": "range_scan",
                       "index": "arr_idx",
                       "rows": 1,
-                      "ranges": ["(2) MEMBER OF (tags)"]
+                      "ranges": ["(2) MEMBER OF tags"]
                     },
                     "rows_for_plan": 1,
                     "cost_for_plan": 0.002040096,
@@ -506,55 +495,36 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags)	{
                   ],
                   "setup_range_conditions": [],
                   "analyzing_range_alternatives": {
-                    "range_scan_alternatives": [],
+                    "range_scan_alternatives": [
+                      {
+                        "index": "arr_idx",
+                        "ranges": ["(2) MEMBER OF tags", "(5) MEMBER OF tags"],
+                        "rowid_ordered": false,
+                        "using_mrr": false,
+                        "index_only": false,
+                        "rows": 2,
+                        "cost": 0.004080192,
+                        "chosen": true
+                      }
+                    ],
                     "analyzing_roworder_intersect": {
                       "cause": "too few roworder scans"
-                    },
-                    "analyzing_index_merge_union": [
-                      {
-                        "indexes_to_merge": [
-                          {
-                            "range_scan_alternatives": [
-                              {
-                                "index": "arr_idx",
-                                "ranges": ["(2) MEMBER OF (tags)"],
-                                "rowid_ordered": false,
-                                "using_mrr": false,
-                                "index_only": true,
-                                "rows": 1,
-                                "cost": 0.002040096,
-                                "chosen": true
-                              }
-                            ],
-                            "index_to_merge": "arr_idx",
-                            "cumulated_cost": 0.002040096
-                          },
-                          {
-                            "range_scan_alternatives": [
-                              {
-                                "index": "arr_idx",
-                                "ranges": ["(5) MEMBER OF (tags)"],
-                                "rowid_ordered": false,
-                                "using_mrr": false,
-                                "index_only": true,
-                                "rows": 1,
-                                "cost": 0.002040096,
-                                "chosen": true
-                              }
-                            ],
-                            "index_to_merge": "arr_idx",
-                            "cumulated_cost": 0.004080192
-                          }
-                        ],
-                        "cost_of_reading_ranges": 0.004080192,
-                        "chosen": false,
-                        "cause": "cost"
-                      }
-                    ]
+                    }
                   },
                   "group_index_range": {
                     "chosen": false,
                     "cause": "no group by or distinct"
+                  },
+                  "chosen_range_access_summary": {
+                    "range_access_plan": {
+                      "type": "range_scan",
+                      "index": "arr_idx",
+                      "rows": 2,
+                      "ranges": ["(2) MEMBER OF tags", "(5) MEMBER OF tags"]
+                    },
+                    "rows_for_plan": 2,
+                    "cost_for_plan": 0.004080192,
+                    "chosen": true
                   }
                 }
               },
@@ -588,20 +558,21 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags)	{
                       },
                       "considered_access_paths": [
                         {
-                          "access_type": "scan",
+                          "access_type": "range",
+                          "range_index": "arr_idx",
                           "rows": 2,
                           "rows_after_filter": 2,
                           "rows_out": 2,
-                          "cost": 0.01034841,
-                          "index_only": false,
+                          "cost": 0.003670592,
                           "chosen": true
                         }
                       ],
                       "chosen_access_method": {
-                        "type": "scan",
+                        "type": "range",
+                        "index": "arr_idx",
                         "rows_read": 2,
                         "rows_out": 2,
-                        "cost": 0.01034841,
+                        "cost": 0.003670592,
                         "uses_join_buffering": false
                       }
                     }
@@ -612,14 +583,14 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags)	{
                 "plan_prefix": "",
                 "table": "t",
                 "rows_for_plan": 2,
-                "cost_for_plan": 0.01034841
+                "cost_for_plan": 0.003670592
               }
             ]
           },
           {
             "best_join_order": ["t"],
             "rows": 2,
-            "cost": 0.01034841
+            "cost": 0.003670592
           },
           {
             "substitute_best_equal": {
