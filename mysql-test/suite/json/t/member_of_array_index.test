@@ -782,4 +782,40 @@ eval $q;
 
 DROP TABLE t3;
 
+--echo # IS [NOT] NULL
+create table t1 (
+  pk int primary key,
+  js json,
+  index i1(cast(js as char(30) array))
+);
+insert into t1 values (1, '["a", "b"]'), (2, '["b"]'), (4, '["a"]');
+insert into t1 select seq, concat('["v', seq, '"]') from seq_100_to_300;
+
+--echo # IS [NOT] NULL builds no range on the ARRAY key part, so ANDing
+--echo # it with MEMBER OF keeps the range on i1
+let $cond= js is not null and 'a' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 where $cond;
+--sorted_result
+eval select pk from t1 ignore index(i1) where $cond;
+
+let $cond= 'a' member of (js) and js is not null;
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+
+let $cond= js is null and 'a' member of (js);
+--replace_column 9 #
+eval explain select pk from t1 where $cond;
+eval select pk from t1 where $cond;
+
+--echo # IS NULL alone: no range on i1, correct rows
+--replace_column 9 #
+explain select pk from t1 where js is null;
+select pk from t1 where js is null;
+select pk from t1 where js is not null and pk < 5;
+
+drop table t1;
+
 --echo # End of 13.3 tests
