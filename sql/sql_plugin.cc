@@ -39,6 +39,7 @@
 #include <mysql/plugin_encryption.h>
 #include <mysql/plugin_data_type.h>
 #include <mysql/plugin_function.h>
+#include <mysql/plugin_sql_extension.h>
 #include "sql_plugin_compat.h"
 #include "wsrep_mysqld.h"
 
@@ -101,7 +102,8 @@ const LEX_CSTRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { STRING_WITH_LEN("PASSWORD VALIDATION") },
   { STRING_WITH_LEN("ENCRYPTION") },
   { STRING_WITH_LEN("DATA TYPE") },
-  { STRING_WITH_LEN("FUNCTION") }
+  { STRING_WITH_LEN("FUNCTION") },
+  { STRING_WITH_LEN("SQL EXTENSION") }
 };
 
 extern int initialize_schema_table(void *plugin);
@@ -152,6 +154,7 @@ static int plugin_type_initialization_order[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_PASSWORD_VALIDATION_PLUGIN,
   MYSQL_AUDIT_PLUGIN,
   MYSQL_REPLICATION_PLUGIN,
+  MariaDB_SQL_EXTENSION_PLUGIN,
   MYSQL_UDF_PLUGIN
 };
 
@@ -188,7 +191,8 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  MariaDB_FUNCTION_INTERFACE_VERSION
+  MariaDB_FUNCTION_INTERFACE_VERSION,
+  MariaDB_SQL_EXTENSION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -203,7 +207,8 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION,
   MariaDB_ENCRYPTION_INTERFACE_VERSION,
   MariaDB_DATA_TYPE_INTERFACE_VERSION,
-  MariaDB_FUNCTION_INTERFACE_VERSION
+  MariaDB_FUNCTION_INTERFACE_VERSION,
+  MariaDB_SQL_EXTENSION_INTERFACE_VERSION
 };
 
 static struct
@@ -1109,19 +1114,46 @@ plugin_ref plugin_lock_ready(THD *thd, plugin_ref ptr, bool *failed)
   Otherwise, when passing a NULL THD, the caller must arrange that plugin
   unlock happens later.
 */
-plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
+static plugin_ref plugin_lock_by_name_internal(THD *thd,
+                                               const LEX_CSTRING *name,
+                                               int type, uint state_mask)
 {
   LEX *lex= thd ? thd->lex : 0;
   plugin_ref rc= NULL;
   st_plugin_int *plugin;
-  DBUG_ENTER("plugin_lock_by_name");
+  DBUG_ENTER("plugin_lock_by_name_internal");
   if (!name->length)
     DBUG_RETURN(NULL);
   mysql_mutex_lock(&LOCK_plugin);
   if ((plugin= plugin_find_internal(name, type)))
-    rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin));
+    rc= intern_plugin_lock(lex, plugin_int_to_ref(plugin), state_mask);
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(rc);
+}
+
+/**
+  Lock a plugin by name if it is READY, still being installed
+  (UNINITIALIZED), or marked deleted by UNINSTALL while in use (DELETED);
+  not if it is DYING, DISABLED or FREED. See the notes on
+  lifetime above plugin_lock_by_name_internal().
+*/
+plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
+{
+  return plugin_lock_by_name_internal(thd, name, type, PLUGIN_IS_READY |
+                                      PLUGIN_IS_UNINITIALIZED |
+                                      PLUGIN_IS_DELETED);
+}
+
+
+/**
+  Like plugin_lock_by_name(), but returns NULL unless the plugin is READY:
+  not for a plugin that is still being installed, or that UNINSTALL has
+  marked deleted while it is still in use.
+*/
+plugin_ref plugin_lock_by_name_ready(THD *thd, const LEX_CSTRING *name,
+                                     int type)
+{
+  return plugin_lock_by_name_internal(thd, name, type, PLUGIN_IS_READY);
 }
 
 
