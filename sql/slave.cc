@@ -160,6 +160,7 @@ typedef enum { SLAVE_THD_IO, SLAVE_THD_SQL} SLAVE_THD_TYPE;
 static int process_io_rotate(Master_info* mi, Rotate_log_event* rev);
 static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
+static void slave_io_vio_callback(void *arg, void *vio);
 static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
 static void make_slave_skip_errors_printable(void);
@@ -7532,25 +7533,35 @@ void end_relay_log_info(Relay_log_info* rli)
 
 
 /**
-  Hook to detach the active VIO before closing a connection handle.
+  The MYSQL_OPT_VIO_CALLBACK of the connection to the master. The client calls
+  it with the vio as soon as it is created, i.e. before connect() and the wait
+  for the server greeting, and with NULL right before the vio is deleted.
 
-  The client API might close the connection (and associated data)
-  in case it encounters a unrecoverable (network) error. This hook
-  is called from the client code before the VIO handle is deleted
-  allows the thread to detach the active vio so it does not point
-  to freed memory.
+  Until the connect succeeds the vio is not THD::active_vio, so for a master
+  that accepts the TCP connection but never answers (frozen host, dropped
+  packets) THD::awake() cannot interrupt the IO thread, and STOP SLAVE waits
+  for slave_net_timeout. With the vio set as active_vio, awake() shuts it
+  down and the blocking wait returns at once.
 
-  Other calls to THD::clear_active_vio throughout this module are
-  redundant due to the hook but are left in place for illustrative
-  purposes.
+  The client might also delete the vio on an unrecoverable (network) error, the
+  NULL notification makes the THD forget it, so that active_vio never points to
+  freed memory.
+
+  STOP SLAVE sets mi->abort_slave before it calls awake(). If it already did,
+  the vio is shut down here, since awake() found no active vio.
 */
 
-extern "C" void slave_io_thread_detach_vio()
+static void slave_io_vio_callback(void *arg, void *vio_arg)
 {
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  THD *thd= current_thd;
-  if (thd && thd->slave_thread)
-    thd->clear_active_vio();
+  Master_info *mi= static_cast<Master_info *>(arg);
+  Vio *vio= static_cast<Vio *>(vio_arg);
+  THD *thd= mi->io_thd;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  thd->active_vio= vio;
+  if (vio && mi->abort_slave)
+    vio_shutdown(vio, SHUT_RDWR);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif
 }
 
@@ -7605,6 +7616,8 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  mysql_options(mysql, MYSQL_OPT_VIO_CALLBACK, (void *) slave_io_vio_callback);
+  mysql_options(mysql, MYSQL_OPT_VIO_CALLBACK_ARG, mi);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)

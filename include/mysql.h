@@ -189,7 +189,14 @@ enum mysql_option
   /* MariaDB options */
   MYSQL_PROGRESS_CALLBACK=5999,
   MYSQL_OPT_NONBLOCK,
-  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
+  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+  /*
+    void (*)(void *arg, void *vio): called by the client with the new Vio as soon as it
+    is created, and with NULL right before the vio is deleted.
+  */
+  MYSQL_OPT_VIO_CALLBACK,
+  /* The first argument of the MYSQL_OPT_VIO_CALLBACK function */
+  MYSQL_OPT_VIO_CALLBACK_ARG
 };
 
 /**

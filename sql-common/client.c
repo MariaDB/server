@@ -167,6 +167,19 @@ static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
 static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
+
+/*
+  Tell the owner of the connection (see MYSQL_OPT_VIO_CALLBACK) about the vio:
+  it is called with the new vio, and with NULL right before the vio is
+  deleted. This lets the server interrupt a connect, or a wait for the server
+  greeting, from another thread.
+*/
+static void notify_vio_change(MYSQL *mysql, Vio *vio)
+{
+  if (mysql->options.extension && mysql->options.extension->vio_callback)
+    mysql->options.extension->vio_callback(
+      mysql->options.extension->vio_callback_arg, vio);
+}
 static my_bool parse_ok_packet(MYSQL *mysql, ulong length);
 
 CHARSET_INFO *default_client_charset_info = &my_charset_latin1;
@@ -732,7 +745,7 @@ void end_server(MYSQL *mysql)
 
     DBUG_PRINT("info",("Net: %s", vio_description(mysql->net.vio)));
 #ifdef MYSQL_SERVER
-    slave_io_thread_detach_vio();
+    notify_vio_change(mysql, NULL);
 #endif
     vio_delete(mysql->net.vio);
     mysql->net.vio= 0;          /* Marker */
@@ -2818,6 +2831,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     net->vio= vio_new(sock, VIO_TYPE_SOCKET,
                       VIO_LOCALHOST | VIO_BUFFERED_READ);
+    if (net->vio)
+      notify_vio_change(mysql, net->vio);
     if (!net->vio)
     {
       DBUG_PRINT("error",("Unknown protocol %d ", mysql->options.protocol));
@@ -2844,6 +2859,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                                unknown_sqlstate,
                                ER(CR_CONNECTION_ERROR),
                                unix_socket, socket_errno);
+      notify_vio_change(mysql, NULL);
       vio_delete(net->vio);
       net->vio= 0;
       goto error;
@@ -2948,6 +2964,11 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
         freeaddrinfo(res_lst);
         goto error;
       }
+      /*
+        Let the slave IO thread know the vio, so that STOP SLAVE can shut it
+        down while we are blocked in connect or in waiting for the handshake.
+      */
+      notify_vio_change(mysql, net->vio);
 
       DBUG_PRINT("info", ("Connect socket"));
       status= connect_sync(mysql, net, sock,
@@ -2967,6 +2988,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       saved_error= socket_errno;
 
       DBUG_PRINT("info", ("No success, close socket, try next address."));
+      notify_vio_change(mysql, NULL);
       vio_delete(mysql->net.vio);
       mysql->net.vio= 0;
     }
@@ -3002,6 +3024,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
   if (my_net_init(net, net->vio, _current_thd(), MYF(0)))
   {
+    notify_vio_change(mysql, NULL);
     vio_delete(net->vio);
     net->vio = 0;
     set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
@@ -3896,6 +3919,24 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     if (mysql->options.extension)
       mysql->options.extension->report_progress= 
         (void (*)(const MYSQL *, uint, uint, double, const char *, uint)) arg;
+    break;
+  case MYSQL_OPT_VIO_CALLBACK:
+    if (!mysql->options.extension)
+      mysql->options.extension= (struct st_mysql_options_extention *)
+        my_malloc(key_memory_mysql_options,
+                  sizeof(struct st_mysql_options_extention),
+                  MYF(MY_WME | MY_ZEROFILL));
+    if (mysql->options.extension)
+      mysql->options.extension->vio_callback= (void (*)(void *, void *)) arg;
+    break;
+  case MYSQL_OPT_VIO_CALLBACK_ARG:
+    if (!mysql->options.extension)
+      mysql->options.extension= (struct st_mysql_options_extention *)
+        my_malloc(key_memory_mysql_options,
+                  sizeof(struct st_mysql_options_extention),
+                  MYF(MY_WME | MY_ZEROFILL));
+    if (mysql->options.extension)
+      mysql->options.extension->vio_callback_arg= (void *) arg;
     break;
   case MYSQL_OPT_NONBLOCK:
     break;
