@@ -445,7 +445,7 @@ ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_SCHEMA='no_such_db_at_all';
 
 --echo #
---echo # MDEV-41165: max_statement_time must not use the fast path
+--echo # MDEV-41165: max_statement_time uses the fast path
 --echo #
 SET max_statement_time=100;
 --replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
@@ -551,3 +551,5 @@ TRUNCATE mysql.slow_log;
 --enable_view_protocol
 --enable_ps_protocol
 DROP TABLE t1, t2, t3;
+
+--echo # End of 13.2 tests
