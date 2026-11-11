@@ -236,7 +236,7 @@ WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
 SELECT JSON_EXTRACT(trace, '$**.parallel_rows_shipped') AS rows_shipped
 FROM information_schema.optimizer_trace;
 rows_shipped
-[6, 8]
+[6]
 EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
 WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

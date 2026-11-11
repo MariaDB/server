@@ -10927,6 +10927,22 @@ determine_search_depth(JOIN *join)
   that table was costed as a parallel scan: each worker then joins only its
   share of the driving rows, and the plan's cost is one worker's. The driving
   table itself already carries one worker's share (see parallel_scan_cost()).
+
+  A table the position reads by key lookup -- ref, eq_ref, ref_or_null --
+  is divided by the square root of that instead. A scan divides cleanly
+  between the workers: each reads its own pages at the serial rate. Key
+  lookups do not: W workers probing the same index at once slow each
+  other down, and the probes into a small table every worker hits are
+  the worst of it. Measured on TPC-DS Q68's derived table, driven by a
+  divided scan of store_sales with 2,880,404 eq_ref probes of date_dim
+  under it: a probe took 0.35 us serially and 1.6 us per worker with
+  eight workers, and the plan as a whole ran 1.5 times faster with two
+  workers, 2.1 with four and 2.3 with eight, where the scan alone divided
+  by the worker count. The square root fits the first two, is still
+  generous at eight, and keeps the plans where the lookups are fewer
+  than the rows scanned -- the usual dimension lookups under a divided
+  fact table -- as they were. A BNL or hashed join buffer scans the
+  inner table, and divides like a scan.
 */
 
 static inline double
@@ -10936,7 +10952,12 @@ position_cost_in_plan(JOIN *join, uint idx, const POSITION *position)
   {
     double divisor= join->positions[join->const_tables].parallel_divisor;
     if (divisor > 1.0)
+    {
+      if (position->type == JT_REF || position->type == JT_EQ_REF ||
+          position->type == JT_REF_OR_NULL)
+        divisor= sqrt(divisor);
       return position->read_time / divisor;
+    }
   }
   return position->read_time;
 }
