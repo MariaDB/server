@@ -1,0 +1,56 @@
+--echo #
+--echo # MDEV-41677 JSON_SCHEMA_VALID maxLength/minLength must count
+--echo # decoded characters, not the bytes of the JSON text
+--echo #
+
+--echo # Plain strings
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"a"') AS literal_a_max1;
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"ab"') AS ab_max1;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', '"ab"') AS ab_min2;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', '"a"') AS a_min2;
+
+--echo # Escaped characters
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"\\u0061"') AS escaped_a_max1;
+SELECT JSON_SCHEMA_VALID('{"minLength":1}', '"\\u0061"') AS escaped_a_min1;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', '"\\u0061"') AS escaped_a_min2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"\\u00e9"') AS escaped_e_acute_max1;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', '"\\u00e9"') AS escaped_e_acute_min2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":3}', '"a\\nb"') AS newline_max3;
+SELECT JSON_SCHEMA_VALID('{"maxLength":2}', '"a\\nb"') AS newline_max2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":2}', '"\\u0061b"') AS escaped_a_plus_b_max2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"\\u0061b"') AS escaped_a_plus_b_max1;
+
+--echo # Surrogate pair (one emoji written as two escapes)
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '"\\uD83D\\uDE00"') AS emoji_escaped_max1;
+SELECT JSON_SCHEMA_VALID('{"maxLength":4}', '"\\uD83D\\uDE00"') AS emoji_escaped_max4;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', '"\\uD83D\\uDE00"') AS emoji_escaped_min2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":0}', '"\\uD83D\\uDE00"') AS emoji_escaped_max0;
+
+--echo # Literal multi-byte characters
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', CONVERT(0x22C3A922 USING utf8mb4)) AS e_acute_max1;
+SELECT JSON_SCHEMA_VALID('{"minLength":2}', CONVERT(0x22C3A922 USING utf8mb4)) AS e_acute_min2;
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', CONVERT(0x22E282AC22 USING utf8mb4)) AS euro_max1;
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', CONVERT(0x22F09F988022 USING utf8mb4)) AS emoji_literal_max1;
+
+--echo # Empty string
+SELECT JSON_SCHEMA_VALID('{"maxLength":0}', '""') AS empty_max0;
+SELECT JSON_SCHEMA_VALID('{"minLength":1}', '""') AS empty_min1;
+
+--echo # Non-string values are not affected by these keywords
+SELECT JSON_SCHEMA_VALID('{"maxLength":1}', '12345') AS number_max1;
+
+--echo # Nested property
+SELECT JSON_SCHEMA_VALID('{"properties":{"a":{"maxLength":1}}}', '{"a":"\\u0061"}') AS nested_escaped_ok;
+SELECT JSON_SCHEMA_VALID('{"properties":{"a":{"maxLength":1}}}', '{"a":"ab"}') AS nested_too_long;
+
+--echo # Non-escaped multi-byte string takes the fast path
+SELECT JSON_SCHEMA_VALID('{"maxLength":3}', CONVERT(0x22C3A9E282ACF09F988022 USING utf8mb4)) AS multibyte_fast_max3;
+SELECT JSON_SCHEMA_VALID('{"maxLength":2}', CONVERT(0x22C3A9E282ACF09F988022 USING utf8mb4)) AS multibyte_fast_max2;
+
+--echo # Mixed escaped and literal
+SELECT JSON_SCHEMA_VALID('{"maxLength":3}', CONVERT(0x22615C7530306539E282AC22 USING utf8mb4)) AS mixed_max3;
+SELECT JSON_SCHEMA_VALID('{"maxLength":2}', CONVERT(0x22615C7530306539E282AC22 USING utf8mb4)) AS mixed_max2;
+
+--echo #
+--echo # End of test
+--echo #

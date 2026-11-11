@@ -395,6 +395,10 @@ int __attribute__((warn_unused_result)) json_unescape(CHARSET_INFO *json_cs,
                   CHARSET_INFO *res_cs,
                   uchar *res, uchar *res_end);
 
+int json_count_unescaped_chars(CHARSET_INFO *json_cs,
+                               const uchar *json_str, const uchar *json_end,
+                               size_t *count);
+
 /*
   Convert a string constant into JSON string constant.
   This can involve appropriate escaping and changing the character set.
