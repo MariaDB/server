@@ -6518,6 +6518,11 @@ loc_read_rows(MYSQL *mysql, MYSQL_FIELD *mysql_fields __attribute__((unused)),
   ((Protocol_local *)mysql->thd)->cur_data= 0;
   if (result->embedded_info->last_errno)
   {
+    /*
+      Failed after the metadata or some rows (e.g. killed). embedded_get_error()
+      frees the dataset but not the fields and rows in its memory root.
+    */
+    free_root(&result->alloc, MYF(0));
     embedded_get_error(mysql, result);
     return NULL;
   }
