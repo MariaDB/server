@@ -21996,7 +21996,8 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     create_tmp_field_from_field() can't be used for tmp field creation.
   */
   if (((maybe_null() && in_rollup()) ||
-       (orig_item && orig_item->maybe_null())) &&
+       (new_table->in_use->create_tmp_table_for_derived && /* for mat. view/dt */
+        orig_item && orig_item->maybe_null())) &&
       !field->maybe_null())
   {
     /*
