@@ -2105,6 +2105,15 @@ public:
   */
   bool parallel_plan_chosen{false};
   /*
+    What the workers would ship for this query, for parallel_ship_cost():
+    < 0 every joined row, a query that does not aggregate; 0 a handful of
+    partials, a query that aggregates over everything it reads; > 0 the
+    estimated number of groups, each worker shipping its partial of each.
+    Set by choose_plan() with parallel_candidates_allowed
+    (parallel_estimate_shipped_groups()).
+  */
+  double parallel_groups{-1.0};
+  /*
     The conjuncts of the plan's table conditions that no worker can evaluate
     -- a correlated subquery, chiefly, whose JOIN belongs to this thread --
     ANDed together for the manager to apply to every row it drains before the

@@ -1,4 +1,5 @@
 SET SESSION optimizer_parallel_setup_cost= 0;
+SET SESSION optimizer_parallel_row_cost= 0;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT, d INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, CONCAT('v', LPAD(5001 - seq, 4, '0')), seq % 13, seq
 FROM seq_1_to_5000;

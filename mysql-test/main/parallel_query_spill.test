@@ -22,6 +22,8 @@
 --source include/have_sequence.inc
 # the tables here are too small to repay the workers' setup cost; make the parallel scan free
 SET SESSION optimizer_parallel_setup_cost= 0;
+# and a forced spill is what is under test, so the per-row charge is off too
+SET SESSION optimizer_parallel_row_cost= 0;
 
 --disable_service_connection
 

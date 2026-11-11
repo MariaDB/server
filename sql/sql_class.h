@@ -791,7 +791,7 @@ typedef struct system_variables
   ulonglong max_tmp_space_usage;
 
   double optimizer_where_cost, optimizer_scan_setup_cost;
-  double optimizer_parallel_setup_cost;
+  double optimizer_parallel_setup_cost, optimizer_parallel_row_cost;
   double log_slow_query_time_double, max_statement_time_double;
   double log_slow_always_query_time_double;
   double sample_percentage;

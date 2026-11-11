@@ -7976,6 +7976,17 @@ static Sys_var_optimizer_cost Sys_optimizer_parallel_setup_cost(
   CMD_LINE(REQUIRED_ARG),
   VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_PARALLEL_SETUP_COST),
   COST_ADJUST(1000));
+
+static Sys_var_optimizer_cost Sys_optimizer_parallel_row_cost(
+  "optimizer_parallel_row_cost",
+  "Cost of one row the parallel workers ship to the thread running the "
+  "query, which receives every row by itself. Charged against the parallel "
+  "reading of a plan once per row it ships: every joined row of a query that "
+  "does not aggregate, the partial groups of one that does. In microseconds",
+  SESSION_VAR(optimizer_parallel_row_cost),
+  CMD_LINE(REQUIRED_ARG),
+  VALID_RANGE(0, 100000000), DEFAULT(DEFAULT_PARALLEL_ROW_COST),
+  COST_ADJUST(1000));
 #endif
 
 extern const char *block_encryption_mode_values[];

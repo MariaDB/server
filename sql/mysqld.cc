@@ -5600,6 +5600,7 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_where_cost);
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
     us_to_ms(global_system_variables.optimizer_parallel_setup_cost);
+    us_to_ms(global_system_variables.optimizer_parallel_row_cost);
   }
 
   /*

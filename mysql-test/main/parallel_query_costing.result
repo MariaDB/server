@@ -196,6 +196,54 @@ SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_
 WHERE VARIABLE_NAME = 'Parallel_queries_executed';
 ran_in_the_workers
 1
+#
+# What the workers ship is charged per row (optimizer_parallel_row_cost).
+# A query that does not aggregate ships every joined row, and the
+# manager receives them all by itself: charged enough per row, the
+# plan that was divided is read serially. A query that aggregates
+# ships its partial groups, not its rows, and the same charge leaves
+# it divided.
+#
+SET @save_row= @@session.optimizer_parallel_row_cost;
+SET SESSION parallel_worker_threads= 4;
+SET SESSION optimizer_trace=1;
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000;
+SELECT JSON_EXTRACT(trace, '$**.parallel_rows_shipped') AS rows_shipped
+FROM information_schema.optimizer_trace;
+rows_shipped
+[20000]
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	range_parallel	PRIMARY	PRIMARY	4	NULL	2000	Using where
+1	SIMPLE	f	ref	dim_id	dim_id	5	test.d.id	10	
+SET SESSION optimizer_parallel_row_cost= 100;
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000;
+SELECT JSON_EXTRACT(trace, '$**.parallel_scan_declined_because') AS why
+FROM information_schema.optimizer_trace;
+why
+["the optimizer costed the plan cheaper with its driving table read serially (see parallel_scan_cost)"]
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	range	PRIMARY	PRIMARY	4	NULL	2000	Using where
+1	SIMPLE	f	ref	dim_id	dim_id	5	test.d.id	10	
+# grouped: the partials shipped are counted by the groups, not the rows
+EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
+SELECT JSON_EXTRACT(trace, '$**.parallel_rows_shipped') AS rows_shipped
+FROM information_schema.optimizer_trace;
+rows_shipped
+[6, 8]
+EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	d	range_parallel	PRIMARY	PRIMARY	4	NULL	2000	Using where; Using temporary; Using filesort
+1	SIMPLE	f	ref	dim_id	dim_id	5	test.d.id	10	
+SET SESSION optimizer_trace=@save_trace;
+SET SESSION optimizer_parallel_row_cost= @save_row;
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
 DROP TABLE dim, fact, dim2, fact2, tag;

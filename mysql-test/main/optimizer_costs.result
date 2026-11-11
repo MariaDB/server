@@ -80,6 +80,7 @@ optimizer_key_compare_cost	0.011361
 optimizer_key_copy_cost	0.015685
 optimizer_key_lookup_cost	0.435777
 optimizer_key_next_find_cost	0.082347
+optimizer_parallel_row_cost	0.030000
 optimizer_parallel_setup_cost	2000.000000
 optimizer_row_copy_cost	0.060866
 optimizer_row_lookup_cost	0.130839

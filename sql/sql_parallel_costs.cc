@@ -30,6 +30,8 @@
 
 
 #include "sql_parallel_workers.h"
+#include "sql_statistics.h"
+#include "optimizer_defaults.h"
 #include "transaction.h"
 
 /**
@@ -143,6 +145,128 @@ bool parallel_scan_cost(JOIN *join, TABLE *table, double serial_cost,
                                1.0);
   *divisor= rows / ceil(rows / workers);
   return true;
+}
+
+
+/**
+  @brief
+    How many rows the workers would ship for this query, in the terms
+    parallel_ship_cost() charges them: set JOIN::parallel_groups.
+
+  @description
+    A worker ships what reaches the end of its nested loop. For a query that
+    does not aggregate that is every joined row, and the search knows the
+    count at the end of each plan it costs. For one that aggregates over
+    everything it reads (no GROUP BY) it is one partial per worker, which
+    costs nothing worth charging. For a grouped query it is one partial per
+    group per worker, and the number of groups is estimated here, once, as
+    the product over the GROUP BY columns of each column's distinct values
+    -- the table's rows over the column's average frequency, from the
+    engine-independent statistics -- and capped by the joined rows at each
+    plan. Without statistics get_column_avg_frequency() reports one value
+    for the whole column, and the estimate is one group: the optimistic
+    side, which leaves such a query costed as it was before this term, rather
+    than charging it every joined row and keeping a five-group query serial.
+
+    Asked pre-plan, so the GROUP BY is the query's own
+    (pwt_query_shape_allows_workers() takes it the same way), whose elements
+    that gate has checked are plain columns.
+*/
+
+void parallel_estimate_shipped_groups(JOIN *join)
+{
+  SELECT_LEX *sl= join->select_lex;
+  join->parallel_groups= -1.0;
+  if (!join->group_list && !join->group &&
+      !sl->agg_func_used() && !sl->with_sum_func)
+    return;                                     // ships every joined row
+  ORDER *group= join->group_list ? join->group_list : sl->group_list.first;
+  double groups= 0.0;
+  for (ORDER *k= group; k; k= k->next)
+  {
+    Item *item= (*k->item)->real_item();
+    if (item->type() != Item::FIELD_ITEM)
+      continue;
+    Field *field= ((Item_field *) item)->field;
+    double rows= (double) field->table->stat_records();
+    double freq= get_column_avg_frequency(field);
+    double distinct= freq > 0.0 ? MY_MAX(rows / freq, 1.0) : 1.0;
+    groups= groups == 0.0 ? distinct : COST_MULT(groups, distinct);
+  }
+  join->parallel_groups= groups;
+}
+
+
+/**
+  @brief
+    The cost of shipping a plan's result from the workers to the manager.
+
+  @description
+    The manager receives every row the workers ship, by itself, and that
+    is not divided by anything: a plan whose output is a large share of
+    what it reads -- a cross join, a selective join of two wide tables
+    shipped whole -- has the workers hand the manager as many rows as the
+    join produced, and the join-order search adds the cost of that to a
+    parallel plan when the plan is complete and its row count known. What
+    is shipped is JOIN::parallel_groups' answer
+    (parallel_estimate_shipped_groups()): the joined rows, or a partial per
+    group per worker, the workers that got rows being what the driving
+    position's parallel_divisor says, and never more than the joined rows.
+
+    A row costs optimizer_parallel_row_cost while the worker's container
+    is in memory. The container is a temporary table that create_tmp_table()
+    starts as a HEAP table of at most min(tmp_memory_table_size,
+    max_heap_table_size) bytes and converts to Aria on disk when that is
+    exceeded, after which every row written and read back goes through the
+    page cache, so the rows past what the workers' containers hold in
+    memory cost DISK_TEMPTABLE_LOOKUP_COST more each. The width of a shipped
+    row is the plan's tables' used field lengths added together -- the
+    read_set columns, which are what the layout ships
+    (pwt_row_layout::build()) -- at their full declared length, which is
+    how a HEAP table stores a VARCHAR, and not capped at the engine's mean
+    row length as the join buffer's estimate is. The busiest worker holds
+    rows / parallel_divisor of the rows, so the containers hold
+    parallel_divisor times one container's worth in memory between them.
+
+    optimizer_parallel_row_cost set to 0 switches the charge off, the disk
+    tier included: a test that wants a plan divided whatever it ships sets
+    it to 0 beside optimizer_parallel_setup_cost.
+
+  @param join          the join being ordered; positions[const_tables] is
+                       the driving position and every table is placed
+  @param joined_rows   rows the complete plan produces
+  @param rows_shipped  [out] what the workers ship, for the trace
+  @param rows_spilled  [out] how many of them from containers gone to disk
+
+  @return  the cost to add to the plan
+*/
+
+double parallel_ship_cost(JOIN *join, double joined_rows,
+                          double *rows_shipped, double *rows_spilled)
+{
+  THD *thd= join->thd;
+  double workers=
+    MY_MAX(join->positions[join->const_tables].parallel_divisor, 1.0);
+  double rows= joined_rows;
+  if (join->parallel_groups >= 0.0)
+    rows= MY_MIN(joined_rows, COST_MULT(join->parallel_groups, ceil(workers)));
+  *rows_shipped= rows;
+  *rows_spilled= 0.0;
+  if (thd->variables.optimizer_parallel_row_cost == 0.0)
+    return 0.0;                                 // the charge is switched off
+
+  double width= 0.0;
+  for (uint i= join->const_tables; i < join->table_count; i++)
+    if (JOIN_TAB *tab= join->positions[i].table)
+      width+= (double) tab->get_max_used_fieldlength();
+  const double heap_bytes= (double) MY_MIN(thd->variables.tmp_memory_table_size,
+                                           thd->variables.max_heap_table_size);
+  const double in_memory= width > 0.0 ? workers * heap_bytes / width : rows;
+  const double spilled= MY_MAX(rows - in_memory, 0.0);
+
+  *rows_spilled= spilled;
+  return COST_ADD(COST_MULT(rows, thd->variables.optimizer_parallel_row_cost),
+                  COST_MULT(spilled, DISK_TEMPTABLE_LOOKUP_COST(thd)));
 }
 
 

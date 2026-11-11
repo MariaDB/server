@@ -180,6 +180,45 @@ SELECT COUNT(*), MAX(t.name) FROM dim2 d, fact2 f, tag t
 SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
   WHERE VARIABLE_NAME = 'Parallel_queries_executed';
 
+--echo #
+--echo # What the workers ship is charged per row (optimizer_parallel_row_cost).
+--echo # A query that does not aggregate ships every joined row, and the
+--echo # manager receives them all by itself: charged enough per row, the
+--echo # plan that was divided is read serially. A query that aggregates
+--echo # ships its partial groups, not its rows, and the same charge leaves
+--echo # it divided.
+--echo #
+SET @save_row= @@session.optimizer_parallel_row_cost;
+SET SESSION parallel_worker_threads= 4;
+SET SESSION optimizer_trace=1;
+--disable_result_log
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.parallel_rows_shipped') AS rows_shipped
+  FROM information_schema.optimizer_trace;
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000;
+SET SESSION optimizer_parallel_row_cost= 100;
+--disable_result_log
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000;
+--source include/parallel_query_why.inc
+--enable_result_log
+EXPLAIN SELECT f.id, f.val FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000;
+--echo # grouped: the partials shipped are counted by the groups, not the rows
+--disable_result_log
+EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.parallel_rows_shipped') AS rows_shipped
+  FROM information_schema.optimizer_trace;
+EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
+  WHERE f.dim_id = d.id AND d.id <= 2000 GROUP BY d.name;
+SET SESSION optimizer_trace=@save_trace;
+SET SESSION optimizer_parallel_row_cost= @save_row;
+
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
 DROP TABLE dim, fact, dim2, fact2, tag;

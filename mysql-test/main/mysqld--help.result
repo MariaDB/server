@@ -936,6 +936,13 @@ The following specify which files/extra groups are read (specified before remain
  The maximum number of SEL_ARG objects created when
  optimizing a range. If more objects would be needed, the
  range will not be used by the optimizer
+ --optimizer-parallel-row-cost=# 
+ Cost of one row the parallel workers ship to the thread
+ running the query, which receives every row by itself.
+ Charged against the parallel reading of a plan once per
+ row it ships: every joined row of a query that does not
+ aggregate, the partial groups of one that does. In
+ microseconds
  --optimizer-parallel-setup-cost=# 
  Cost, per table in the join, of setting up parallel
  worker threads to scan the driving table of a query.
@@ -1999,6 +2006,7 @@ optimizer-key-lookup-cost 0.435777
 optimizer-key-next-find-cost 0.082347
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
+optimizer-parallel-row-cost 0.03
 optimizer-parallel-setup-cost 2000
 optimizer-prune-level 2
 optimizer-record-context FALSE
