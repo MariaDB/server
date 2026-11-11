@@ -95,6 +95,14 @@ public:
     my_gap_tracker= gap_tracker;
   }
 
+  /* Parallel query: fold a worker's tracker into the plan's. */
+  void reset_counts() { count= 0; cycles= 0; }
+  void add(const Exec_time_tracker &other)
+  {
+    count+= other.count;
+    cycles+= other.cycles;
+  }
+
   // interface for collecting time
   void start_tracking(THD *thd)
   {

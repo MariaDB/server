@@ -453,14 +453,18 @@ bool jointab_can_be_parallel_scanned(JOIN_TAB *tab, bool trace)
     altogether. Pushing a clone onto the worker's own handler would recover it,
     and wants the worker to hold a real JOIN_TAB to hang the key number off.
 
-    A table read through a BNL/BNLH join buffer would be a second: there
+    A table read through a BNL/BNLH join buffer has a second: there
     JOIN_TAB::remove_redundant_bnl_scan_conds() *removes* from select_cond the
-    conjuncts make_scan_filter() copied into cache_select->cond for the buffer
-    to apply. The gate refuses any plan that uses a join buffer, so that case
-    never reaches here. cache_select->cond can still be set on a tab with no
-    buffer -- make_join_select() builds the scan filter before
-    check_join_cache_usage() decides -- but then it is a copy of conjuncts that
-    select_cond still holds, and nothing is lost by ignoring it.
+    conjuncts make_scan_filter() copied into cache_select->cond, for the
+    buffer to apply to the table as it scans it. A worker runs a buffer of
+    its own (setup_worker_jointabs()), which applies its own clone of that
+    scan filter, so for a buffered table what is returned here is still the
+    whole of what the worker's buffer matches by, and the scan filter is
+    taken, cloned and checked separately (pwt_cache_scan_cond()).
+    cache_select->cond can also be set on a tab with no buffer --
+    make_join_select() builds the scan filter before check_join_cache_usage()
+    decides -- but then it is a copy of conjuncts that select_cond still
+    holds, and nothing is lost by ignoring it.
 
     There is another. A table the plan sorts has its condition taken away
     from it altogether: JOIN::add_sorting_to_table() hands tab->select to the
@@ -489,6 +493,22 @@ static Item *pwt_table_cond(JOIN_TAB *tab)
   if (tab->filesort && tab->filesort->select)
     return tab->filesort->select->cond;
   return tab->select_cond;
+}
+
+
+/*
+  The scan filter a BNL/BNLH join buffer applies to this table as it scans
+  it, or NULL when the tab is not read through such a buffer. See
+  pwt_table_cond() for where the rest of the table's condition is.
+*/
+
+static Item *pwt_cache_scan_cond(JOIN_TAB *tab)
+{
+  if (tab->cache && tab->cache_select &&
+      (tab->cache->get_join_alg() == JOIN_CACHE::BNL_JOIN_ALG ||
+       tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG))
+    return tab->cache_select->cond;
+  return nullptr;
 }
 
 
@@ -1321,18 +1341,36 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
                                   "is read through a rowid filter"));
     }
     /*
-      A plan that reads a table through a join buffer (BNL, BNLH, BKA, BKAH)
-      was chosen for what the buffer saves: one scan of the inner table per
-      buffer-full of outer rows rather than one per outer row. A worker has no
-      join buffer and joins a row at a time, so it would run a different plan
-      from the one costed, and for a full-scan inner table that is a scan per
-      driving row. Leave these serial.
+      A table read through a BNL or BNLH join buffer is read that way in the
+      workers too, each through a buffer of its own built on its copy of the
+      tab (setup_worker_jointabs()), so the plan runs as it was costed: one
+      scan of this table per buffer-full of driving rows. BKA and BKAH read
+      the joined table through multi-range read on the handler, which a
+      worker's tab does not run; check_join_cache_usage_for_tables() gives a
+      plan chosen for the workers no level that assigns one, so this refusal
+      is for a plan the costing did not choose.
     */
-    if (tab->cache || tab->use_join_cache)
+    if (tab->cache &&
+        (tab->cache->get_join_alg() == JOIN_CACHE::BKA_JOIN_ALG ||
+         tab->cache->get_join_alg() == JOIN_CACHE::BKAH_JOIN_ALG))
     {
       DBUG_RETURN(pwt_decline_tab(join, trace, tab,
-                                  "is read through a join buffer, which a "
-                                  "worker does not have"));
+                                  "is read through a BKA join buffer, which "
+                                  "a worker does not run"));
+    }
+    /*
+      The buffer's scan filter is a worker's to apply whole: the buffer
+      checks it against each row of this table as it scans it, before that
+      row is matched against any buffered row, so the manager cannot take a
+      conjunct of it the way it takes one of a table condition
+      (pwt_split_table_cond()), which is applied to finished rows.
+    */
+    if (Item *scan_cond= pwt_cache_scan_cond(tab))
+    {
+      if (!pwt_item_is_worker_safe(join, scan_cond))
+        DBUG_RETURN(pwt_decline_tab(join, trace, tab,
+                     "is pre-filtered by a join buffer scan condition a "
+                     "worker cannot evaluate"));
     }
     /*
       The driving table may be read through a quick select -- checked above,
@@ -1361,11 +1399,12 @@ bool can_run_query_in_workers(JOIN *join, JOIN_TAB *scan_tab, bool trace)
     }
     if (j > join->const_tables)                     // non-driving table access
     {
-      if (tab->type != JT_EQ_REF && tab->type != JT_REF && tab->type != JT_ALL)
+      if (tab->type != JT_EQ_REF && tab->type != JT_REF &&
+          tab->type != JT_ALL && tab->type != JT_HASH)
       {
         DBUG_RETURN(pwt_decline_tab(join, trace, tab,
                      "is joined by an access method a worker does not run "
-                     "(only eq_ref, ref and a full scan)"));
+                     "(only eq_ref, ref, a full scan and a hash join)"));
       }
       if (tab->type == JT_EQ_REF || tab->type == JT_REF)
         for (uint p= 0; p < tab->ref.key_parts; p++)
@@ -1689,12 +1728,11 @@ static Item *pwt_clone_rebind(THD *thd, Item *src,
   @return  true on error.
 */
 
-static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
+static bool clone_table_ref(THD *thd, TABLE_REF *src, KEY *keyinfo,
                             TABLE **from, TABLE **to, uint n, TABLE_REF *dst)
 {
   const uint kp= src->key_parts;
   const uint len= src->key_length;
-  KEY *keyinfo= wtable->key_info + src->key;
 
   dst->key_parts= kp;
   dst->key_length= len;
@@ -1747,6 +1785,36 @@ static bool clone_table_ref(THD *thd, TABLE_REF *src, TABLE *wtable,
 }
 
 
+/**
+  @brief
+    The key a hash join is keyed by, over this worker's copy of the table.
+
+  @description
+    A hash join's key is not one of the table's: create_hj_key_for_table()
+    built a KEY for the manager's table, with key parts naming the manager's
+    fields, and the ref and the hashed join buffer read it through
+    JOIN_TAB::get_keyinfo_by_key_no(). The same descriptor, with each part
+    naming the field of the same index in the worker's table.
+*/
+
+static KEY *pwt_clone_hj_key(THD *thd, const KEY *src, TABLE *wtable)
+{
+  const uint parts= src->user_defined_key_parts;
+  KEY *key= thd->alloc<KEY>(1);
+  KEY_PART_INFO *kp= thd->alloc<KEY_PART_INFO>(parts);
+  if (!key || !kp)
+    return nullptr;
+  *key= *src;
+  key->key_part= kp;
+  for (uint i= 0; i < parts; i++)
+  {
+    kp[i]= src->key_part[i];
+    kp[i].field= wtable->field[src->key_part[i].field->field_index];
+  }
+  return key;
+}
+
+
 static void close_one_worker_table(TABLE **t)
 {
   if (*t)
@@ -1783,8 +1851,18 @@ bool pwt_manager::open_worker_tables(THD *thd, pwt_worker *worker)
       !(worker->exec.tab_stats= thd->calloc<Table_access_tracker>(exec.n_tables)) ||
       !(worker->exec.tab_hstats= thd->calloc<ha_handler_stats>(exec.n_tables)) ||
       !(worker->exec.tab_trackers=
-          thd->calloc<Exec_time_tracker>(exec.n_tables)))
+          thd->calloc<Exec_time_tracker>(exec.n_tables)) ||
+      !(worker->exec.tab_jbuf_stats=
+          thd->calloc<Table_access_tracker>(exec.n_tables)) ||
+      !(worker->exec.tab_jbuf_loops=
+          thd->calloc<Counter_tracker>(exec.n_tables)) ||
+      !(worker->exec.tab_jbuf_unpack=
+          thd->alloc<Time_and_counter_tracker>(exec.n_tables)))
     return true;
+  /* Not calloc: the unpack tracker's 'timed' is const, set by construction. */
+  for (uint t= 0; t < exec.n_tables; t++)
+    new (&worker->exec.tab_jbuf_unpack[t])
+      Time_and_counter_tracker(thd->lex->analyze_stmt);
 
   for (uint t= 0; t < exec.n_tables; t++)
     worker->exec.tables[t]= nullptr;
@@ -1885,6 +1963,18 @@ void pwt_worker::snapshot_table_stats()
 
 void pwt_worker::close_tables()
 {
+  /*
+    The join buffers before the tables they scan. JOIN_CACHE::free() releases
+    the buffer init() my_malloc'd; the cache object is on a mem_root. The tab
+    array is zeroed at allocation, so a tab setup never reached has no cache.
+  */
+  if (exec.jointabs)
+    for (uint i= 0; i < exec.n_tables; i++)
+      if (exec.jointabs[i].cache)
+      {
+        exec.jointabs[i].cache->free();
+        exec.jointabs[i].cache= nullptr;
+      }
   if (exec.tables)
     for (uint i= 0; i < exec.n_tables; i++)
       close_one_worker_table(&exec.tables[i]);
@@ -1964,9 +2054,13 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
   */
   DBUG_ASSERT(is_driving || tab->use_quick != 2);
 
-  /* Join buffers: the gate refuses a plan that reads a table through one. */
-  DBUG_ASSERT(!tab->cache);
-  DBUG_ASSERT(!tab->use_join_cache);
+  /*
+    Join buffers: a BNL/BNLH cache stays on the manager's tab and the worker
+    is built one of its own by setup_worker_jointabs(). BKA is refused.
+  */
+  DBUG_ASSERT(!tab->cache ||
+              tab->cache->get_join_alg() == JOIN_CACHE::BNL_JOIN_ALG ||
+              tab->cache->get_join_alg() == JOIN_CACHE::BNLH_JOIN_ALG);
 
   /*
     A sort is only ever the driving table's -- pwt_manager_sort_order() takes
@@ -1982,9 +2076,10 @@ static void pwt_assert_tab_inert(JOIN_TAB *tab, bool is_driving)
   DBUG_ASSERT(!tab->shortcut_for_distinct);
   DBUG_ASSERT(!tab->having);
 
-  /* The driving table is scanned; only the tables after it are looked up. */
+  /* The driving table is scanned; the tables after it are looked up, scanned
+     or hash-joined. */
   DBUG_ASSERT(is_driving || tab->type == JT_ALL || tab->type == JT_REF ||
-              tab->type == JT_EQ_REF);
+              tab->type == JT_EQ_REF || tab->type == JT_HASH);
 }
 #endif
 
@@ -2088,6 +2183,15 @@ bool pwt_manager::setup_worker_join(THD *thd, pwt_worker *worker)
     a limit at all.
   */
   worker->exec.join->unit= exec.join->unit;
+  /*
+    And the table list, read but never written: next_linear_tab() ends its
+    walk at exec_join_tab_cnt(), which is top_join_tab_count when the JOIN
+    has a table list and zero when it has none. A join buffer's init() walks
+    the worker's tabs that way (JOIN_CACHE::calc_record_fields()) and, left
+    at zero, would step past the array's end. The manager's list, like the
+    unit above.
+  */
+  worker->exec.join->tables_list= exec.join->tables_list;
   return false;
 }
 
@@ -2117,7 +2221,8 @@ static enum_nested_loop_state pwt_end_send(JOIN *join, JOIN_TAB *join_tab,
 */
 bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
 {
-  if (!(worker->exec.jointabs= thd->alloc<JOIN_TAB>(exec.n_tables)))
+  /* Zeroed, so that close_tables() can tell a tab this loop never reached. */
+  if (!(worker->exec.jointabs= thd->calloc<JOIN_TAB>(exec.n_tables)))
     return true;
   worker->exec.join->join_tab= worker->exec.jointabs;
 
@@ -2153,8 +2258,37 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
     else
       wtab->select_cond= nullptr;
     wtab->pre_idx_push_select_cond= nullptr;
+    /*
+      A BNL/BNLH join buffer evaluates two conditions the nested loop does
+      not: the scan filter, against each row of this table as the buffer
+      scans it (JOIN_TAB_SCAN::next(), through cache_select), and the rest of
+      the table's condition, against each buffered prefix row the scanned row
+      is matched with (JOIN_CACHE::check_match(), through select->cond rather
+      than select_cond). Each gets a worker-side SQL_SELECT over this worker's
+      table, holding the clone; neither carries a quick, and a tab with no
+      buffer gets neither, since nothing of a worker's reads them then.
+    */
     wtab->cache_select= nullptr;
     wtab->select= nullptr;
+    if (mtab->cache)
+    {
+      if (Item *scan_cond= pwt_cache_scan_cond(mtab))
+      {
+        Item *clone= pwt_clone_rebind(thd, scan_cond, exec.tables,
+                                      worker->exec.tables, exec.n_tables);
+        if (!clone || !(wtab->cache_select= new (thd->mem_root) SQL_SELECT))
+          return true;
+        wtab->cache_select->head= wtab->table;
+        wtab->cache_select->cond= clone;
+      }
+      if (wtab->select_cond)
+      {
+        if (!(wtab->select= new (thd->mem_root) SQL_SELECT))
+          return true;
+        wtab->select->head= wtab->table;
+        wtab->select->cond= wtab->select_cond;
+      }
+    }
     /*
       The plan's sort is the manager's to run (sort_and_send()) and the
       Filesort is the manager's to free: JOIN_TAB::cleanup() deletes both the
@@ -2218,9 +2352,19 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
     wtab->read_record.thd= worker->thd;
     wtab->read_record.print_error= TRUE;
 
-    if (k && (wtab->type == JT_EQ_REF || wtab->type == JT_REF))
+    if (k && (wtab->type == JT_EQ_REF || wtab->type == JT_REF ||
+              wtab->type == JT_HASH))
     {
-      if (clone_table_ref(thd, &mtab->ref, wtab->table,
+      KEY *keyinfo;
+      if (mtab->is_ref_for_hash_join())
+      {
+        if (!(keyinfo= pwt_clone_hj_key(thd, mtab->hj_key, wtab->table)))
+          return true;
+        wtab->hj_key= keyinfo;
+      }
+      else
+        keyinfo= wtab->table->key_info + mtab->ref.key;
+      if (clone_table_ref(thd, &mtab->ref, keyinfo,
                           exec.tables, worker->exec.tables, exec.n_tables,
                           &wtab->ref))
         return true;
@@ -2251,6 +2395,48 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
       above.
     */
     wtab->cached_pfs_batch_update= wtab->pfs_batch_update();
+
+    /*
+      The join buffer, this worker's own. The manager's JOIN_CACHE was built
+      over the manager's tabs and holds the manager's buffer; the worker gets
+      a new one of the same kind over its own tabs, so that what it stores
+      and reads back are the fields of its own table copies, chained to the
+      previous tab's buffer the way the manager's is. init() sizes and
+      allocates it through the cache's JOIN, this worker's, whose THD carries
+      the session's join_buffer_size, so every worker gets a buffer of the
+      session's size. The tab before it is then pointed at the buffer rather
+      than at the nested loop (sub_select_cache()), which fills the buffer
+      row by row and flushes it when full and on the end-of-records call the
+      worker's driver makes. Last, because init() walks the worker's tabs up
+      to this one and reads their tables and conditions.
+    */
+    wtab->cache= nullptr;
+    if (mtab->cache)
+    {
+      DBUG_ASSERT(k > 0);
+      JOIN_CACHE *prev= mtab->cache->prev_cache ? wtab[-1].cache : nullptr;
+      DBUG_ASSERT(!mtab->cache->prev_cache || prev);
+      switch (mtab->cache->get_join_alg()) {
+      case JOIN_CACHE::BNL_JOIN_ALG:
+        wtab->cache= new (thd->mem_root) JOIN_CACHE_BNL(worker->exec.join,
+                                                        wtab, prev);
+        break;
+      case JOIN_CACHE::BNLH_JOIN_ALG:
+        wtab->cache= new (thd->mem_root) JOIN_CACHE_BNLH(worker->exec.join,
+                                                         wtab, prev);
+        break;
+      default:
+        DBUG_ASSERT(0);                       // the gate refuses BKA and BKAH
+        return true;
+      }
+      if (!wtab->cache || wtab->cache->init(false))
+        return true;
+      wtab[-1].next_select= sub_select_cache;
+      /* The buffer's own counters, summed into the manager's by quiesce_workers(). */
+      wtab->jbuf_tracker= &worker->exec.tab_jbuf_stats[k];
+      wtab->jbuf_loops_tracker= &worker->exec.tab_jbuf_loops[k];
+      wtab->jbuf_unpack_tracker= &worker->exec.tab_jbuf_unpack[k];
+    }
   }
   return false;
 }

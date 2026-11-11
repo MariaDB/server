@@ -150,13 +150,72 @@ FLUSH STATUS;
 --sorted_result
 SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
 
---echo # a worker has no join buffer, so the plan ran serially (expect 0)
+--echo # each worker runs a join buffer of its own, so the plan ran in them (expect 1)
 --let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
 --disable_query_log
 --eval SELECT $pq > 0 AS ran_in_the_workers
 --enable_query_log
 
-DROP TABLE b1, b2;
+--echo # a hashed buffer: the join key is over the worker's own copy of the table
+SET @save_jcl= @@session.join_cache_level;
+SET SESSION join_cache_level= 4;
+--replace_column 9 #
+EXPLAIN SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+FLUSH STATUS;
+--sorted_result
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+
+--echo # a level that means BKA serially means BNLH in a plan chosen for the
+--echo # workers, which run no multi-range read; the plan is costed the same
+SET @save_os_jb= @@session.optimizer_switch;
+SET SESSION optimizer_switch= 'mrr=on';
+SET SESSION join_cache_level= 6;
+CREATE TABLE b3 (x INT, v INT, KEY(x)) ENGINE=InnoDB;
+INSERT INTO b3 SELECT seq % 4, seq FROM seq_1_to_20;
+SET SESSION parallel_worker_threads= 0;
+--replace_column 9 #
+EXPLAIN SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+SET SESSION parallel_worker_threads= 4;
+--replace_column 9 #
+EXPLAIN SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+FLUSH STATUS;
+--sorted_result
+SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+SET SESSION optimizer_switch= @save_os_jb;
+SET SESSION join_cache_level= @save_jcl;
+
+DROP TABLE b1, b2, b3;
+
+--echo #
+--echo # a cross join: the inner table is scanned once per buffer-full of
+--echo # driving rows, in the workers as serially, not once per driving row
+--echo #
+CREATE TABLE s1 (a INT PRIMARY KEY, b INT, c VARCHAR(50), d DECIMAL(10,2), KEY(b)) ENGINE=InnoDB;
+INSERT INTO s1 SELECT seq, seq%100, CONCAT('v',seq%7), ROUND(seq/3, 2) FROM seq_1_to_1000;
+CREATE TABLE s2 (a INT PRIMARY KEY, b INT, c VARCHAR(50), d DECIMAL(10,2), KEY(b)) ENGINE=InnoDB;
+INSERT INTO s2 SELECT seq, seq%100, CONCAT('v',seq%7), ROUND(seq/3, 2) FROM seq_1_to_2000;
+ANALYZE TABLE s1, s2;
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+SET SESSION parallel_worker_threads= 4;
+--replace_column 9 #
+EXPLAIN SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+FLUSH STATUS;
+SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+--echo # ran in the workers (expect 1)
+--let $pq= query_get_value(SHOW SESSION STATUS LIKE 'Parallel_queries_executed', Value, 1)
+--disable_query_log
+--eval SELECT $pq > 0 AS ran_in_the_workers
+--enable_query_log
+DROP TABLE s1, s2;
 
 --echo #
 --echo # ANALYZE reports how the workers divided each table between them, beside

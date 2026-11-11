@@ -169,7 +169,7 @@ INSERT INTO b2 SELECT seq % 4, seq FROM seq_1_to_20;
 # b2 is read through a join buffer and carries a condition of its own
 EXPLAIN SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	b1	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	b1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where
 1	SIMPLE	b2	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 # serial
 SET SESSION parallel_worker_threads= 0;
@@ -184,10 +184,81 @@ SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
 v
 17
 18
-# a worker has no join buffer, so the plan ran serially (expect 0)
+# each worker runs a join buffer of its own, so the plan ran in them (expect 1)
 ran_in_the_workers
-0
-DROP TABLE b1, b2;
+1
+# a hashed buffer: the join key is over the worker's own copy of the table
+SET @save_jcl= @@session.join_cache_level;
+SET SESSION join_cache_level= 4;
+EXPLAIN SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	b1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	b2	hash_ALL	NULL	#hash#$hj	5	test.b1.k	#	Using where; Using join buffer (flat, BNLH join)
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN b2.v FROM b1, b2 WHERE b2.x=b1.k AND b2.v>15 AND b1.id<=2;
+v
+17
+18
+ran_in_the_workers
+1
+# a level that means BKA serially means BNLH in a plan chosen for the
+# workers, which run no multi-range read; the plan is costed the same
+SET @save_os_jb= @@session.optimizer_switch;
+SET SESSION optimizer_switch= 'mrr=on';
+SET SESSION join_cache_level= 6;
+CREATE TABLE b3 (x INT, v INT, KEY(x)) ENGINE=InnoDB;
+INSERT INTO b3 SELECT seq % 4, seq FROM seq_1_to_20;
+SET SESSION parallel_worker_threads= 0;
+EXPLAIN SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	b1	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	b3	ref	x	x	5	test.b1.k	#	Using where; Using join buffer (flat, BKA join); Rowid-ordered scan
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	b1	ALL_parallel	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	b3	hash_ALL	x	#hash#x	5	test.b1.k	#	Using where; Using join buffer (flat, BNLH join)
+FLUSH STATUS;
+SELECT STRAIGHT_JOIN b3.v FROM b1, b3 WHERE b3.x=b1.k AND b3.v>15 AND b1.id<=2;
+v
+17
+18
+ran_in_the_workers
+1
+SET SESSION optimizer_switch= @save_os_jb;
+SET SESSION join_cache_level= @save_jcl;
+DROP TABLE b1, b2, b3;
+#
+# a cross join: the inner table is scanned once per buffer-full of
+# driving rows, in the workers as serially, not once per driving row
+#
+CREATE TABLE s1 (a INT PRIMARY KEY, b INT, c VARCHAR(50), d DECIMAL(10,2), KEY(b)) ENGINE=InnoDB;
+INSERT INTO s1 SELECT seq, seq%100, CONCAT('v',seq%7), ROUND(seq/3, 2) FROM seq_1_to_1000;
+CREATE TABLE s2 (a INT PRIMARY KEY, b INT, c VARCHAR(50), d DECIMAL(10,2), KEY(b)) ENGINE=InnoDB;
+INSERT INTO s2 SELECT seq, seq%100, CONCAT('v',seq%7), ROUND(seq/3, 2) FROM seq_1_to_2000;
+ANALYZE TABLE s1, s2;
+Table	Op	Msg_type	Msg_text
+test.s1	analyze	status	Engine-independent statistics collected
+test.s1	analyze	status	OK
+test.s2	analyze	status	Engine-independent statistics collected
+test.s2	analyze	status	OK
+SET SESSION parallel_worker_threads= 0;
+SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+COUNT(*)	SUM(s1.d)	SUM(s2.d)
+2000000	333666660.00	667000000.00
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s1	ALL_parallel	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+FLUSH STATUS;
+SELECT COUNT(*), SUM(s1.d), SUM(s2.d) FROM s1 JOIN s2 ON (1);
+COUNT(*)	SUM(s1.d)	SUM(s2.d)
+2000000	333666660.00	667000000.00
+# ran in the workers (expect 1)
+ran_in_the_workers
+1
+DROP TABLE s1, s2;
 #
 # ANALYZE reports how the workers divided each table between them, beside
 # the r_rows they add up to. Which worker got which chunk is down to

@@ -577,6 +577,21 @@ void pwt_manager::quiesce_workers()
       tr->n_workers= nworkers();
     tr->r_engine_time_per_worker= thd->calloc<ulonglong>(nworkers());
     tr->r_pages_read_time_per_worker= thd->calloc<ulonglong>(nworkers());
+    /* The join buffer's counters, per execution for the same reason. */
+    if (exec.jointabs[t]->cache)
+    {
+      JOIN_TAB *tab= exec.jointabs[t];
+      if (tab->jbuf_tracker)
+      {
+        tab->jbuf_tracker->r_scans= 0;
+        tab->jbuf_tracker->r_rows= 0;
+        tab->jbuf_tracker->r_rows_after_where= 0;
+      }
+      if (tab->jbuf_loops_tracker)
+        tab->jbuf_loops_tracker->r_scans= 0;
+      if (tab->jbuf_unpack_tracker)
+        tab->jbuf_unpack_tracker->reset_counts();
+    }
   }
 
   for (uint i= 0; i < nworkers(); i++)
@@ -612,6 +627,26 @@ void pwt_manager::quiesce_workers()
       }
       if (ha_handler_stats *hs= exec.tables[t]->file->handler_stats)
         hs->add(&workers[i]->exec.tab_hstats[t]);
+      /*
+        The worker's join buffer, when the tab has one: the loops, the buffered
+        rows matched and the unpack time ANALYZE reports for the buffer are the
+        sum over the workers' buffers, as the table's rows are.
+      */
+      if (JOIN_TAB *tab= exec.jointabs[t]->cache ? exec.jointabs[t] : nullptr)
+      {
+        const Table_access_tracker *ws= &workers[i]->exec.tab_jbuf_stats[t];
+        if (tab->jbuf_tracker)
+        {
+          tab->jbuf_tracker->r_scans+= ws->r_scans;
+          tab->jbuf_tracker->r_rows+= ws->r_rows;
+          tab->jbuf_tracker->r_rows_after_where+= ws->r_rows_after_where;
+        }
+        if (tab->jbuf_loops_tracker)
+          tab->jbuf_loops_tracker->r_scans+=
+            workers[i]->exec.tab_jbuf_loops[t].r_scans;
+        if (tab->jbuf_unpack_tracker)
+          tab->jbuf_unpack_tracker->add(workers[i]->exec.tab_jbuf_unpack[t]);
+      }
     }
   /*
     The chunks are one scan of the driving table between them, so report one,

@@ -51,7 +51,7 @@ SET @save_pwt= @@session.parallel_worker_threads;
 SET @save_cost= @@session.optimizer_parallel_setup_cost;
 SET @save_jcl= @@session.join_cache_level;
 SET @save_trace= @@optimizer_trace;
-# a join buffer is refused by the gate; keep the serial plan a plain ref join
+# keep the plans plain ref joins, so that the costs compared are the scans'
 SET SESSION join_cache_level= 0;
 
 --echo #
@@ -160,6 +160,26 @@ SELECT STRAIGHT_JOIN COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
 SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
   WHERE VARIABLE_NAME = 'Parallel_queries_executed';
 
+--echo #
+--echo # A table scanned under the divided driver takes a join buffer as it
+--echo # does serially: each worker runs one of its own, so the plan is costed
+--echo # with the buffer and runs with it, in the workers.
+--echo #
+SET SESSION join_cache_level= @save_jcl;
+CREATE TABLE tag (id INT, name VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO tag SELECT seq, CONCAT('t', seq) FROM seq_1_to_20;
+SET SESSION parallel_worker_threads= 0;
+EXPLAIN SELECT COUNT(*), MAX(t.name) FROM dim2 d, fact2 f, tag t
+  WHERE f.dim_id = d.id AND d.name = 'match' AND t.id = f.val;
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), MAX(t.name) FROM dim2 d, fact2 f, tag t
+  WHERE f.dim_id = d.id AND d.name = 'match' AND t.id = f.val;
+FLUSH STATUS;
+SELECT COUNT(*), MAX(t.name) FROM dim2 d, fact2 f, tag t
+  WHERE f.dim_id = d.id AND d.name = 'match' AND t.id = f.val;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
-DROP TABLE dim, fact, dim2, fact2;
+DROP TABLE dim, fact, dim2, fact2, tag;
