@@ -6149,4 +6149,13 @@ EXECUTE stmt;
 EXECUTE stmt;
 DROP VIEW v;
 DROP TABLE t;
+#
+# MDEV-38466 SIGSEGV in is_supported_parser_charset on EXECUTE
+#
+PREPARE s FROM 'SET character_set_client=?';
+EXECUTE s USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+DEALLOCATE PREPARE s;
+EXECUTE IMMEDIATE 'SET sql_select_limit=?' USING DEFAULT;
+ERROR HY000: Default/ignore value is not supported for such parameter usage
 # End of 11.4 tests
