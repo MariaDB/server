@@ -191,8 +191,8 @@ enum mysql_option
   MYSQL_OPT_NONBLOCK,
   MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
   /*
-    void (*)(void *arg, void *vio): called by the client with the new Vio as soon as it
-    is created, and with NULL right before the vio is deleted.
+    void (*)(void *arg, void *vio): called by the client with the new Vio as
+    soon as it is created, and with NULL right before the vio is deleted.
   */
   MYSQL_OPT_VIO_CALLBACK,
   /* The first argument of the MYSQL_OPT_VIO_CALLBACK function */

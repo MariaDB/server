@@ -2831,8 +2831,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     net->vio= vio_new(sock, VIO_TYPE_SOCKET,
                       VIO_LOCALHOST | VIO_BUFFERED_READ);
-    if (net->vio)
-      notify_vio_change(mysql, net->vio);
     if (!net->vio)
     {
       DBUG_PRINT("error",("Unknown protocol %d ", mysql->options.protocol));
@@ -2840,6 +2838,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       closesocket(sock);
       goto error;
     }
+    notify_vio_change(mysql, net->vio);
 
     host= LOCAL_HOST;
     if (!unix_socket)
@@ -3303,6 +3302,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   if (mysql_set_character_set(&tmp_mysql, mysql->charset->cs_name.str))
   {
     DBUG_PRINT("error", ("mysql_set_character_set() failed"));
+    notify_vio_change(&tmp_mysql, NULL); /* notify vio is about to be closed */
     bzero((char*) &tmp_mysql.options,sizeof(tmp_mysql.options));
     mysql_close(&tmp_mysql);
     mysql->net.last_errno= tmp_mysql.net.last_errno;
