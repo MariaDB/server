@@ -34244,7 +34244,9 @@ void JOIN::save_query_plan(Join_plan_state *save_to)
   memcpy((uchar*) save_to->best_positions, (uchar*) best_positions,
          sizeof(POSITION) * (table_count + 1));
   memset((uchar*) best_positions, 0, sizeof(POSITION) * (table_count + 1));
-  
+  save_to->parallel_plan_chosen= parallel_plan_chosen;
+  parallel_plan_chosen= false;
+
   /* Save SJM nests */
   List_iterator<TABLE_LIST> it(select_lex->sj_nests);
   TABLE_LIST *tlist;
@@ -34290,6 +34292,7 @@ void JOIN::restore_query_plan(Join_plan_state *restore_from)
 
   memcpy((uchar*) best_positions, (uchar*) restore_from->best_positions,
          sizeof(POSITION) * (table_count + 1));
+  parallel_plan_chosen= restore_from->parallel_plan_chosen;
   /* Restore SJM nests */
   List_iterator<TABLE_LIST> it(select_lex->sj_nests);
   TABLE_LIST *tlist;

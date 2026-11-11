@@ -77,6 +77,21 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS divided
   FROM information_schema.optimizer_trace;
 --disable_result_log
 
+--echo # a GROUP BY column of a table the plan reads by eq_ref through a grouped
+--echo # column: remove_const() drops it from the plan's group key, and it is
+--echo # still one value per group, so the plan is run divided
+CREATE TABLE t4 (id INT PRIMARY KEY, city VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t4 SELECT seq, CONCAT('c', seq % 3) FROM seq_1_to_20;
+--enable_result_log
+SELECT t1.n, t4.city, SUM(t1.a) FROM t1, t4 WHERE t4.id = t1.n
+  GROUP BY t1.n, t4.city ORDER BY t1.n;
+--source include/parallel_query_why.inc
+--enable_result_log
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') AS divided
+  FROM information_schema.optimizer_trace;
+--disable_result_log
+DROP TABLE t4;
+
 --echo # an index supplying the ORDER BY
 --disable_result_log
 SELECT a FROM t1 ORDER BY a;
