@@ -24,8 +24,9 @@ openssl req -x509 -newkey rsa:4096 -keyout cakey.pem -out cacert.pem -days 7300 
 openssl req -newkey rsa:4096 -keyout server-key.pem -out demoCA/server-req.pem -days 7300 -nodes -subj '/CN=localhost/C=FI/ST=state or province within country, in other certificates in this file it is the same as L/L=location, usually an address but often ambiguously used/OU=organizational unit name, a division name within an organization/O=organization name, typically a company name'
 # convert the key to yassl compatible format
 openssl rsa -in server-key.pem -out server-key.pem
-# sign the server certificate with CA certificate
-openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out server-cert.pem -in demoCA/server-req.pem
+# sign the server certificate with CA certificate. OpenSSL 4.1+ no longer matches the host against CN, so add a DNS SAN
+echo subjectAltName=DNS:localhost > demoCA/serverext.conf
+openssl ca -keyfile cakey.pem -extfile demoCA/serverext.conf -days 7300 -batch -cert cacert.pem -policy policy_anything -out server-cert.pem -in demoCA/server-req.pem
 
 # server certificate with different validity period (MDEV-7598) and unsafe for shell interpolation (MDEV-39413)
 openssl req -newkey rsa:4096 -keyout server-new-key.pem -out demoCA/server-new-req.pem -days 7301 -nodes -subj /CN="'\`touch A\`'"'-"`touch B`"/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB'
