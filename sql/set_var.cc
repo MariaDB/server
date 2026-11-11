@@ -822,6 +822,9 @@ int set_var::check(THD *thd)
   thd->where= THD_WHERE::SET_LIST;
   if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
+  // A placeholder bound to DEFAULT or IGNORE has no value to check
+  if (value->check_is_evaluable_expression_or_error())
+    return -1;
   if (var->check_update_type(value))
   {
     my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), var->name.str);

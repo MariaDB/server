@@ -5606,4 +5606,15 @@ EXECUTE stmt;
 DROP VIEW v;
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-38466 SIGSEGV in is_supported_parser_charset on EXECUTE
+--echo #
+
+PREPARE s FROM 'SET character_set_client=?';
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE s USING DEFAULT;
+DEALLOCATE PREPARE s;
+--error ER_INVALID_DEFAULT_PARAM
+EXECUTE IMMEDIATE 'SET sql_select_limit=?' USING DEFAULT;
+
 --echo # End of 11.4 tests
