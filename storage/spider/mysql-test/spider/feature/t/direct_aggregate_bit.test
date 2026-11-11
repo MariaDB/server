@@ -100,6 +100,87 @@ SHOW STATUS LIKE 'Spider_direct_aggregate';
 --enable_ps2_protocol
 DROP TABLE t3_s, t3_1, t3_2;
 
+--echo # GROUP BY: the partial results of a group come from several data nodes
+--echo # (update_field() with direct_add()). The values are shorter than the
+--echo # declared length.
+CREATE TABLE t4_1 (id INT PRIMARY KEY, grp INT, val_bin VARBINARY(4),
+                   val_int BIGINT UNSIGNED) ENGINE=InnoDB;
+CREATE TABLE t4_2 LIKE t4_1;
+CREATE TABLE t4_s (id INT PRIMARY KEY, grp INT, val_bin VARBINARY(4),
+                   val_int BIGINT UNSIGNED) ENGINE=SPIDER
+PARTITION BY RANGE (id) (
+  PARTITION p1 VALUES LESS THAN (10) REMOTE_SERVER="srv" REMOTE_TABLE="t4_1",
+  PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="srv" REMOTE_TABLE="t4_2");
+INSERT INTO t4_s VALUES
+  (1, 1, x'FF00', 0xFF00000000000000), (2, 2, x'0FF0', 0x0FF0), (3, 3, NULL, NULL),
+  (4, 4, x'1234', 0x1234), (5, 5, NULL, NULL),
+  (11, 1, x'0FFF', 0x8FFF000000000000), (12, 2, x'F00F', 0xF00F),
+  (13, 3, x'5678', 0x5678), (14, 4, NULL, NULL), (15, 5, NULL, NULL),
+  (16, 6, x'ABCD', 0xABCD);
+let $query=
+SELECT grp,
+  HEX(BIT_OR(val_bin)) AS o, HEX(BIT_AND(val_bin)) AS a,
+  HEX(BIT_XOR(val_bin)) AS x,
+  HEX(BIT_OR(val_int)) AS io, HEX(BIT_AND(val_int)) AS ia,
+  HEX(BIT_XOR(val_int)) AS ix
+FROM t4_s GROUP BY grp;
+--disable_ps2_protocol
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+eval $query;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+--echo # Without pushdown the results must be the same
+SET spider_direct_aggregate= 0;
+eval $query;
+SET spider_direct_aggregate= DEFAULT;
+
+--echo # A data node without rows returns the neutral value of the declared
+--echo # length, which is longer than the values of the other data node
+let $query=
+SELECT HEX(BIT_OR(val_bin)) AS o, HEX(BIT_AND(val_bin)) AS a,
+       HEX(BIT_XOR(val_bin)) AS x,
+       HEX(BIT_OR(val_int)) AS io, HEX(BIT_AND(val_int)) AS ia,
+       HEX(BIT_XOR(val_int)) AS ix
+FROM t4_s;
+--echo # The first data node is empty
+DELETE FROM t4_1;
+eval $query;
+--echo # The second data node is empty
+INSERT INTO t4_1 SELECT id - 10, grp, val_bin, val_int FROM t4_2;
+DELETE FROM t4_2;
+eval $query;
+--echo # Both data nodes are empty
+DELETE FROM t4_1;
+eval $query;
+--enable_ps2_protocol
+DROP TABLE t4_s, t4_1, t4_2;
+
+--echo # A data node returns a partial result that is not an integer
+CREATE TABLE t5 (id INT PRIMARY KEY, val VARBINARY(4)) ENGINE=InnoDB;
+CREATE TABLE t5_s (id INT PRIMARY KEY, val BIGINT UNSIGNED) ENGINE=SPIDER
+REMOTE_SERVER='srv' REMOTE_TABLE='t5';
+INSERT INTO t5 VALUES (1, 'abcd'), (2, 'abcd');
+--echo # The group by handler would push the whole query down
+SET spider_disable_group_by_handler= 1;
+--disable_ps2_protocol
+--error ER_GET_ERRMSG
+SELECT BIT_OR(val) FROM t5_s;
+SHOW WARNINGS;
+--enable_ps2_protocol
+DROP TABLE t5_s, t5;
+
+--echo # A data node returns a partial result longer than the declared length
+CREATE TABLE t5 (id INT PRIMARY KEY, val VARBINARY(8)) ENGINE=InnoDB;
+CREATE TABLE t5_s (id INT PRIMARY KEY, val VARBINARY(4)) ENGINE=SPIDER
+REMOTE_SERVER='srv' REMOTE_TABLE='t5';
+INSERT INTO t5 VALUES (1, 'abcdefgh'), (2, 'abcdefgh');
+--disable_ps2_protocol
+--error ER_GET_ERRMSG
+SELECT BIT_OR(val) FROM t5_s;
+SHOW WARNINGS;
+--enable_ps2_protocol
+SET spider_disable_group_by_handler= DEFAULT;
+DROP TABLE t5_s, t5;
+
 DROP TABLE t1_s, t1;
 DROP SERVER srv;
 

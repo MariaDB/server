@@ -2943,6 +2943,9 @@ static inline bool is_binary_string_bitwise_arg(const Item *item)
 */
 class Func_handler_bit_bin_to_bin: public Item_handled_func::Handler_str
 {
+protected:
+  static uchar *alloc_result(Item_handled_func *item, String *to,
+                             size_t length);
 public:
   const Type_handler *
     return_type_handler(const Item_handled_func *item) const override;

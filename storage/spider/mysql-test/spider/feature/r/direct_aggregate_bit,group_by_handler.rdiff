@@ -43,5 +43,23 @@
 -Spider_direct_aggregate	30
 +Spider_direct_aggregate	27
  DROP TABLE t3_s, t3_1, t3_2;
- DROP TABLE t1_s, t1;
- DROP SERVER srv;
+ # GROUP BY: the partial results of a group come from several data nodes
+ # (update_field() with direct_add()). The values are shorter than the
+@@ -135,7 +135,7 @@
+ (16, 6, x'ABCD', 0xABCD);
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	30
++Spider_direct_aggregate	27
+ SELECT grp,
+ HEX(BIT_OR(val_bin)) AS o, HEX(BIT_AND(val_bin)) AS a,
+ HEX(BIT_XOR(val_bin)) AS x,
+@@ -151,7 +151,7 @@
+ 6	ABCD	ABCD	ABCD	ABCD	ABCD	ABCD
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	96
++Spider_direct_aggregate	93
+ # Without pushdown the results must be the same
+ SET spider_direct_aggregate= 0;
+ SELECT grp,

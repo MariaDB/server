@@ -2262,6 +2262,26 @@ bool Func_handler_bit_bin_to_bin::fix_length_and_dec(Item_handled_func *item)
 }
 
 
+/*
+  Prepare the string to receive a result of the given length.
+
+  @return the buffer for the result, or NULL on EOM. In the latter case
+          the error is set and the item is set to NULL.
+*/
+
+uchar *Func_handler_bit_bin_to_bin::alloc_result(Item_handled_func *item,
+                                                 String *to, size_t length)
+{
+  DBUG_EXECUTE_IF("bit_func_alloc_fail",
+                  DBUG_SET("+d,simulate_out_of_memory"););
+  if ((item->null_value= to->alloc(length)))
+    return nullptr;
+  to->length(length);
+  to->set_charset(&my_charset_bin);
+  return (uchar *) to->ptr();
+}
+
+
 bool
 Func_handler_bit_op2_bin_to_bin::fix_length_and_dec(Item_handled_func *item)
                                                     const
@@ -2307,16 +2327,10 @@ String *Func_handler_bit_op2_bin_to_bin::val_str(Item_handled_func *item,
   }
 
   size_t len= a->length();
-  if (to->alloc(len))
-  {
-    item->null_value= true;
+  uchar *out_ptr= alloc_result(item, to, len);
+  if (!out_ptr)
     return nullptr;
-  }
-  combine((uchar *) to->ptr(), (const uchar *) a->ptr(),
-          (const uchar *) b->ptr(), len);
-  to->length(len);
-  to->set_charset(&my_charset_bin);
-  item->null_value= false;
+  combine(out_ptr, (const uchar *) a->ptr(), (const uchar *) b->ptr(), len);
   return to;
 }
 
@@ -2348,21 +2362,9 @@ public:
 
     longlong shift_count_signed= shift_count_null.value();
     size_t len= a->length();
-    if (len == 0)
-    {
-      to->length(0);
-      to->set_charset(&my_charset_bin);
-      item->null_value= false;
-      return to;
-    }
-
-    if (to->realloc(len))
-    {
-      item->null_value= true;
+    uchar *out_ptr= alloc_result(item, to, len);
+    if (!out_ptr)
       return nullptr;
-    }
-
-    uchar *out_ptr= (uchar *) to->ptr();
     const uchar *a_ptr= (const uchar *) a->ptr();
 
     /*
@@ -2383,10 +2385,6 @@ public:
 
       do_shift(out_ptr, a_ptr, len, byte_shift, bit_shift);
     }
-
-    to->length(len);
-    to->set_charset(&my_charset_bin);
-    item->null_value= false;
     return to;
   }
 };
@@ -2542,31 +2540,12 @@ public:
     }
 
     size_t len= a->length();
-    if (len == 0)
-    {
-      to->length(0);
-      to->set_charset(&my_charset_bin);
-      item->null_value= false;
-      return to;
-    }
-
-    if (to->realloc(len))
-    {
-      item->null_value= true;
+    uchar *out_ptr= alloc_result(item, to, len);
+    if (!out_ptr)
       return nullptr;
-    }
-
     const uchar *a_ptr= (const uchar *) a->ptr();
-    uchar *out_ptr= (uchar *) to->ptr();
-
     for (size_t i= 0; i < len; ++i)
-    {
       out_ptr[i]= ~a_ptr[i];
-    }
-
-    to->length(len);
-    to->set_charset(&my_charset_bin);
-    item->null_value= false;
     return to;
   }
 };

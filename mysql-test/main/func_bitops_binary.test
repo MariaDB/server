@@ -523,6 +523,107 @@ EXECUTE s USING @f;
 DEALLOCATE PREPARE s;
 DROP TABLE t1;
 
+--echo # =========================================================================
+--echo # SECTION 21 — Scalar operators: NULL operands, empty strings, shift counts
+--echo # =========================================================================
+
+CREATE TABLE t1 (a VARBINARY(4), b VARBINARY(4), n INT);
+INSERT INTO t1 VALUES (NULL, x'FF00FF00', 1), (x'FF00FF00', NULL, NULL),
+                      (NULL, NULL, NULL);
+--echo # NULL in the first, in the second and in both operands
+SELECT HEX(a), HEX(b), HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~a),
+       HEX(a << 1), HEX(a >> 1), HEX(b << n), HEX(b >> n)
+FROM t1;
+DROP TABLE t1;
+
+--echo # Empty strings
+SELECT HEX(_binary'' & _binary''), HEX(_binary'' | _binary''),
+       HEX(_binary'' ^ _binary''), HEX(~_binary''),
+       HEX(_binary'' << 1), HEX(_binary'' >> 1),
+       LENGTH(~_binary''), LENGTH(_binary'' << 1), LENGTH(_binary'' >> 100);
+
+--echo # Shift counts: inside a byte, across bytes, whole bytes, out of range
+CREATE TABLE t1 (n BIGINT);
+INSERT INTO t1 VALUES (0), (1), (4), (7), (8), (9), (12), (16), (23), (24),
+                      (31), (32), (33), (64), (-1),
+                      (9223372036854775807), (-9223372036854775807 - 1);
+SELECT n, HEX(x'81C3E7FF' << n) AS shl, HEX(x'81C3E7FF' >> n) AS shr
+FROM t1;
+--echo # Unsigned shift count above LONGLONG_MAX
+SELECT HEX(x'81C3E7FF' << 18446744073709551615) AS shl,
+       HEX(x'81C3E7FF' >> 18446744073709551615) AS shr;
+--echo # A single byte
+SELECT n, HEX(x'81' << n) AS shl, HEX(x'81' >> n) AS shr
+FROM t1 WHERE n BETWEEN 0 AND 9;
+DROP TABLE t1;
+
+--echo # =========================================================================
+--echo # SECTION 22 — Aggregates: conversion of the result, errors, windows
+--echo # =========================================================================
+
+CREATE TABLE t1 (g INT, a VARBINARY(8), n BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1, '3', 20240131), (1, '2', 20240131),
+                      (2, '20240131', 3), (3, '1', 1);
+--echo # Binary mode: the result '3' as an integer, as a boolean
+SELECT LEFT('abcdef', BIT_OR(a)) AS i, IF(BIT_OR(a), 'yes', 'no') AS b
+FROM t1 WHERE g = 1;
+--echo # Binary mode: the result '20240131' as a date
+SELECT CAST(BIT_OR(a) AS DATE) AS d, LAST_DAY(BIT_AND(a)) AS l
+FROM t1 WHERE g = 2;
+--echo # Integer mode: the result as a string, a double, a decimal, a date
+SELECT CONCAT(BIT_OR(n)) AS s, BIT_OR(n) + 0e0 AS r, BIT_OR(n) + 0.0 AS d,
+       CAST(BIT_AND(n) AS DATE) AS dt, LAST_DAY(BIT_XOR(n)) AS l
+FROM t1 WHERE g = 1;
+
+--echo # Data types that can be converted neither to a binary string
+--echo # nor to an integer
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_OR(POINT(1,1));
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+SELECT BIT_AND(CAST('::' AS INET6));
+
+--echo # Values of different lengths in one group of a temporary table
+--echo # (update_field())
+--error ER_INVALID_BITWISE_OPERANDS_SIZE
+SELECT g < 3 AS grp, HEX(BIT_OR(a)) FROM t1 GROUP BY grp;
+--echo # ... and of a window
+--error ER_INVALID_BITWISE_OPERANDS_SIZE
+SELECT HEX(BIT_OR(a) OVER (ORDER BY g)) FROM t1;
+
+--echo # A value equal to the neutral value of the declared length is
+--echo # aggregated as any other value
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a))
+FROM (SELECT x'0000' AS a UNION ALL SELECT x'FFFF' UNION ALL SELECT x'0000'
+      UNION ALL SELECT x'FFFF') dt;
+
+--echo # Sliding frames: values are removed from all three aggregates,
+--echo # NULL and rows rejected by FILTER are neither added nor removed
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, x'FF00', 1), (2, x'0FF0', 1), (3, NULL, 1),
+                      (4, x'00FF', 0), (5, x'F00F', 1), (6, x'FFFF', 1),
+                      (7, x'0001', 1);
+SELECT g, HEX(a),
+  HEX(BIT_OR(a) OVER w) AS o, HEX(BIT_AND(a) OVER w) AS n,
+  HEX(BIT_XOR(a) OVER w) AS x,
+  HEX(BIT_OR(a) FILTER (WHERE n = 1) OVER w) AS fo,
+  HEX(BIT_AND(a) FILTER (WHERE n = 1) OVER w) AS fn,
+  HEX(BIT_XOR(a) FILTER (WHERE n = 1) OVER w) AS fx
+FROM t1
+WINDOW w AS (ORDER BY g ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+ORDER BY g;
+--echo # The frame becomes empty: the neutral value
+SELECT g, HEX(BIT_OR(a) OVER w) AS o, HEX(BIT_AND(a) OVER w) AS n,
+       HEX(BIT_XOR(a) OVER w) AS x
+FROM t1 WHERE g IN (1, 3)
+WINDOW w AS (ORDER BY g ROWS BETWEEN CURRENT ROW AND CURRENT ROW)
+ORDER BY g;
+--echo # Window functions over the result of GROUP BY ... WITH ROLLUP
+--sorted_result
+SELECT g, HEX(BIT_OR(a)) AS o, HEX(BIT_OR(BIT_OR(a)) OVER ()) AS ow,
+       BIT_XOR(n) AS x, BIT_OR(BIT_XOR(n)) OVER () AS xw
+FROM t1 WHERE g < 3 GROUP BY g WITH ROLLUP;
+DROP TABLE t1;
+
 --echo #
 --echo # End of 13.2 tests
 --echo #

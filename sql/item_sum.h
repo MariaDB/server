@@ -1339,10 +1339,9 @@ public:
   Item_sum_bit(THD *thd, Item *item_par, ulonglong reset_arg):
     Item_sum_int(thd, item_par), reset_bits(reset_arg), bits(reset_arg),
     num_values_added(0), direct_bits(0), m_binary_bit_counters(nullptr),
-    m_binary_length(0), m_value_length(0),
+    m_binary_length(0), m_value_length(0), direct_binary_length(0),
     as_window_function(FALSE), m_binary_mode(FALSE),
-    direct_added(FALSE), direct_reseted_field(FALSE),
-    direct_sum_is_null(FALSE) {}
+    direct_added(FALSE), direct_reseted_field(FALSE) {}
   Item_sum_bit(THD *thd, Item_sum_bit *item);
   enum Sumfunctype sum_func () const override { return SUM_BIT_FUNC;}
   void clear() override;
@@ -1409,8 +1408,8 @@ public:
   {
     return true;
   }
-  void direct_add(ulonglong add_bits, bool is_null);
-  void direct_add(const String *add_str, bool is_null);
+  void direct_add(ulonglong add_bits);
+  bool direct_add(const String &add_str);
 
 protected:
   enum bit_counters { NUM_BIT_COUNTERS= 64 };
@@ -1430,8 +1429,13 @@ protected:
   */
   uint m_value_length;
 
-  String m_str_value;    /* Binary accumulator */
-  String direct_str_value;
+  /* Byte length of the partial result set by direct_add() */
+  uint direct_binary_length;
+
+  /* Binary accumulator, see binary_result_length() */
+  uchar m_binary_value[MAX_BITWISE_AGGREGATE_BINARY_LENGTH];
+  /* Partial result set by direct_add() */
+  uchar direct_binary_value[MAX_BITWISE_AGGREGATE_BINARY_LENGTH];
 
   /*
     Marks whether the function is to be computed as a window function.
@@ -1440,12 +1444,11 @@ protected:
   bool m_binary_mode;
   bool direct_added;
   bool direct_reseted_field;
-  bool direct_sum_is_null;
 
   bool add_as_window(ulonglong value);
   bool remove_as_window(ulonglong value);
   bool clear_as_window();
-  bool add_binary_as_window(const String &value);
+  bool add_binary_as_window(const uchar *val_ptr);
   bool remove_binary_as_window(const String &value);
   virtual void set_bits_from_counters()= 0;
 
@@ -1454,9 +1457,15 @@ protected:
 
   /* Binary mode helpers */
   void reset_binary_accumulator();
-  bool is_binary_neutral(const String *value) const;
+  /*
+    Byte length of the result: the length of the values aggregated so
+    far, or the declared length if there are no values yet.
+  */
+  uint binary_result_length() const
+  { return m_value_length ? m_value_length : m_binary_length; }
+  bool is_binary_neutral(const uchar *ptr, size_t length) const;
   bool check_binary_value_length(size_t length);
-  bool add_binary(const String *value);
+  bool add_binary(const uchar *ptr, size_t length);
   uchar *prepare_binary_window_result(uint *length);
   /* Byte value that does not change the result: 0x00 or 0xFF */
   virtual uchar binary_neutral_byte() const= 0;

@@ -688,6 +688,152 @@ g	HEX(BIT_OR(a) FILTER (WHERE f = ?))
 4	1234
 DEALLOCATE PREPARE s;
 DROP TABLE t1;
+# =========================================================================
+# SECTION 21 — Scalar operators: NULL operands, empty strings, shift counts
+# =========================================================================
+CREATE TABLE t1 (a VARBINARY(4), b VARBINARY(4), n INT);
+INSERT INTO t1 VALUES (NULL, x'FF00FF00', 1), (x'FF00FF00', NULL, NULL),
+(NULL, NULL, NULL);
+# NULL in the first, in the second and in both operands
+SELECT HEX(a), HEX(b), HEX(a & b), HEX(a | b), HEX(a ^ b), HEX(~a),
+HEX(a << 1), HEX(a >> 1), HEX(b << n), HEX(b >> n)
+FROM t1;
+HEX(a)	HEX(b)	HEX(a & b)	HEX(a | b)	HEX(a ^ b)	HEX(~a)	HEX(a << 1)	HEX(a >> 1)	HEX(b << n)	HEX(b >> n)
+NULL	FF00FF00	NULL	NULL	NULL	NULL	NULL	NULL	FE01FE00	7F807F80
+FF00FF00	NULL	NULL	NULL	NULL	00FF00FF	FE01FE00	7F807F80	NULL	NULL
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+DROP TABLE t1;
+# Empty strings
+SELECT HEX(_binary'' & _binary''), HEX(_binary'' | _binary''),
+HEX(_binary'' ^ _binary''), HEX(~_binary''),
+HEX(_binary'' << 1), HEX(_binary'' >> 1),
+LENGTH(~_binary''), LENGTH(_binary'' << 1), LENGTH(_binary'' >> 100);
+HEX(_binary'' & _binary'')	HEX(_binary'' | _binary'')	HEX(_binary'' ^ _binary'')	HEX(~_binary'')	HEX(_binary'' << 1)	HEX(_binary'' >> 1)	LENGTH(~_binary'')	LENGTH(_binary'' << 1)	LENGTH(_binary'' >> 100)
+						0	0	0
+# Shift counts: inside a byte, across bytes, whole bytes, out of range
+CREATE TABLE t1 (n BIGINT);
+INSERT INTO t1 VALUES (0), (1), (4), (7), (8), (9), (12), (16), (23), (24),
+(31), (32), (33), (64), (-1),
+(9223372036854775807), (-9223372036854775807 - 1);
+SELECT n, HEX(x'81C3E7FF' << n) AS shl, HEX(x'81C3E7FF' >> n) AS shr
+FROM t1;
+n	shl	shr
+0	81C3E7FF	81C3E7FF
+1	0387CFFE	40E1F3FF
+4	1C3E7FF0	081C3E7F
+7	E1F3FF80	010387CF
+8	C3E7FF00	0081C3E7
+9	87CFFE00	0040E1F3
+12	3E7FF000	00081C3E
+16	E7FF0000	000081C3
+23	FF800000	00000103
+24	FF000000	00000081
+31	80000000	00000001
+32	00000000	00000000
+33	00000000	00000000
+64	00000000	00000000
+-1	00000000	00000000
+9223372036854775807	00000000	00000000
+-9223372036854775808	00000000	00000000
+# Unsigned shift count above LONGLONG_MAX
+SELECT HEX(x'81C3E7FF' << 18446744073709551615) AS shl,
+HEX(x'81C3E7FF' >> 18446744073709551615) AS shr;
+shl	shr
+00000000	00000000
+# A single byte
+SELECT n, HEX(x'81' << n) AS shl, HEX(x'81' >> n) AS shr
+FROM t1 WHERE n BETWEEN 0 AND 9;
+n	shl	shr
+0	81	81
+1	02	40
+4	10	08
+7	80	01
+8	00	00
+9	00	00
+DROP TABLE t1;
+# =========================================================================
+# SECTION 22 — Aggregates: conversion of the result, errors, windows
+# =========================================================================
+CREATE TABLE t1 (g INT, a VARBINARY(8), n BIGINT UNSIGNED);
+INSERT INTO t1 VALUES (1, '3', 20240131), (1, '2', 20240131),
+(2, '20240131', 3), (3, '1', 1);
+# Binary mode: the result '3' as an integer, as a boolean
+SELECT LEFT('abcdef', BIT_OR(a)) AS i, IF(BIT_OR(a), 'yes', 'no') AS b
+FROM t1 WHERE g = 1;
+i	b
+abc	yes
+# Binary mode: the result '20240131' as a date
+SELECT CAST(BIT_OR(a) AS DATE) AS d, LAST_DAY(BIT_AND(a)) AS l
+FROM t1 WHERE g = 2;
+d	l
+2024-01-31	2024-01-31
+# Integer mode: the result as a string, a double, a decimal, a date
+SELECT CONCAT(BIT_OR(n)) AS s, BIT_OR(n) + 0e0 AS r, BIT_OR(n) + 0.0 AS d,
+CAST(BIT_AND(n) AS DATE) AS dt, LAST_DAY(BIT_XOR(n)) AS l
+FROM t1 WHERE g = 1;
+s	r	d	dt	l
+20240131	20240131	20240131.0	2024-01-31	NULL
+# Data types that can be converted neither to a binary string
+# nor to an integer
+SELECT BIT_OR(POINT(1,1));
+ERROR HY000: Illegal parameter data type point for operation 'bit_or('
+SELECT BIT_AND(CAST('::' AS INET6));
+ERROR HY000: Illegal parameter data type inet6 for operation 'bit_and('
+# Values of different lengths in one group of a temporary table
+# (update_field())
+SELECT g < 3 AS grp, HEX(BIT_OR(a)) FROM t1 GROUP BY grp;
+ERROR HY000: Mismatched length of operands for bitwise operator: 8 and 1
+# ... and of a window
+SELECT HEX(BIT_OR(a) OVER (ORDER BY g)) FROM t1;
+ERROR HY000: Mismatched length of operands for bitwise operator: 8 and 1
+# A value equal to the neutral value of the declared length is
+# aggregated as any other value
+SELECT HEX(BIT_OR(a)), HEX(BIT_AND(a)), HEX(BIT_XOR(a))
+FROM (SELECT x'0000' AS a UNION ALL SELECT x'FFFF' UNION ALL SELECT x'0000'
+      UNION ALL SELECT x'FFFF') dt;
+HEX(BIT_OR(a))	HEX(BIT_AND(a))	HEX(BIT_XOR(a))
+FFFF	0000	0000
+# Sliding frames: values are removed from all three aggregates,
+# NULL and rows rejected by FILTER are neither added nor removed
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1, x'FF00', 1), (2, x'0FF0', 1), (3, NULL, 1),
+(4, x'00FF', 0), (5, x'F00F', 1), (6, x'FFFF', 1),
+(7, x'0001', 1);
+SELECT g, HEX(a),
+HEX(BIT_OR(a) OVER w) AS o, HEX(BIT_AND(a) OVER w) AS n,
+HEX(BIT_XOR(a) OVER w) AS x,
+HEX(BIT_OR(a) FILTER (WHERE n = 1) OVER w) AS fo,
+HEX(BIT_AND(a) FILTER (WHERE n = 1) OVER w) AS fn,
+HEX(BIT_XOR(a) FILTER (WHERE n = 1) OVER w) AS fx
+FROM t1
+WINDOW w AS (ORDER BY g ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+ORDER BY g;
+g	HEX(a)	o	n	x	fo	fn	fx
+1	FF00	FF00	FF00	FF00	FF00	FF00	FF00
+2	0FF0	FFF0	0F00	F0F0	FFF0	0F00	F0F0
+3	NULL	0FF0	0FF0	0FF0	0FF0	0FF0	0FF0
+4	00FF	00FF	00FF	00FF	0000	FFFF	0000
+5	F00F	F0FF	000F	F0F0	F00F	F00F	F00F
+6	FFFF	FFFF	F00F	0FF0	FFFF	F00F	0FF0
+7	0001	FFFF	0001	FFFE	FFFF	0001	FFFE
+# The frame becomes empty: the neutral value
+SELECT g, HEX(BIT_OR(a) OVER w) AS o, HEX(BIT_AND(a) OVER w) AS n,
+HEX(BIT_XOR(a) OVER w) AS x
+FROM t1 WHERE g IN (1, 3)
+WINDOW w AS (ORDER BY g ROWS BETWEEN CURRENT ROW AND CURRENT ROW)
+ORDER BY g;
+g	o	n	x
+1	FF00	FF00	FF00
+3	0000	FFFF	0000
+# Window functions over the result of GROUP BY ... WITH ROLLUP
+SELECT g, HEX(BIT_OR(a)) AS o, HEX(BIT_OR(BIT_OR(a)) OVER ()) AS ow,
+BIT_XOR(n) AS x, BIT_OR(BIT_XOR(n)) OVER () AS xw
+FROM t1 WHERE g < 3 GROUP BY g WITH ROLLUP;
+g	o	ow	x	xw
+1	FF00	FFF0	1	1
+2	0FF0	FFF0	1	1
+NULL	FFF0	FFF0	0	1
+DROP TABLE t1;
 #
 # End of 13.2 tests
 #
