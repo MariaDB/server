@@ -137,6 +137,7 @@ struct pwt_worker_execution
     sums(nullptr), aggr_tab(nullptr),
     proj(nullptr), proj_count(0), join(nullptr), jointabs(nullptr),
     tab_stats(nullptr), tab_hstats(nullptr), tab_trackers(nullptr),
+    tab_jbuf_stats(nullptr), tab_jbuf_loops(nullptr), tab_jbuf_unpack(nullptr),
     handler_ctx(nullptr)
   {}
 
@@ -253,6 +254,14 @@ struct pwt_worker_execution
     and see nothing a worker does.
   */
   Exec_time_tracker     *tab_trackers;
+  /*
+    What this worker's join buffers did, for the tabs that have one: the
+    three counters ANALYZE reports for a buffered table (JOIN_TAB::jbuf_*),
+    indexed like tables and summed into the manager's by quiesce_workers().
+  */
+  Table_access_tracker     *tab_jbuf_stats;
+  Counter_tracker          *tab_jbuf_loops;
+  Time_and_counter_tracker *tab_jbuf_unpack;
   Parallel_worker_ctx   *handler_ctx;
 };
 

@@ -9024,15 +9024,16 @@ best_access_path(JOIN      *join,
 
   /*
     Under a driving table costed as a parallel scan the plan is costed as a
-    worker runs it: a plain nested loop with no join buffer, no hash join and
-    no rowid filter, which are the plans the gate refuses
-    (can_run_query_in_workers). Costing them here would pick, on the parallel
-    discount, a plan the workers cannot run and the manager then runs
-    serially.
+    worker runs it. A worker runs a join buffer of its own, BNL or BNLH
+    (setup_worker_jointabs()), so a buffered scan and a hash join are costed
+    here as they are serially. It runs no rowid filter, which the gate
+    refuses (can_run_query_in_workers), so none is offered under a parallel
+    driver: costing one would pick, on the parallel discount, a plan the
+    workers cannot run and the manager then runs serially.
   */
   const bool parallel_chain= (idx > join->const_tables &&
                               join_positions[join->const_tables].parallel_scan);
-  disable_jbuf= disable_jbuf || idx == join->const_tables || parallel_chain;
+  disable_jbuf= disable_jbuf || idx == join->const_tables;
 
   trace_wrapper.add_table_name(s);
 
@@ -16695,11 +16696,25 @@ void check_join_cache_usage_for_tables(JOIN *join, ulonglong options,
   JOIN_TAB *tab;
   JOIN_TAB *prev_tab;
 
+  /*
+    A plan chosen with its driving table divided among the workers runs its
+    join buffers in the workers, one per worker (setup_worker_jointabs()),
+    and a worker runs BNL and BNLH only: BKA and BKAH read the joined table
+    through multi-range read on the handler, which a worker's copy of the
+    tab does not do, and the gate refuses them. So such a plan is given no
+    level above 4, and a level that would have meant BKA means BNLH
+    instead. That is the shape the plan was costed in either way:
+    best_access_path() prices a ref access the same with or without a BKA
+    buffer.
+  */
+  const uint max_level= join->parallel_plan_chosen
+                        ? MY_MIN(join->max_allowed_join_cache_level, 4)
+                        : join->max_allowed_join_cache_level;
   for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
        tab; 
        tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
-    tab->used_join_cache_level= join->max_allowed_join_cache_level;  
+    tab->used_join_cache_level= max_level;
   }
 
   uint idx= join->const_tables;
