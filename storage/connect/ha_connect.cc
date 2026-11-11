@@ -4687,8 +4687,8 @@ bool ha_connect::check_subtable_privileges(THD *thd, TABLE_SHARE *s,
     rc= check_table_access(thd, want, &tl, FALSE, 1, quiet);
 
   // info() of a file-based table does not require FILE. neither here nor elsewhere
-  return rc || (!quiet && checkPrivileges(thd, GetRealType(s->option_struct),
-                                   s->option_struct, s->db.str, table, false));
+  return rc || (!quiet && checkPrivileges(thd, GetRealType(s->option_struct_table),
+                                   s->option_struct_table, s->db.str, table, false));
 } // end of check_subtable_privileges
 
 // Check that two indexes are equivalent
