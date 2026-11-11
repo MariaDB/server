@@ -366,3 +366,31 @@ LENGTH(t(1).s)	t(1).st
 2000	y
 DROP PACKAGE pk1;
 # End of 12.3 tests
+#
+# MDEV-41527 MEDIUMTEXT gets truncated to TINYTEXT in assoc array RECORD field
+# 13.1 tests
+#
+CREATE PACKAGE pk0 AS
+TYPE rec_t IS RECORD (s MEDIUMTEXT);
+TYPE tab_t IS TABLE OF rec_t INDEX BY INTEGER;
+END;
+$$
+DECLARE
+t pk0.tab_t;
+r pk0.rec_t;
+BEGIN
+r.s:= RPAD('s', 1000, 's');
+SELECT LENGTH(r.s);
+CREATE TABLE t1 AS SELECT r.s AS s;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+END;
+$$
+LENGTH(r.s)
+1000
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "s" mediumtext DEFAULT NULL
+)
+DROP PACKAGE pk0;
+# End of 13.1 tests

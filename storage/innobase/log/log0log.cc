@@ -46,6 +46,9 @@ Created 12/9/1995 Heikki Tuuri
 #include "log0sync.h"
 #include "log.h"
 #include "tpool.h"
+#ifdef __linux__
+# include <fcntl.h> /* fallocate(2) */
+#endif
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -521,7 +524,8 @@ void log_t::create(lsn_t lsn) noexcept
   }
 }
 
-ATTRIBUTE_COLD static void log_close_failed(dberr_t err) noexcept
+ATTRIBUTE_COLD ATTRIBUTE_NORETURN
+static void log_close_failed(dberr_t err) noexcept
 {
   ib::fatal() << "closing log failed: " << err;
 }
@@ -586,8 +590,10 @@ static void log_resize_acquire() noexcept
   log_sys.latch.wr_lock();
 }
 
-static void log_resize_release_locks() noexcept
+/** Release the latches that protect the log. */
+void log_resize_release() noexcept
 {
+  log_sys.latch.wr_unlock();
 #ifdef HAVE_PMEM
   if (!log_sys.is_mmap())
 #endif
@@ -597,13 +603,6 @@ static void log_resize_release_locks() noexcept
     if (lsn1 || lsn2)
       log_write_up_to(std::max(lsn1, lsn2), true, nullptr);
   }
-}
-
-/** Release the latches that protect the log. */
-void log_resize_release() noexcept
-{
-  log_sys.latch.wr_unlock();
-  log_resize_release_locks();
 }
 
 #if defined __linux__ || defined _WIN32
@@ -660,11 +659,11 @@ void log_t::set_write_through(bool write_through)
 }
 
 /** Rewrite the log file header in set_archive()
-@param archive  the new value of innodb_log_archive */
-void log_t::header_rewrite(my_bool archive) noexcept
+@param old_first_lsn  the old first_lsn if setting archive=true, else 0 */
+void log_t::header_rewrite(lsn_t old_first_lsn) noexcept
 {
   ut_ad(!resize_buf);
-  ut_ad(this->archive == !archive);
+  ut_ad(this->archive == !old_first_lsn);
 
   /* We will rewrite the log file header while the file
   name is not ib_logfile0. That is, the archived log file
@@ -672,18 +671,20 @@ void log_t::header_rewrite(my_bool archive) noexcept
   format for the last file. */
   sql_print_information("InnoDB: setting innodb_log_archive=%u"
                         " at innodb_log_recovery_start=" LSN_PF,
-                        archive, end_lsn);
+                        !!old_first_lsn, end_lsn);
 
   byte* c= checkpoint_buf;
   ut_ad(end_lsn >= first_lsn);
-  ut_ad(!archive || end_lsn <= first_lsn + ~0U);
+  ut_ad(get_lsn() >= write_lsn);
+  ut_ad(is_mmap_writeable() || write_lsn >= end_lsn);
+  ut_ad(!old_first_lsn || end_lsn <= first_lsn + ~0U);
   ut_ad(format == (is_encrypted() ? FORMAT_ENC_11 : FORMAT_10_8));
 #ifdef HAVE_PMEM
   if (!c)
   {
     ut_ad(is_mmap());
     ut_ad(is_mmap_writeable());
-    if (!archive)
+    if (!old_first_lsn)
     {
       memset_aligned<512>(buf + 512, 0, START_OFFSET - 512);
       c= buf + CHECKPOINT_1;
@@ -698,6 +699,26 @@ void log_t::header_rewrite(my_bool archive) noexcept
     }
     else
     {
+      if (old_first_lsn != first_lsn)
+      {
+        /*
+          Ensure that recovery will correctly detect the end of log
+          and not mistake some old innodb_log_archive=OFF garbage
+          between the current position and the end for valid records.
+        */
+        const size_t offset{get_lsn() - first_lsn + START_OFFSET};
+        ut_ad(offset <= file_size);
+        if (const size_t size{file_size - offset})
+        {
+          byte *const b{buf + offset};
+          memset(b, 0, size);
+          /*
+            This must be made durable before writing the header.
+            See the log.flush() calls on the non-PMEM code path below.
+          */
+          pmem_persist(b, size);
+        }
+      }
       next_checkpoint_no= uint16_t(4 * is_encrypted() + 1);
       uint64_t *C= reinterpret_cast<uint64_t*>(buf);
       const uint64_t d{my_htobe64(end_lsn - first_lsn + START_OFFSET)};
@@ -721,7 +742,7 @@ void log_t::header_rewrite(my_bool archive) noexcept
 #endif
   memset_aligned<512>(c, 0, write_size);
 
-  if (!archive)
+  if (!old_first_lsn)
   {
     uint64_t *C= reinterpret_cast<uint64_t*>(c);
     C[0]= my_htobe64(last_checkpoint_lsn);
@@ -743,6 +764,79 @@ void log_t::header_rewrite(my_bool archive) noexcept
   }
   else
   {
+    if (old_first_lsn != first_lsn)
+    {
+      /*
+        The buf[length]=0 assignments in write_buf() miss the case where
+        log_sys.write_lsn is exactly at the end of the block, and a previous
+        mini-transaction at log_sys.write_lsn - log_sys.capacity()
+        ended at the same file offset in the ib_logfile0.
+
+        To be safe, we must zero out all the following blocks that have
+        not been written to since the previous wrap-around.
+      */
+      const size_t bs_1{write_size - 1};
+      lsn_t offset{(write_lsn - first_lsn + bs_1 + START_OFFSET) &
+                   ~lsn_t{bs_1}};
+      ut_ad(offset <= file_size);
+      if (uint64_t size{file_size - offset})
+      {
+        for (;;)
+        {
+#ifdef _WIN32
+          if (os_file_punch_hole(log_sys.log.m_file, offset, size) ==
+              DB_SUCCESS)
+            break;
+# elif defined __linux__
+          if (!fallocate(log.m_file, FALLOC_FL_ZERO_RANGE,
+                         off_t(offset), off_t(size)))
+            break;
+          switch (errno) {
+          case EINTR:
+            continue;
+          case EOPNOTSUPP:
+            break;
+          default:
+            sql_print_warning("InnoDB: fallocate(FALLOC_FL_ZERO_RANGE)"
+                              " failed with %iE", errno);
+            break;
+          }
+#endif
+          size_t fill{size_t(std::min(size, uint64_t{1 << 20}))};
+          void *const zeroes{aligned_malloc(fill, 4096)};
+          const void *zerobuf{zeroes};
+          if (UNIV_UNLIKELY(!zerobuf))
+          {
+            my_error(ER_OUT_OF_RESOURCES, MYF(ME_ERROR_LOG));
+            fill= std::min(fill, size_t{UNIV_PAGE_SIZE_MAX});
+            zerobuf= field_ref_zero;
+          }
+          else
+            memset_aligned<4096>(zeroes, 0, fill);
+          do
+          {
+            log.write(offset, {static_cast<const byte*>(zerobuf), fill});
+            offset+= fill;
+            size-= fill;
+            if (fill > size)
+              fill= size_t(size);
+          }
+          while (fill);
+          aligned_free(zeroes);
+          break;
+        }
+        /*
+          Make the zeroing durable. Otherwise, it could happen that if
+          the server is killed during the subsequent log.flush(), only
+          the log_crypt_write_header() takes effect but some zeroing of
+          the garbage tail was missed. After a successful recovery,
+          resuming a write workload, and another kill, a subsequent
+          crash recovery could wrongly read the garbage data.
+        */
+        log.flush();
+      }
+    }
+
     next_checkpoint_no= uint16_t(4 * is_encrypted() + 1);
     const uint64_t d{my_htobe64(end_lsn - first_lsn + START_OFFSET)};
     uint64_t *C= reinterpret_cast<uint64_t*>(c);
@@ -754,7 +848,7 @@ void log_t::header_rewrite(my_bool archive) noexcept
       C[4]= d;
     }
     log.write(0, {c, write_size});
-    os_file_flush(log.m_file);
+    log.flush();
     for (size_t offset= 0; (offset+= write_size) < START_OFFSET;)
       log.write(offset, {field_ref_zero, write_size});
   }
@@ -780,7 +874,8 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
   for (;;)
   {
     wait_lsn= 0;
-    IF_WIN(log_resize_acquire(), latch.wr_lock());
+    /* For header_rewrite(old_first_lsn) we must block log writes. */
+    log_resize_acquire();
     if (resize_in_progress())
     {
       my_printf_error(ER_WRONG_USAGE,
@@ -801,15 +896,16 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 #endif
       wait_lsn= 0;
     retry_after_checkpoint:
-      IF_WIN(log_resize_release_locks(),);
+      log_resize_release();
       if (wait_lsn)
       {
+        latch.wr_lock();
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
         buf_flush_wait(wait_lsn, circular_recovery_from_sequence_bit_0 ||
                        !buf_pool.flush_list.count);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        latch.wr_unlock();
       }
-      latch.wr_unlock();
       continue;
     }
 
@@ -914,7 +1010,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
         first_lsn-= capacity();
       ut_ad(get_sequence_bit(checkpoint));
       ut_ad(get_sequence_bit(get_lsn()));
-      header_rewrite(false);
+      header_rewrite(0);
       IF_WIN(DeleteFile(spare.c_str()), unlink(spare.c_str()));
     }
 #if defined HAVE_PMEM && !defined _WIN32
@@ -959,7 +1055,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
 
     if (archive)
     {
-      header_rewrite(true);
+      header_rewrite(old_first_lsn);
       archive_set_size();
       wait_lsn= 0;
     }
@@ -981,7 +1077,7 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
     break;
   }
 
-  IF_WIN(log_resize_release(), latch.wr_unlock());
+  log_resize_release();
   tpool::tpool_wait_end();
   thd_wait_end(thd);
   if (wait_lsn)
