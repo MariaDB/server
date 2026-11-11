@@ -5,6 +5,28 @@
 --source include/have_perfschema.inc
 --source include/master-slave.inc
 
+# The test checks file I/O instrumentation since the server startup,
+# so it needs freshly started servers without binary and relay logs
+# left by previous tests
+--connection slave
+--source include/stop_slave.inc
+--source include/reset_slave.inc
+# RESET SLAVE removed master.info, store the connection settings again
+CHANGE MASTER TO MASTER_USE_GTID=Slave_Pos;
+--let $rpl_server_number= 1
+while ($rpl_server_number <= 2)
+{
+  --connection server_$rpl_server_number
+  --let $_datadir= `SELECT @@datadir`
+  --source include/rpl_stop_server.inc
+  --remove_files_wildcard $_datadir *-bin.*
+  --source include/rpl_start_server.inc
+  --inc $rpl_server_number
+}
+--connection slave
+--source include/start_slave.inc
+--connection master
+
 --disable_warnings
 drop table if exists test.t1;
 --sync_slave_with_master
