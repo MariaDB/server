@@ -5418,8 +5418,9 @@ innobase_build_v_templ(
 				name = dict_table_get_v_col_name(ib_table, z);
 			}
 
-			ut_ad(!my_strcasecmp(system_charset_info, name,
-					     field->field_name.str));
+			ut_ad(srv_force_recovery == SRV_FORCE_NO_LOG_REDO
+			      || !my_strcasecmp(system_charset_info, name,
+						field->field_name.str));
 #endif
 			const dict_v_col_t*	vcol;
 
