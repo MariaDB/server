@@ -2095,6 +2095,15 @@ public:
     which a scan of a tiny table with a large join under it is not.
   */
   bool parallel_plan_chosen{false};
+  /*
+    What the workers would ship for this query, for parallel_ship_cost():
+    < 0 every joined row, a query that does not aggregate; 0 a handful of
+    partials, a query that aggregates over everything it reads; > 0 the
+    estimated number of groups, each worker shipping its partial of each.
+    Set by choose_plan() with parallel_candidates_allowed
+    (parallel_estimate_shipped_groups()).
+  */
+  double parallel_groups{-1.0};
 
   JOIN(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
        select_result *result_arg)

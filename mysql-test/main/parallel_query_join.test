@@ -13,6 +13,8 @@
 --source include/not_embedded.inc
 # the tables here are too small to repay the workers' setup cost; make the parallel scan free
 SET SESSION optimizer_parallel_setup_cost= 0;
+# and what the tests ship is small, so the per-row charge is switched off too
+SET SESSION optimizer_parallel_row_cost= 0;
 
 CREATE TABLE fact (id INT, dim1 INT, dim2 INT, val INT) ENGINE=InnoDB;
 INSERT INTO fact

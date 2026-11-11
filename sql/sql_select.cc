@@ -10589,6 +10589,8 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   join->parallel_candidates_allowed=
     !emb_sjm_nest && thd->variables.parallel_worker_threads > 1 &&
     pwt_query_shape_allows_workers(join);
+  if (join->parallel_candidates_allowed)
+    parallel_estimate_shipped_groups(join);     // for parallel_ship_cost()
 
   if (straight_join)
   {
@@ -11047,6 +11049,21 @@ cost_straight_join(JOIN *join, table_map remaining_tables,
       }
     }
     read_time= COST_ADD(read_time, sort_cost);
+  }
+  /* A parallel plan is complete: charge what the workers ship. */
+  if (join->positions[join->const_tables].parallel_scan)
+  {
+    double rows_shipped, rows_spilled;
+    double ship_cost= parallel_ship_cost(join, record_count, &rows_shipped,
+                                         &rows_spilled);
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object trace_ship(thd);
+      trace_ship.add("parallel_rows_shipped", rows_shipped).
+                 add("parallel_rows_spilled", rows_spilled).
+                 add("parallel_ship_cost", ship_cost);
+    }
+    read_time= COST_ADD(read_time, ship_cost);
   }
   *record_count_arg= record_count;
   *read_time_arg= read_time;
@@ -12967,6 +12984,20 @@ best_extension_by_limited_search(JOIN      *join,
                       DISK_TEMPTABLE_LOOKUP_COST(thd));
           trace_one_table.add("cost_for_sorting", sort_cost);
           current_read_time= COST_ADD(current_read_time, sort_cost);
+        }
+        /*
+          A parallel plan is complete here, and only here is its row count
+          known: charge what the workers ship (parallel_ship_cost()).
+        */
+        if (join->positions[join->const_tables].parallel_scan)
+        {
+          double rows_shipped, rows_spilled;
+          double ship_cost= parallel_ship_cost(join, current_record_count,
+                                               &rows_shipped, &rows_spilled);
+          trace_one_table.add("parallel_rows_shipped", rows_shipped).
+                          add("parallel_rows_spilled", rows_spilled).
+                          add("parallel_ship_cost", ship_cost);
+          current_read_time= COST_ADD(current_read_time, ship_cost);
         }
         if (current_read_time < join->best_read)
         {

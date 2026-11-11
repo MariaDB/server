@@ -2992,6 +2992,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	OPTIMIZER_PARALLEL_ROW_COST
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	DOUBLE
+VARIABLE_COMMENT	Cost of one row the parallel workers ship to the thread running the query, which receives every row by itself. Charged against the parallel reading of a plan once per row it ships: every joined row of a query that does not aggregate, the partial groups of one that does. In microseconds
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	100000000
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	OPTIMIZER_PARALLEL_SETUP_COST
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	DOUBLE

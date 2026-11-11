@@ -25,6 +25,8 @@
 --source include/not_embedded.inc
 # the tables here are too small to repay the workers' setup cost; make the parallel scan free
 SET SESSION optimizer_parallel_setup_cost= 0;
+# and the rows shipped are not what is under test, so the per-row charge is off too
+SET SESSION optimizer_parallel_row_cost= 0;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(30), c INT, d INT) ENGINE=InnoDB;
 INSERT INTO t1 SELECT seq, CONCAT('v', LPAD(5001 - seq, 4, '0')), seq % 13, seq
