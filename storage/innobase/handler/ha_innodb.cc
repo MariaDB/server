@@ -5418,9 +5418,20 @@ innobase_build_v_templ(
 				name = dict_table_get_v_col_name(ib_table, z);
 			}
 
-			ut_ad(!my_strcasecmp(system_charset_info, name,
-					     field->field_name.str));
+			if (my_strcasecmp(system_charset_info, name,
+					  field->field_name.str)) {
+				/* The .frm file and the InnoDB data
+				dictionary disagree on the column name.
+				This can be caused by replacing the .frm
+				file, or by an out-of-date data dictionary
+				due to innodb_force_recovery. */
+				my_error(ER_BAD_FIELD_ERROR,
+					 MYF(ME_WARNING),
+					 field->field_name.str,
+					 ib_table->name.m_name);
+			}
 #endif
+
 			const dict_v_col_t*	vcol;
 
 			if (z >= ib_table->n_v_def) {

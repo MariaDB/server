@@ -1,0 +1,64 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-41719 : virtual columns that the InnoDB data dictionary
+--echo #              does not describe the way the .frm file does
+--echo #
+
+call mtr.add_suppression("Unknown table 'test/t1' in SYS_VIRTUAL");
+
+let $datadir= `SELECT @@datadir`;
+
+CREATE TABLE t1 (a INT, b INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES (1);
+
+#
+# SYS_VIRTUAL is not available. Because of innodb_force_recovery=3,
+# dict_sys_t::create_or_check_sys_tables() will not create it either,
+# and srv_start() lets the server start up nevertheless.
+#
+--let $restart_parameters= --debug_dbug=+d,skip_sys_virtual --innodb-force-recovery=3
+--source include/restart_mysqld.inc
+
+# dict_load_virtual_col() cannot read the base columns of b.
+# With --view-protocol the table would be opened more than once.
+--disable_view_protocol
+--error ER_UNKNOWN_TABLE
+SELECT * FROM t1;
+--enable_view_protocol
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= Unknown table 'test/t1' in SYS_VIRTUAL
+--let SEARCH_OUTPUT= count
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
+
+#
+# The .frm file and the InnoDB data dictionary disagree on the name
+# of the virtual column.
+#
+--copy_file $datadir/test/t1.frm $MYSQLTEST_VARDIR/tmp/vcol_dict_debug.frm
+ALTER TABLE t1 RENAME COLUMN b TO c;
+SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C
+INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
+WHERE T.NAME='test/t1' ORDER BY C.NAME;
+
+# Restore the .frm file that still names the virtual column b
+--remove_file $datadir/test/t1.frm
+--move_file $MYSQLTEST_VARDIR/tmp/vcol_dict_debug.frm $datadir/test/t1.frm
+FLUSH TABLES;
+# The warning is reported while the table is being opened, which with
+# --ps-protocol happens when the statement is being prepared.
+--enable_prepare_warnings
+SELECT * FROM t1;
+--disable_prepare_warnings
+
+# The virtual column template is built once; the mismatch is not
+# reported again while the table stays in the InnoDB dictionary cache.
+SELECT * FROM t1;
+DROP TABLE t1;

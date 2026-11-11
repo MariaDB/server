@@ -1631,33 +1631,29 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
-			if (srv_operation != SRV_OPERATION_RESTORE
-			    || recv_needed_recovery) {
+			DBUG_PRINT("ib_log", ("apply completed"));
+		}
+
+		if (srv_operation != SRV_OPERATION_RESTORE) {
+			err = srv_load_tables(must_upgrade_ibuf);
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
 			}
 
-			DBUG_PRINT("ib_log", ("apply completed"));
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 
-			if (srv_operation != SRV_OPERATION_RESTORE) {
-				err = srv_load_tables(must_upgrade_ibuf);
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
-
-				err = trx_lists_init_at_db_start();
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
-
-				if (recv_needed_recovery) {
-					trx_sys_print_mysql_binlog_offset();
-				}
-			} else if (recv_needed_recovery) {
-				err = trx_lists_init_at_db_start();
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
+			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();
 			}
+		} else if (recv_needed_recovery) {
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
+			trx_sys_print_mysql_binlog_offset();
 		}
 
 		fil_system.space_id_reuse_warned = false;
@@ -1916,6 +1912,12 @@ skip_monitors:
 		}
 	}
 
+	/* Create the non-core dictionary tables SYS_FOREIGN,
+	SYS_FOREIGN_COLS, SYS_VIRTUAL if they do not exist yet. This is
+	not possible if innodb_read_only or innodb_force_recovery>2 was
+	specified. With innodb_force_recovery>2 we will carry on without
+	the missing table definitions; in read-only mode the startup will
+	be refused below. */
 	err = dict_sys.create_or_check_sys_tables();
 	switch (err) {
 	case DB_SUCCESS:

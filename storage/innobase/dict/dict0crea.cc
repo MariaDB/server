@@ -1339,6 +1339,7 @@ bool dict_sys_t::load_sys_tables() noexcept
     mismatch= true;
     sql_print_error("InnoDB: Invalid definition of SYS_FOREIGN_COLS");
   }
+  DBUG_EXECUTE_IF("skip_sys_virtual", goto skip_sys_virtual;);
   if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL],
                                 DICT_ERR_IGNORE_FK_NOKEY)));
   else if (UT_LIST_GET_LEN(sys_virtual->indexes) == 1 &&
@@ -1350,6 +1351,9 @@ bool dict_sys_t::load_sys_tables() noexcept
     mismatch= true;
     sql_print_error("InnoDB: Invalid definition of SYS_VIRTUAL");
   }
+#ifndef DBUG_OFF
+skip_sys_virtual:
+#endif
   unlock();
   return mismatch;
 }

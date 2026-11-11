@@ -1438,6 +1438,16 @@ dict_load_virtual_col(mtr_t &mtr, dict_table_t *table, bool uncommitted,
 		return DB_SUCCESS;
 	}
 
+	if (!dict_sys.sys_virtual) {
+		/* dict_sys_t::create_or_check_sys_tables() would have loaded
+		or tried creating SYS_VIRTUAL unless innodb_force_recovery>2
+		was specified. */
+		ut_ad(srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO);
+		my_error(ER_UNKNOWN_TABLE, MYF(ME_ERROR_LOG),
+			 table->name.m_name, "SYS_VIRTUAL");
+		return DB_CORRUPTION;
+	}
+
 	dict_index_t*	sys_virtual_index;
 	btr_pcur_t	pcur;
 
