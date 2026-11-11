@@ -6110,6 +6110,7 @@ int spider_db_mbase_util::open_item_sum_func(
     case Item_sum::SUM_FUNC:
     case Item_sum::MIN_FUNC:
     case Item_sum::MAX_FUNC:
+    case Item_sum::SUM_BIT_FUNC:
       {
         LEX_CSTRING org_func_name= item_sum->func_name_cstring();
         const char *func_name = org_func_name.str;
@@ -6200,7 +6201,6 @@ int spider_db_mbase_util::open_item_sum_func(
       break;
     case Item_sum::STD_FUNC:
     case Item_sum::VARIANCE_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
     case Item_sum::UDF_SUM_FUNC:
     case Item_sum::GROUP_CONCAT_FUNC:
     default:
