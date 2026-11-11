@@ -47,10 +47,11 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
   DBUG_ENTER("my_open");
   DBUG_PRINT("my",("Name: '%s'  Flags: %d  MyFlags: %lu",
 		   FileName, Flags, MyFlags));
+  DBUG_ASSERT(!(MyFlags & MY_NOSYMLINKS) || !(Flags & (O_CREAT | O_TRUNC)));
   if (!(MyFlags & (MY_WME | MY_FAE | MY_FFNF)))
     MyFlags|= my_global_flags;
 #if defined(_WIN32)
-  fd= my_win_open(FileName, Flags);
+  fd= my_win_open(FileName, Flags, MyFlags);
 #else
   if (MyFlags & MY_NOSYMLINKS)
     fd = open_nosymlinks(FileName, Flags | O_CLOEXEC, my_umask);
