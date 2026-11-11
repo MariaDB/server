@@ -1,5 +1,6 @@
 --source include/have_debug_sync.inc
 --source include/not_embedded.inc
+--source include/no_protocol.inc
 
 --echo #
 --echo # MDEV-41165: KILL / max_statement_time arriving after the WHERE
