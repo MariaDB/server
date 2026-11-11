@@ -23,7 +23,7 @@ ERROR HY000: Got error 12500 'unknown' from SPIDER
 SET STATEMENT debug_dbug= '+d,spider_direct_bit_null' FOR
 SELECT BIT_OR(val_int) FROM t1_s;
 ERROR HY000: Got error 12500 'unknown' from SPIDER
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 Level	Code	Message
 Warning	1292	Truncated incorrect INTEGER value: ''
 Error	1296	Got error 12500 'unknown' from SPIDER

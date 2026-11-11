@@ -84,6 +84,7 @@ INSERT INTO t2 VALUES
 (2, 1, x'0F0F0F0F', 0x0F0F0F0F00000000),
 (3, 2, x'00FF0000', 0x00FF000000000000),
 (4, 2, x'000000FF', 0x000000FF00000000);
+# The prepared statement protocol changes Spider_direct_aggregate
 SELECT grp,
 HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)),
 BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int)
@@ -208,7 +209,7 @@ INSERT INTO t5 VALUES (1, 'abcd'), (2, 'abcd');
 SET spider_disable_group_by_handler= 1;
 SELECT BIT_OR(val) FROM t5_s;
 ERROR HY000: Got error 12500 'unknown' from SPIDER
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 Level	Code	Message
 Warning	1292	Truncated incorrect INTEGER value: 'abcd'
 Error	1296	Got error 12500 'unknown' from SPIDER
@@ -220,7 +221,7 @@ REMOTE_SERVER='srv' REMOTE_TABLE='t5';
 INSERT INTO t5 VALUES (1, 'abcdefgh'), (2, 'abcdefgh');
 SELECT BIT_OR(val) FROM t5_s;
 ERROR HY000: Got error 12500 'unknown' from SPIDER
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 Level	Code	Message
 Warning	1292	Truncated incorrect BINARY value: 'abcdefgh'
 Error	1296	Got error 12500 'unknown' from SPIDER

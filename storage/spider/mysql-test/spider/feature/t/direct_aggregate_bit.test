@@ -75,10 +75,13 @@ INSERT INTO t2 VALUES
   (2, 1, x'0F0F0F0F', 0x0F0F0F0F00000000),
   (3, 2, x'00FF0000', 0x00FF000000000000),
   (4, 2, x'000000FF', 0x000000FF00000000);
+--echo # The prepared statement protocol changes Spider_direct_aggregate
+--disable_ps_protocol
 SELECT grp,
   HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin)),
   BIT_OR(val_int), BIT_AND(val_int), BIT_XOR(val_int)
 FROM t2_s GROUP BY grp;
+--enable_ps_protocol
 DROP TABLE t2_s, t2;
 
 --echo # Partial results from several data nodes are merged locally.
@@ -164,7 +167,7 @@ SET spider_disable_group_by_handler= 1;
 --disable_ps2_protocol
 --error ER_GET_ERRMSG
 SELECT BIT_OR(val) FROM t5_s;
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 --enable_ps2_protocol
 DROP TABLE t5_s, t5;
 
@@ -176,7 +179,7 @@ INSERT INTO t5 VALUES (1, 'abcdefgh'), (2, 'abcdefgh');
 --disable_ps2_protocol
 --error ER_GET_ERRMSG
 SELECT BIT_OR(val) FROM t5_s;
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 --enable_ps2_protocol
 SET spider_disable_group_by_handler= DEFAULT;
 DROP TABLE t5_s, t5;

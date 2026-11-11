@@ -33,7 +33,7 @@ SELECT BIT_OR(val_bin) FROM t1_s;
 --error ER_GET_ERRMSG
 SET STATEMENT debug_dbug= '+d,spider_direct_bit_null' FOR
 SELECT BIT_OR(val_int) FROM t1_s;
-SHOW WARNINGS;
+SHOW WARNINGS LIMIT 2;
 SELECT HEX(BIT_OR(val_bin)), BIT_OR(val_int) FROM t1_s;
 --enable_ps2_protocol
 DROP TABLE t1_s, t1;
