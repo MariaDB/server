@@ -2907,7 +2907,8 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
                            const handler *file,
                            const Key &key, Key_part_spec &kp,
                            uint max_key_length, uint max_key_part_length,
-                           bool *is_hash_field_needed)
+                           bool *is_hash_field_needed,
+                           uint *null_fields)
 {
   DBUG_ENTER("init_key_part_spec");
 
@@ -2917,6 +2918,16 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
   for (Create_field &c: alter_info->create_list)
     if (c.field_name.streq(field_name))
       column= &c;
+
+  if (key.type == Key::PRIMARY &&
+     column &&
+     !column->vcol_info &&
+     (!(column->flags & NOT_NULL_FLAG)))
+  {
+    column->flags|= NOT_NULL_FLAG;
+    column->pack_flag&= ~FIELDFLAG_MAYBE_NULL;
+    (*null_fields)--;
+  }
 
   /*
     Either field is not present or field visibility is > INVISIBLE_USER
@@ -3088,7 +3099,8 @@ my_bool init_key_part_spec(THD *thd, Alter_info *alter_info,
 static
 my_bool init_key_info(THD *thd, Alter_info *alter_info,
                       HA_CREATE_INFO *create_info,
-                      const handler *file)
+                      const handler *file,
+                      uint *null_fields)
 {
   DBUG_ENTER("init_key_info");
   uint max_key_length= file->max_key_length();
@@ -3113,7 +3125,7 @@ my_bool init_key_info(THD *thd, Alter_info *alter_info,
     {
       if (init_key_part_spec(thd, alter_info, file, key, kp,
                              max_key_length, max_key_part_length,
-                             &is_hash_field_needed))
+                             &is_hash_field_needed, null_fields))
         DBUG_RETURN(TRUE);
 
       key.length+= kp.length;
@@ -3448,7 +3460,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
   Key *key, *key2;
   uint tmp, key_number;
 
-  if (init_key_info(thd, alter_info, create_info, file))
+  if (init_key_info(thd, alter_info, create_info, file, &null_fields))
     DBUG_RETURN(TRUE);
 
   /* Calculate number of key segements */
