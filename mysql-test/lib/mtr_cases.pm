@@ -244,8 +244,12 @@ sub split_testname {
 }
 
 our %file_to_tags;
-our %file_to_master_opts;
-our %file_to_slave_opts;
+# options from the file's own .opt, -master.opt, -slave.opt
+our %file_own_master_opts;
+our %file_own_slave_opts;
+# ordered list of files (the file itself and everything it sources,
+# directly or indirectly) whose own options apply, each file listed once
+our %file_opt_sources;
 our %file_combinations;
 our %skip_combinations;
 our %file_in_overlay;
@@ -455,8 +459,9 @@ sub collect_one_suite {
   # despite the fact that b.inc itself is not replaced.
   for (@overlays) {
     local %file_to_tags = ();
-    local %file_to_master_opts = ();
-    local %file_to_slave_opts = ();
+    local %file_own_master_opts = ();
+    local %file_own_slave_opts = ();
+    local %file_opt_sources = ();
     local %file_combinations = ();
     local %file_in_overlay = ();
 
@@ -1001,7 +1006,9 @@ my $tags_regex= qr:include/($tags_regex_string)\.inc:o;
 # Get various tags from a file, recursively scanning also included files.
 # And get options from .opt file, also recursively for included files.
 # Return a list of [TAG_TO_SET, VALUE_TO_SET_TO] of found tags.
-# Also returns lists of options for master and slave found in .opt files.
+# Also collects options for master and slave found in .opt files.
+# Options of an .opt file are applied only once, even if the corresponding
+# file is sourced many times or via different include paths.
 # Each include file is scanned only once, and subsequent calls just look up the
 # cached result.
 # We need to be a bit careful about speed here; previous version of this code
@@ -1017,6 +1024,7 @@ sub get_tags_from_file($$) {
   my $tags= [];
   my $master_opts= [];
   my $slave_opts= [];
+  my @opt_sources;
   my @combinations;
 
   my $over = defined $suite->{parent};
@@ -1072,8 +1080,7 @@ sub get_tags_from_file($$) {
         if (-e $sourced_file)
         {
           push @$tags, get_tags_from_file($sourced_file, $suite);
-          push @$master_opts, @{$file_to_master_opts{$sourced_file}};
-          push @$slave_opts, @{$file_to_slave_opts{$sourced_file}};
+          push @opt_sources, @{$file_opt_sources{$sourced_file}};
           push @combinations, @{$file_combinations{$sourced_file}};
           $file_in_overlay{$file} ||= $file_in_overlay{$sourced_file};
           last;
@@ -1114,8 +1121,10 @@ sub get_tags_from_file($$) {
 
   # Save results so we can reuse without parsing if seen again.
   $file_to_tags{$file}= $tags;
-  $file_to_master_opts{$file}= $master_opts;
-  $file_to_slave_opts{$file}= $slave_opts;
+  $file_own_master_opts{$file}= $master_opts;
+  $file_own_slave_opts{$file}= $slave_opts;
+  my %seen;
+  $file_opt_sources{$file}= [ grep { !$seen{$_}++ } @opt_sources, $file ];
   $file_combinations{$file}= [ sort ::uniq(@combinations) ];
   $file_in_overlay{$file} = 1 if $in_overlay;
 
@@ -1134,7 +1143,9 @@ sub tags_from_test_file {
   {
     $tinfo->{$_->[0]}= $_->[1];
   }
-  return ($file_to_master_opts{$file}, $file_to_slave_opts{$file});
+  my @sources= @{$file_opt_sources{$file}};
+  return ([ map { @{$file_own_master_opts{$_}} } @sources ],
+          [ map { @{$file_own_slave_opts{$_}} } @sources ]);
 }
 
 sub unspace {
