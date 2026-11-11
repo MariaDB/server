@@ -3187,6 +3187,8 @@ public:
     statement without re-preparing it.
   */
   bool needs_reprepare{false};
+  bool m_any_cs_allowed;
+  bool m_sp_cursor_params;   // parsing the formal parameters of a cursor
 
   /*
     LEX which represents current statement (conventional, SP or PS)
@@ -3205,6 +3207,7 @@ public:
   LEX *stmt_lex;
 
   LEX_CSTRING name;
+  LEX_CSTRING m_pending_charset_anchor;
   const char *help_arg;
   const char *backup_dir;                       /* For RESTORE/BACKUP */
   const char* to_log;                           /* For PURGE MASTER LOGS TO */
@@ -3841,6 +3844,7 @@ public:
   }
 
   bool save_prep_leaf_tables();
+  void set_pending_charset_anchor(const LEX_CSTRING *name);
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool is_json_format,
@@ -3869,6 +3873,7 @@ public:
   bool sf_return_fill_definition_row(Row_definition_list *def);
   bool sf_return_fill_definition_rowtype_of(const Qualified_column_ident &col);
   bool sf_return_fill_definition_type_of(const Qualified_column_ident &col);
+  bool sp_apply_charset_anchor(Spvar_definition *def);
 
   int case_stmt_action_then();
   bool setup_select_in_parentheses();

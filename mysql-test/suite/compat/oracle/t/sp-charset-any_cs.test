@@ -1,0 +1,94 @@
+--source include/default_charset.inc
+
+SET NAMES utf8mb4;
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-41137 CHARACTER SET ANY_CS and CHARACTER SET var%CHARSET in stored routines
+--echo #
+
+--echo # Parameters and variables follow the character set of the argument
+DELIMITER $$;
+CREATE PROCEDURE p1(
+  p_in1 IN VARCHAR2 CHARACTER SET ANY_CS,
+  p_in2 IN VARCHAR2 CHARACTER SET p_in1%CHARSET,
+  p_out1 OUT VARCHAR2 CHARACTER SET p_in2%CHARSET)
+AS
+  v1 VARCHAR2(100) CHARACTER SET p_in1%CHARSET;
+  v2 VARCHAR2(100) CHARSET v1%CHARSET;
+BEGIN
+  p_out1:= 'x';
+  SELECT CHARSET(p_in1), CHARSET(p_in2), CHARSET(p_out1), CHARSET(v1), CHARSET(v2);
+END;
+$$
+DELIMITER ;$$
+CALL p1(_latin1'a', 'b', @out);
+SELECT CHARSET(@out);
+CALL p1(_ucs2 0x0061, 'b', @out);
+SELECT CHARSET(@out);
+CALL p1(_latin1'a', 'b', @out);
+DROP PROCEDURE p1;
+
+--echo # The source has a fixed character set
+DELIMITER $$;
+DECLARE
+  a VARCHAR2(10) CHARACTER SET latin1 COLLATE latin1_bin;
+  b VARCHAR2(10) CHARACTER SET a%CHARSET;
+BEGIN
+  SELECT CHARSET(b), COLLATION(b);
+END;
+$$
+DELIMITER ;$$
+
+--echo # Function, CLOB, and the length per call
+DELIMITER $$;
+CREATE FUNCTION f1(a CLOB CHARACTER SET ANY_CS) RETURN VARCHAR2
+AS
+  v VARCHAR2(3) CHARACTER SET a%CHARSET;
+BEGIN
+  v:= 'ééé';
+  RETURN CHARSET(a) || ' ' || OCTET_LENGTH(v);
+END;
+$$
+DELIMITER ;$$
+SELECT f1(_latin1'x'), f1(CONVERT('x' USING utf32)), f1(_latin1'x');
+DROP FUNCTION f1;
+
+--echo # RETURN ... CHARACTER SET param%CHARSET
+DELIMITER $$;
+CREATE FUNCTION f2(v_in CLOB CHARACTER SET ANY_CS) RETURN CLOB CHARACTER SET v_in%CHARSET
+AS
+BEGIN
+  RETURN v_in;
+END;
+$$
+DELIMITER ;$$
+SELECT CHARSET(f2(_latin1'x')), CHARSET(f2(_ucs2 0x0078)), CHARSET(f2(_latin1'x'));
+SELECT name, returns FROM mysql.proc WHERE db=DATABASE() AND name='f2';
+SELECT routine_name, character_set_name FROM information_schema.routines
+WHERE routine_schema=DATABASE() AND routine_name='f2';
+DROP FUNCTION f2;
+
+--echo #
+--echo # Errors
+--echo #
+
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1 AS v VARCHAR2(10) CHARACTER SET ANY_CS; BEGIN NULL; END;
+$$
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1(a VARCHAR2(10) CHARACTER SET b%CHARSET) AS BEGIN NULL; END;
+$$
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1(a VARCHAR2(10) CHARACTER SET latin1, b VARCHAR2(10) CHARSET OF a) AS BEGIN NULL; END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

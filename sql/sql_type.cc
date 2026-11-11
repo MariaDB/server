@@ -2798,6 +2798,28 @@ bool Type_handler::
 
 /*************************************************************************/
 
+bool Type_handler_longstr::adjust_spparam_charset(Spvar_definition *def, Item *from)
+    const
+{
+  if (def->any_cs)
+  {
+    def->charset= from->collation.collation;
+    def->length= def->char_length > 0 ?
+                   def->char_length : from->max_char_length();
+    def->create_length_to_internal_length_string();
+  }
+  return false;
+}
+
+bool Type_handler_longstr::adjust_spparam_charset_to(Spvar_definition *def,
+                                                     CHARSET_INFO *cs) const
+{
+  def->length/= def->charset->mbmaxlen;
+  def->charset= cs;
+  def->create_length_to_internal_length_string();
+  return false;
+}
+
 bool
 Type_handler::Column_definition_set_attributes(THD *thd,
                                                Column_definition *def,
@@ -2809,6 +2831,11 @@ Type_handler::Column_definition_set_attributes(THD *thd,
                                    thd->variables.character_set_collations,
                                    attr.charset_collation_attrs());
   def->set_length_and_dec(attr);
+  if (attr.charset_collation_attrs().is_contextually_typed_collate_any_cs())
+  {
+    def->any_cs= true;
+    def->char_length= (uint32) def->length;
+  }
   return false;
 }
 
@@ -2839,7 +2866,8 @@ Type_handler_string::Column_definition_set_attributes(
                                                  column_definition_type_t type)
                                                  const
 {
-  Type_handler::Column_definition_set_attributes(thd, def, attr, type);
+  if (Type_handler::Column_definition_set_attributes(thd, def, attr, type))
+    return true;
   if (attr.has_explicit_length())
     return false;
   switch (type) {
@@ -4244,6 +4272,16 @@ bool Type_handler_varchar::adjust_spparam_type(Spvar_definition *def,
     def->length= arg_max_length > 0 ? arg_max_length : def->decimals;
     def->create_length_to_internal_length_string();
   }
+  return false;
+}
+
+bool Type_handler_varchar::adjust_spparam_charset_to(Spvar_definition *def,
+                                                     CHARSET_INFO *cs) const
+{
+  def->length/= def->charset->mbmaxlen;
+  def->charset= cs;
+  set_if_smaller(def->length, MAX_FIELD_VARCHARLENGTH / cs->mbmaxlen);
+  def->create_length_to_internal_length_string();
   return false;
 }
 
