@@ -1539,9 +1539,17 @@ protected:
     /* Copies of JOIN_TAB::checked_keys for each JOIN_TAB. */
     key_map *join_tab_checked_keys;
     SJ_MATERIALIZATION_INFO **sj_mat_info;
+    /*
+      Copy of JOIN::parallel_plan_chosen: whether best_positions is a plan
+      whose driving table the search chose to divide among the workers. It
+      is a property of the saved plan, and a reoptimization in between
+      (opt_split.cc, choose_subquery_plan) runs choose_plan() again, which
+      sets it for the plan it finds, not the one restored afterwards.
+    */
+    bool parallel_plan_chosen;
     my_bool error;
   public:
-    Join_plan_state(uint tables) : error(0)
+    Join_plan_state(uint tables) : parallel_plan_chosen(false), error(0)
     {   
       keyuse.elements= 0;
       keyuse.buffer= NULL;
@@ -2104,6 +2112,13 @@ public:
     which a scan of a tiny table with a large join under it is not.
   */
   bool parallel_plan_chosen{false};
+  /*
+    The query's own GROUP BY, copied by pwt_query_shape_allows_workers() the
+    first time it is asked, before the plan reduces the list it was copied
+    from (see there). NULL with _known set is a query that does not group.
+  */
+  ORDER *parallel_query_group{nullptr};
+  bool parallel_query_group_known{false};
   /*
     What the workers would ship for this query, for parallel_ship_cost():
     < 0 every joined row, a query that does not aggregate; 0 a handful of

@@ -38,6 +38,26 @@ why
 NULL
 divided
 ["t1"]
+# a GROUP BY column of a table the plan reads by eq_ref through a grouped
+# column: remove_const() drops it from the plan's group key, and it is
+# still one value per group, so the plan is run divided
+n	city	SUM(t1.a)
+1	c1	9672
+2	c2	9711
+3	c0	9750
+4	c1	9789
+5	c2	9828
+6	c0	9867
+7	c1	9405
+8	c2	9443
+9	c0	9481
+10	c1	9519
+11	c2	9557
+12	c0	9595
+why
+NULL
+divided
+["t1"]
 # an index supplying the ORDER BY
 why
 ["an index supplies the ORDER BY order, rows aren't splittable", "no table this plan reads can be divided"]

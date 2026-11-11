@@ -219,6 +219,24 @@ EXPLAIN SELECT d.name, COUNT(*), SUM(f.val) FROM dim2 d, fact2 f
 SET SESSION optimizer_trace=@save_trace;
 SET SESSION optimizer_parallel_row_cost= @save_row;
 
+--echo #
+--echo # A grouped derived table the outer query joins by a key on its group
+--echo # column is a candidate for splitting (split_materialized), which
+--echo # reoptimizes it with the outer equality pushed in and restores the
+--echo # plan it had when that loses. The plan restored is the divided one the
+--echo # search chose, and it runs in the workers.
+--echo #
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(dn.s) FROM dim2 d,
+  (SELECT dim_id, SUM(val) s FROM fact2 GROUP BY dim_id) dn
+  WHERE dn.dim_id = d.id AND d.id > 10000;
+FLUSH STATUS;
+SELECT COUNT(*), SUM(dn.s) FROM dim2 d,
+  (SELECT dim_id, SUM(val) s FROM fact2 GROUP BY dim_id) dn
+  WHERE dn.dim_id = d.id AND d.id > 10000;
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+  WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
 DROP TABLE dim, fact, dim2, fact2, tag;

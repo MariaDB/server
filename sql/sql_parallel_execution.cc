@@ -522,6 +522,8 @@ class Pwt_group_checker : public Field_enumerator
 {
   ORDER *group;
   COND_EQUAL *cond_equal;
+  JOIN *plan;               // the finished plan, or NULL before there is one
+  uint depth;
   /* The WHERE binds the column to a constant: col = 3, or col = c and c = 3 */
   bool bound_to_constant(Field *field) const
   {
@@ -534,10 +536,48 @@ class Pwt_group_checker : public Field_enumerator
         return true;
     return false;
   }
+  /*
+    The plan reads the column's table by eq_ref through columns that are
+    themselves grouped, constant, or determined this same way, so every row
+    of a group reads the one same row of that table: the column has one
+    value per group although the group key does not name it. This is how a
+    column the query groups by comes to be missing from the plan's key:
+    remove_const() drops a GROUP BY element of such a table on the same
+    reasoning (eq_ref_table()), and the plan's aggregation table is keyed by
+    what is left. Asked only of a finished plan, since it reads the plan's
+    access methods.
+  */
+  bool determined_by_eq_ref(Field *field) const
+  {
+    if (!plan || depth > 8)
+      return false;
+    JOIN_TAB *tab= nullptr;
+    for (uint i= plan->const_tables; i < plan->top_join_tab_count; i++)
+      if (plan->join_tab[i].table == field->table)
+      {
+        tab= &plan->join_tab[i];
+        break;
+      }
+    if (!tab || tab->type != JT_EQ_REF || tab->table->maybe_null)
+      return false;
+    for (uint i= 0; i < tab->ref.key_parts; i++)
+    {
+      Item *it= tab->ref.items[i];
+      if (it->const_item())
+        continue;
+      Pwt_group_checker sub(group, cond_equal, plan, depth + 1);
+      it->walk(&Item::enumerate_field_refs_processor, (void *) &sub, 0);
+      if (!sub.all_grouped)
+        return false;
+    }
+    return true;
+  }
 public:
   bool all_grouped;
-  Pwt_group_checker(ORDER *group_arg, COND_EQUAL *cond_equal_arg)
-    : group(group_arg), cond_equal(cond_equal_arg), all_grouped(true) {}
+  Pwt_group_checker(ORDER *group_arg, COND_EQUAL *cond_equal_arg,
+                    JOIN *plan_arg= nullptr, uint depth_arg= 0)
+    : group(group_arg), cond_equal(cond_equal_arg), plan(plan_arg),
+      depth(depth_arg), all_grouped(true) {}
   void visit_field(Item_field *item) override
   {
     if (!item->field)
@@ -550,6 +590,8 @@ public:
         return;
     }
     if (bound_to_constant(item->field))
+      return;
+    if (determined_by_eq_ref(item->field))
       return;
     all_grouped= false;
   }
@@ -592,11 +634,12 @@ public:
 */
 
 static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group,
-                                             COND_EQUAL *cond_equal)
+                                             COND_EQUAL *cond_equal,
+                                             JOIN *plan= nullptr)
 {
   if (!item->with_sum_func())
   {
-    Pwt_group_checker check(group, cond_equal);
+    Pwt_group_checker check(group, cond_equal, plan);
     item->walk(&Item::enumerate_field_refs_processor, (void *) &check, 0);
     return !check.all_grouped;
   }
@@ -606,13 +649,13 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group,
     return false;                     // its arguments are the aggregate's own
   case Item::REF_ITEM:
     return pwt_ungrouped_outside_aggregates(item->real_item(), group,
-                                            cond_equal);
+                                            cond_equal, plan);
   case Item::COND_ITEM:
   {
     List_iterator<Item> li(*((Item_cond *) item)->argument_list());
     Item *arg;
     while ((arg= li++))
-      if (pwt_ungrouped_outside_aggregates(arg, group, cond_equal))
+      if (pwt_ungrouped_outside_aggregates(arg, group, cond_equal, plan))
         return true;
     return false;
   }
@@ -621,7 +664,7 @@ static bool pwt_ungrouped_outside_aggregates(Item *item, ORDER *group,
     Item_func *f= (Item_func *) item;
     for (uint i= 0; i < f->argument_count(); i++)
       if (pwt_ungrouped_outside_aggregates(f->arguments()[i], group,
-                                           cond_equal))
+                                           cond_equal, plan))
         return true;
     return false;
   }
@@ -797,7 +840,7 @@ static bool pwt_grouped_preagg_supported(JOIN *join, ORDER **group,
   {
     if (it->const_item())
       continue;
-    if (pwt_ungrouped_outside_aggregates(it, g, join->cond_equal))
+    if (pwt_ungrouped_outside_aggregates(it, g, join->cond_equal, join))
       return pwt_decline(join, trace,
                          "grouped: a select list item reads a column "
                          "outside an aggregate that GROUP BY does not "
@@ -1108,13 +1151,35 @@ bool pwt_query_shape_allows_workers(JOIN *join, bool trace)
     /*
       The query's own GROUP BY, not the plan's group key: what the elements
       are is known before the plan is, and the full gate asks the plan's key
-      the same questions again (pwt_grouped_preagg_supported). Taken from the
-      select when join->group_list is gone: make_aggr_tables_info() clears it
-      once the grouping lives in the aggregation table, and the full gate asks
-      this after that.
+      the same questions again (pwt_grouped_preagg_supported). The plan
+      takes elements away from it: remove_const() drops a column of a table
+      the plan reads by eq_ref through grouped columns -- GROUP BY
+      ss_addr_sk, ca_city with customer_address looked up by ss_addr_sk
+      loses ca_city -- and make_aggr_tables_info() clears the list once the
+      grouping lives in the aggregation table. Those relinked nodes are the
+      select's own, so select_lex->group_list is reduced with it. So the
+      list is copied the first time this is asked, before the plan
+      (choose_plan()), and the copy answers when the full gate asks again
+      after it; a select list column the plan's key no longer names is
+      then that gate's question, which it answers from the plan.
     */
-    ORDER *group= join->group_list ? join->group_list
+    if (!join->parallel_query_group_known)
+    {
+      ORDER *src= join->group_list ? join->group_list
                                    : join->select_lex->group_list.first;
+      ORDER **tail= &join->parallel_query_group;
+      for (ORDER *k= src; k; k= k->next)
+      {
+        ORDER *copy= (ORDER *) join->thd->memdup((uchar *) k, sizeof(ORDER));
+        if (!copy)
+          return pwt_decline(join, trace, "out of memory");
+        copy->next= nullptr;
+        *tail= copy;
+        tail= &copy->next;
+      }
+      join->parallel_query_group_known= true;
+    }
+    ORDER *group= join->parallel_query_group;
     for (ORDER *k= group; k; k= k->next)
     {
       Item *item= (*k->item)->real_item();

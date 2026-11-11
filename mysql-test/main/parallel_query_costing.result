@@ -244,6 +244,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	f	ref	dim_id	dim_id	5	test.d.id	10	
 SET SESSION optimizer_trace=@save_trace;
 SET SESSION optimizer_parallel_row_cost= @save_row;
+#
+# A grouped derived table the outer query joins by a key on its group
+# column is a candidate for splitting (split_materialized), which
+# reoptimizes it with the outer equality pushed in and restores the
+# plan it had when that loses. The plan restored is the divided one the
+# search chose, and it runs in the workers.
+#
+SET SESSION parallel_worker_threads= 4;
+EXPLAIN SELECT COUNT(*), SUM(dn.s) FROM dim2 d,
+(SELECT dim_id, SUM(val) s FROM fact2 GROUP BY dim_id) dn
+WHERE dn.dim_id = d.id AND d.id > 10000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	d	range	PRIMARY	PRIMARY	4	NULL	20000	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.d.id	1	
+2	DERIVED	fact2	ALL_parallel	dim_id	NULL	NULL	NULL	200000	Using where; Using temporary; Using filesort
+FLUSH STATUS;
+SELECT COUNT(*), SUM(dn.s) FROM dim2 d,
+(SELECT dim_id, SUM(val) s FROM fact2 GROUP BY dim_id) dn
+WHERE dn.dim_id = d.id AND d.id > 10000;
+COUNT(*)	SUM(dn.s)
+10000	49950000
+SELECT VARIABLE_VALUE > 0 AS ran_in_the_workers FROM information_schema.session_status
+WHERE VARIABLE_NAME = 'Parallel_queries_executed';
+ran_in_the_workers
+1
 SET SESSION join_cache_level= @save_jcl;
 SET SESSION parallel_worker_threads= @save_pwt;
 DROP TABLE dim, fact, dim2, fact2, tag;
