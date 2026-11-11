@@ -1,3 +1,4 @@
+--source include/not_embedded.inc
 --echo # MDEV-31342: Test I_S fast path optimization
 #
 # On Windows (lower_case_table_names=1) EXPLAIN may print `tables`
@@ -436,3 +437,119 @@ WHERE TABLE_SCHEMA='mdev41241' AND mdev41241.f_ct2(TABLE_CATALOG)=1;
 DROP FUNCTION mdev41241.f_ct2;
 DROP TEMPORARY TABLE IF EXISTS mdev41241.ttx;
 DROP DATABASE mdev41241;
+
+--echo #
+--echo # MDEV-41165: ANALYZE SELECT on a schema that does not exist
+--echo #
+ANALYZE SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+
+--echo #
+--echo # MDEV-41165: max_statement_time uses the fast path
+--echo #
+SET max_statement_time=100;
+--replace_regex /`tables`/`TABLES`/ /"tables"/"TABLES"/
+EXPLAIN FORMAT=JSON SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='mysql';
+SET max_statement_time=DEFAULT;
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT max_statement_time=0.5 FOR SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND SLEEP(1)=0;
+
+--echo #
+--echo # MDEV-41165: KILL QUERY while WHERE is evaluated on the fast path
+--echo #
+CREATE TABLE t1 (a INT);
+let $id= `SELECT CONNECTION_ID()`;
+connect (con41165,localhost,root,,);
+connection default;
+send SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection con41165;
+let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state='User sleep';
+--source include/wait_condition.inc
+evalp KILL QUERY $id;
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+disconnect con41165;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41165: KILL CONNECTION while WHERE is evaluated on the fast path
+--echo #
+CREATE TABLE t1 (a INT);
+connect (victim41165,localhost,root,,);
+let $id= `SELECT CONNECTION_ID()`;
+send SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND SLEEP(5)=0;
+connection default;
+let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state='User sleep';
+--source include/wait_condition.inc
+evalp KILL CONNECTION $id;
+connection victim41165;
+--error 2013
+reap;
+connection default;
+disconnect victim41165;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41171: @@sql_select_limit, FOUND_ROWS(), ROWNUM() and
+--echo # LIMIT ROWS EXAMINED on the fast path
+--echo #
+CREATE TABLE t1(i INT);
+CREATE TABLE t2(i INT);
+CREATE TABLE t3(i INT);
+SET @@session.sql_select_limit=2;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SET @@session.sql_select_limit=DEFAULT;
+# FOUND_ROWS() depends on the previous statement, which these protocols change.
+--disable_ps_protocol
+--disable_view_protocol
+SELECT 1;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+SELECT FOUND_ROWS();
+--enable_view_protocol
+--enable_ps_protocol
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND ROWNUM()+0=1;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' AND ROWNUM()+0<=2;
+SELECT TABLE_CATALOG FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='test' LIMIT ROWS EXAMINED 2;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-41171: Rows_sent, Empty_queries and the slow log
+--echo #
+CREATE TABLE t1(a INT);
+CREATE TABLE t2(a INT);
+CREATE TABLE t3(a INT);
+--disable_ps_protocol
+--disable_view_protocol
+FLUSH STATUS;
+--disable_result_log
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+--enable_result_log
+SHOW SESSION STATUS LIKE 'Rows_sent';
+SHOW SESSION STATUS LIKE 'Empty_queries';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_SCHEMA='no_such_db_at_all';
+SHOW SESSION STATUS LIKE 'Empty_queries';
+SET @save_slow_query_log= @@global.slow_query_log;
+SET @save_log_output= @@global.log_output;
+SET GLOBAL slow_query_log=1, log_output='TABLE';
+SET SESSION slow_query_log=1, long_query_time=0;
+TRUNCATE mysql.slow_log;
+--disable_result_log
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+--enable_result_log
+SET SESSION long_query_time=DEFAULT;
+SELECT rows_sent, rows_examined FROM mysql.slow_log
+WHERE sql_text LIKE 'SELECT TABLE_NAME%';
+SET GLOBAL slow_query_log=@save_slow_query_log;
+SET GLOBAL log_output=@save_log_output;
+TRUNCATE mysql.slow_log;
+--enable_view_protocol
+--enable_ps_protocol
+DROP TABLE t1, t2, t3;
+
+--echo # End of 13.2 tests

@@ -3,6 +3,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
@@ -223,6 +224,50 @@ SELECT MIN(x.v1) FROM (SELECT t1.* FROM t1 WHERE t1.v1 >= 'p') x;
 drop table t1;
 
 --echo # End of 5.5 tests
+
+--echo #
+--echo # MDEV-42013 Assertion `!has_value' failed in Item_sum_any_value::update_field
+--echo #
+
+create table t (id int primary key, a int, b int, key(b)) engine=innodb;
+insert into t values (1,5,1),(2,50,1),(3,20,1),(4,40,2),(5,30,2),(6,35,2);
+
+analyze table t;
+explain select b, any_value(a) from t group by b;
+
+prepare s from 'select b, any_value(a) from t group by b';
+
+execute s;
+--echo 2nd execution
+execute s;
+insert into t select seq+10, seq%97, seq%3 from seq_1_to_3000;
+
+analyze table t;
+explain select b, any_value(a) from t group by b;
+
+execute s;
+--echo 2nd execution
+execute s;
+
+truncate table t;
+insert into t values (1,5,1),(2,50,1),(3,20,1),(4,40,2),(5,30,2),(6,35,2);
+analyze table t;
+
+create procedure p()
+  select b, any_value(a) from t group by b;
+
+call p();
+
+insert into t select seq+10, seq%97, seq%3 from seq_1_to_3000;
+analyze table t;
+call p();
+--echo 2nd execution
+call p();
+
+drop procedure p;
+drop table t;
+
+--echo # End of 12.3 tests
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

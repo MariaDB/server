@@ -1,0 +1,33 @@
+#
+# MDEV-41165: KILL / max_statement_time arriving after the WHERE
+# condition was evaluated must not be lost on the I_S fast path
+#
+CREATE TABLE t1 (a INT);
+# Fast path is used: rows are not written to the I_S temporary table
+FLUSH STATUS;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+TABLE_NAME
+t1
+SHOW SESSION STATUS LIKE 'Handler_tmp_write';
+Variable_name	Value
+Handler_tmp_write	0
+# KILL QUERY after the scan, before EOF is sent
+connect  con1,localhost,root,,test;
+SET debug_sync='i_s_fast_path_before_eof SIGNAL reached WAIT_FOR go';
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+connection default;
+SET debug_sync='now WAIT_FOR reached';
+KILL QUERY $id;
+SET debug_sync='now SIGNAL go';
+connection con1;
+ERROR 70100: Query execution was interrupted
+disconnect con1;
+connection default;
+SET debug_sync='RESET';
+# max_statement_time expiring after the scan, before EOF is sent
+SET debug_sync='i_s_fast_path_before_eof WAIT_FOR go TIMEOUT 2';
+SET STATEMENT max_statement_time=0.5 FOR SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test';
+ERROR 70100: Query was interrupted: execution time limit 0.5 sec exceeded
+SET debug_sync='RESET';
+DROP TABLE t1;
+# End of 13.2 tests

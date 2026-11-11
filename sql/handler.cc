@@ -5739,7 +5739,8 @@ bool non_existing_table_error(int error)
           error == HA_ERR_UNSUPPORTED ||
           error == ER_NO_SUCH_TABLE ||
           error == ER_NO_SUCH_TABLE_IN_ENGINE ||
-          error == ER_WRONG_OBJECT);
+          error == ER_WRONG_OBJECT ||
+          error == ER_UNKNOWN_SEQUENCES);
 }
 
 
@@ -7107,8 +7108,6 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
     found= plugin_foreach(thd, discover_handlerton,
                         MYSQL_STORAGE_ENGINE_PLUGIN, share);
 
-  if (thd->lex->query_tables && thd->lex->query_tables->sequence && !found)
-    my_error(ER_UNKNOWN_SEQUENCES, MYF(0),share->table_name.str);
   if (!found)
     open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
@@ -7354,7 +7353,8 @@ int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
       if (ret)
         return 1;
       ret= fk_truncate_illegal_if_parent(thd, table_list->table,
-                                         "CREATE OR REPLACE");
+                                         "CREATE OR REPLACE",
+                                         ER_DDL_ILLEGAL_FK);
       /* New opened tables are always first in the open list */
       DBUG_ASSERT(table_list->table == thd->open_tables);
       close_thread_table(thd, &thd->open_tables);
@@ -7362,7 +7362,8 @@ int ha_create_or_replace_table_not_allowed(THD *thd, handlerton *hton,
     }
     else
       ret= fk_truncate_illegal_if_parent(thd, table_list->table,
-                                         "CREATE OR REPLACE");
+                                         "CREATE OR REPLACE",
+                                         ER_DDL_ILLEGAL_FK);
   }
   return ret;
 }
