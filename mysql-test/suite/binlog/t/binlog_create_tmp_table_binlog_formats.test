@@ -1,0 +1,50 @@
+#
+# MDEV-39198: Starting MariaDB with --create-tmp-table-binlog-formats='' is silently accepted
+#
+
+--source include/have_log_bin.inc
+
+--echo #
+--echo # Test 1: Empty string should abort server startup with error (MDEV-39198)
+--echo #
+mkdir $MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats;
+let $TEST_LOG=$MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats/mysqltest.log;
+
+--error 1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats --skip-grant-tables --log-bin --create-tmp-table-binlog-formats= >$TEST_LOG 2>&1
+
+--let SEARCH_FILE=$TEST_LOG
+--let SEARCH_PATTERN=Error while setting value '' to 'create_tmp_table_binlog_formats'
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Test 2: Omitting STATEMENT (e.g. MIXED) emits warning and enforces STATEMENT
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats --skip-grant-tables --log-bin --create-tmp-table-binlog-formats=MIXED --help --verbose >>$TEST_LOG 2>&1
+
+--let SEARCH_FILE=$TEST_LOG
+--let SEARCH_PATTERN=Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Test 3: Valid values start cleanly without warning
+--echo #
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats --skip-grant-tables --log-bin --create-tmp-table-binlog-formats=STATEMENT --help --verbose >/dev/null 2>&1
+--exec $MYSQLD_BOOTSTRAP_CMD --skip-networking --datadir=$MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats --skip-grant-tables --log-bin --create-tmp-table-binlog-formats='MIXED,STATEMENT' --help --verbose >/dev/null 2>&1
+
+rmdir $MYSQLTEST_VARDIR/tmp/binlog_create_tmp_table_binlog_formats;
+
+--echo #
+--echo # Test 4: Restart with --create-tmp-table-binlog-formats=MIXED and verify @@global value
+--echo #
+CALL mtr.add_suppression("Truncated incorrect create_tmp_table_binlog_formats value: 'MIXED'");
+--let $restart_parameters=--create-tmp-table-binlog-formats=MIXED
+--source include/restart_mysqld.inc
+SELECT @@global.create_tmp_table_binlog_formats;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+
+--echo #
+--echo # End of test binlog_create_tmp_table_binlog_formats
+--echo #
