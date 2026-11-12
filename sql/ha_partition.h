@@ -360,6 +360,7 @@ private:
   uint m_tot_parts;                      // Total number of partitions;
   uint m_num_locks;                       // For engines like ha_blackhole, which needs no locks
   uint m_last_part;                      // Last file that we update,write,read
+  uint m_err_part;                       // Partition whose handler reported error
   part_id_range m_part_spec;             // Which parts to scan
   uint m_scan_value;                     // Value passed in rnd_init
                                          // call

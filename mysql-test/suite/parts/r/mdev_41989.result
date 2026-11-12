@@ -1,0 +1,17 @@
+#
+# MDEV-41989: Fix duplicate key error code on cross-partition update
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT) ENGINE=MyISAM PARTITION BY HASH (id) PARTITIONS 4;
+INSERT INTO t1 VALUES (1, 1), (2, 2);
+UPDATE t1 SET id = 2 WHERE id = 1;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+CREATE TABLE t2 (id INT PRIMARY KEY, a INT) ENGINE=Aria PARTITION BY HASH (id) PARTITIONS 4;
+INSERT INTO t2 VALUES (1, 1), (2, 2);
+UPDATE t2 SET id = 2 WHERE id = 1;
+ERROR 23000: Duplicate entry '2' for key 'PRIMARY'
+CREATE TABLE t3 (a INT, b INT, c INT, PRIMARY KEY (a, b), UNIQUE KEY uc (a, c)) ENGINE=MyISAM PARTITION BY HASH (a) PARTITIONS 4;
+INSERT INTO t3 VALUES (1, 1, 1), (2, 2, 1);
+INSERT INTO t3 VALUES (1, 1, 9) ON DUPLICATE KEY UPDATE a = 2;
+ERROR 23000: Duplicate entry '2-1' for key 'uc'
+DROP TABLE t1, t2, t3;
+End of 11.4 tests
