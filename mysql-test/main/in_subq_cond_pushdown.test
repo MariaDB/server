@@ -860,3 +860,38 @@ SELECT t3.i1 FROM t3
                                     GROUP BY i1 HAVING t.i1 < 3));
 
 DROP TABLE t1,t2,t3;
+
+--echo #
+--echo # MDEV-42222 ASAN heap-use-after-free in Item_str_conv::val_str / Item_func_str_to_date::get_date_common on 2nd execution of PS with condition pushdown into IN subquery
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(300));
+CREATE TABLE t2 (a VARCHAR(300), b INT);
+INSERT INTO t1 VALUES ('abc'),('abd'),('abe');
+INSERT INTO t2 VALUES ('abc',1),('abd',2),('abe',3),('abf',4);
+PREPARE s1 FROM "SELECT RTRIM(a), LENGTH(a) FROM t1 WHERE UPPER(a) <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+PREPARE s2 FROM "SELECT RTRIM(a), LENGTH(a) FROM t1 WHERE CAST(a AS CHAR CHARACTER SET utf8mb4) <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+EXECUTE s1;
+EXECUTE s2;
+# longer values need bigger buffers
+UPDATE t1 SET a= CONCAT(a, REPEAT(' ',200));
+EXECUTE s1;
+EXECUTE s2;
+DEALLOCATE PREPARE s1;
+DEALLOCATE PREPARE s2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a VARCHAR(300));
+CREATE TABLE t2 (a VARCHAR(300), b INT);
+INSERT INTO t1 VALUES ('{"k":"abc"}'),('{"k":"abd"}'),('{"k":"abe"}');
+INSERT INTO t2 VALUES ('{"k":"abc"}',1),('{"k":"abd"}',2),('{"k":"abe"}',3),('{"k":"abf"}',4);
+PREPARE s FROM "SELECT LENGTH(a) FROM t1 WHERE JSON_EXTRACT(a,'$.k') <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+EXECUTE s;
+# the comparison grows its buffer keeping the old content
+UPDATE t1 SET a= JSON_OBJECT('k', REPEAT('z',200)) WHERE a LIKE '%abc%';
+INSERT INTO t2 SELECT a, 5 FROM t1 WHERE LENGTH(a) > 200;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+DROP TABLE t1, t2;
+
+--echo # End of 10.11 tests

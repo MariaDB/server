@@ -4390,3 +4390,56 @@ i1
 2
 1
 DROP TABLE t1,t2,t3;
+#
+# MDEV-42222 ASAN heap-use-after-free in Item_str_conv::val_str / Item_func_str_to_date::get_date_common on 2nd execution of PS with condition pushdown into IN subquery
+#
+CREATE TABLE t1 (a VARCHAR(300));
+CREATE TABLE t2 (a VARCHAR(300), b INT);
+INSERT INTO t1 VALUES ('abc'),('abd'),('abe');
+INSERT INTO t2 VALUES ('abc',1),('abd',2),('abe',3),('abf',4);
+PREPARE s1 FROM "SELECT RTRIM(a), LENGTH(a) FROM t1 WHERE UPPER(a) <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+PREPARE s2 FROM "SELECT RTRIM(a), LENGTH(a) FROM t1 WHERE CAST(a AS CHAR CHARACTER SET utf8mb4) <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+EXECUTE s1;
+RTRIM(a)	LENGTH(a)
+abc	3
+abd	3
+abe	3
+EXECUTE s2;
+RTRIM(a)	LENGTH(a)
+abc	3
+abd	3
+abe	3
+UPDATE t1 SET a= CONCAT(a, REPEAT(' ',200));
+EXECUTE s1;
+RTRIM(a)	LENGTH(a)
+abc	203
+abd	203
+abe	203
+EXECUTE s2;
+RTRIM(a)	LENGTH(a)
+abc	203
+abd	203
+abe	203
+DEALLOCATE PREPARE s1;
+DEALLOCATE PREPARE s2;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a VARCHAR(300));
+CREATE TABLE t2 (a VARCHAR(300), b INT);
+INSERT INTO t1 VALUES ('{"k":"abc"}'),('{"k":"abd"}'),('{"k":"abe"}');
+INSERT INTO t2 VALUES ('{"k":"abc"}',1),('{"k":"abd"}',2),('{"k":"abe"}',3),('{"k":"abf"}',4);
+PREPARE s FROM "SELECT LENGTH(a) FROM t1 WHERE JSON_EXTRACT(a,'$.k') <> 'x' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+EXECUTE s;
+LENGTH(a)
+11
+11
+11
+UPDATE t1 SET a= JSON_OBJECT('k', REPEAT('z',200)) WHERE a LIKE '%abc%';
+INSERT INTO t2 SELECT a, 5 FROM t1 WHERE LENGTH(a) > 200;
+EXECUTE s;
+LENGTH(a)
+209
+11
+11
+DEALLOCATE PREPARE s;
+DROP TABLE t1, t2;
+# End of 10.11 tests

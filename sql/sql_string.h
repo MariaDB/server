@@ -338,13 +338,21 @@ public:
     extra_alloc= 0;
     alloced= thread_specific= 0;
   }
+  /*
+    A copy never shares a heap buffer with the original: it gets its own
+    copy of the data. If the original doesn't own its buffer, the copy
+    points to the same data and has no capacity.
+  */
   explicit Binary_string(const Binary_string &str)
   {
-    Ptr= str.Ptr;
-    str_length= str.str_length;
-    Alloced_length= str.Alloced_length;
-    extra_alloc= 0;
-    alloced= thread_specific= 0;
+    init_private_data();
+    if (str.alloced)
+      (void) copy(str);
+    else
+    {
+      Ptr= str.Ptr;
+      str_length= str.str_length;
+    }
   }
 
   ~Binary_string()
@@ -606,7 +614,8 @@ public:
         some_string = substring_of_that_string
       */
       DBUG_ASSERT(!s.uses_buffer_owned_by(this));
-      set_alloced((char *) s.Ptr, s.str_length, s.Alloced_length);
+      /* A view without capacity */
+      set_alloced((char *) s.Ptr, s.str_length, 0);
     }
     return *this;
   }
