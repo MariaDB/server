@@ -2,7 +2,7 @@ etc/mysql/mariadb.conf.d/wsrep_info.cnf
 debian/additions/mariadb.conf.d/60-galera.cnf etc/mysql/mariadb.conf.d
 usr/bin/galera_new_cluster
 usr/bin/galera_recovery
-usr/bin/wsrep_sst_common
+usr/share/mariadb/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync

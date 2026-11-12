@@ -329,12 +329,13 @@ ELSE()
     ENDFOREACH()
 
     # The following script is sourced from other SST scripts, so it should
-    # not be made executable.
+    # not be made executable. Install it to the shared data directory
+    # rather than bindir, since it is a function library, not a command.
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep_sst_common.sh
       ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_common ESCAPE_QUOTES @ONLY)
     INSTALL(FILES
       ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_common
-      DESTINATION ${INSTALL_BINDIR}
+      DESTINATION ${INSTALL_MYSQLSHAREDIR}
       COMPONENT server-galera
     )
   ENDIF()
