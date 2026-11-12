@@ -84,10 +84,10 @@ public:
   Longlong_null operator<<(const Longlong_null &llshift) const
   {
     ulonglong res;
-    uint shift;
+    ulonglong shift;
     if (is_null() || llshift.is_null())
       return Longlong_null();
-    shift= (uint) llshift.value();
+    shift= (ulonglong) llshift.value();
     res= 0;
     if (shift < sizeof(longlong) * 8)
       res= ((ulonglong) value()) << shift;
@@ -96,10 +96,10 @@ public:
   Longlong_null operator>>(const Longlong_null &llshift) const
   {
     ulonglong res;
-    uint shift;
+    ulonglong shift;
     if (is_null() || llshift.is_null())
       return Longlong_null();
-    shift= (uint) llshift.value();
+    shift= (ulonglong) llshift.value();
     res= 0;
     if (shift < sizeof(longlong) * 8)
       res= ((ulonglong) value()) >> shift;
