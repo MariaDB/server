@@ -6599,4 +6599,25 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '-9223372036854775809'
 DROP TABLE t1;
 SET @@sql_mode= @old_mode;
+#
+# MDEV-42222 ASAN heap-use-after-free in Item_str_conv::val_str / Item_func_str_to_date::get_date_common on 2nd execution of PS with condition pushdown into IN subquery
+#
+CREATE TABLE t1 (a VARCHAR(300)) CHARACTER SET ucs2;
+CREATE TABLE t2 (a VARCHAR(300), b INT) CHARACTER SET ucs2;
+INSERT INTO t1 VALUES ('1 March 2010'),('2 March 2010'),('3 March 2010');
+INSERT INTO t2 VALUES ('1 March 2010',1),('2 March 2010',2),('3 March 2010',3),('4 March 2010',4);
+PREPARE s FROM "SELECT RTRIM(a), CHAR_LENGTH(a) FROM t1 WHERE STR_TO_DATE(a,'%e %M %Y') > '2000-01-01' AND a IN (SELECT a FROM t2 GROUP BY a HAVING MAX(b) > 0)";
+EXECUTE s;
+RTRIM(a)	CHAR_LENGTH(a)
+1 March 2010	12
+2 March 2010	12
+3 March 2010	12
+UPDATE t1 SET a= CONCAT(a, REPEAT(' ',200));
+EXECUTE s;
+RTRIM(a)	CHAR_LENGTH(a)
+1 March 2010	212
+2 March 2010	212
+3 March 2010	212
+DEALLOCATE PREPARE s;
+DROP TABLE t1, t2;
 # End of 10.11 tests

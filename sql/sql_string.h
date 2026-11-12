@@ -338,13 +338,21 @@ public:
     extra_alloc= 0;
     alloced= thread_specific= 0;
   }
+  /* Copy an owned buffer, keeping mark_as_const(); else point, no capacity */
   explicit Binary_string(const Binary_string &str)
   {
-    Ptr= str.Ptr;
-    str_length= str.str_length;
-    Alloced_length= str.Alloced_length;
-    extra_alloc= 0;
-    alloced= thread_specific= 0;
+    init_private_data();
+    if (str.alloced)
+    {
+      (void) copy(str);
+      if (!str.Alloced_length)
+        mark_as_const();
+    }
+    else
+    {
+      Ptr= str.Ptr;
+      str_length= str.str_length;
+    }
   }
 
   ~Binary_string()
@@ -606,7 +614,8 @@ public:
         some_string = substring_of_that_string
       */
       DBUG_ASSERT(!s.uses_buffer_owned_by(this));
-      set_alloced((char *) s.Ptr, s.str_length, s.Alloced_length);
+      /* Point to the data of s, without capacity */
+      set_alloced((char *) s.Ptr, s.str_length, 0);
     }
     return *this;
   }

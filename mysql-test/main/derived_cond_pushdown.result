@@ -21816,4 +21816,15 @@ select * from (select a, b from t1 group by a, b) d where interval(d.a, 3, 7) = 
 a	b
 5	20
 drop table t1;
+#
+# MDEV-42222 Copy of a constant string in a pushed condition is written in place
+#
+CREATE TABLE t1 (n INT, c VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (1,'x'),(4,'x');
+SELECT * FROM (SELECT n, c FROM t1 GROUP BY n, c) dt
+WHERE RPAD(_utf8mb4'ab', dt.n, dt.c) IN ('a','abxx');
+n	c
+1	x
+4	x
+DROP TABLE t1;
 # End of 10.11 tests

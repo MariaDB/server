@@ -4993,15 +4993,12 @@ Item *Item_param::value_clone_item(THD *thd) const
   case DECIMAL_RESULT:
     return 0; // Should create Item_decimal. See MDEV-11361.
   case STRING_RESULT:
-  {
-    String value_copy = value.m_string; // to preserve constness of the func
     return new (mem_root) Item_string(thd, name,
-                                      Lex_cstring(value_copy.ptr(),
-                                                  value_copy.length()),
-                                      value_copy.charset(),
+                                      Lex_cstring(value.m_string.ptr(),
+                                                  value.m_string.length()),
+                                      value.m_string.charset(),
                                       collation.derivation,
                                       collation.repertoire);
-  }
   case TIME_RESULT:
     break;
   case ROW_RESULT:
