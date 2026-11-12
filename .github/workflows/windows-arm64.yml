@@ -54,6 +54,50 @@ jobs:
           $b = [IO.File]::ReadAllBytes($p)
           'perl.exe PE machine: {0:X4}' -f [BitConverter]::ToUInt16($b, [BitConverter]::ToInt32($b, 0x3C) + 4)
 
+      - name: Address space and memory probe
+        continue-on-error: true
+        run: |
+          Get-CimInstance Win32_OperatingSystem | Format-List TotalVisibleMemorySize, FreePhysicalMemory, TotalVirtualMemorySize, FreeVirtualMemory
+          Get-CimInstance Win32_PageFileUsage | Format-List Name, AllocatedBaseSize, CurrentUsage
+          "pwsh process architecture: " + [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
+          Add-Type @'
+          using System;
+          using System.Runtime.InteropServices;
+          public static class VA {
+            [DllImport("kernel32.dll", SetLastError=true)]
+            public static extern IntPtr VirtualAlloc(IntPtr a, UIntPtr s, uint t, uint p);
+            [DllImport("kernel32.dll", SetLastError=true)]
+            public static extern bool VirtualFree(IntPtr a, UIntPtr s, uint t);
+          }
+          '@
+          $RESERVE = 0x2000; $COMMIT = 0x1000; $RW = 4
+          function Reserve($bytes) {
+            $p = [VA]::VirtualAlloc([IntPtr]::Zero, [UIntPtr][uint64]$bytes, $RESERVE, $RW)
+            $err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            return @($p, $err)
+          }
+          # Single reservations of increasing size (released at process exit)
+          foreach ($tb in 1,2,4,8,16,32,64,100,120) {
+            $r = Reserve ([uint64]$tb * 1TB)
+            "reserve {0,4} TiB: {1} (err {2})" -f $tb, $(if ($r[0] -ne [IntPtr]::Zero) {'ok'} else {'FAILED'}), $r[1]
+            if ($r[0] -ne [IntPtr]::Zero) { [void][VA]::VirtualFree($r[0], [UIntPtr]::Zero, 0x8000) }
+          }
+          # Several 8 TiB reservations, as with parallel mysqld servers, then
+          # ordinary committed allocations afterwards
+          $held = @()
+          foreach ($i in 1..4) {
+            $r = Reserve (8TB)
+            "8 TiB reservation #{0}: {1} (err {2})" -f $i, $(if ($r[0] -ne [IntPtr]::Zero) {'ok'} else {'FAILED'}), $r[1]
+            $held += $r[0]
+          }
+          $okc = 0; $firsterr = 0
+          foreach ($i in 1..200) {
+            $p = [VA]::VirtualAlloc([IntPtr]::Zero, [UIntPtr][uint64]64MB, $RESERVE -bor $COMMIT, $RW)
+            if ($p -eq [IntPtr]::Zero) { $firsterr = [Runtime.InteropServices.Marshal]::GetLastWin32Error(); break }
+            $okc++
+          }
+          "committed 64 MiB chunks after reservations: $okc of 200 (first error $firsterr)"
+
       - name: Test MTR
         run: |
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
@@ -67,8 +111,25 @@ jobs:
           "MTR_CIDIR=$cidir" >> $env:GITHUB_ENV
           # mtr_error() also appends its message here
           $env:MTR_ERROR_LOG = "$cidir/mtr-error.log"
-          perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb,parts --vardir=$cidir/var --skip-rpl --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync --skip-test=innodb-virtual-columns
-          $rc = $LASTEXITCODE
+          # Background memory sampler: commit charge/limit and per-process memory
+          @'
+          param($out)
+          while ($true) {
+            $c = (Get-Counter '\Memory\Committed Bytes','\Memory\Commit Limit','\Memory\Available MBytes' -ErrorAction SilentlyContinue).CounterSamples.CookedValue
+            $procs = (Get-Process perl,mariadbd,mysqld,mariadb-test,mysqltest -ErrorAction SilentlyContinue |
+              ForEach-Object { '{0}:{1}:{2}MB' -f $_.ProcessName, $_.Id, [int]($_.PrivateMemorySize64 / 1MB) }) -join ' '
+            '{0:HH:mm:ss} committed={1}MB limit={2}MB avail={3}MB {4}' -f (Get-Date), [int]($c[0]/1MB), [int]($c[1]/1MB), [int]$c[2], $procs |
+              Add-Content -Path $out
+            Start-Sleep -Seconds 5
+          }
+          '@ | Set-Content "$cidir/sampler.ps1"
+          $sampler = Start-Process pwsh -ArgumentList '-NoProfile','-File',"$cidir/sampler.ps1","$cidir/mem-samples.log" -PassThru -WindowStyle Hidden
+          try {
+            perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb,parts --vardir=$cidir/var --skip-rpl --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync --skip-test=innodb-virtual-columns
+            $rc = $LASTEXITCODE
+          } finally {
+            Stop-Process -Id $sampler.Id -Force -ErrorAction SilentlyContinue
+          }
           Write-Host "mtr exit code: $rc"
           exit $rc
 
@@ -77,6 +138,11 @@ jobs:
         run: |
           $cidir = $env:MTR_CIDIR
           if (Test-Path "$cidir/mtr-error.log") { "=== mtr-error.log"; Get-Content "$cidir/mtr-error.log" }
+          if (Test-Path "$cidir/mem-samples.log") { "=== mem-samples.log (last 40)"; Get-Content "$cidir/mem-samples.log" -Tail 40 }
+          "=== memory-related messages in logs"
+          Get-ChildItem "$cidir/var" -Recurse -Include *.log,*.err -ErrorAction SilentlyContinue |
+            Select-String -Pattern 'Cannot map innodb_buffer_pool_size_max|Out of memory|EE_OUTOFMEMORY|Cannot allocate memory|not enough memory' -ErrorAction SilentlyContinue |
+            Select-Object -First 20 | ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line)" }
           # Tails of the most recently written logs
           Get-ChildItem "$cidir/var" -Recurse -Include *.log,*.err -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTime -Descending | Select-Object -First 6 |
@@ -94,6 +160,7 @@ jobs:
           name: mtr-logs
           path: |
             ${{ env.MTR_CIDIR }}/mtr-error.log
+            ${{ env.MTR_CIDIR }}/mem-samples.log
             ${{ env.MTR_CIDIR }}/var/log
             ${{ env.MTR_CIDIR }}/var/*/log
           if-no-files-found: ignore
