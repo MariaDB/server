@@ -590,4 +590,19 @@ flush tables;
 select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-41860 Vector datatype returns in protocol as VAR_STRING without vector hints
+--echo #
+
+--disable_ps_protocol
+--disable_view_protocol
+--enable_metadata
+# removing the binary output, but ^select,^def and ^v header left as is
+# it overwrites most metadata by really only type=vector is important
+--replace_regex /^[^dvs].*/BINARY/
+select vec_fromtext('[1]') as v;
+--disable_metadata
+--enable_view_protocol
+--enable_ps_protocol
+
 --echo # End of 11.8 tests
