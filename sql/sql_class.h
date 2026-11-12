@@ -566,12 +566,10 @@ struct Query_cache_tls
     functions and methods to maintain proper locking.
   */
   Query_cache_block *first_query_block;
-  void set_first_query_block(Query_cache_block *first_query_block_arg)
-  {
-    first_query_block= first_query_block_arg;
-  }
+  /* Query_cache::m_cache_generation when first_query_block was set */
+  ulonglong cache_generation;
 
-  Query_cache_tls() :first_query_block(NULL) {}
+  Query_cache_tls() :first_query_block(NULL), cache_generation(0) {}
 };
 
 /* SIGNAL / RESIGNAL / GET DIAGNOSTICS */
