@@ -449,3 +449,20 @@ drop view db1.v1;
 drop table db1.t1;
 drop database db1;
 set optimizer_trace="enabled=off";
+#
+# MDEV-42216: Optimizer Trace shows INSUFFICIENT_PRIVILEGES for sequences
+#
+use test;
+create sequence s1;
+select setval(s1, 10);
+setval(s1, 10)
+10
+set optimizer_trace=1;
+select nextval(s1) as nv;
+nv
+11
+select insufficient_privileges from information_schema.optimizer_trace;
+insufficient_privileges
+0
+drop sequence s1;
+set optimizer_trace=default;

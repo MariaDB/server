@@ -266,6 +266,23 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
     if (!t->is_anonymous_derived_table() &&
         !t->table_function)
     {
+      /*
+        Do not check permissions for sequences.
+        This only covers sequences used through NEXTVAL(seq), CURVAL, etc.
+        If a sequence is used as a table (SELECT ... FROM seq), it will have
+        t->sequence=0.
+        When sequence is used through NEXTVAL(seq) and co, its permission check
+        uses special logic and is done at a later phase in Item_func_nextval::
+        fix_fields().
+        The logic below tries to do a stronger check than normally required by
+        the query: it requires per-table (not per-column) SELECT privilege.
+        The check fails for sequences as check_table_access(sequence) doesn't
+        update t->grant.privilege as the condition below expects it to.
+        Per-table vs per-column distinction doesn't exist for sequences.
+      */
+      if (t->sequence)
+        continue;
+
       const GRANT_INFO backup_grant_info= t->grant;
       Security_context *const backup_table_sctx= t->security_ctx;
       t->security_ctx= NULL;
