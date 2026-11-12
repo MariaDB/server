@@ -43,6 +43,17 @@ jobs:
           cmake .. -DWITH_SSL=bundled
           cmake --build . --config RelWithDebinfo --verbose -- -m
 
+      - name: Perl info
+        run: |
+          $env:PATH = "C:\Strawberry\perl\bin;$env:PATH"
+          (Get-Command perl).Source
+          perl -v
+          perl -V:archname
+          # PE machine type of perl.exe: 8664 = x64 (emulated here), AA64 = ARM64
+          $p = (Get-Command perl).Source
+          $b = [IO.File]::ReadAllBytes($p)
+          'perl.exe PE machine: {0:X4}' -f [BitConverter]::ToUInt16($b, [BitConverter]::ToInt32($b, 0x3C) + 4)
+
       - name: Test MTR
         run: |
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
@@ -53,4 +64,37 @@ jobs:
           $cidir = "$tmp/ci"
           mkdir $cidir
           fsutil file setCaseSensitiveInfo $cidir enable
+          "MTR_CIDIR=$cidir" >> $env:GITHUB_ENV
+          # mtr_error() also appends its message here
+          $env:MTR_ERROR_LOG = "$cidir/mtr-error.log"
           perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb,parts --vardir=$cidir/var --skip-rpl --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync --skip-test=innodb-virtual-columns
+          $rc = $LASTEXITCODE
+          Write-Host "mtr exit code: $rc"
+          exit $rc
+
+      - name: MTR diagnostics
+        if: failure()
+        run: |
+          $cidir = $env:MTR_CIDIR
+          if (Test-Path "$cidir/mtr-error.log") { "=== mtr-error.log"; Get-Content "$cidir/mtr-error.log" }
+          # Tails of the most recently written logs
+          Get-ChildItem "$cidir/var" -Recurse -Include *.log,*.err -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 6 |
+            ForEach-Object { "=== $($_.FullName) ($($_.LastWriteTime))"; Get-Content $_ -Tail 30 }
+          # Crashes or errors of the involved processes during the run
+          Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddHours(-2)} -ErrorAction SilentlyContinue |
+            Where-Object { $_.Message -match 'perl|mysqld|mariadbd|mysqltest|mariadb-test|safe_process' } |
+            Select-Object -First 10 | Format-List TimeCreated, ProviderName, Message
+          Get-Process perl,mariadbd,mysqld,mariadb-test,safe_process -ErrorAction SilentlyContinue | Format-Table Id, ProcessName, StartTime
+
+      - name: Upload MTR logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mtr-logs
+          path: |
+            ${{ env.MTR_CIDIR }}/mtr-error.log
+            ${{ env.MTR_CIDIR }}/var/log
+            ${{ env.MTR_CIDIR }}/var/*/log
+          if-no-files-found: ignore
+          retention-days: 7

@@ -716,6 +716,14 @@ sub mtr_error (@) {
     "mysql-test-run: *** ERROR: ". join(" ", @_). "\n";
   if (IS_WINDOWS)
   {
+    # Optional side channel for CI, in case the console message is lost.
+    if (defined $ENV{MTR_ERROR_LOG} and
+        open(my $elog, '>>', $ENV{MTR_ERROR_LOG}))
+    {
+      print $elog _name(). _timestamp(). "mysql-test-run: *** ERROR: ".
+            join(" ", @_). "\n";
+      close($elog);
+    }
     # _exit() skips stdio flush; don't lose the buffered output.
     STDOUT->flush();
     STDERR->flush();
