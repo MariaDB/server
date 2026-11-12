@@ -129,3 +129,24 @@ f1	f2
 drop table t2;
 show tables;
 Tables_in_test
+#
+# MDEV-41719 : SIGSEGV in dict_load_virtual_col() with innodb_force_recovery=6
+#
+CREATE TABLE t1 (a INT, b INT AS (a) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT, FOREIGN KEY (a) REFERENCES t2(a)) ENGINE=InnoDB;
+# restart
+ALTER TABLE t1 RENAME COLUMN b TO c;
+# Kill the server
+# restart: --innodb-force-recovery=6
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+# restart
+DROP TABLE t1, t2;

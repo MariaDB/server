@@ -1631,33 +1631,29 @@ dberr_t srv_start(bool create_new_db)
 				return(srv_init_abort(DB_CORRUPTION));
 			}
 
-			if (srv_operation != SRV_OPERATION_RESTORE
-			    || recv_needed_recovery) {
+			DBUG_PRINT("ib_log", ("apply completed"));
+		}
+
+		if (srv_operation != SRV_OPERATION_RESTORE) {
+			err = srv_load_tables(must_upgrade_ibuf);
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
 			}
 
-			DBUG_PRINT("ib_log", ("apply completed"));
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 
-			if (srv_operation != SRV_OPERATION_RESTORE) {
-				err = srv_load_tables(must_upgrade_ibuf);
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
-
-				err = trx_lists_init_at_db_start();
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
-
-				if (recv_needed_recovery) {
-					trx_sys_print_mysql_binlog_offset();
-				}
-			} else if (recv_needed_recovery) {
-				err = trx_lists_init_at_db_start();
-				if (err != DB_SUCCESS) {
-					return srv_init_abort(err);
-				}
+			if (recv_needed_recovery) {
 				trx_sys_print_mysql_binlog_offset();
 			}
+		} else if (recv_needed_recovery) {
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
+			trx_sys_print_mysql_binlog_offset();
 		}
 
 		fil_system.space_id_reuse_warned = false;
