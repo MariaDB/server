@@ -1,0 +1,140 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-35154 dict_sys_t::load_table() is holding exclusive dict_sys.latch for unnecessarily long time
+--echo #
+
+# Loading a table definition into the dictionary cache must not hold
+# the exclusive dict_sys.latch during the I/O phase. A table whose
+# definition is being loaded is published as an incomplete stub;
+# other openers of the same table wait for the load to complete,
+# while any other table can be opened (and loaded) concurrently.
+
+# STATS_PERSISTENT=0 keeps the background statistics thread from
+# reloading the evicted table definitions behind our back.
+CREATE TABLE t1(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(2);
+
+# Evict t1 and t2 from the dictionary cache: at XA COMMIT, the
+# modified tables are evicted if no table handles are open, which
+# FLUSH TABLES between XA PREPARE and XA COMMIT guarantees. The
+# FLUSH must be issued from another connection, because a session
+# with a prepared XA transaction refuses other statements. The
+# prepared transaction's own table lock protects the tables from
+# LRU eviction until the commit.
+SET @save_evict= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+SET GLOBAL innodb_evict_tables_on_commit_debug=ON;
+XA START 'x';
+INSERT INTO t1 VALUES(2);
+INSERT INTO t2 VALUES(3);
+XA END 'x';
+XA PREPARE 'x';
+
+connect con1,localhost,root,,;
+FLUSH TABLES;
+
+connection default;
+XA COMMIT 'x';
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_evict;
+
+connection con1;
+SET DEBUG_SYNC = 'dict_load_table_one_no_latch SIGNAL loading WAIT_FOR go TIMEOUT 30';
+send SELECT * FROM t1;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR loading TIMEOUT 30';
+
+# con1 is parked inside the load of t1 while holding no dict_sys.latch.
+# Loading another table must not block. (Before this change, the
+# following statement would hang until the load of t1 completed.)
+SELECT * FROM t2;
+
+connect con2,localhost,root,,;
+send SELECT * FROM t1;
+
+connection default;
+# con2 must wait for the load of t1 (it observes the loading stub);
+# con1 is parked at the DEBUG_SYNC point (state 'debug sync point:
+# ...'), so exactly one session is waiting in 'Opening tables'.
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE state = 'Opening tables' AND info = 'SELECT * FROM t1';
+--source include/wait_condition.inc
+
+SET DEBUG_SYNC = 'now SIGNAL go';
+
+connection con1;
+reap;
+connection con2;
+reap;
+connection default;
+SET DEBUG_SYNC = RESET;
+DROP TABLE t1, t2;
+
+#
+# A table must not become visible while a table that is related to
+# it by a FOREIGN KEY constraint is still being loaded by another
+# thread: the constraint would be missing from referenced_set.
+#
+CREATE TABLE parent(a INT PRIMARY KEY) STATS_PERSISTENT=0 ENGINE=InnoDB;
+CREATE TABLE child(a INT PRIMARY KEY,
+                   FOREIGN KEY(a) REFERENCES parent(a))
+STATS_PERSISTENT=0 ENGINE=InnoDB;
+INSERT INTO parent VALUES(1);
+INSERT INTO child VALUES(1);
+
+SET GLOBAL innodb_evict_tables_on_commit_debug=ON;
+XA START 'y';
+INSERT INTO parent VALUES(2);
+INSERT INTO child VALUES(2);
+XA END 'y';
+XA PREPARE 'y';
+
+connection con1;
+FLUSH TABLES;
+
+connection default;
+XA COMMIT 'y';
+SET GLOBAL innodb_evict_tables_on_commit_debug=@save_evict;
+
+# Park inside the load of the child table.
+connection con1;
+SET DEBUG_SYNC = 'dict_load_table_one_no_latch SIGNAL child_loading WAIT_FOR child_go TIMEOUT 30';
+send SELECT * FROM child;
+
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR child_loading TIMEOUT 30';
+# Loading the parent finds the constraint in SYS_FOREIGN, but the child
+# is still an incomplete stub, so the constraint cannot be linked yet.
+# The parent must not become visible before the child has been loaded.
+send SELECT * FROM parent;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE state = 'Opening tables' AND info = 'SELECT * FROM parent';
+--source include/wait_condition.inc
+
+SET DEBUG_SYNC = 'now SIGNAL child_go';
+
+connection con1;
+reap;
+connection con2;
+reap;
+
+connection default;
+# The constraint was linked into parent->referenced_set before the
+# parent became visible.
+--error ER_ROW_IS_REFERENCED_2
+DELETE FROM parent WHERE a=1;
+
+disconnect con1;
+disconnect con2;
+SET DEBUG_SYNC = RESET;
+DROP TABLE child, parent;
+--source include/wait_until_count_sessions.inc
