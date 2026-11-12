@@ -339,6 +339,7 @@ int simple_str_key_cmp(void *arg, const void *key1, const void *key2);
 extern Item **not_found_item;
 extern Field *not_found_field;
 extern Field *view_ref_found;
+extern Field *field_fix_error;
 
 /**
   clean/setup table fields and map.
