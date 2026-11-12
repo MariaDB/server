@@ -2466,14 +2466,20 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
       over the manager's tabs and holds the manager's buffer; the worker gets
       a new one of the same kind over its own tabs, so that what it stores
       and reads back are the fields of its own table copies, chained to the
-      previous tab's buffer the way the manager's is. init() sizes and
-      allocates it through the cache's JOIN, this worker's, whose THD carries
-      the session's join_buffer_size, so every worker gets a buffer of the
-      session's size. The tab before it is then pointed at the buffer rather
-      than at the nested loop (sub_select_cache()), which fills the buffer
-      row by row and flushes it when full and on the end-of-records call the
-      worker's driver makes. Last, because init() walks the worker's tabs up
-      to this one and reads their tables and conditions.
+      previous tab's buffer the way the manager's is. The tab before it is
+      then pointed at the buffer rather than at the nested loop
+      (sub_select_cache()), which fills the buffer row by row and flushes it
+      when full and on the end-of-records call the worker's driver makes.
+
+      Only the object is built here. init(), which sizes the buffer and
+      allocates it along with the field descriptors, runs on the worker's
+      thread (execute_and_handoff()): it allocates through the cache's JOIN,
+      this worker's, so its memory lands on the worker's THD, and a
+      thread-specific allocation is charged to the thread that makes it and
+      credited to the one that frees it. Made here, by the manager's thread,
+      and freed by the worker's (close_tables(), and the worker THD's mem_root
+      at its teardown) the two THDs' memory counts would each be off by the
+      buffer, which ~THD asserts on in a debug build.
     */
     wtab->cache= nullptr;
     if (mtab->cache)
@@ -2494,7 +2500,7 @@ bool pwt_manager::setup_worker_jointabs(THD *thd, pwt_worker *worker)
         DBUG_ASSERT(0);                       // the gate refuses BKA and BKAH
         return true;
       }
-      if (!wtab->cache || wtab->cache->init(false))
+      if (!wtab->cache)
         return true;
       wtab[-1].next_select= sub_select_cache;
       /* The buffer's own counters, summed into the manager's by quiesce_workers(). */
@@ -3068,6 +3074,22 @@ int pwt_worker::execute_and_handoff()
              "parallel worker: cannot read the manager's snapshot");
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
   }
+
+  /*
+    Size and allocate our join buffers, here rather than where the manager
+    built the cache objects (setup_worker_jointabs()), so the thread that
+    allocates them is the one that frees them: the buffer in close_tables(),
+    the field descriptors with this THD's mem_root. In tab order, since a
+    buffer chained to the previous tab's reads that one's layout. Nothing is
+    locked yet, so there is nothing to undo on failure.
+  */
+  for (i= 1; i < nt; i++)
+    if (exec.jointabs[i].cache && exec.jointabs[i].cache->init(false))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0),
+               (int) thd->variables.join_buff_size);
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
 
   /*
     Our handles bypassed lock_tables(), so take the engine-level read lock on
