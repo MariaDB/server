@@ -2639,12 +2639,9 @@ loop:
       if (page ||
           !(err= backup_stream_start(stream, name, 0644,
                                      physical_size, chunk, n_chunk)))
-      {
         err= backup::append(node->handle, stream,
                             uint64_t{page} * page_size,
                             uint64_t{last} * page_size);
-        page= last;
-      }
     }
     else
     {
@@ -2655,7 +2652,7 @@ loop:
       constexpr size_t sz{1U << 20};
       if (void *zerofill= calloc(sz, 1))
       {
-        uint64_t size= (limit - page) * page_size;
+        uint64_t size= uint64_t{last - page} * page_size;
         do
         {
           const size_t s= size < uint64_t{sz} ? size_t(size) : sz;
@@ -2672,6 +2669,7 @@ loop:
     backup_batch_stop(node->space, blocks, end);
     if (err)
       goto fail;
+    page= last;
   }
   while (page < limit);
 
