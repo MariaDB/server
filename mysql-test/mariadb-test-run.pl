@@ -989,8 +989,9 @@ package main;
 sub run_worker ($) {
   my ($server_port, $thread_num)= @_;
 
-  $SIG{INT}= sub { exit(1); };
-  $SIG{HUP}= sub { exit(1); };
+  # Distinct exit codes (70 is mtr_error on Windows) to tell the paths apart.
+  $SIG{INT}= sub { exit(71); };
+  $SIG{HUP}= sub { exit(72); };
 
   # Connect to server
   my $server = new IO::Socket::INET
@@ -1097,7 +1098,7 @@ sub run_worker ($) {
 
   stop_all_servers();
 
-  exit(1);
+  exit(73);
 }
 
 

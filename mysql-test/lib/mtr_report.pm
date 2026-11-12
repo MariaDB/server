@@ -716,7 +716,10 @@ sub mtr_error (@) {
     "mysql-test-run: *** ERROR: ". join(" ", @_). "\n";
   if (IS_WINDOWS)
   {
-    POSIX::_exit(1);
+    # _exit() skips stdio flush; don't lose the buffered output.
+    STDOUT->flush();
+    STDERR->flush();
+    POSIX::_exit(70);
   }
   else
   {
