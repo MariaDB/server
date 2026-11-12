@@ -181,6 +181,9 @@ static const char* fts_config_table_insert_values_sql =
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
+	ulint*		next_pos;	/*!< Lowest position for the next
+					token of a parser plugin
+					(fts_doc_t::parser_pos) */
 };
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -4574,11 +4577,20 @@ fts_tokenize_add_word_for_parser(
 	str.f_n_char = fts_get_token_size(
 		const_cast<CHARSET_INFO*>(param->cs), word, str.f_len);
 
-	/* JAN: TODO: MySQL 5.7 FTS
-	ut_ad(boolean_info->position >= 0);
-	position = boolean_info->position + fts_param->add_pos;
-	*/
-	position = fts_param->add_pos++;
+	/* The plugin API has no token position. Phrase search
+	(fts_query_match_phrase()) treats positions as byte offsets
+	into the document, as the built-in tokenizer stores them, so
+	use the offset of the word when it points into the document.
+	The positions of a document must keep increasing (MDEV-24088),
+	so a word that the parser built elsewhere, or one that does not
+	come after the previous token, gets the position after the
+	previous token. */
+	position = fts_param->add_pos;
+	if (word >= param->doc && word < param->doc + param->length) {
+		position += ulint(word - param->doc);
+	}
+	position = std::max(position, *fts_param->next_pos);
+	*fts_param->next_pos = position + 1;
 
 	fts_add_token(result_doc, str, position);
 
@@ -4635,6 +4647,8 @@ fts_tokenize_document(
 		fts_tokenize_param_t	fts_param;
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = 0;
+		doc->parser_pos = 0;
+		fts_param.next_pos = &doc->parser_pos;
 
 		fts_tokenize_by_parser(doc, parser, &fts_param);
 	} else {
@@ -4667,6 +4681,7 @@ fts_tokenize_document_next(
 
 		fts_param.result_doc = (result != NULL) ? result : doc;
 		fts_param.add_pos = add_pos;
+		fts_param.next_pos = &doc->parser_pos;
 
 		fts_tokenize_by_parser(doc, parser, &fts_param);
 	} else {

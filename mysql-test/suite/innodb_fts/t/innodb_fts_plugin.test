@@ -227,3 +227,16 @@ DROP TABLE articles;
 # Uninstall plugin
 -- error ER_SP_DOES_NOT_EXIST
 UNINSTALL PLUGIN simple_parser;
+
+--echo #
+--echo # MDEV-35967 Server crashes when creating a fulltext index with
+--echo #            simple_parser plugin
+--echo #
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t (title CHAR, body TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES ('a', 'xyz xyz'), ('b', 'xyz uvw xyz uvw');
+ALTER TABLE t ADD FULLTEXT INDEX (title, body) WITH PARSER simple_parser;
+--sorted_result
+SELECT * FROM t WHERE MATCH(title, body) AGAINST('xyz');
+DROP TABLE t;
+UNINSTALL PLUGIN simple_parser;
