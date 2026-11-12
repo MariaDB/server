@@ -2196,6 +2196,14 @@ END;
 $$
 DELIMITER ;$$
 
---echo #
 --echo # End of 11.7 tests
+
 --echo #
+--echo # MDEV-42218 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db on a column reference qualified with `#mysql50#` database
+--echo #
+--error ER_WRONG_DB_NAME
+select `#mysql50#a`.b.c;
+--error ER_WRONG_DB_NAME
+select `#mysql50#a`.b.*;
+
+--echo # End of 11.8 tests

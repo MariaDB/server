@@ -8961,6 +8961,8 @@ Item *LEX::create_item_ident(THD *thd,
 {
   Lex_ident_sys_st schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
                            Lex_ident_sys() : *a;
+  if (schema.length && Lex_ident_db::check_name_with_error(schema))
+    return NULL;
   if ((thd->variables.sql_mode & MODE_ORACLE) && c->length == 7)
   {
     if (Lex_ident_column(*c).streq("NEXTVAL"_Lex_ident_column))
@@ -10454,6 +10456,8 @@ Item *LEX::create_item_qualified_asterisk(THD *thd,
   Item *item;
   Lex_ident_sys_st schema= thd->client_capabilities & CLIENT_NO_SCHEMA ?
                            Lex_ident_sys() : *a;
+  if (schema.length && Lex_ident_db::check_name_with_error(schema))
+    return NULL;
   if (!(item= new (thd->mem_root) Item_field(thd, current_context(),
                                              schema, *b, star_clex_str)))
    return NULL;

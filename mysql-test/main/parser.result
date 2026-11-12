@@ -2368,6 +2368,12 @@ END;
 $$
 nocopy
 1
-#
 # End of 11.7 tests
 #
+# MDEV-42218 Assertion `is_null() || is_empty() || !check_name(*this)' failed in Lex_ident_db::Lex_ident_db on a column reference qualified with `#mysql50#` database
+#
+select `#mysql50#a`.b.c;
+ERROR 42000: Incorrect database name '#mysql50#a'
+select `#mysql50#a`.b.*;
+ERROR 42000: Incorrect database name '#mysql50#a'
+# End of 11.8 tests
