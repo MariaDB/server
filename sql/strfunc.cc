@@ -236,71 +236,127 @@ void unhex_type2(TYPELIB *interval)
 
   SYNOPSIS
     check_word()
-    cs           Character set
+    cs           Character set, utf8mb4_general_ci (as names in sql_locale.cc)
     lib          TYPELIB
     val          String to check
     end          End of input
     end_of_word  points to the first character after the matched string
+    complete     if not NULL, set to whether a complete name matched;
+                 then an ambiguous match also sets end_of_word and complete,
+                 and returns 0
 
   NOTES
-    works for multi-byte characters
-  - matches the longest prefix, whether it's letters, digits or punctuation
-    (e.g. see month names for Japanese and Vietnamese)
-  - cs is utf8mb4_general_ci, because that's the charset of strings in sql_locale.cc
-    If multiple entries match as prefixes of the same length, the result is
-    considered ambiguous (returns 0) unless one of them is an exact match.
+    A name can consist of letters, digits, punctuation and spaces
+    (e.g. see month names for Japanese and Vietnamese).
+  - A complete name matches whatever follows it, except as below.
+  - A prefix of a name matches only if it is not followed by a letter
+    or a multi-byte character.
+  - Combining marks U+0300..U+036F are ignored in names, and in the
+    value after a letter (vi_VN names are partly decomposed).
+  - No match ends between two digits (in vi_VN the name of month 1
+    is the name of month 12 without the last digit).
+  - The longest match wins. Of matches of the same length a complete name
+    is preferred to a prefix, and of complete names the one that is also
+    equal accent-sensitively. Otherwise matches of the same length are
+    ambiguous: prefixes are ignored then, complete names give no match.
 
   RETURN
-    0  No matching value
+    0  No match, or an ambiguous one (see complete)
     > 0  lib->type_names[#-1] matched
-   end_of_word will point to separator character/end in 'val'
 */
 
 uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
-                const char *end, const char **end_of_word)
+                const char *end, const char **end_of_word, bool *complete)
 {
-  uint prefix_match= 0, prefix_len= 0, exact= 0;
+  CHARSET_INFO *as_ci= &my_charset_utf8mb4_general1400_as_ci;
+  uint full= 0, full_len= 0, part= 0, part_len= 0;
+  bool full_exact= false, full_ambiguous= false, part_ambiguous= false;
+  DBUG_ASSERT(cs->cset == as_ci->cset);
+
   for (uint i=0; i < lib->count; i++)
   {
     const char *s= lib->type_names[i], *e= s + lib->type_lengths[i], *v= val;
-    my_wc_t wcv_prev;
-    int lv_prev=0;
-    while (v < end && s < e)
+    bool endspace= false, enddigit= false, endalpha= false;
+    my_wc_t wc, wcs, wcv;
+    for (;;)
     {
-      my_wc_t wcs, wcv;
-      int ls, lv;
-      if ((ls= cs->mb_wc(&wcs, (const uchar*) s, (const uchar*) e)) <= 0 ||
-          (lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end)) <= 0)
-        return 0; // invalid character
-      if (cs->strnncoll(s, ls, v, lv))
+      int ls= 0, lv= 0;
+      while (s < e &&
+             (ls= cs->mb_wc(&wcs, (const uchar*) s, (const uchar*) e)) > 0 &&
+             wcs >= 0x300 && wcs <= 0x36F)
+        s+= ls;
+      while (v < end &&
+             (lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end)) > 0 &&
+             endalpha && wcv >= 0x300 && wcv <= 0x36F)
+        v+= lv;
+      if (s >= e || v >= end || ls <= 0 || lv <= 0 ||
+          cs->strnncoll(s, ls, v, lv))
         break;
-      lv_prev= lv;
-      wcv_prev= wcv;
+      endspace= lv == 1 && my_isspace(cs, *v);
+      enddigit= lv == 1 && my_isdigit(cs, *v);
+      endalpha= lv > 1 || my_isalpha(cs, *v);
       s+= ls;
       v+= lv;
     }
-    if (lv_prev == 1 && my_isspace(cs, wcv_prev))
+    if (enddigit && v < end && my_isdigit(cs, *v))
+      continue;
+    if (s >= e)
+    {
+      uint len= uint(v - val);
+      if (!len)
+        continue;
+      bool exact= !as_ci->strnncoll(lib->type_names[i], lib->type_lengths[i],
+                                    val, len);
+      if (len > full_len || (len == full_len && exact && !full_exact))
+      {
+        full= i + 1;
+        full_len= len;
+        full_exact= exact;
+        full_ambiguous= false;
+      }
+      else if (len == full_len && exact == full_exact)
+        full_ambiguous= true;
+      continue;
+    }
+    if (endspace)
       v--; // don't include an endspace
-    else if (lv_prev > 1 || (lv_prev == 1 && my_isalnum(cs, wcv_prev)))
+    else if (v < end &&
+             (cs->mb_wc(&wc, (const uchar*) v, (const uchar*) end) != 1 ||
+              my_isalpha(cs, *v)))
+      continue; // won't break mid-word
+    uint len= uint(v - val);
+    if (len > part_len)
     {
-      my_wc_t wcv;
-      int lv= cs->mb_wc(&wcv, (const uchar*) v, (const uchar*) end);
-      if (lv > 1 || (lv == 1 && my_isalnum(cs, wcv)))
-        continue; // won't break mid-word
+      part= i + 1;
+      part_len= len;
+      part_ambiguous= false;
     }
-    // prefix match of the name
-    if ((uint) (v - val) > prefix_len || s >= e)
-    {
-      exact= s >= e;
-      prefix_match= i + 1;
-      prefix_len= (uint) (v - val);
-    }
-    else if (prefix_len && (uint) (v - val) == prefix_len && !exact)
-      prefix_match= 0; // ambiguous
+    else if (len && len == part_len)
+      part_ambiguous= true;
   }
-  if (prefix_match)
-    *end_of_word= val + prefix_len;
-  return prefix_match;
+  bool is_complete= true;
+  if (part_len > full_len && !part_ambiguous)
+  {
+    full= part;
+    full_len= part_len;
+    is_complete= false;
+  }
+  else if (full_ambiguous || (!full && part_ambiguous))
+  {
+    if (complete)
+    {
+      *end_of_word= val + (full_ambiguous ? full_len : part_len);
+      *complete= full_ambiguous;
+    }
+    return 0;
+  }
+  if (full)
+  {
+    *end_of_word= val + full_len;
+    if (complete)
+      *complete= is_complete;
+  }
+  return full;
 }
 
 

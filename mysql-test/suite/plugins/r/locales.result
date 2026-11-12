@@ -131,7 +131,7 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 127	ga_IE	Irish - Ireland	16	12	.	,	english
 128	lo_LA	Lao - Laos	7	9	,	.	english
 129	bs_Latn_BA	Latin Bosnian - Bosnia	9	11	,	.	english
-125	fa_AF	Dari - Afghanistan	6	8	.	,	english
+130	fa_AF	Dari - Afghanistan	6	8	.	,	english
 131	ml_IN	Malayalam - India	10	12	.	,	english
 132	mt_MT	Maltese - Malta	9	9	.	,	english
 133	mr_IN	Marathi - India	10	8	.	,	english
@@ -271,7 +271,7 @@ Id	Name	Description	Error_Message_Language
 127	ga_IE	Irish - Ireland	english
 128	lo_LA	Lao - Laos	english
 129	bs_Latn_BA	Latin Bosnian - Bosnia	english
-125	fa_AF	Dari - Afghanistan	english
+130	fa_AF	Dari - Afghanistan	english
 131	ml_IN	Malayalam - India	english
 132	mt_MT	Maltese - Malta	english
 133	mr_IN	Marathi - India	english

@@ -88,6 +88,54 @@ static DATE_TIME_FORMAT time_ampm_format= {{0}, '\0', 0,
 static DATE_TIME_FORMAT time_24hrs_format= {{0}, '\0', 0,
                                             {(char *)"%H:%i:%S", 8}};
 
+/* Find a month or day name of the locale, its formatting month names and,
+   if english, en_US: longest, then complete, then earlier list wins.
+   Prefixes of the same length naming different values are ambiguous,
+   as is a match ambiguous within one list; en_US does not decide it. */
+static uint find_name(CHARSET_INFO *cs, const MY_LOCALE *locale,
+                      TYPELIB *MY_LOCALE::*names, bool english,
+                      const char **val, const char *val_end)
+{
+  TYPELIB *libs[3];
+  uint nlibs= 0, res= 0, en= UINT_MAX;
+  size_t res_len= 0;
+  bool res_complete= false, ambiguous= false;
+  libs[nlibs++]= locale->*names;
+  if (names == &MY_LOCALE::month_names &&
+      locale->month_names != locale->month_names_formatting)
+    libs[nlibs++]= locale->month_names_formatting;
+  if (english && locale != &my_locale_en_US)
+  {
+    en= nlibs;
+    libs[nlibs++]= my_locale_en_US.*names;
+  }
+  for (uint i= 0; i < nlibs; i++)
+  {
+    const char *end= *val;
+    bool complete;
+    uint n= check_word(cs, libs[i], *val, val_end, &end, &complete);
+    size_t len= size_t(end - *val);
+    if (!len)
+      continue;
+    if (len > res_len ||
+        (len == res_len && complete && !res_complete &&
+         !(ambiguous && i == en)))
+    {
+      res= n;
+      res_len= len;
+      res_complete= complete;
+      ambiguous= !n;
+    }
+    else if (len == res_len && !complete && !res_complete && n != res)
+      ambiguous= true;
+  }
+  if (ambiguous || !res)
+    return 0;
+  *val+= res_len;
+  return res;
+}
+
+
 /**
   Extract datetime value to MYSQL_TIME struct from string value
   according to format string.
@@ -103,8 +151,9 @@ static DATE_TIME_FORMAT time_24hrs_format= {{0}, '\0', 0,
                             %r) and this parameter is pointer to place where
                             pointer to end of string matching this specifier
                             should be stored.
-  @param locale             The locale to use for Month/Day names (e.g., %M, %W)
-  @param cs                 The character set of the input string 'val'
+  @param locale             The locale of month/day names (%M %b %W %a)
+  @param english            Accept English names too
+  @param cs                 The collation of 'val' and names, utf8mb4_general_ci
 
   @note
     Possibility to parse strings matching to patterns equivalent to compound
@@ -129,7 +178,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
                               const char **sub_pattern_end,
                               const char *date_time_type,
                               date_conv_mode_t fuzzydate,
-                              const MY_LOCALE *locale,
+                              const MY_LOCALE *locale, bool english,
                               CHARSET_INFO *cs)
 {
   int weekday= 0, yearday= 0, daypart= 0;
@@ -146,6 +195,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
   const char *ptr= format->format.str;
   const char *end= ptr + format->format.length;
   DBUG_ENTER("extract_date_time");
+  DBUG_ASSERT(cs->mbminlen == 1 && cs->m_ctype);
 
   if (!sub_pattern_end)
     bzero((char*) l_time, sizeof(*l_time));
@@ -190,18 +240,15 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
 	val= tmp;
 	break;
       case 'M':
-       if ((l_time->month= check_word(cs, locale->month_names,
-				       val, val_end, &val)) <= 0 &&
-          (locale->month_names == locale->month_names_formatting ||
-          (l_time->month= check_word(cs, locale->month_names_formatting,
-               val, val_end, &val)) <= 0))
-	  goto err;
-	break;
+        if (!(l_time->month= find_name(cs, locale, &MY_LOCALE::month_names,
+                                       english, &val, val_end)))
+          goto err;
+        break;
       case 'b':
-       if ((l_time->month= check_word(cs, locale->ab_month_names,
-				       val, val_end, &val)) <= 0)
-	  goto err;
-	break;
+        if (!(l_time->month= find_name(cs, locale, &MY_LOCALE::ab_month_names,
+                                       english, &val, val_end)))
+          goto err;
+        break;
 	/* Day */
       case 'd':
       case 'e':
@@ -269,13 +316,15 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
 
 	/* Exotic things */
       case 'W':
-       if ((weekday= check_word(cs, locale->day_names, val, val_end, &val)) <= 0)
-	  goto err;
-	break;
+        if (!(weekday= find_name(cs, locale, &MY_LOCALE::day_names, english,
+                                 &val, val_end)))
+          goto err;
+        break;
       case 'a':
-       if ((weekday= check_word(cs, locale->ab_day_names, val, val_end, &val)) <= 0)
-	  goto err;
-	break;
+        if (!(weekday= find_name(cs, locale, &MY_LOCALE::ab_day_names, english,
+                                 &val, val_end)))
+          goto err;
+        break;
       case 'w':
 	tmp= (char*) val + 1;
 	if (unlikely((weekday= (int) my_strtoll10(val, &tmp, &error)) < 0 ||
@@ -326,7 +375,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
         if (extract_date_time(thd, &time_ampm_format, val,
                               (uint)(val_end - val), l_time,
                               cached_timestamp_type, &val, "time", fuzzydate,
-                              locale, cs))
+                              locale, english, cs))
           DBUG_RETURN(1);
         break;
 
@@ -335,7 +384,7 @@ static bool extract_date_time(THD *thd, DATE_TIME_FORMAT *format,
         if (extract_date_time(thd, &time_24hrs_format, val,
                               (uint)(val_end - val), l_time,
                               cached_timestamp_type, &val, "time", fuzzydate,
-                              locale, cs))
+                              locale, english, cs))
           DBUG_RETURN(1);
         break;
 
@@ -836,16 +885,14 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
       part_of_digits= 1;
       break;
     case FMT_MONTH:
-      if ((l_time->month= check_word(val_cs, locale->month_names,
-                                     val, val_end, &val)) <= 0 &&
-         (locale->month_names == locale->month_names_formatting ||
-         (l_time->month= check_word(val_cs, locale->month_names_formatting,
-                                     val, val_end, &val)) <= 0))
-         goto error;
+      if (!(l_time->month= find_name(val_cs, locale, &MY_LOCALE::month_names,
+                                     false, &val, val_end)))
+        goto error;
       break;
     case FMT_MON:
-      if ((l_time->month= check_word(val_cs, locale->ab_month_names,
-                                     val, val_end, &val)) <= 0)
+      if (!(l_time->month= find_name(val_cs, locale,
+                                     &MY_LOCALE::ab_month_names,
+                                     false, &val, val_end)))
         goto error;
       break;
 
@@ -936,13 +983,13 @@ extract_oracle_date_time(THD *thd, uint16 *format_ptr,
 
       /* Exotic things. Weekdays are only use validation of date */
     case FMT_DAY:
-      if ((weekday= check_word(val_cs, locale->day_names, val, val_end,
-                               &val)) <= 0)
+      if (!(weekday= find_name(val_cs, locale, &MY_LOCALE::day_names,
+                               false, &val, val_end)))
         goto error;
       break;
     case FMT_DY:
-      if ((weekday= check_word(val_cs, locale->ab_day_names, val, val_end,
-                               &val)) <= 0)
+      if (!(weekday= find_name(val_cs, locale, &MY_LOCALE::ab_day_names,
+                               false, &val, val_end)))
         goto error;
       break;
 
@@ -4728,6 +4775,66 @@ get_date_time_result_type(const char *format, uint length)
 }
 
 
+/**
+  @retval false  the format is a literal without %M %b %W %a,
+                 the only specifiers that depend on a locale
+*/
+
+bool Item_func_str_to_date::format_has_names()
+{
+  if (!args[1]->basic_const_item())
+    return true;
+  StringBuffer<64> buf;
+  String *format= args[1]->val_str_ascii(&buf);
+  if (!format)
+    return false;
+  const char *ptr= format->ptr(), *end= ptr + format->length();
+  for (; ptr < end; ptr++)
+    if (*ptr == '%' && ++ptr < end && memchr("MbWa", *ptr, 4))
+      return true;
+  return false;
+}
+
+
+/**
+  Add 'en_US' to a two-argument STR_TO_DATE() whose format has names
+  or is not constant: in tables created before 12.3.2 names are English.
+*/
+
+bool Item_func_str_to_date::pin_locale_processor(void *arg)
+{
+  pin_locale_arg *pin= static_cast<pin_locale_arg*>(arg);
+  THD *thd= pin->thd;
+  if (arg_count > 2 || !format_has_names())
+    return false;
+  Item **new_args= thd->alloc<Item*>(3);
+  Item *en_US= new (thd->mem_root)
+    Item_string_ascii(thd, my_locale_en_US.name.str,
+                      uint(my_locale_en_US.name.length));
+  if (!new_args || !en_US)
+    return true;
+  new_args[0]= args[0];
+  new_args[1]= args[1];
+  new_args[2]= en_US;
+  args= new_args;
+  arg_count= 3;
+  pin->pinned= true;
+  return false;
+}
+
+
+/* val_str() in utf8mb4; a utf8mb4 or binary value is not copied */
+
+static String *val_str_utf8mb4(Item *item, String *str, String *converter)
+{
+  CHARSET_INFO *cs= &my_charset_utf8mb4_general_ci;
+  uint32 offset;
+  if (!String::needs_conversion(0, item->collation.collation, cs, &offset))
+    cs= NULL;
+  return item->val_str(str, converter, cs);
+}
+
+
 bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
 {
  const Type_handler *wrong_type;
@@ -4740,7 +4847,8 @@ bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
     return TRUE;
   }
 
-  if (agg_arg_charsets(collation, args, arg_count, MY_COLL_ALLOW_CONV, 1))
+  /* The locale name does not have to be compatible with the other two */
+  if (agg_arg_charsets(collation, args, 2, MY_COLL_ALLOW_CONV, 1))
     return TRUE;
 
   if (arg_count < 3)
@@ -4750,18 +4858,13 @@ bool Item_func_str_to_date::fix_length_and_dec(THD *thd)
   else
     locale= 0;
 
-  if (collation.collation->mbminlen > 1 || !locale || !locale->is_ascii ||
-      arg_count >= 3)
-    internal_charset= &my_charset_utf8mb4_general_ci;
-
   set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
 
   if ((const_item= args[1]->const_item()))
   {
     StringBuffer<64> format_str;
-    String *format= args[1]->val_str(&format_str, &format_converter,
-                                     internal_charset);
+    String *format= val_str_utf8mb4(args[1], &format_str, &format_converter);
     if (!args[1]->null_value)
       set_func_handler(get_date_time_result_type(format->ptr(), format->length()));
   }
@@ -4781,8 +4884,8 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   if (!lc && !(lc= args[2]->locale_from_val_str()))
     return (null_value= 1);
 
-  val=    args[0]->val_str(&val_string, &subject_converter, internal_charset);
-  format= args[1]->val_str(&format_str, &format_converter, internal_charset);
+  val=    val_str_utf8mb4(args[0], &val_string, &subject_converter);
+  format= val_str_utf8mb4(args[1], &format_str, &format_converter);
   if (args[0]->null_value || args[1]->null_value)
     return (null_value=1);
 
@@ -4792,8 +4895,9 @@ bool Item_func_str_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
 			ltime, tstype, 0, "datetime",
                         date_conv_mode_t(fuzzydate) |
                         sql_mode_for_dates(thd),
-                        lc,
-                        val->charset()))
+                        lc, arg_count == 2,
+                        /* sql_locale.cc names are utf8mb4; case-insensitive */
+                        &my_charset_utf8mb4_general_ci))
     return (null_value=1);
   return (null_value= 0);
 }
@@ -5038,9 +5142,6 @@ bool Item_func_to_date::fix_length_and_dec(THD *thd)
              args[id]->type_handler()->name().ptr(), func_name());
     return TRUE;
   }
-  /* Used for args[0] & args[2] (the date strings) */
-  internal_charset= &my_charset_utf8mb4_general_ci;
-
   set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
 
@@ -5073,14 +5174,14 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   StringBuffer<64> val_string;
   String *val;
 
-  val= args[0]->val_str(&val_string, &subject_converter, internal_charset);
+  val= val_str_utf8mb4(args[0], &val_string, &subject_converter);
   if (args[1]->null_value)
     goto error;
   if (args[0]->null_value)
   {
     if (arg_count == 2)
       goto error;
-    val= args[2]->val_str(&val_string, &subject_converter, internal_charset);
+    val= val_str_utf8mb4(args[2], &val_string, &subject_converter);
     if (args[2]->null_value)
       goto error;
   }
@@ -5096,7 +5197,8 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
     goto error;
 
   if (!extract_oracle_date_time(thd, fmt_array,
-                                val->ptr(), val->length(), val->charset(),
+                                val->ptr(), val->length(),
+                                &my_charset_utf8mb4_general_ci,
                                 args[0]->collation.collation,
                                 ltime, locale, "datetime",
                                 (date_conv_mode_t(fuzzydate) |
@@ -5107,11 +5209,12 @@ bool Item_func_to_date::get_date_common(THD *thd, MYSQL_TIME *ltime,
   if (arg_count == 3)
   {
     /* Try to use default value */
-    val= args[2]->val_str(&val_string, &subject_converter, internal_charset);
+    val= val_str_utf8mb4(args[2], &val_string, &subject_converter);
     if (args[2]->null_value)
       goto error;
     if (!extract_oracle_date_time(thd, fmt_array,
-                                  val->ptr(), val->length(), val->charset(),
+                                  val->ptr(), val->length(),
+                                  &my_charset_utf8mb4_general_ci,
                                   args[0]->collation.collation,
                                   ltime, locale, "datetime",
                                   (date_conv_mode_t(fuzzydate) |

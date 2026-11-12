@@ -2452,6 +2452,13 @@ public:
   {
     return mark_unsupported_function(full_name(), arg, VCOL_IMPOSSIBLE);
   }
+  struct pin_locale_arg
+  {
+    THD *thd;
+    bool pinned;
+  };
+  /* Pins 'en_US' in STR_TO_DATE() of tables older than 12.3.2 */
+  virtual bool pin_locale_processor(void *arg) { return 0; }
   virtual bool check_handler_func_processor(void *arg) { return 0; }
   virtual bool check_field_expression_processor(void *arg) { return 0; }
   virtual bool check_func_default_processor(void *arg) { return 0; }

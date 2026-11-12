@@ -4288,6 +4288,21 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
     table->internal_tables= sequence;
   }
 
+  /* In older tables STR_TO_DATE() does not depend on @@lc_time_names */
+  if (table->s->mysql_version < 120302)
+  {
+    Item::pin_locale_arg pin= {thd, false};
+    if (vcol_storage.vcol_info->expr->walk(&Item::pin_locale_processor,
+                                           &pin, 0))
+    {
+      *error_reported= true; // OOM
+      goto end;
+    }
+    /* CHECK/REPAIR TABLE must keep the version the pin depends on */
+    if (pin.pinned)
+      table->s->keep_original_mysql_version= 1;
+  }
+
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
   vcol_storage.vcol_info->name=              vcol->name;
   vcol_storage.vcol_info->utf8=              vcol->utf8;

@@ -1846,16 +1846,13 @@ class Item_func_str_to_date :public Item_handled_func
   bool const_item;
   String subject_converter;
   String format_converter;
-  CHARSET_INFO *internal_charset;
   const MY_LOCALE *locale;
 public:
   Item_func_str_to_date(THD *thd, Item *a, Item *b):
-    Item_handled_func(thd, a, b), const_item(false),
-    internal_charset(NULL),locale(0)
+    Item_handled_func(thd, a, b), const_item(false), locale(0)
   {}
   Item_func_str_to_date(THD *thd, Item *a, Item *b, Item *c):
-    Item_handled_func(thd, a, b, c), const_item(false),
-    internal_charset(NULL), locale(0)
+    Item_handled_func(thd, a, b, c), const_item(false), locale(0)
   {}
   bool get_date_common(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate,
                        timestamp_type) override;
@@ -1865,12 +1862,14 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  bool format_has_names();
   bool check_vcol_func_processor(void *arg) override
   {
-    if (arg_count > 2)
+    if (arg_count > 2 || !format_has_names())
       return false;
     return mark_unsupported_function(func_name(), "()", arg, VCOL_SESSION_FUNC);
   }
+  bool pin_locale_processor(void *arg) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -1909,7 +1908,6 @@ class Item_func_to_date :public Item_handled_func
   bool const_item;
   String subject_converter;
   String format_converter;
-  CHARSET_INFO *internal_charset;
   MYSQL_TIME now_time;                    // Used for incomplete dates
   THD *thd;
   const MY_LOCALE *locale;
@@ -1927,7 +1925,7 @@ class Item_func_to_date :public Item_handled_func
 public:
   Item_func_to_date(THD *thd, Item *a, Item *b, LEX_CSTRING *nls):
     Item_handled_func(thd, a, b), const_item(false),
-    internal_charset(NULL), locale(0), format_flags(PARSE_TYPE_NONE),
+    locale(0), format_flags(PARSE_TYPE_NONE),
     nls_param(*nls), nls_param_error(0)
   {
     /* NOTE: max length of warning message is 64 */
@@ -1937,7 +1935,7 @@ public:
   }
   Item_func_to_date(THD *thd, Item *a, Item *b, Item *c, LEX_CSTRING *nls):
     Item_handled_func(thd, a, b, c),  const_item(false),
-      internal_charset(NULL), locale(0), format_flags(PARSE_TYPE_NONE),
+      locale(0), format_flags(PARSE_TYPE_NONE),
     nls_param(*nls), nls_param_error(0)
   {
     /* NOTE: max length of warning message is 64 */

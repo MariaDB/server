@@ -1,0 +1,455 @@
+# MDEV-41935 STR_TO_DATE returns NULL under case-sensitive collations
+SET NAMES utf8mb4;
+SELECT STR_TO_DATE('1 march 2026' COLLATE utf8mb4_bin,'%d %M %Y') AS bin,
+STR_TO_DATE('1 march 2026' COLLATE utf8mb4_bin,'%d %M %Y','en_US') AS bin_en,
+STR_TO_DATE('1 mar 2026' COLLATE utf8mb4_bin,'%d %b %Y') AS bin_b,
+STR_TO_DATE('sunday 1 March 2026' COLLATE utf8mb4_bin,'%W %d %M %Y') AS bin_W,
+STR_TO_DATE('sun 1 March 2026' COLLATE utf8mb4_bin,'%a %d %M %Y') AS bin_a,
+STR_TO_DATE(_latin1'1 APRIL 2026' COLLATE latin1_general_cs,'%d %M %Y') AS latin1_cs,
+STR_TO_DATE(CONVERT('1 march 2026' USING binary),'%d %M %Y') AS bin_charset;
+bin	bin_en	bin_b	bin_W	bin_a	latin1_cs	bin_charset
+2026-03-01	2026-03-01	2026-03-01	2026-03-01	2026-03-01	2026-04-01	2026-03-01
+SELECT STR_TO_DATE('1 APRIL 2026' COLLATE utf8mb4_turkish_ci,'%d %M %Y') AS tr_M,
+STR_TO_DATE('FRIDAY 3 APRIL 2026' COLLATE utf8mb4_turkish_ci,'%W %d %M %Y') AS tr_W;
+tr_M	tr_W
+2026-04-01	2026-04-03
+SELECT STR_TO_DATE(CONVERT('1 march 2026' USING ucs2) COLLATE ucs2_bin,'%d %M %Y') AS ucs2,
+STR_TO_DATE(CONVERT('1 march 2026' USING utf16) COLLATE utf16_bin,'%d %M %Y') AS utf16,
+STR_TO_DATE(CONVERT('1 march 2026' USING utf32) COLLATE utf32_bin,'%d %M %Y') AS utf32,
+STR_TO_DATE('1 MÄRZ 2026' COLLATE utf8mb4_bin,'%d %M %Y','de_DE') AS de;
+ucs2	utf16	utf32	de
+2026-03-01	2026-03-01	2026-03-01	2026-03-01
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin,
+b VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
+c VARBINARY(30));
+INSERT INTO t1 VALUES ('1 MARCH 2026','1 MARCH 2026','1 MARCH 2026'),
+('1 march 2026','1 march 2026','1 march 2026');
+SELECT STR_TO_DATE(a,'%d %M %Y') AS a, STR_TO_DATE(b,'%d %M %Y') AS b,
+STR_TO_DATE(c,'%d %M %Y') AS c FROM t1;
+a	b	c
+2026-03-01	2026-03-01	2026-03-01
+2026-03-01	2026-03-01	2026-03-01
+DROP TABLE t1;
+# Result must not depend on the locale of an earlier execution
+SET lc_time_names='de_DE';
+PREPARE s FROM "SELECT STR_TO_DATE('1 März 2026' COLLATE utf8mb4_bin,'%d %M %Y') AS r";
+EXECUTE s;
+r
+2026-03-01
+SET lc_time_names='en_US';
+EXECUTE s;
+r
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1 März 2026' for function str_to_date
+SELECT STR_TO_DATE('1 März 2026' COLLATE utf8mb4_bin,'%d %M %Y') AS r;
+r
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1 März 2026' for function str_to_date
+DEALLOCATE PREPARE s;
+PREPARE s FROM "SELECT STR_TO_DATE('1 März 2026','%d %M %Y',?) AS r";
+EXECUTE s USING 'de_DE';
+r
+2026-03-01
+EXECUTE s USING 'en_US';
+r
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1 März 2026' for function str_to_date
+EXECUTE s USING 'xx_XX';
+r
+NULL
+Warnings:
+Warning	1649	Unknown locale: 'xx_XX'
+Warning	1411	Incorrect datetime value: '1 März 2026' for function str_to_date
+EXECUTE s USING NULL;
+r
+NULL
+DEALLOCATE PREPARE s;
+# utf16/utf32 value with a binary format
+SELECT STR_TO_DATE(CONVERT('1 1' USING utf16le), BINARY '%d %d') AS c;
+c
+0000-00-01
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET utf16 COLLATE utf16_general_ci,
+b VARCHAR(30) CHARACTER SET utf32 COLLATE utf32_general_ci,
+f VARBINARY(30));
+INSERT INTO t1 VALUES ('1 March 2026','1 March 2026',' %d %M %Y');
+SELECT STR_TO_DATE(a,f), STR_TO_DATE(b,f) FROM t1;
+STR_TO_DATE(a,f)	STR_TO_DATE(b,f)
+2026-03-01 00:00:00.000000	2026-03-01 00:00:00.000000
+DROP TABLE t1;
+# Month/day name directly followed or preceded by digits
+SELECT STR_TO_DATE('01Jan2026','%d%b%Y') AS a1, STR_TO_DATE('15MAY2001','%d%b%Y') AS a2,
+STR_TO_DATE('March2026','%M%Y') AS a3, STR_TO_DATE('2026Jan01','%Y%b%d') AS a4,
+STR_TO_DATE('Jan01 2026','%b%d %Y') AS a5,
+STR_TO_DATE('Sunday01March2026','%W%d%M%Y') AS a6;
+a1	a2	a3	a4	a5	a6
+2026-01-01	2001-05-15	2026-03-00	2026-01-01	2026-01-01	2026-03-01
+SELECT STR_TO_DATE(_latin1'01Jan2026','%d%b%Y') AS latin1,
+STR_TO_DATE(CONVERT('01Jan2026' USING ucs2),'%d%b%Y') AS ucs2;
+latin1	ucs2
+2026-01-01	2026-01-01
+SELECT STR_TO_DATE('2026年12月25日','%Y年%M%d日','ja_JP') AS ja1,
+STR_TO_DATE('2026年1月5日','%Y年%M%e日','ja_JP') AS ja2,
+STR_TO_DATE('2026년 12월25일','%Y년 %M%d일','ko_KR') AS ko,
+STR_TO_DATE(DATE_FORMAT('2026-12-25','%Y年%M%d日','zh_CN'),'%Y年%M%d日','zh_CN') AS zh;
+ja1	ja2	ko	zh
+2026-12-25	2026-01-05	2026-12-25	2026-12-25
+SELECT TO_DATE('01JAN2026','DDMONYYYY') AS t1, TO_DATE('January012026','MonthDDYYYY') AS t2;
+t1	t2
+2026-01-01 00:00:00	2026-01-01 00:00:00
+SELECT STR_TO_DATE('15Tháng 12026','%d%b%Y','vi_VN') AS vi1,
+STR_TO_DATE('15Tháng 12 2026','%d%b%Y','vi_VN') AS vi2,
+STR_TO_DATE('15Tháng 1 2026','%d%b%Y','vi_VN') AS vi3;
+vi1	vi2	vi3
+NULL	2026-12-15	2026-01-15
+Warnings:
+Warning	1411	Incorrect datetime value: '15Tháng 12026' for function str_to_date
+# Name prefixes
+SELECT STR_TO_DATE('1 Sept 2026','%d %M %Y') AS p1, STR_TO_DATE('1 Ma 2026','%d %M %Y') AS p2,
+STR_TO_DATE('1 Jun2026','%d %M%Y') AS p3, STR_TO_DATE('1 Junx 2026','%d %M %Y') AS p4,
+STR_TO_DATE('1 Marchx 2026','%d %M %Y') AS p5,
+STR_TO_DATE('Thurs 2026 10','%W %x %v') AS p6;
+p1	p2	p3	p4	p5	p6
+2026-09-01	NULL	2026-06-01	NULL	NULL	2026-03-05
+Warnings:
+Warning	1411	Incorrect datetime value: '1 Ma 2026' for function str_to_date
+Warning	1411	Incorrect datetime value: '1 Junx 2026' for function str_to_date
+Warning	1411	Incorrect datetime value: '1 Marchx 2026' for function str_to_date
+# Weekday names that are prefixes of, or collate equal to, other names
+SELECT DATE_FORMAT(d,'%x %v %a','sk_SK') AS s,
+STR_TO_DATE(DATE_FORMAT(d,'%x %v %a','sk_SK'),'%x %v %a','sk_SK') = d AS ok
+FROM (SELECT '2026-03-02' + INTERVAL seq DAY AS d FROM seq_0_to_6) dt;
+s	ok
+2026 10 po	1
+2026 10 ut	1
+2026 10 st	1
+2026 10 št	1
+2026 10 pi	1
+2026 10 so	1
+2026 10 ne	1
+SELECT DATE_FORMAT(d,'%x %v %a','az_AZ') AS s,
+STR_TO_DATE(DATE_FORMAT(d,'%x %v %a','az_AZ'),'%x %v %a','az_AZ') = d AS ok_a,
+DATE_FORMAT(d,'%W, %e %M %Y','az_AZ') AS s2,
+STR_TO_DATE(DATE_FORMAT(d,'%X %V %W','az_AZ'),'%X %V %W','az_AZ') = d AS ok_W,
+STR_TO_DATE(DATE_FORMAT(d,'%W, %e %M %Y','az_AZ'),'%W, %e %M %Y','az_AZ') = d AS ok_W2
+FROM (SELECT '2026-03-02' + INTERVAL seq DAY AS d FROM seq_0_to_6) dt;
+s	ok_a	s2	ok_W	ok_W2
+2026 10 B.E.	1	bazar ertəsi, 2 mart 2026	1	1
+2026 10 Ç.A.	1	çərşənbə axşamı, 3 mart 2026	1	1
+2026 10 Ç.	1	çərşənbə, 4 mart 2026	1	1
+2026 10 C.A.	1	cümə axşamı, 5 mart 2026	1	1
+2026 10 C.	1	cümə, 6 mart 2026	1	1
+2026 10 Ş.	1	şənbə, 7 mart 2026	1	1
+2026 10 B.	1	bazar, 8 mart 2026	1	1
+# DATE_FORMAT/STR_TO_DATE round trip for all locales
+CREATE TABLE fmts (id INT, fmt VARCHAR(32)) CHARACTER SET utf8mb4;
+INSERT INTO fmts VALUES (1,'%e %M %Y'),(2,'%e %b %Y'),(3,'%W, %e %M %Y'),
+(4,'%a %e %b %Y'),(5,'%Y%M%d'),(6,'%d%b%Y'),(7,'%X %V %W'),(8,'%x %v %a');
+CREATE TABLE dates (d DATE);
+INSERT INTO dates SELECT '2026-01-15' + INTERVAL seq MONTH FROM seq_0_to_11;
+INSERT INTO dates SELECT '2026-03-02' + INTERVAL seq DAY FROM seq_0_to_6;
+CREATE TABLE res (loc VARCHAR(16), fmt VARCHAR(32), d DATE, s VARCHAR(255),
+b2 DATE, b3 DATE) CHARACTER SET utf8mb4;
+SET sql_mode='';
+SET lc_time_names=DEFAULT;
+SET sql_mode=DEFAULT;
+SELECT COUNT(DISTINCT loc) FROM res;
+COUNT(DISTINCT loc)
+138
+SELECT loc, fmt, d, s, b2, b3 FROM res WHERE NOT (b2 <=> d AND b3 <=> d)
+AND NOT (loc='vi_VN' AND fmt='%d%b%Y') ORDER BY loc, fmt, d;
+loc	fmt	d	s	b2	b3
+DROP TABLE fmts, dates, res;
+# English names under a non-English lc_time_names
+SET lc_time_names='de_DE';
+SELECT STR_TO_DATE('1 March 2026','%d %M %Y') AS M, STR_TO_DATE('1 Dec 2026','%d %b %Y') AS b,
+STR_TO_DATE('2026 10 Tuesday','%X %V %W') AS W;
+M	b	W
+2026-03-01	2026-12-01	2026-03-10
+# but not under an explicit locale, nor in TO_DATE
+SELECT STR_TO_DATE('1 March 2026','%d %M %Y','de_DE') AS M3;
+M3
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1 March 2026' for function str_to_date
+SELECT TO_DATE('15 March 2026','DD MONTH YYYY') AS to_date;
+to_date
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '15 March 2026' for function to_date
+SELECT TO_DATE('15 March 2026','DD MONTH YYYY','NLS_DATE_LANGUAGE=FINNISH') AS t;
+t
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '15 March 2026' for function to_date
+# English name wins over a shorter locale name or a locale prefix
+SELECT STR_TO_DATE('15 January 2026','%e %M %Y') AS de;
+de
+2026-01-15
+SET lc_time_names='et_EE';
+SELECT STR_TO_DATE('2026 10 Thu','%x %v %a') AS et;
+et
+2026-03-05
+SET lc_time_names='fi_FI';
+SELECT STR_TO_DATE('15 Mar 2026','%e %b %Y') AS fi;
+fi
+2026-03-15
+# 'Mar' is a prefix of both 'marraskuu' and 'March'
+SELECT STR_TO_DATE('15 Mar 2026','%e %M %Y') AS fi_M;
+fi_M
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '15 Mar 2026' for function str_to_date
+# Ambiguous within the locale, so English does not decide
+SET lc_time_names='pl_PL';
+SELECT STR_TO_DATE('1 S 2026','%d %M %Y') AS pl_S;
+pl_S
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '1 S 2026' for function str_to_date
+SET lc_time_names='es_ES';
+SELECT STR_TO_DATE('M 2026 10','%W %x %v') AS es_W;
+es_W
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'M 2026 10' for function str_to_date
+SET lc_time_names='de_DE';
+SELECT STR_TO_DATE('M 2026 10','%a %x %v') AS de_a;
+de_a
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'M 2026 10' for function str_to_date
+SET lc_time_names='vi_VN';
+SELECT STR_TO_DATE('Thu 2026 10','%a %x %v') AS vi_a,
+STR_TO_DATE('Thứ 2026 10','%a %x %v') AS vi_a2;
+vi_a	vi_a2
+NULL	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: 'Thu 2026 10' for function str_to_date
+Warning	1411	Incorrect datetime value: 'Thứ 2026 10' for function str_to_date
+SET lc_time_names='fi_FI';
+# Formatting month name longer than the standalone one
+SELECT STR_TO_DATE('15 marraskuuta 2026','%e %M %Y') AS fi_fmt;
+fi_fmt
+2026-11-15
+SELECT TO_DATE('15 marraskuuta 2026','DD MONTH YYYY',
+'NLS_DATE_LANGUAGE=FINNISH') AS fi_to_date;
+fi_to_date
+2026-11-15 00:00:00
+# 'Tháng 1' does not match the start of 'Tháng 12'
+SELECT TO_DATE('15 Tháng 12 2026','DD MON YYYY',
+'NLS_DATE_LANGUAGE=VIETNAMESE') AS vi_to_date;
+vi_to_date
+2026-12-15 00:00:00
+SET lc_time_names='en_US';
+# Names are compared accent-insensitively, as in TO_DATE
+SELECT STR_TO_DATE('1 Märch 2026','%d %M %Y') AS e1, STR_TO_DATE('1 Mäy 2026','%d %M %Y') AS e2,
+STR_TO_DATE('1 Marz 2026','%d %M %Y','de_DE') AS e4;
+e1	e2	e4
+2026-03-01	2026-05-01	2026-03-01
+# Combining marks after a letter are skipped: vi_VN names are partly decomposed
+SELECT MONTH(STR_TO_DATE('Tháng bảy','%M','vi_VN')) AS m7,
+MONTH(STR_TO_DATE('Tháng ba','%M','vi_VN')) AS m3,
+TO_DATE('15 Tháng mười một 2026','DD MONTH YYYY',
+'NLS_DATE_LANGUAGE=VIETNAMESE') AS t11,
+STR_TO_DATE(CONCAT('1 Ma', _utf8mb4 0xCC88, 'rz 2026'),'%d %M %Y','de_DE') AS de_nfd;
+m7	m3	t11	de_nfd
+7	3	2026-11-15 00:00:00	2026-03-01
+# Not after a digit or before a name
+SELECT STR_TO_DATE(CONCAT(_utf8mb4 0xCC81, 'March 2026'),'%M %Y') AS lead_mark,
+STR_TO_DATE(CONCAT('1 Tháng 1', _utf8mb4 0xCC81, '2 2026'),'%d %M %Y','vi_VN') AS digit_mark;
+lead_mark	digit_mark
+NULL	NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '́March 2026' for function str_to_date
+Warning	1411	Incorrect datetime value: '1 Tháng 1́2 2026' for function str_to_date
+SELECT seq,
+MONTH(STR_TO_DATE(ELT(seq,'Tháng một','Tháng hai','Tháng ba','Tháng tư',
+'Tháng năm','Tháng sáu','Tháng bảy','Tháng tám','Tháng chín',
+'Tháng mười','Tháng mười một','Tháng mười hai'),'%M','vi_VN')) AS nfc,
+MONTH(STR_TO_DATE(DATE_FORMAT('2026-01-01' + INTERVAL seq-1 MONTH,'%M','vi_VN'),
+'%M','vi_VN')) AS decomposed
+FROM seq_1_to_12;
+seq	nfc	decomposed
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+11	11	11
+12	12	12
+SELECT seq,
+DAYOFWEEK(STR_TO_DATE(CONCAT(ELT(seq,'Chủ nhật','Thứ hai','Thứ ba','Thứ tư',
+'Thứ năm','Thứ sáu','Thứ bảy'),' 2026 10'),'%W %x %v','vi_VN')) AS nfc,
+DAYOFWEEK(STR_TO_DATE(CONCAT(DATE_FORMAT('2026-02-28' + INTERVAL seq DAY,'%W','vi_VN'),
+' 2026 10'),'%W %x %v','vi_VN')) AS decomposed
+FROM seq_1_to_7;
+seq	nfc	decomposed
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+# fa_AF and uz_Latn_UZ have different locale numbers
+SELECT DATE_FORMAT('2026-01-01','%W %M','fa_AF');
+DATE_FORMAT('2026-01-01','%W %M','fa_AF')
+پنجشنبه جنوری
+SET lc_time_names='fa_AF';
+SELECT @@lc_time_names;
+@@lc_time_names
+fa_AF
+SET lc_time_names=130;
+SELECT @@lc_time_names;
+@@lc_time_names
+fa_AF
+SET lc_time_names=125;
+SELECT @@lc_time_names;
+@@lc_time_names
+uz_Latn_UZ
+SET lc_time_names=DEFAULT;
+# Locale argument must not take part in collation aggregation
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET latin1, l VARCHAR(10) CHARACTER SET latin2);
+INSERT INTO t1 VALUES ('1 March 2026','en_US');
+SELECT STR_TO_DATE(a,'%d %M %Y',l), DATE_FORMAT('2026-03-01','%d %M %Y',l) FROM t1;
+STR_TO_DATE(a,'%d %M %Y',l)	DATE_FORMAT('2026-03-01','%d %M %Y',l)
+2026-03-01	01 March 2026
+DROP TABLE t1;
+# Tables from 10.6 with 2-argument STR_TO_DATE in CHECK and generated columns
+SHOW CREATE TABLE t_chk;
+Table	Create Table
+t_chk	CREATE TABLE `t_chk` (
+  `a` varchar(30) DEFAULT NULL,
+  CONSTRAINT `CONSTRAINT_1` CHECK (str_to_date(`a`,'%Y-%m-%d') is not null)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW CREATE TABLE t_sto;
+Table	Create Table
+t_sto	CREATE TABLE `t_sto` (
+  `a` varchar(30) DEFAULT NULL,
+  `d` date GENERATED ALWAYS AS (str_to_date(`a`,'%Y-%m-%d')) STORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SHOW CREATE TABLE t_idx;
+Table	Create Table
+t_idx	CREATE TABLE `t_idx` (
+  `a` varchar(30) DEFAULT NULL,
+  `d` date GENERATED ALWAYS AS (str_to_date(`a`,'%Y-%m-%d')) VIRTUAL,
+  KEY `d` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t_chk;
+a
+2026-01-01
+SELECT * FROM t_sto;
+a	d
+2026-01-01	2026-01-01
+SELECT * FROM t_idx;
+a	d
+2026-01-01	2026-01-01
+INSERT INTO t_chk VALUES ('2026-02-02');
+INSERT INTO t_sto(a) VALUES ('2026-02-02');
+INSERT INTO t_idx(a) VALUES ('2026-02-02');
+CHECK TABLE t_chk, t_sto, t_idx FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t_chk	check	status	OK
+test.t_sto	check	status	OK
+test.t_idx	check	status	OK
+ALTER TABLE t_sto ADD COLUMN x INT;
+DROP TABLE t_chk, t_sto, t_idx;
+# Names in old tables are English whatever the locale
+SET lc_time_names='de_DE';
+SHOW CREATE TABLE t_nam;
+Table	Create Table
+t_nam	CREATE TABLE `t_nam` (
+  `a` varchar(30) DEFAULT NULL,
+  `b` date GENERATED ALWAYS AS (str_to_date(`a`,'%d %M %Y','en_US')) STORED,
+  `c` date GENERATED ALWAYS AS (str_to_date(`a`,'%e %b %Y','en_US')) VIRTUAL,
+  KEY `c` (`c`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (str_to_date(`a`,'%d %M %Y','en_US') is not null)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+SELECT * FROM t_nam;
+a	b	c
+1 Mar 2026	2026-03-01	2026-03-01
+2 May 2026	2026-05-02	2026-05-02
+INSERT INTO t_nam(a) VALUES ('3 May 2026');
+INSERT INTO t_nam(a) VALUES ('4 Mai 2026');
+ERROR HY000: Incorrect datetime value: '4 Mai 2026' for function str_to_date
+SELECT * FROM t_nam FORCE INDEX(c) WHERE c = '2026-05-03';
+a	b	c
+3 May 2026	2026-05-03	2026-05-03
+CHECK TABLE t_nam FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t_nam	check	status	OK
+CHECK TABLE t_nam;
+Table	Op	Msg_type	Msg_text
+test.t_nam	check	status	OK
+REPAIR TABLE t_nam;
+Table	Op	Msg_type	Msg_text
+test.t_nam	repair	status	OK
+FLUSH TABLES;
+SELECT * FROM t_nam;
+a	b	c
+1 Mar 2026	2026-03-01	2026-03-01
+2 May 2026	2026-05-02	2026-05-02
+3 May 2026	2026-05-03	2026-05-03
+ALTER TABLE t_nam ADD COLUMN x INT;
+SHOW CREATE TABLE t_nam;
+Table	Create Table
+t_nam	CREATE TABLE `t_nam` (
+  `a` varchar(30) DEFAULT NULL,
+  `b` date GENERATED ALWAYS AS (str_to_date(`a`,'%d %M %Y','en_US')) STORED,
+  `c` date GENERATED ALWAYS AS (str_to_date(`a`,'%e %b %Y','en_US')) VIRTUAL,
+  `x` int(11) DEFAULT NULL,
+  KEY `c` (`c`),
+  CONSTRAINT `CONSTRAINT_1` CHECK (str_to_date(`a`,'%d %M %Y','en_US') is not null)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t_nam(a) VALUES ('5 May 2026');
+CHECK TABLE t_nam;
+Table	Op	Msg_type	Msg_text
+test.t_nam	check	status	OK
+SELECT a, b, c FROM t_nam;
+a	b	c
+1 Mar 2026	2026-03-01	2026-03-01
+2 May 2026	2026-05-02	2026-05-02
+3 May 2026	2026-05-03	2026-05-03
+5 May 2026	2026-05-05	2026-05-05
+DROP TABLE t_nam;
+SET lc_time_names=DEFAULT;
+# Only formats with month or day names depend on lc_time_names
+CREATE TABLE t1 (a VARCHAR(30) CHARACTER SET ucs2,
+b DATE AS (STR_TO_DATE(a,_latin1'%Y-%m-%d')) STORED,
+c DATE AS (STR_TO_DATE(a,'%Y-%m-%d')) VIRTUAL, KEY(c),
+CHECK (STR_TO_DATE(a,'%Y-%m-%d %%M') IS NOT NULL));
+INSERT INTO t1(a) VALUES ('2026-02-02');
+FLUSH TABLES;
+SELECT * FROM t1;
+a	b	c
+2026-02-02	2026-02-02	2026-02-02
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(30), b DATE AS (STR_TO_DATE(a,'%d.%m.%Y')) STORED,
+c DATE AS (STR_TO_DATE(a,'%d.%m.%Y')) VIRTUAL, KEY(c)) ENGINE=InnoDB;
+INSERT INTO t1(a) VALUES ('01.03.2026'),('02.03.2026');
+UPDATE t1 SET a='03.03.2026' WHERE c='2026-03-02';
+DELETE FROM t1 WHERE c='2026-03-01';
+SELECT * FROM t1 WHERE c='2026-03-03';
+a	b	c
+03.03.2026	2026-03-03	2026-03-03
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(30), CHECK (STR_TO_DATE(a,'%d %M %Y') IS NOT NULL));
+ERROR HY000: Function or expression 'str_to_date()' cannot be used in the CHECK clause of `CONSTRAINT_1`
+CREATE TABLE t1 (a VARCHAR(30), b DATE AS (STR_TO_DATE(a,'%a %Y')) STORED);
+ERROR HY000: Function or expression 'str_to_date()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+CREATE TABLE t1 (a VARCHAR(30), f VARCHAR(30), b DATE AS (STR_TO_DATE(a,f)) STORED);
+ERROR HY000: Function or expression 'str_to_date()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+CREATE TABLE t1 (a VARCHAR(30), b DATE AS (STR_TO_DATE(a,'%d %M %Y','de_DE')) STORED);
+DROP TABLE t1;
+# End of 12.3 tests

@@ -45,7 +45,7 @@ static inline bool typelib_with_0x00(const TYPELIB &typelib)
 }
 
 uint check_word(CHARSET_INFO *cs, TYPELIB *lib, const char *val,
-    const char *end, const char **end_of_word);
+    const char *end, const char **end_of_word, bool *complete= NULL);
 int find_string_in_array(LEX_CSTRING * const haystack,
                          LEX_CSTRING * const needle,
                          CHARSET_INFO * const cs);

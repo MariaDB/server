@@ -4230,7 +4230,7 @@ static TYPELIB my_locale_typelib_ab_day_names_fa_AF =
  CREATE_TYPELIB_FOR(my_locale_ab_day_names_fa_AF);
 MY_LOCALE my_locale_fa_AF
 (
-  125,
+  130,
   "fa_AF"_Lex_ident_locale,
   "Dari - Afghanistan",
   FALSE,
@@ -4805,6 +4805,7 @@ void init_locale()
 {
   for (MY_LOCALE **locale= my_locales; *locale ; locale++)
   {
+    DBUG_ASSERT((*locale)->number == uint(locale - my_locales));
     update_lengths_in_typelib((*locale)->month_names);
     update_lengths_in_typelib((*locale)->month_names_formatting);
     update_lengths_in_typelib((*locale)->ab_month_names);
