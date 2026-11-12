@@ -7164,7 +7164,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if (!share->using_binlog())
       {
         /*
-          This is a temporary table hich was not logged in the
+          This is a temporary table which was not logged in the
           binary log or a GTT table. GTT tables does not support stmt logging.
           Disable statement logging to enforce row level logging.
         */

@@ -398,6 +398,9 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       if (! table)
         continue;
 
+      if (table->s->tmp_table)                  // Ignore tmp tables
+        continue;
+
       if (wait_while_table_is_used(thd, table,
                                    HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
       {
@@ -1932,6 +1935,94 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
 
 
 /**
+  Release the MDL lock on a global temporary table (GTT) definition.
+
+  A GTT instance is local to the connection, like a local temporary
+  table, and needs no MDL lock after it has been created. The lock is
+  only released if it was taken by this statement and is not shared
+  with another TABLE_LIST in the statement.
+*/
+
+static void release_gtt_mdl_lock(THD *thd, TABLE_LIST *table_list,
+                                 Open_table_context *ot_ctx)
+{
+  MDL_ticket *ticket= table_list->mdl_request.ticket;
+
+  if (!ticket ||
+      thd->mdl_context.has_lock(ot_ctx->start_of_statement_svp(), ticket))
+    return;
+  for (TABLE_LIST *tl= thd->lex->query_tables; tl; tl= tl->next_global)
+  {
+    if (tl != table_list && tl->mdl_request.ticket == ticket)
+      return;
+  }
+  thd->mdl_context.release_lock(table_list->mdl_request.duration, ticket);
+  table_list->mdl_request.ticket= NULL;
+}
+
+
+/**
+  Open a global temporary table (GTT) under LOCK TABLES when the table
+  is not part of the LOCK TABLES list.
+
+  A GTT instance is local to the connection, like a local temporary
+  table, so it is never locked by LOCK TABLES. A short MDL lock is
+  taken on the GTT definition while the instance is created.
+
+  @param open_instance  If false, only check if the table is a GTT
+
+  @return -1  Error
+  @return  0  Not a GTT. The caller should give the normal error
+  @return  1  Table is a GTT. If open_instance is set, the GTT instance
+              is opened and table_list->table is set
+*/
+
+int open_gtt_in_locked_tables_mode(THD *thd, TABLE_LIST *table_list,
+                                   bool open_instance)
+{
+  MDL_request mdl_request;
+  TABLE_SHARE *share;
+  No_such_table_error_handler no_such_table_handler;
+  int res= -1;
+
+  MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, table_list->db.str,
+                   table_list->table_name.str, MDL_SHARED, MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request,
+                                    thd->variables.lock_wait_timeout))
+    return -1;
+
+  thd->push_internal_handler(&no_such_table_handler);
+  share= tdc_acquire_share(thd, table_list, GTS_TABLE | GTS_VIEW);
+  thd->pop_internal_handler();
+
+  if (!share)
+  {
+    if (no_such_table_handler.safely_trapped_errors())
+      res= 0;                                   // Table does not exists
+  }
+  else if (share->table_type != TABLE_TYPE_GLOBAL_TEMPORARY)
+  {
+    tdc_release_share(share);
+    res= 0;                                     // Not a GTT table
+  }
+  else if (!open_instance)
+  {
+    tdc_release_share(share);
+    res= 1;                                     // GTT table found
+  }
+  else if (open_global_temporary_table(thd, share, table_list))
+  {
+    tdc_release_share(share);                   // Error (OOM?)
+  }
+  else
+    res= 1;                                     // GTT table found
+
+  thd->mdl_context.release_lock(mdl_request.ticket);
+  return res;
+}
+
+
+/**
   Open a base table.
 
   @param thd            Thread context.
@@ -2034,10 +2125,19 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   {						// Using table locks
     TABLE *best_table= 0;
     int best_distance= INT_MIN;
+    /*
+      A GTT definition can be in the locked tables list, for example after
+      FLUSH TABLES gtt WITH READ LOCK. Skip it if the statement uses the
+      GTT instance, which is opened below.
+    */
+    bool skip_gtt_definition=
+      !thd->use_real_global_temporary_share(table_list);
+
     for (table=thd->open_tables; table ; table=table->next)
     {
       if (table->s->table_cache_key.length == key_length &&
-	  !memcmp(table->s->table_cache_key.str, key, key_length))
+	  !memcmp(table->s->table_cache_key.str, key, key_length) &&
+          !(skip_gtt_definition && table->s->global_tmp_table()))
       {
         if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
@@ -2090,12 +2190,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
           && table->vers_switch_partition(thd, table_list, ot_ctx))
         DBUG_RETURN(true);
 #endif
-      if (best_table->s->table_type == TABLE_TYPE_GLOBAL_TEMPORARY &&
-          !thd->use_real_global_temporary_share(table_list))
-      {
-        share= table->s;
-        goto open_gtt;
-      }
+      /* A GTT definition is only used if the statement asks for it */
+      DBUG_ASSERT(!best_table->s->global_tmp_table() ||
+                  thd->use_real_global_temporary_share(table_list));
       goto reset;
     }
 
@@ -2107,6 +2204,23 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
         DBUG_RETURN(true);
       }
       DBUG_RETURN(FALSE); // VIEW
+    }
+
+    /*
+      A global temporary table does not have to be part of the LOCK
+      TABLES list, in the same way as a local temporary table.
+    */
+    if (thd->locked_tables_mode != LTM_PRELOCKED &&
+        !thd->use_real_global_temporary_share(table_list))
+    {
+      int res= open_gtt_in_locked_tables_mode(thd, table_list, true);
+      if (res < 0)
+        DBUG_RETURN(TRUE);
+      if (res > 0)
+      {
+        table= table_list->table;
+        goto finalize;
+      }
     }
 
     /*
@@ -2319,15 +2433,11 @@ retry_share:
     {
       if (!thd->use_real_global_temporary_share(table_list))
       {
-      open_gtt: // Label for Locked tables mode.
-        my_bool err= open_global_temporary_table(thd, share, table_list,
-                                                 ot_ctx);
-        if (unlikely(err))
-        {
-          if (thd->locked_tables_mode && !(flags & MYSQL_OPEN_GET_NEW_TABLE))
-            DBUG_RETURN(true);
+        if (unlikely(open_global_temporary_table(thd, share, table_list)))
           goto err_lock;
-        }
+        /* The GTT instance does not need the MDL lock */
+        if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK))
+          release_gtt_mdl_lock(thd, table_list, ot_ctx);
         table= table_list->table;
         goto finalize;
       }
@@ -2669,7 +2779,6 @@ Locked_tables_list::init_locked_tables(THD *thd)
     memcpy((char*) alias.str,      table->alias.c_ptr(), alias.length + 1);
     dst_table_list->init_one_table(&db, &table_name,
                                    &alias, table->reginfo.lock_type);
-    dst_table_list->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
     dst_table_list->table= table;
     dst_table_list->mdl_request.ticket= src_table_list->mdl_request.ticket;
 
@@ -4278,6 +4387,17 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
       */
       if (thd->has_temporary_tables())
         error= thd->open_temporary_table(tables);
+    }
+    else if (!tables->table &&      // Not opened in mysql_execute_command
+             thd->has_open_global_temporary_tables() &&
+             !thd->use_real_global_temporary_share(tables))
+    {
+      /*
+        Reuse an existing global temporary table instance, for example
+        when the table is used twice in the same statement. This must
+        be done before open_table() takes a MDL lock on the definition.
+      */
+      error= thd->open_temporary_table(tables, TMP_TABLE_GLOBAL);
     }
 
     if (!error && !tables->table)

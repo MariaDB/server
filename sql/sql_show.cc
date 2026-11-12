@@ -1202,6 +1202,36 @@ public:
 
 */
 
+/**
+  Check if SHOW CREATE TABLE needs an empty open tables state
+
+  Under LOCK TABLES a global temporary table (GTT) definition is never
+  part of the locked tables, as LOCK TABLES only uses the GTT instance.
+  If there is no GTT instance, the definition is shown. Open it with an
+  empty open tables state, like INFORMATION_SCHEMA does, so that it is
+  closed at end of statement.
+
+  All other tables and views are opened in the normal way, so that
+  open_tables() checks that they are locked.
+
+  @return -1  Error
+  @return  0  Use the current open tables state
+  @return  1  Table is a GTT definition that is not locked
+*/
+
+static int show_create_needs_own_tables_state(THD *thd,
+                                              TABLE_LIST *table_list)
+{
+  if (thd->locked_tables_mode != LTM_LOCK_TABLES ||
+      thd->find_tmp_table_share(table_list, TMP_TABLE_LOCAL_OR_GLOBAL) ||
+      find_locked_table(thd->open_tables, table_list->db.str,
+                        table_list->table_name.str))
+    return 0;
+  /* A missing table is reported later by open_tables() */
+  return open_gtt_in_locked_tables_mode(thd, table_list, false);
+}
+
+
 bool
 mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
                               List<Item> *field_list, String *buffer)
@@ -1233,9 +1263,10 @@ mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
   {
     /*
       Temporary tables should be opened for SHOW CREATE TABLE, but not
-      for SHOW CREATE VIEW.
+      for SHOW CREATE VIEW. For a global temporary table, show the
+      instance used by this connection if there is one.
     */
-    if (thd->open_temporary_tables(table_list, TMP_TABLE_LOCAL))
+    if (thd->open_temporary_tables(table_list))
       goto exit;
 
     /*
@@ -1365,7 +1396,9 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   char buff[2048];
   String buffer(buff, sizeof(buff), &my_charset_utf8mb4_general_ci);
   List<Item> field_list;
-  bool error= TRUE;
+  Open_tables_backup open_tables_backup;
+  bool error= TRUE, own_tables_state= false;
+  int res;
   DBUG_ENTER("mysqld_show_create");
   DBUG_PRINT("enter",("db: %s  table: %s",table_list->db.str,
                       table_list->table_name.str));
@@ -1378,6 +1411,19 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   TABLE_LIST archive;
 
+  if ((res= show_create_needs_own_tables_state(thd, table_list)) < 0)
+    goto exit;
+
+  if ((own_tables_state= res > 0))
+  {
+    /*
+      res > 0 only for a GTT definition under LOCK TABLES when this
+      connection has no instance of it. The definition can't be locked,
+      so open it with an empty open tables state. Everything else is
+      opened normally and open_tables() checks the locks.
+    */
+    thd->reset_n_backup_open_tables_state(&open_tables_backup);
+  }
   if (mysqld_show_create_get_fields(thd, table_list, &field_list, &buffer))
     goto exit;
 
@@ -1422,6 +1468,8 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
 exit:
   close_thread_tables(thd);
+  if (own_tables_state)
+    thd->restore_backup_open_tables_state(&open_tables_backup);
   /* Release any metadata locks taken during SHOW CREATE. */
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
   DBUG_RETURN(error);

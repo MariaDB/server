@@ -917,7 +917,6 @@ void init_update_queries(void)
   */
   sql_command_flags[SQLCOM_CREATE_VIEW] |= CF_USE_PARENT_GTT_SHARE;
   sql_command_flags[SQLCOM_TRUNCATE]    |= CF_USE_PARENT_GTT_SHARE;
-  sql_command_flags[SQLCOM_LOCK_TABLES] |= CF_USE_PARENT_GTT_SHARE;
   sql_command_flags[SQLCOM_DROP_TABLE]  |= CF_USE_PARENT_GTT_SHARE;
   sql_command_flags[SQLCOM_REPAIR]      |= CF_USE_PARENT_GTT_SHARE;
   sql_command_flags[SQLCOM_ANALYZE]     |= CF_USE_PARENT_GTT_SHARE;
@@ -2961,7 +2960,7 @@ retry:
             Let us restart acquiring and opening tables for LOCK TABLES.
           */
           close_tables_for_reopen(thd, &tables, mdl_savepoint, true);
-          if (thd->open_temporary_tables(tables, TMP_TABLE_LOCAL))
+          if (thd->open_temporary_tables(tables))
             goto err;
           goto retry;
         }
@@ -4955,8 +4954,11 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       (it's called from unlock_locked_tables() above). So even if
       CF_PREOPEN_TMP_TABLES was set and the tables would be pre-opened
       in a usual way, they would have been closed.
+
+      Existing global temporary table instances are also pre-opened.
+      They are never locked by LOCK TABLES.
     */
-    if (thd->open_temporary_tables(all_tables, TMP_TABLE_LOCAL))
+    if (thd->open_temporary_tables(all_tables))
       goto error;
 
     if (lock_tables_precheck(thd, all_tables))

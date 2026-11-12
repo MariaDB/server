@@ -247,8 +247,9 @@ comment='create ... as values(5),(5),(5) => duplicate'
                           as values(5),(5),(5);
 ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
 select `5` as col from t2;
-col
+ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t2;
+ERROR 42S02: Unknown table 'test.t2'
 ### CREATE TABLE ... LIKE
 create table t1(x int primary key);
 create global temporary table t2 like t1;
@@ -529,9 +530,14 @@ x
 1
 truncate t;
 drop table t;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 select * from t;
-ERROR 42S02: Table 'test.t' doesn't exist
+x
 unlock tables;
+drop table t;
+ERROR HY000: Table `test`.`t` is in use.
+truncate table t;
+drop table t;
 create global temporary table t(x int) on commit preserve rows;
 insert t values(1);
 lock tables t write;
@@ -546,13 +552,12 @@ create global temporary table t(x int) on commit preserve rows;
 lock tables t write;
 insert t values(1);
 connection con1;
-set statement lock_wait_timeout= 0 for
-select * from t nowait;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+select * from t;
+x
 lock tables t write nowait;
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection default;
 truncate t;
+unlock tables;
 drop table t;
 # Global descriptor is locked for read, but it allows inserting
 # into local copies
@@ -784,6 +789,7 @@ drop table t;
 create global temporary table t (c int);
 lock tables t write;
 create or replace global temporary table t (c int);
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 show create table t;
 Table	Create Table
 t	CREATE GLOBAL TEMPORARY TABLE `t` (
@@ -792,7 +798,11 @@ t	CREATE GLOBAL TEMPORARY TABLE `t` (
 select * from t;
 c
 drop table t;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+unlock tables;
+drop table t;
 create or replace global temporary table t (c int) on commit preserve rows;
+lock tables t write;
 show create table t;
 Table	Create Table
 t	CREATE GLOBAL TEMPORARY TABLE `t` (
@@ -800,8 +810,11 @@ t	CREATE GLOBAL TEMPORARY TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
 insert t values(1);
 create or replace global temporary table t (d int);
-ERROR HY000: Table `test`.`t` is in use.
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 truncate t;
+create or replace global temporary table t (d int);
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+unlock tables;
 create or replace global temporary table t (d int);
 drop table t;
 unlock tables;
@@ -825,9 +838,11 @@ create table liker(y int);
 lock tables t write, liker write;
 insert t values(1);
 create or replace table t like liker;
-ERROR HY000: Table `test`.`t` is in use.
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 truncate t;
 create or replace table t like liker;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+unlock tables;
 drop table t;
 drop table liker;
 unlock tables;
@@ -902,11 +917,11 @@ create table src(x int);
 insert src values (1), (2);
 lock tables t write, src read;
 create or replace table t select * from src;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 select * from t;
-x
-1
-2
+y
 unlock tables;
+truncate table t;
 drop table t;
 drop table src;
 # MDEV-37385 (duplicate) Thread hang on CoR where the original table is a GTT
@@ -943,7 +958,6 @@ truncate t;
 drop table t;
 # MDEV-37578 Assertion failed in TDC_element::flush on ALTER TABLE GTT DISCARD TABLESPACE
 create global temporary table t (c int) engine=innodb;
-lock tables t write;
 alter table t discard tablespace;
 ERROR HY000: Cannot DISCARD/IMPORT tablespace associated with temporary table
 unlock tables;
@@ -954,7 +968,6 @@ set session transaction_read_only=1;
 handler t open;
 lock tables t read;
 lock tables t write;
-ERROR 25006: Cannot execute statement in a READ ONLY transaction
 flush table t;
 set session transaction_read_only=0;
 truncate t;
@@ -1012,10 +1025,10 @@ set max_session_mem_used= @save_max_session_mem_used;
 lock table t write;
 set max_session_mem_used= 8192;
 alter table t add z int;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 set max_session_mem_used= @save_max_session_mem_used;
-drop table t;
 unlock tables;
+drop table t;
 # MDEV-37668 SIGSEGV on DROP TABLE GTT under LOCK TABLES and different server_id
 create global temporary table t (x int) on commit preserve rows as select 1 'a';
 create global temporary table t2 (x int key) on commit preserve rows;
@@ -1025,8 +1038,10 @@ drop table t;
 ERROR HY000: Table `test`.`t` is in use.
 truncate t;
 drop table t;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 unlock tables;
-drop table t2;
+truncate t2;
+drop table t,t2;
 MDEV-37681 SIGSEGV on TRUNCATE GTT after failed RENAME under LOCK TABLE
 create global temporary table t (c int) on commit preserve rows;
 lock table t write;
@@ -1036,6 +1051,7 @@ connection default;
 alter table t add x int;
 ERROR HY000: Table `test`.`t` is in use.
 truncate t;
+unlock tables;
 drop table t;
 create global temporary table t (c int) on commit preserve rows;
 connection con1;
@@ -1146,7 +1162,7 @@ create global temporary table t (x int);
 lock tables t read;
 repair table t;
 Table	Op	Msg_type	Msg_text
-test.t	repair	Error	Table 't' was locked with a READ lock and can't be updated
+test.t	repair	Error	Table 't' was not locked with LOCK TABLES
 test.t	repair	status	Operation failed
 unlock tables;
 drop table t;
@@ -1194,7 +1210,9 @@ drop table t;
 # MDEV-38448 assertion ...tdc->ref_count > 0 failed on LOCK gtt+open error
 set pseudo_slave_mode=1;
 create global temporary table t1 (c int) on commit delete rows;
+# LOCK TABLES creates the GTT instance, which fails here
 lock tables t1 write;
+ERROR HY000: Failed to open t1.test
 insert into t1 values (1);
 ERROR HY000: Failed to open t1.test
 create global temporary table t1 (c int);
@@ -1207,6 +1225,7 @@ drop table t1;
 create global temporary table t (c int) on commit delete rows;
 set pseudo_slave_mode=1;
 lock tables t write;
+ERROR HY000: Failed to open t.test
 insert into t values (1);
 ERROR HY000: Failed to open t.test
 truncate t;
@@ -1219,6 +1238,7 @@ drop table t;
 set pseudo_slave_mode=1;
 create global temporary table t (c int);
 lock table t write;
+ERROR HY000: Failed to open t.test
 insert into t values (1);
 ERROR HY000: Failed to open t.test
 flush tables;
@@ -1230,6 +1250,7 @@ drop table t;
 set pseudo_slave_mode=1;
 create global temporary table t (c int);
 lock tables t read;
+ERROR HY000: Failed to open t.test
 create temporary table t1 like t;
 ERROR HY000: Failed to open t.test
 begin;
@@ -1246,7 +1267,7 @@ select * from t;
 c
 set max_session_mem_used=8192;
 truncate t;
-ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
+ERROR HY000: Table 't' was not locked with LOCK TABLES
 set max_session_mem_used= @save_max_session_mem_used;
 unlock tables;
 select * from t;
@@ -1274,13 +1295,16 @@ lock tables t2 write, t3 write;
 create or replace global temporary table t2(x int) engine=aria select 0 as x;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	analyze	note	The storage engine for the table doesn't support analyze
+test.t2	analyze	Error	Table 't2' was not locked with LOCK TABLES
+test.t2	analyze	status	Operation failed
 unlock tables;
 lock tables t2 write;
 create or replace global temporary table t2(x int) engine=aria select 0 as x;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
 analyze table t2;
 Table	Op	Msg_type	Msg_text
-test.t2	analyze	note	The storage engine for the table doesn't support analyze
+test.t2	analyze	Error	Table 't2' was not locked with LOCK TABLES
+test.t2	analyze	status	Operation failed
 unlock tables;
 truncate t2;
 drop table t2;
@@ -1297,7 +1321,10 @@ set statement pseudo_slave_mode=1 for
 create or replace global temporary table t1 (c int) select 0 as c;
 ERROR HY000: Failed to open t1.test
 unlock tables;
-# Table t1 is dropped by non-atomic CREATE OR REPLACE
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
 # MDEV-38567 GTT Context corruption on repeated SQL when autocommit=0
 set autocommit=0;
 create global temporary table t (c int) on commit delete rows;
@@ -1325,7 +1352,229 @@ update t set c=c+1;
 unlock tables;
 truncate t;
 drop table t;
+#
+# CREATE OR REPLACE GTT over a table locked by LOCK TABLES
+#
+create table t2 (a int);
+create table t3 (a int);
+# The replaced table is the only locked table: LOCK TABLES ends
+create table t1 (a int);
+lock tables t1 write;
+create or replace global temporary table t1 (c int) on commit preserve rows;
+# t3 was never locked, this only works when LOCK TABLES has ended
+select * from t3;
+a
+insert t1 values (1);
+select * from t1;
+c
+1
+truncate t1;
+drop table t1;
+# Another table is still locked: LOCK TABLES continues
+create table t1 (a int);
+lock tables t1 write, t2 write;
+create or replace global temporary table t1 (c int) on commit preserve rows;
+connection con1;
+# The metadata lock on the replaced t1 is released
+set statement lock_wait_timeout= 1 for select * from t1;
+c
+truncate table t1;
+connection default;
+select * from t2;
+a
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+insert t1 values (1);
+select * from t1;
+c
+1
+unlock tables;
+truncate t1;
+drop table t1;
+# CREATE OR REPLACE ... LIKE
+create table t1 (a int);
+lock tables t1 write, t2 write;
+create or replace global temporary table t1 like t2;
+show create table t1;
+Table	Create Table
+t1	CREATE GLOBAL TEMPORARY TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT DELETE ROWS
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+insert t1 values (1);
+select * from t1;
+a
+unlock tables;
+truncate t1;
+drop table t1;
+# CREATE OR REPLACE ... SELECT
+create table t1 (a int);
+insert t2 values (5);
+lock tables t1 write, t2 read;
+create or replace global temporary table t1 on commit preserve rows
+select a from t2;
+select * from t1;
+a
+5
+select * from t2;
+a
+5
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+unlock tables;
+truncate t1;
+drop table t1;
+drop table t2, t3;
+#
+# A failed CREATE GTT ... SELECT leaves no definition behind
+#
+create global temporary table t1 (c int) select 1/0 as c;
+ERROR 22012: Division by 0
+show tables like 't1';
+Tables_in_test (t1)
+create global temporary table t1 (c int);
+create or replace global temporary table t1 (c int) select 1/0 as c;
+ERROR 22012: Division by 0
+# The old definition is dropped by the non-atomic CREATE OR REPLACE
+show tables like 't1';
+Tables_in_test (t1)
+create table t1 (c int);
+create or replace global temporary table t1 (c int) select 1/0 as c;
+ERROR 22012: Division by 0
+show tables like 't1';
+Tables_in_test (t1)
+create table t1 (c int);
+lock tables t1 write;
+create or replace global temporary table t1 (c int) select 1/0 as c;
+ERROR 22012: Division by 0
+unlock tables;
+show tables like 't1';
+Tables_in_test (t1)
+#
+# DROP and re-create of a definition while another session has data
+#
+create global temporary table t (x int) on commit preserve rows;
+connection con1;
+insert t values (1);
+connection default;
+drop table t;
+connection con1;
+# The instance can still be used
+select * from t;
+x
+1
+insert t values (2);
+select * from t;
+x
+1
+2
+truncate t;
+select * from t;
+ERROR 42S02: Table 'test.t' doesn't exist
+connection default;
+create global temporary table t (x int) on commit preserve rows;
+connection con1;
+insert t values (1);
+connection default;
+drop table t;
+create global temporary table t (a varchar(10)) on commit preserve rows;
+connection con1;
+select * from t;
+x
+1
+truncate t;
+insert t values ('new');
+select * from t;
+a
+new
+truncate t;
+# The same while con1 is under LOCK TABLES
+lock tables t write;
+insert t values ('old');
+connection default;
+drop table t;
+create global temporary table t (x int) on commit preserve rows;
+connection con1;
+select * from t;
+a
+old
+truncate t;
+select * from t;
+x
+insert t values (1);
+select * from t;
+x
+1
+unlock tables;
+truncate t;
+connection default;
+drop table t;
+#
+# Stored functions and triggers using a GTT (prelocking)
+#
+create table t1 (a int);
+create global temporary table t (x int) on commit preserve rows;
+create function f(v int) returns int
+begin
+insert t values (v);
+return (select count(*) from t);
+end//
+create trigger tr after insert on t1 for each row insert t values (new.a);
+connection con1;
+# No instance exists before the statement
+select f(1);
+f(1)
+1
+select f(2);
+f(2)
+2
+select * from t order by x;
+x
+1
+2
+truncate t;
+insert t1 values (10);
+select * from t;
+x
+10
+truncate t;
+# Under LOCK TABLES, t is not listed
+lock tables t1 write;
+insert t1 values (20);
+select * from t;
+x
+20
+select f(3);
+f(3)
+2
+select * from t order by x;
+x
+3
+20
+truncate t;
+select f(4);
+f(4)
+1
+unlock tables;
+truncate t;
+# Under LOCK TABLES, t is listed
+lock tables t1 write, t write;
+insert t1 values (30);
+select f(5);
+f(5)
+2
+select * from t order by x;
+x
+5
+30
+unlock tables;
+truncate t;
+connection default;
+drop function f;
+drop table t1, t;
 disconnect con1;
+connection default;
 connection slave;
 connection master;
 set @old_timeout= @@global.lock_wait_timeout;

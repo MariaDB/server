@@ -5287,6 +5287,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   uint save_thd_create_info_options;
   bool is_trans= FALSE;
   bool result;
+  bool release_replaced_locked_table= false;
   DBUG_ENTER("mysql_create_table");
 
   DBUG_ASSERT(create_info->default_table_charset);
@@ -5359,22 +5360,34 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (thd->locked_tables_mode && pos_in_locked_tables &&
       create_info->or_replace())
   {
-    DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
-    /*
-      Add back the deleted table and re-created table as a locked table
-      This should always work as we have a meta lock on the table.
-     */
-    thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
-    if (thd->locked_tables_list.reopen_tables(thd, false))
+    if (create_info->global_tmp_table())
     {
-      thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-      result= 1;
-      goto err;
+      /*
+        A global temporary table is not locked by LOCK TABLES. The
+        replaced table was removed from the locked tables list when it was
+        dropped. Its MDL locks are released after binary logging below.
+      */
+      release_replaced_locked_table= true;
     }
     else
     {
-      TABLE *table= pos_in_locked_tables->table;
-      table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+      DBUG_ASSERT(thd->variables.option_bits & OPTION_TABLE_LOCK);
+      /*
+        Add back the deleted table and re-created table as a locked table
+        This should always work as we have a meta lock on the table.
+      */
+      thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
+      if (thd->locked_tables_list.reopen_tables(thd, false))
+      {
+        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+        result= 1;
+        goto err;
+      }
+      else
+      {
+        TABLE *table= pos_in_locked_tables->table;
+        table->mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
+      }
     }
   }
 
@@ -5403,8 +5416,9 @@ err:
       /*
         Possible locked table was dropped. We should remove meta data locks
         associated with it and do UNLOCK_TABLES if no more locked tables.
+        This is done after binary logging below.
       */
-      (void) thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
+      release_replaced_locked_table= true;
     }
     else if (likely(!result) && create_info->table)
     {
@@ -5443,6 +5457,12 @@ err:
   }
   ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
+  /*
+    The replaced table is dropped, so release its MDL locks even if
+    writing to the binary log failed.
+  */
+  if (release_replaced_locked_table)
+    (void) thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
   DBUG_RETURN(result);
 }
 
@@ -5788,6 +5808,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 {
   Table_specification_st local_create_info;
   TABLE_LIST *pos_in_locked_tables= 0;
+  MDL_ticket *mdl_ticket= 0;
   Alter_info local_alter_info;
   Alter_table_ctx local_alter_ctx; // Not used 
   DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
@@ -5796,6 +5817,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   bool do_logging= FALSE;
   bool force_generated_create= false;
   bool src_table_exists= FALSE;
+  bool release_replaced_locked_table= false;
   uint not_used;
   int create_res;
   DBUG_ENTER("mysql_create_like_table");
@@ -5929,7 +5951,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   /* The following is needed only in case of lock tables */
   if ((local_create_info.table= thd->lex->query_tables->table))
-    pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;    
+  {
+    pos_in_locked_tables= local_create_info.table->pos_in_locked_tables;
+    mdl_ticket= local_create_info.table->mdl_ticket;
+  }
 
   res= ((create_res=
          mysql_create_table_no_lock(thd,
@@ -5947,7 +5972,17 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     on a non temporary table
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
-      create_info->or_replace())
+      create_info->or_replace() && create_info->global_tmp_table())
+  {
+    /*
+      A global temporary table is not locked by LOCK TABLES. The
+      replaced table was removed from the locked tables list when it was
+      dropped. Its MDL locks are released after binary logging below.
+    */
+    release_replaced_locked_table= true;
+  }
+  else if (thd->locked_tables_mode && pos_in_locked_tables &&
+           create_info->or_replace())
   {
     /*
       Add back the deleted table and re-created table as a locked table
@@ -6217,6 +6252,12 @@ err:
 
   ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
+  /*
+    The replaced table is dropped, so release its MDL locks even if a
+    later step failed.
+  */
+  if (release_replaced_locked_table)
+    (void) thd->locked_tables_list.unlock_locked_table(thd, mdl_ticket);
   DBUG_RETURN(res != 0);
 }
 
@@ -6226,8 +6267,7 @@ static void open_gtt_on_error(TABLE *table)
 }
 
 my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
-                                    TABLE_LIST *out_table,
-                                    Open_table_context *ot_ctx)
+                                    TABLE_LIST *out_table)
 {
   // Replica shouldn't use global temporary tables.
   if (thd->rgi_slave)
@@ -6328,7 +6368,7 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
       instance is local to this connection, like a local temporary
       table, so other connections can ALTER or DROP the definition.
     */
-    share->table_creation_was_logged= 2;        // Force ROW LOGGING
+    share->table_creation_was_logged= 2;        // No binlog logging
     closefrm(&global_table);
   }
 
@@ -6340,9 +6380,8 @@ my_bool open_global_temporary_table(THD *thd, TABLE_SHARE *source,
 
   if (table->s->on_commit_delete())
     thd->use_global_tmp_table_tp();
-  if (!thd->locked_tables_mode ||
-      ot_ctx->get_flags() & MYSQL_OPEN_GET_NEW_TABLE)
-    tdc_release_share(source);
+  /* The GTT instance does not use the share of the GTT definition */
+  tdc_release_share(source);
   return FALSE;
 }
 
@@ -13980,6 +14019,15 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         {
           if (create_info.tmp_table())
             thd->variables.option_bits|= OPTION_BINLOG_THIS_TRX;
+          /*
+            A global temporary table replaced a table locked by LOCK
+            TABLES. The GTT is not locked, so release the MDL locks of
+            the replaced table. See select_create::send_eof().
+          */
+          if (create_info.pos_in_locked_tables &&
+              create_info.global_tmp_table())
+            (void) thd->locked_tables_list.
+              unlock_locked_table(thd, create_info.mdl_ticket);
         }
         delete result;
       }

@@ -6889,6 +6889,9 @@ char check_if_ignore_table(const char *table_name, char *table_type)
     if (!strcmp(table_type, "S3"))
        result|= IGNORE_S3_TABLE;
 
+    if (!strcmp(row[1],"GLOBAL TEMPORARY"))
+      result|= IGNORE_DATA;
+
     /*
       If these two types, we do want to skip dumping the table
     */

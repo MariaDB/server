@@ -886,6 +886,14 @@ public:
 
   void release_all_locks_for_name(MDL_ticket *ticket);
   void release_lock(MDL_ticket *ticket);
+  /*
+    Release a lock before the end of its duration. The caller must clear
+    all references to the ticket and the ticket must have been acquired
+    after the last MDL savepoint taken in this context. This is the
+    case for releasing MDL locks for GTT definition tables.
+  */
+
+  void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
 
   bool is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
                      const char *db, const char *name,
@@ -1053,7 +1061,6 @@ private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
-  void release_lock(enum_mdl_duration duration, MDL_ticket *ticket);
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
   bool fix_pins();

@@ -4949,39 +4949,22 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
         table_list->mdl_request.ticket= create_info->mdl_ticket;
       DBUG_ASSERT(table_list->mdl_request.ticket);
 
-      if (create_info->pos_in_locked_tables && create_info->global_tmp_table())
-      {
-        /*
-          Also pre-open a parent GTT handle to replace a
-          locked_tables_list item later in select_create::send_eof()
-        */
-        TABLE_LIST *parent_gtt= thd->alloc<TABLE_LIST>(1);
-        new(parent_gtt) TABLE_LIST(&table_list->db, &table_list->table_name,
-                                   &table_list->alias, table_list->lock_type);
-        // Will open the parent table
-        parent_gtt->open_strategy= TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST;
-        parent_gtt->prev_global= &table_list;
-        // Tables from SELECT are stored in select_create::select_tables
-        DBUG_ASSERT(table_list->next_global == NULL);
-        table_list->next_global= parent_gtt;
-        if (open_table(thd, parent_gtt, &ot_ctx))
-          recover_rm_table();
-        else // Success
-          parent_global_tmp_table= parent_gtt->table;
-      }
-
       /*
         Here we open the destination table, on which we already have
-        an exclusive metadata lock.
+        an exclusive metadata lock. For a global temporary table this
+        creates the GTT instance.
       */
       if (open_table(thd, table_list, &ot_ctx))
       {
-        if (parent_global_tmp_table)
-          drop_open_table(thd, parent_global_tmp_table,
-                          &table_list->db,
-                          &table_list->table_name);
-        else
-          recover_rm_table();                     // Needed by Galera
+        /*
+          For a global temporary table, open_table() has put the new
+          definition in the table definition cache. Remove it, as we
+          delete the definition.
+        */
+        if (create_info->global_tmp_table())
+          tdc_remove_table(thd, table_list->db.str,
+                           table_list->table_name.str);
+        recover_rm_table();                     // Needed by Galera
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
@@ -5033,19 +5016,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     since it won't wait for the table lock (we have exclusive metadata lock on
     the table) and thus can't get aborted.
   */
-  TABLE *tables_to_lock[2]
-  {
-    table,
-    /*
-      For GTT, also lock the parent table to issue
-      lock->start_trans -- important for Aria state consistency.
-    */
-    table_list->next_global ? table_list->next_global->table : NULL,
-  };
-  uint lock_count = 1 + MY_TEST(tables_to_lock[1]);
-
-  if (unlikely(!((*lock)= mysql_lock_tables(thd, tables_to_lock,
-                                            lock_count, 0)) ||
+  if (unlikely(!((*lock)= mysql_lock_tables(thd, &table, 1, 0)) ||
                postlock(thd, &table)))
   {
     /* purecov: begin tested */
@@ -5576,26 +5547,25 @@ bool select_create::send_eof()
     *m_plock= NULL;
     m_plock= NULL;
 
-    if (create_info->pos_in_locked_tables)
+    /*
+      A global temporary table is not locked by LOCK TABLES. The MDL
+      locks of the replaced table are released by
+      Sql_cmd_create_table_like::execute() at end of statement.
+    */
+    if (create_info->pos_in_locked_tables && !create_info->global_tmp_table())
     {
-      /*
-        For global temporary tables, restore a parent table handle, pre-opened
-        in select_create::create_table_from_items.
-      */
-      TABLE *table_to_store= create_info->global_tmp_table() ?
-                             parent_global_tmp_table : table;
       /*
         If we are under lock tables, we have created a table that was
         originally locked. We should add back the lock to ensure that
         all tables in the thd->open_list are locked!
       */
-      table_to_store->mdl_ticket= create_info->mdl_ticket;
+      table->mdl_ticket= create_info->mdl_ticket;
 
       /* The following should never fail, except if out of memory */
       if (!thd->locked_tables_list.restore_lock(thd,
                                                 create_info->
                                                 pos_in_locked_tables,
-                                                table_to_store, lock))
+                                                table, lock))
         DBUG_RETURN(false);                     // ok
       /* Fail. Continue without locking the table */
     }
@@ -5649,6 +5619,7 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table && !table->s->global_tmp_table();
+    bool gtt_instance= table->s->global_tmp_table();
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged ||
                                      create_info->table_was_deleted);
@@ -5674,17 +5645,16 @@ void select_create::abort_result_set()
       m_plock= NULL;
     }
 
-    if (table->s->global_tmp_table() && table->s->tmp_table &&
-        parent_global_tmp_table)
-    {
-      // Parent GTT is opened only in LTM.
-      DBUG_ASSERT(thd->locked_tables_mode);
-      // For GTT we may need the two drops. First, drop the child table.
-      drop_open_table(thd, table, &table_list->db, &table_list->table_name);
-      // Then, drop the parent
-      table= parent_global_tmp_table;
-    }
     drop_open_table(thd, table, &table_list->db, &table_list->table_name);
+    if (gtt_instance)
+    {
+      /*
+        We dropped the GTT instance. Also remove the GTT definition
+        that was created by this statement.
+      */
+      tdc_remove_table(thd, table_list->db.str, table_list->table_name.str);
+      recover_rm_table();
+    }
     table=0;                                    // Safety
     if (thd->log_current_statement())
     {

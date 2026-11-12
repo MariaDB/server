@@ -1,0 +1,629 @@
+set lock_wait_timeout= 5;
+connect  con1,localhost,root,,;
+set lock_wait_timeout= 5;
+connection default;
+#
+# LOCK TABLES of a GTT holds no metadata lock on the definition
+#
+create global temporary table t (x int) on commit preserve rows;
+lock tables t write;
+insert t values (1);
+connection con1;
+set statement lock_wait_timeout= 1 for select * from t;
+x
+lock tables t write;
+insert t values (2);
+select * from t;
+x
+2
+unlock tables;
+truncate table t;
+alter table t add y int;
+show create table t;
+Table	Create Table
+t	CREATE GLOBAL TEMPORARY TABLE `t` (
+  `x` int(11) DEFAULT NULL,
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ON COMMIT PRESERVE ROWS
+connection default;
+# The instance still has the old definition
+select * from t;
+x
+1
+unlock tables;
+select * from t;
+x
+1
+truncate t;
+# The new instance uses the new definition
+select * from t;
+x	y
+truncate t;
+connection con1;
+truncate t;
+connection default;
+drop table t;
+#
+# A GTT that is not listed in LOCK TABLES can be used
+#
+create table t1 (a int);
+insert t1 values (1), (2);
+create global temporary table t (x int) on commit preserve rows;
+create global temporary table t2 (x int) on commit preserve rows;
+insert t2 values (10);
+create table t3 (a int);
+# No instance of t exists yet, an instance of t2 exists
+lock tables t1 write;
+insert t values (1);
+insert t select a from t1;
+update t set x= x + 10 where x = 2;
+select * from t order by x;
+x
+1
+1
+12
+select * from t2;
+x
+10
+insert t2 select x from t;
+select * from t1 join t on t1.a = t.x order by a;
+a	x
+1	1
+1	1
+delete from t where x = 1;
+select * from t order by x;
+x
+12
+select * from t2 order by x;
+x
+1
+1
+10
+12
+# A table that is not a GTT still needs a lock
+select * from t3;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+unlock tables;
+drop table t3;
+# Aliases do not matter for GTT instances
+lock tables t as a write, t1 read;
+select * from t order by x;
+x
+12
+select * from t as b order by x;
+x
+12
+select * from t as a join t as b using (x) order by x;
+x
+12
+unlock tables;
+# A GTT locked for READ can still be written to
+lock tables t read;
+insert t values (100);
+select * from t order by x;
+x
+12
+100
+unlock tables;
+truncate t;
+truncate t2;
+drop table t, t2, t1;
+#
+# DDL on a GTT definition under LOCK TABLES
+#
+create global temporary table t (x int) on commit preserve rows;
+create table liker (y int);
+lock tables t write, liker read;
+insert t values (1);
+alter table t add y int;
+ERROR HY000: Table `test`.`t` is in use.
+rename table t to t_new;
+ERROR HY000: Table `test`.`t` is in use.
+drop table t;
+ERROR HY000: Table `test`.`t` is in use.
+create or replace global temporary table t (y int);
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+create or replace table t (y int);
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+create or replace table t like liker;
+ERROR HY000: Table 't' was not locked with LOCK TABLES
+create global temporary table t_new (y int);
+ERROR HY000: Table 't_new' was not locked with LOCK TABLES
+# FLUSH TABLE ignores GTTs
+flush table t;
+select * from t;
+x
+1
+drop temporary table t;
+ERROR 42S02: Unknown table 't'
+# TRUNCATE only affects the instance and is allowed
+truncate t;
+select * from t;
+x
+insert t values (2);
+select * from t;
+x
+2
+unlock tables;
+# TRUNCATE of a GTT that is not listed, with and without an instance
+lock tables liker read;
+truncate t;
+select * from t;
+x
+insert t values (3);
+truncate t;
+select * from t;
+x
+truncate t;
+unlock tables;
+drop table t, liker;
+#
+# One GTT used several times in a statement before an instance exists
+#
+create global temporary table t (x int) on commit preserve rows;
+create view v as select * from t;
+connection con1;
+insert t select 1 from dual where (select count(*) from t) = 0;
+select * from t;
+x
+1
+truncate t;
+select (select count(*) from t) as c from t as a join t as b;
+c
+insert t values (1), (2);
+truncate t;
+with c as (select * from t) select * from c as a join c as b;
+x	x
+truncate t;
+select * from t union all select * from t;
+x
+truncate t;
+select * from v join t using (x);
+x
+truncate t;
+insert t select * from t;
+select * from t;
+x
+truncate t;
+# The same under LOCK TABLES, where t is not listed
+create table t1 (a int);
+lock tables t1 read;
+select * from t as a join t as b;
+x	x
+insert t values (1);
+insert t select x + 1 from t;
+select * from t as a join t as b order by a.x, b.x;
+x	x
+1	1
+1	2
+2	1
+2	2
+unlock tables;
+truncate t;
+drop table t1;
+connection default;
+drop view v;
+drop table t;
+#
+# Creating an instance in a transaction does not keep a metadata
+# lock on the definition
+#
+create global temporary table t (x int) on commit preserve rows;
+connection con1;
+begin;
+insert t values (1);
+connection default;
+set statement lock_wait_timeout= 1 for alter table t add y int;
+connection con1;
+# The instance still has the old definition
+select * from t;
+x
+1
+commit;
+select * from t;
+x
+1
+truncate t;
+select * from t;
+x	y
+insert t values (1, 2);
+select * from t;
+x	y
+1	2
+truncate t;
+connection default;
+drop table t;
+create global temporary table t (x int) on commit delete rows;
+connection con1;
+begin;
+insert t values (1);
+connection default;
+set statement lock_wait_timeout= 1 for alter table t add y int;
+connection con1;
+select * from t;
+x
+1
+commit;
+# Commit dropped the instance, the next one uses the new definition
+select * from t;
+x	y
+connection default;
+drop table t;
+#
+# ON COMMIT DELETE ROWS under LOCK TABLES
+#
+create table t1 (a int);
+create global temporary table t (x int) on commit delete rows;
+# autocommit=1: every statement commits and drops the instance
+lock tables t write;
+insert t values (1);
+select * from t;
+x
+unlock tables;
+lock tables t1 write;
+insert t values (1);
+select * from t;
+x
+unlock tables;
+# autocommit=0
+set autocommit= 0;
+lock tables t write;
+insert t values (1);
+select * from t;
+x
+1
+commit;
+select * from t;
+x
+insert t values (2);
+select * from t;
+x
+2
+rollback;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+select * from t;
+x
+unlock tables;
+lock tables t1 write;
+insert t values (3);
+select * from t;
+x
+3
+commit;
+select * from t;
+x
+insert t values (4);
+select * from t;
+x
+4
+commit;
+unlock tables;
+set autocommit= 1;
+# A prepared statement is re-executed on a new instance
+prepare s from 'insert t values (5)';
+prepare s2 from 'select * from t';
+lock tables t1 write;
+execute s;
+execute s2;
+x
+set autocommit= 0;
+execute s;
+execute s;
+execute s2;
+x
+5
+5
+commit;
+execute s2;
+x
+set autocommit= 1;
+unlock tables;
+deallocate prepare s;
+deallocate prepare s2;
+drop table t, t1;
+#
+# A view over a GTT under LOCK TABLES
+#
+create global temporary table t (x int) on commit preserve rows;
+create view v as select * from t;
+lock tables v write;
+insert v values (1);
+select * from v;
+x
+1
+select * from t;
+x
+1
+unlock tables;
+lock tables v read;
+select * from v;
+x
+1
+# Writing to the GTT instance is allowed even with a READ lock
+insert t values (2);
+select * from v order by x;
+x
+1
+2
+unlock tables;
+truncate t;
+drop view v;
+drop table t;
+#
+# HANDLER on a GTT holds no metadata lock on the definition
+#
+create global temporary table t (x int) on commit preserve rows;
+insert t values (1), (2);
+handler t open;
+handler t read first;
+x
+1
+connection con1;
+set statement lock_wait_timeout= 1 for alter table t add y int;
+connection default;
+handler t read next;
+x
+2
+handler t close;
+select * from t order by x;
+x
+1
+2
+truncate t;
+select * from t;
+x	y
+truncate t;
+drop table t;
+#
+# Privileges for GTTs
+# The access that creates the instance is checked against the
+# grants on the definition. An existing instance allows SELECT,
+# INSERT, UPDATE, DELETE, LOCK TABLES and TRUNCATE without any
+# privileges, like a local temporary table.
+#
+create database gtt_db;
+create global temporary table gtt_db.t (x int) on commit preserve rows;
+create table gtt_db.t1 (a int);
+create user gtt_user@localhost;
+grant lock tables on gtt_db.* to gtt_user@localhost;
+grant select on gtt_db.t1 to gtt_user@localhost;
+# No privilege on the GTT
+connect  con2,localhost,gtt_user,,gtt_db;
+lock tables t read;
+ERROR 42000: SELECT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+select * from t;
+ERROR 42000: SELECT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+insert t values (1);
+ERROR 42000: INSERT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+lock tables t1 read;
+select * from t;
+ERROR 42000: SELECT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+insert t values (1);
+ERROR 42000: INSERT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+unlock tables;
+disconnect con2;
+# Only SELECT on the GTT
+connection default;
+grant select on gtt_db.t to gtt_user@localhost;
+connect  con2,localhost,gtt_user,,gtt_db;
+# No instance: INSERT is checked against the definition
+insert t values (1);
+ERROR 42000: INSERT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+# SELECT creates the instance, after which all DML is allowed
+select * from t;
+x
+insert t values (1);
+update t set x= x + 1;
+insert t values (5);
+delete from t where x = 5;
+select * from t;
+x
+2
+lock tables t write;
+insert t values (3);
+select * from t order by x;
+x
+2
+3
+unlock tables;
+truncate t;
+# TRUNCATE dropped the instance
+insert t values (1);
+ERROR 42000: INSERT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+lock tables t1 read;
+select * from t;
+x
+insert t values (6);
+delete from t;
+insert t values (7);
+select * from t;
+x
+7
+truncate t;
+unlock tables;
+disconnect con2;
+# Only INSERT on the GTT
+connection default;
+revoke select on gtt_db.t from gtt_user@localhost;
+grant insert on gtt_db.t to gtt_user@localhost;
+connect  con2,localhost,gtt_user,,gtt_db;
+# No instance: SELECT and LOCK TABLES need SELECT on the definition
+select * from t;
+ERROR 42000: SELECT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+lock tables t write;
+ERROR 42000: SELECT command denied to user 'gtt_user'@'localhost' for table `gtt_db`.`t`
+# INSERT creates the instance, after which all DML is allowed
+insert t values (1);
+select * from t;
+x
+1
+update t set x= x + 1;
+delete from t where x = 5;
+select * from t;
+x
+2
+lock tables t write;
+insert t values (7);
+select * from t order by x;
+x
+2
+7
+truncate t;
+insert t values (8);
+select * from t;
+x
+8
+unlock tables;
+truncate t;
+lock tables t1 read;
+insert t values (9);
+select * from t;
+x
+9
+truncate t;
+unlock tables;
+disconnect con2;
+connection default;
+drop user gtt_user@localhost;
+drop database gtt_db;
+disconnect con1;
+connection default;
+set lock_wait_timeout= 5;
+connect  con1,localhost,root,,;
+set lock_wait_timeout= 5;
+connection default;
+create table t0 (a int);
+insert t0 values (1), (2);
+create global temporary table t1 (x int) on commit preserve rows;
+create global temporary table t2 (y int) on commit preserve rows;
+#
+# Two different GTTs in one statement
+#
+connection con1;
+# Neither has an instance
+select * from t1 join t2;
+x	y
+insert t1 values (1), (2);
+# t1 has an instance, t2 does not
+truncate t2;
+insert t2 select x from t1;
+select * from t1 join t2 on x = y order by x;
+x	y
+1	1
+2	2
+# Both have instances, each used twice
+select * from t1 as a join t2 as b join t1 as c join t2 as d
+on a.x = b.y and b.y = c.x and c.x = d.y order by a.x;
+x	y	x	y
+1	1	1	1
+2	2	2	2
+# GTTs, a base table and a local temporary table together
+create temporary table tmp (z int);
+insert tmp values (1);
+select * from t0 join t1 on a = x join t2 on x = y join tmp on y = z;
+a	x	y	z
+1	1	1	1
+drop temporary table tmp;
+# Multi-table UPDATE and DELETE
+update t1 join t2 on x = y set x= x + 10, y= y + 20;
+select * from t1 order by x;
+x
+11
+12
+select * from t2 order by y;
+y
+21
+22
+delete t1, t2 from t1 join t2 on x + 10 = y;
+select * from t1;
+x
+select * from t2;
+y
+truncate t1;
+truncate t2;
+# Neither has an instance, each used twice, with subqueries
+insert t1 select a from t0 where a not in (select y from t2)
+and a not in (select x from t1);
+insert t2 select x from t1 where x in (select x from t1);
+select (select count(*) from t1) as c1, (select count(*) from t2) as c2,
+t1.x from t1 join t2 on x = y order by x;
+c1	c2	x
+2	2	1
+2	2	2
+truncate t1;
+truncate t2;
+# No metadata lock is kept on any of the definitions
+begin;
+select * from t1 join t2 join t1 as a join t2 as b;
+x	y	x	y
+insert t1 values (1);
+insert t2 select x from t1;
+connection default;
+set statement lock_wait_timeout= 1 for alter table t1 add x2 int;
+set statement lock_wait_timeout= 1 for alter table t2 add y2 int;
+connection con1;
+select * from t1 join t2;
+x	y
+1	1
+commit;
+truncate t1;
+truncate t2;
+select * from t1 join t2;
+x	x2	y	y2
+truncate t1;
+truncate t2;
+#
+# Several GTTs under LOCK TABLES
+#
+# Listed several times with aliases, no instances yet. LOCK TABLES
+# takes the metadata locks for all tables at once.
+lock tables t1 write, t1 as a read, t2 write, t2 as b write, t0 read;
+connection default;
+set statement lock_wait_timeout= 1 for alter table t1 drop x2;
+set statement lock_wait_timeout= 1 for alter table t2 drop y2;
+connection con1;
+# The instances were created by LOCK TABLES with the old definitions
+insert t1 (x) values (1), (2);
+insert t2 (y) select x from t1 as a;
+select * from t1 join t2 as b on x = y join t0 on a = x order by x;
+x	x2	y	y2	a
+1	NULL	1	NULL	1
+2	NULL	2	NULL	2
+unlock tables;
+truncate t1;
+truncate t2;
+select * from t1 join t2;
+x	y
+truncate t1;
+truncate t2;
+# Neither GTT is listed, neither has an instance
+lock tables t0 read;
+select * from t1 join t2 join t1 as a join t2 as b;
+x	y	x	y
+insert t1 select a from t0;
+insert t2 select x from t1 join t0 on a = x;
+select * from t1 join t2 on x = y order by x;
+x	y
+1	1
+2	2
+unlock tables;
+truncate t1;
+truncate t2;
+# One GTT listed, the other not
+lock tables t1 write, t0 read;
+insert t1 select a from t0;
+insert t2 select x from t1;
+select * from t1 join t2 on x = y join t1 as c on c.x = y order by t1.x;
+x	y	x
+1	1	1
+2	2	2
+truncate t2;
+select * from t2;
+y
+unlock tables;
+truncate t1;
+truncate t2;
+drop table t0, t1, t2;
+disconnect con1;
+connection default;

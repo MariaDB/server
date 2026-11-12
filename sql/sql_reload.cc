@@ -39,6 +39,14 @@
 
 static void disable_checkpoints(THD *thd);
 
+static bool is_temporary_table_for_flush(THD *thd, TABLE_LIST *table)
+{
+  if (table->table)                             // Pre-opened
+    return table->table->s->tmp_table != NO_TMP_TABLE;
+  return thd->find_temporary_table(table, THD::TMP_TABLE_ANY);
+}
+
+
 /**
   Reload/resets privileges and the different caches.
 
@@ -309,7 +317,10 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         {
           int err;
           for (TABLE_LIST *t= tables; t; t= t->next_local)
-            if (!find_table_for_mdl_upgrade(thd, t->db.str, t->table_name.str, &err))
+          {
+            if (!is_temporary_table_for_flush(thd, t) &&
+                !find_table_for_mdl_upgrade(thd, t->db.str, t->table_name.str,
+                                            &err))
             {
               if (is_locked_view(thd, t))
                 t->next_local= t->next_global;
@@ -319,6 +330,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
                 return 1;
               }
             }
+          }
         }
         else
         {

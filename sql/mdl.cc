@@ -3490,6 +3490,7 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
                        ticket->get_key()->name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
+  DBUG_ASSERT(ticket->m_duration == duration);
   DBUG_PRINT("mdl", ("Released: %s", dbug_print_mdl(ticket)));
 
   lock->release(m_pins, ticket);

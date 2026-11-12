@@ -333,7 +333,6 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
 bool THD::use_real_global_temporary_share(const TABLE_LIST *table) const
 {
   return (table->open_strategy == TABLE_LIST::OPEN_STUB ||
-          table->open_strategy == TABLE_LIST::OPEN_FOR_LOCKED_TABLES_LIST ||
           sql_command_flags() & CF_USE_PARENT_GTT_SHARE ||
           stmt_arena->is_stmt_prepare());
 }

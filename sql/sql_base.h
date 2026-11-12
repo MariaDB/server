@@ -148,6 +148,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx);
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
 TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name);
+int open_gtt_in_locked_tables_mode(THD *thd, TABLE_LIST *table_list,
+                                   bool open_instance);
 TABLE *find_write_locked_table(TABLE *list, const char *db,
                                const char *table_name);
 thr_lock_type read_lock_type_for_table(THD *thd,
@@ -653,10 +655,7 @@ public:
 
 inline bool is_temporary_table(TABLE_LIST *tl)
 {
-  if (tl->view || tl->schema_table)
-    return FALSE;
-
-  if (!tl->table)
+  if (!tl->table || tl->view || tl->schema_table)
     return FALSE;
 
   /*
