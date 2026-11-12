@@ -91,6 +91,21 @@ use if $^O eq "MSWin32", "threads::shared";
 
 my $win32_spawn_lock :shared;
 
+#
+# Read the last line of a file while no process can be spawned.
+# On Windows the mtr workers are threads of one process, and a handle
+# open in one worker is inherited by a process spawned by another
+# worker, which keeps the file from being deleted until it exits.
+#
+sub read_last_line {
+  my ($file)= @_;
+  lock($win32_spawn_lock);
+  open(my $fh, "<", $file) or return undef;
+  my ($line, $last);
+  $last= $line while defined($line= <$fh>);
+  close $fh;
+  return $last;
+}
 
 #
 # Create a new process
