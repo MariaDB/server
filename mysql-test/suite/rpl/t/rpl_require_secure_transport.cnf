@@ -1,0 +1,4 @@
+!include ../my.cnf
+
+[ENV]
+MITM_PORT= @OPT.port

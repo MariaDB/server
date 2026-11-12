@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -815,6 +815,16 @@ static int setval(const struct my_option *opts, void *value, char *argument,
     case GET_ENUM:
       {
         int type= find_type(argument, opts->typelib, FIND_TYPE_BASIC);
+        /* an enum that extends a boolean accepts boolean values too */
+        if (type == 0 && opts->typelib->count >= 2 &&
+            !strcmp(opts->typelib->type_names[0], "OFF") &&
+            !strcmp(opts->typelib->type_names[1], "ON"))
+        {
+          if (!my_strcasecmp(&my_charset_latin1, argument, "false"))
+            type= 1;
+          else if (!my_strcasecmp(&my_charset_latin1, argument, "true"))
+            type= 2;
+        }
         if (type == 0)
         {
           /*

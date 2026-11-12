@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 2012, Monty Program Ab.
+   Copyright (c) 2012, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -295,10 +296,10 @@ typedef struct st_mysql
 
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
-  my_bool       auto_local_infile;
+  my_bool       unused1;
   void          *unused2, *unused3;
   MYSQL_FIELD	*fields;
-  const char    *tls_self_signed_error;
+  void          *unused4;
 
   LIST  *stmts;                     /* list of all statements */
   const struct st_mysql_methods *methods;
@@ -310,7 +311,7 @@ typedef struct st_mysql
   my_bool *unbuffered_fetch_owner;
   /* needed for embedded server - no net buffer to store the 'info' */
   char *info_buffer;
-  void *extension;
+  struct st_mariadb_extension *extension;
 } MYSQL;
 
 
