@@ -67,6 +67,7 @@ SELECT @@wsrep_trx_fragment_size;
 @@wsrep_trx_fragment_size
 0
 SET GLOBAL wsrep_on=ON;
+SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
 ERROR 42000: Variable 'wsrep_trx_fragment_unit' can't be set to the value of 'STATEMENTS'
 SET SESSION wsrep_trx_fragment_size = 2;
@@ -81,6 +82,7 @@ bytes
 SELECT @@wsrep_trx_fragment_size;
 @@wsrep_trx_fragment_size
 0
+SET SESSION wsrep_sync_wait = 15;
 SET GLOBAL wsrep_on=OFF;
 CREATE TABLE IF NOT EXISTS mysql.wsrep_streaming_log
 (
