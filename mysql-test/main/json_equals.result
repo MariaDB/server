@@ -102,3 +102,69 @@ a	a	t1.a = t2.a	json_valid(t1.a)	json_valid(t2.a)	json_equals(t1.a, t2.a)
 "Ê"	"Ê"	1	1	1	1
 drop table t1;
 drop table t2;
+#
+# MDEV-42239: JSON_EQUALS() with a NULL argument is accepted by
+# WHERE / IF / CASE although its value is NULL
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, j JSON NOT NULL);
+INSERT INTO t1 VALUES (1,'{"k0":1}'),(2,'{}'),(3,'{"a":[1,2]}');
+SELECT id, JSON_EQUALS(NULL, j) AS v, JSON_EQUALS(NULL, j) IS NULL AS v_is_null
+FROM t1;
+id	v	v_is_null
+1	NULL	1
+2	NULL	1
+3	NULL	1
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j);
+id
+SELECT id FROM t1 WHERE NOT JSON_EQUALS(NULL, j);
+id
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NULL;
+id
+1
+2
+3
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS TRUE;
+id
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NOT TRUE;
+id
+1
+2
+3
+SELECT id FROM t1 WHERE JSON_EQUALS(j, NULL);
+id
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, NULL);
+id
+SELECT id FROM t1 WHERE JSON_EQUALS(NULLIF(j, j), j);
+id
+SELECT id, IF(JSON_EQUALS(NULL, j), 'T', 'F') AS if_v,
+CASE WHEN JSON_EQUALS(NULL, j) THEN 'T' ELSE 'F' END AS case_v
+FROM t1;
+id	if_v	case_v
+1	F	F
+2	F	F
+3	F	F
+SELECT 'row' WHERE JSON_EQUALS(NULL, '{}');
+row
+SELECT COUNT(*) FROM t1 HAVING JSON_EQUALS(NULL, '{}');
+COUNT(*)
+SELECT id FROM t1 WHERE JSON_EQUALS('{}', j);
+id
+2
+SELECT id FROM t1 WHERE NOT JSON_EQUALS('{}', j);
+id
+1
+3
+DROP TABLE t1;
+CREATE TABLE t1 (a JSON, b JSON, CHECK (JSON_EQUALS(a, b)));
+INSERT INTO t1 VALUES ('{"x":1}', '{ "x" : 1 }');
+INSERT INTO t1 VALUES (NULL, '{}');
+INSERT INTO t1 VALUES ('{}', '[]');
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+SELECT * FROM t1;
+a	b
+{"x":1}	{ "x" : 1 }
+NULL	{}
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#

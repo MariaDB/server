@@ -67,3 +67,53 @@ from t1, t2;
 
 drop table t1;
 drop table t2;
+
+--echo #
+--echo # MDEV-42239: JSON_EQUALS() with a NULL argument is accepted by
+--echo # WHERE / IF / CASE although its value is NULL
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j JSON NOT NULL);
+INSERT INTO t1 VALUES (1,'{"k0":1}'),(2,'{}'),(3,'{"a":[1,2]}');
+
+SELECT id, JSON_EQUALS(NULL, j) AS v, JSON_EQUALS(NULL, j) IS NULL AS v_is_null
+FROM t1;
+
+# NULL condition: neither TRUE nor FALSE
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j);
+SELECT id FROM t1 WHERE NOT JSON_EQUALS(NULL, j);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NULL;
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS TRUE;
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NOT TRUE;
+
+# NULL in the second argument, in both, or from an expression
+SELECT id FROM t1 WHERE JSON_EQUALS(j, NULL);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, NULL);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULLIF(j, j), j);
+
+SELECT id, IF(JSON_EQUALS(NULL, j), 'T', 'F') AS if_v,
+       CASE WHEN JSON_EQUALS(NULL, j) THEN 'T' ELSE 'F' END AS case_v
+FROM t1;
+
+# Constant condition evaluated by the optimizer
+SELECT 'row' WHERE JSON_EQUALS(NULL, '{}');
+SELECT COUNT(*) FROM t1 HAVING JSON_EQUALS(NULL, '{}');
+
+# Non-NULL arguments are not affected
+SELECT id FROM t1 WHERE JSON_EQUALS('{}', j);
+SELECT id FROM t1 WHERE NOT JSON_EQUALS('{}', j);
+
+DROP TABLE t1;
+
+# A NULL result still satisfies a CHECK constraint
+CREATE TABLE t1 (a JSON, b JSON, CHECK (JSON_EQUALS(a, b)));
+INSERT INTO t1 VALUES ('{"x":1}', '{ "x" : 1 }');
+INSERT INTO t1 VALUES (NULL, '{}');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES ('{}', '[]');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
