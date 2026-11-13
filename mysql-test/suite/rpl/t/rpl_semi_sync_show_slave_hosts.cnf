@@ -1,0 +1,17 @@
+# Keep default settings
+!include ../my.cnf
+
+[mysqld.2]
+report-host= 127.0.0.2
+report-port= 19002
+
+[mysqld.3]
+report-host= 127.0.0.3
+report-port= 19003
+report-user= admin
+master-retry-count= 30
+
+[ENV]
+SERVER_MYPORT_1= @mysqld.1.port
+SERVER_MYPORT_2= @mysqld.2.port
+SERVER_MYPORT_3= @mysqld.3.port

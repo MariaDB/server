@@ -138,19 +138,17 @@ void static dbug_verify_no_duplicate_slaves(Slave_ilist *m_slaves, THD *thd)
 #endif
 
 
-bool Ack_receiver::add_slave(THD *thd)
+void Ack_receiver::add_slave(Slave *slave, THD *thd)
 {
-  Slave *slave;
   DBUG_ENTER("Ack_receiver::add_slave");
-
-  if (!(slave= new Slave))
-    DBUG_RETURN(true);
 
   slave->active= 0;
   slave->thd= thd;
   slave->vio= *thd->net.vio;
   slave->vio.mysql_socket.m_psi= NULL;
   slave->vio.read_timeout= 1;                   // 1 ms
+  if (Slave_info *si= slave->thd->slave_info)
+    slave_info_set_ack_pos(si, &slave->trx_info());
 
   mysql_mutex_lock(&m_mutex);
 
@@ -163,7 +161,7 @@ bool Ack_receiver::add_slave(THD *thd)
 
   signal_listener();  // Inform listener that there are new slaves
 
-  DBUG_RETURN(false);
+  DBUG_VOID_RETURN;
 }
 
 void Ack_receiver::remove_slave(THD *thd)
@@ -354,7 +352,7 @@ void Ack_receiver::run()
         if (likely(len != packet_error))
         {
           int res;
-          res= repl_semisync_master->report_reply_packet(slave->server_id(),
+          res= repl_semisync_master->report_reply_packet(*slave,
                                                          net.read_pos, len);
           if (unlikely(res < 0))
           {

@@ -39,6 +39,64 @@ struct Tranx_node {
 };
 
 
+/**
+  Interface for SHOW SLAVE HOSTS's position columns;
+  also used by semi-sync to identify transactions by replicated position
+  @see get_full_pos()
+*/
+struct Repl_pos {
+  virtual ~Repl_pos()= default;
+  ///@return `true` on error, `false` otherwise
+  virtual bool set([[maybe_unused]] const char *log_file,
+                   [[maybe_unused]] my_off_t log_pos,
+                   [[maybe_unused]] const rpl_gtid *gtid)
+  { return "not implemented"; }
+  ///@return `true` on error, `false` otherwise
+  virtual bool get_full_pos(String &string)= 0;
+};
+
+///FIXME: Slave Registration code is still in `repl_failsafe.cc`; move it out
+struct Slave_info;
+// @pre `si` not `nullptr`
+Repl_pos *&slave_info_dump_pos(Slave_info* si);
+// @pre `si` not `nullptr`
+void slave_info_set_ack_pos(Slave_info* si, Repl_semi_sync_trx_info *ack_pos);
+
+/**
+  Log filename pointer to the excluding-directory index of
+  LOG_INFO::log_file_name buffer, and @ref std::atomic log position
+*/
+struct Log_info_pos: Repl_pos {
+  const char *log_file;
+  std::atomic<my_off_t> log_pos= 0;
+  ///@param linfo THD::current_linfo
+  Log_info_pos(LOG_INFO *linfo):
+    log_file(&(linfo->log_file_name[dirname_length(linfo->log_file_name)])),
+    log_pos(linfo->pos) {}
+  bool set(const char *log_file_, my_off_t log_pos_,
+           [[maybe_unused]] const rpl_gtid *) override
+  {
+    log_file= log_file_;
+    log_pos.store(log_pos_, std::memory_order_release);
+    return false;
+  }
+  bool get_full_pos(String &string) override;
+};
+
+struct Gtid_pos: Repl_pos, protected slave_connection_state {
+  /**
+    "Copy constructor" from initial state
+    (`@slave_connect_state` / LOG_INFO::gtid_state)
+    @return `true` on error, `false` otherwise
+  */
+  bool set(slave_connection_state &gtid_pos);
+  virtual bool set([[maybe_unused]] const char *, [[maybe_unused]] my_off_t,
+                   const rpl_gtid *gtid) override
+  { return likely(gtid->server_id) && update(gtid); }
+  bool get_full_pos(String &string) override { return to_string(&string); }
+};
+
+
 /*
   Encapsulate a reference to a binlog position used in semi-sync. Such a
   position contains both the GTID and the filename/offset values.
@@ -47,7 +105,7 @@ struct Tranx_node {
   as function arguments, where the underlying memory for the log_file
   filename string is managed separately by the caller.
 */
-struct Repl_semi_sync_trx_info {
+struct Repl_semi_sync_trx_info: Repl_pos {
   rpl_gtid gtid;
   const char *log_file;
   my_off_t log_pos;
@@ -56,6 +114,11 @@ struct Repl_semi_sync_trx_info {
   Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos);
   Repl_semi_sync_trx_info(const char *file_name, my_off_t log_pos,
                           const rpl_gtid *gtid);
+
+  virtual bool set(const char *log_file, my_off_t log_pos,
+                   const rpl_gtid *gtid) override;
+  /// Write `file:pos` to `string`
+  virtual bool get_full_pos(String &string) override;
 };
 
 
@@ -74,9 +137,31 @@ struct Trans_binlog_info : public Repl_semi_sync_trx_info {
   Trans_binlog_info(const char *file_name, my_off_t log_pos);
   Trans_binlog_info(const char *file_name, my_off_t log_pos, const rpl_gtid *gtid);
   void set(const Repl_semi_sync_trx_info *inf);
-  void set(const char *log_file, my_off_t log_pos, const rpl_gtid *gtid);
+  virtual bool set(const char *log_file, my_off_t log_pos, const rpl_gtid *gtid) override;
   void clear();
   bool is_clear() { return log_pos == 0 && gtid.seq_no == 0; }
+};
+
+/**
+  This variant additionally saves the most recent @ref gtid per domain,
+  so get_full_pos() can show a GTID position rather than a file-position.
+  @ref log_file & @ref log_pos are still set for (mixed position) ACK reporting.
+  @note
+    @ref log_file can simply reference Tranx_node::log_name
+    and does not need to hold its own buffer (like in @ref Trans_binlog_info),
+    because it is currently only used for the subsequent
+    Repl_semi_sync_master::report_reply_binlog() and is not read anywhere else.
+  @note Diamond-inheriting @ref Repl_pos
+*/
+struct Trans_gtid_pos_info: Repl_semi_sync_trx_info, Gtid_pos {
+  bool
+  set(const char *log_file, my_off_t log_pos, const rpl_gtid *gtid) override
+  {
+    return Gtid_pos::set(log_file, log_pos, gtid) ||
+           Repl_semi_sync_trx_info::set(log_file, log_pos, gtid);
+  }
+  bool get_full_pos(String &string) override ///< Write GTID pos to `string`
+  { return Gtid_pos::get_full_pos(string); }
 };
 
 
@@ -514,9 +599,6 @@ protected:
   /*Waiting for ACK before/after innodb commit*/
   ulong m_wait_point;
 
-  void lock();
-  void unlock();
-
   /* Is semi-sync replication on? */
   bool is_on() {
     return (m_state);
@@ -591,9 +673,11 @@ protected:
 protected:
   int enable_master(Active_tranx * (*tranx_alloc)
                     (mysql_mutex_t *, mysql_cond_t *, unsigned long));
-  virtual int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+  virtual int report_reply_packet_inner(Slave &slave, const uchar *packet,
                                         ulong packet_len) = 0;
 public:
+  void lock();
+  void unlock();
 
   /* Disable the object to disable semi-sync replication inside the master. */
   void disable_master();
@@ -605,7 +689,7 @@ public:
   void remove_slave();
 
   /* It parses a reply packet and call report_reply_binlog to handle it. */
-  int report_reply_packet(uint32 server_id, const uchar *packet,
+  int report_reply_packet(Slave &slave, const uchar *packet,
                         ulong packet_len);
 
   /* In semi-sync replication, reports up to which binlog position we have
@@ -697,7 +781,7 @@ public:
                  const char *log_file,
                  my_off_t log_pos,
                  slave_connection_state *gtid_state);
-  virtual void dump_start_inner(THD* thd,
+  virtual bool dump_start_inner(THD* thd,
                                 const char *log_file,
                                 my_off_t log_pos,
                                 slave_connection_state *gtid_state) = 0;
@@ -783,13 +867,13 @@ public:
   virtual ~Repl_semi_sync_master_file_pos() { };
   int enable_master() override;
 protected:
-  int report_reply_binlog_file_pos(uint32 server_id, const char *log_file_name,
+  int report_reply_binlog_file_pos(Slave &slave, const char *log_file_name,
                                    my_off_t log_file_pos);
-  virtual void dump_start_inner(THD* thd,
+  virtual bool dump_start_inner(THD* thd,
                                 const char *log_file,
                                 my_off_t log_pos,
                                 slave_connection_state *gtid_state) override;
-  int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+  int report_reply_packet_inner(Slave &slave, const uchar *packet,
                                 ulong packet_len) override;
 };
 
@@ -805,13 +889,13 @@ public:
                                  const rpl_gtid *gtid,
                                  bool* need_sync) override;
 protected:
-  int report_reply_binlog_gtid(uint32 server_id, const rpl_gtid *gtid,
+  int report_reply_binlog_gtid(Slave &slave, const rpl_gtid *gtid,
                                bool have_gtid= true);
-  virtual void dump_start_inner(THD* thd,
+  virtual bool dump_start_inner(THD* thd,
                                 const char *log_file,
                                 my_off_t log_pos,
                                 slave_connection_state *gtid_state) override;
-  int report_reply_packet_inner(uint32 server_id, const uchar *packet,
+  int report_reply_packet_inner(Slave &slave, const uchar *packet,
                                 ulong packet_len) override;
   bool latest_gtid(slave_connection_state *gtid_state, rpl_gtid *out_gtid);
 };

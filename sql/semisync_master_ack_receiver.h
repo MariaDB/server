@@ -33,6 +33,7 @@ struct Slave :public ilink
   bool active;
   my_socket sock_fd() const { return vio.mysql_socket.fd; }
   uint server_id() const { return thd->variables.server_id; }
+  virtual struct Repl_semi_sync_trx_info &trx_info()= 0;
 };
 
 typedef I_List<Slave> Slave_ilist;
@@ -62,10 +63,8 @@ public:
      up ack thread if it is waiting for any slave coming.
 
      @param[in] thd  THD of a dump thread.
-
-     @return it return false if succeeds, otherwise true is returned.
   */
-  bool add_slave(THD *thd);
+  void add_slave(Slave *slave, THD *thd);
 
   /**
     Notify ack receiver not to receive ack on the dump session.
