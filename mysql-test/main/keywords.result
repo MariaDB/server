@@ -812,3 +812,19 @@ DROP FUNCTION test.create; -- FUNCTION test.create does not exist
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
+#
+# MDEV-41927 MASTER_DEMOTE_TO_SLAVE is rejected as an unquoted column identifier
+#
+CREATE TABLE t1 (master_demote_to_slave INT, master_demote_to_replica INT);
+INSERT INTO t1 VALUES (1, 2);
+SELECT master_demote_to_slave, master_demote_to_replica FROM t1;
+master_demote_to_slave	master_demote_to_replica
+1	2
+SELECT i AS master_demote_to_slave, i AS master_demote_to_replica FROM (SELECT 1 AS i) t;
+master_demote_to_slave	master_demote_to_replica
+1	1
+CREATE TABLE master_demote_to_slave (i INT);
+DROP TABLE master_demote_to_slave;
+CREATE TABLE master_demote_to_replica (i INT);
+DROP TABLE master_demote_to_replica;
+DROP TABLE t1;
