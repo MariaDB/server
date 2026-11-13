@@ -34,6 +34,7 @@
 #include "sql_show.h"
 #include "sql_partition.h"
 #include "sql_alter.h"                          // RENAME_STAT_PARAMS
+#include "sql_connect.h"                        // global_table_stats
 
 #include <vector>
 #include <string>
@@ -3992,6 +3993,108 @@ int rename_indexes_in_stat_table(THD *thd, TABLE *tab,
 
 
 /**
+  Move the usage statistics (userstat) of a table and of its indexes to the
+  new name of the table, replacing what a table with that name had left.
+  Names are compared with the case rules of the file system.
+*/
+
+static int rename_global_table_stat(THD *thd, const LEX_CSTRING *db,
+                                    const LEX_CSTRING *tab,
+                                    const LEX_CSTRING *new_db,
+                                    const LEX_CSTRING *new_tab)
+{
+  CHARSET_INFO *cs= Lex_ident_fs::charset_info();
+  char old_key[NAME_LEN * 2 + 2], new_key[NAME_LEN * 2 + 2];
+  size_t old_len= db->length + 1 + tab->length + 1;
+  size_t new_len= new_db->length + 1 + new_tab->length + 1;
+  int res= 0;
+  DBUG_ENTER("rename_global_table_stat");
+
+  if (old_len > sizeof(old_key) || new_len > sizeof(new_key))
+    DBUG_RETURN(0);
+
+  memcpy(old_key, db->str, db->length);
+  old_key[db->length]= 0;
+  memcpy(old_key + db->length + 1, tab->str, tab->length);
+  old_key[old_len - 1]= 0;
+  memcpy(new_key, new_db->str, new_db->length);
+  new_key[new_db->length]= 0;
+  memcpy(new_key + new_db->length + 1, new_tab->str, new_tab->length);
+  new_key[new_len - 1]= 0;
+
+  /* A rename that only changes the case keeps the same statistics */
+  if (old_len == new_len && !cs->strnncoll(old_key, old_len, new_key, new_len))
+    DBUG_RETURN(0);
+
+  /* What the new name had left from an earlier table is not inherited */
+  if (del_global_table_stat(thd, new_db, new_tab))
+    res= 1;
+
+  mysql_mutex_lock(&LOCK_global_table_stats);
+  TABLE_STATS *table_stats=
+    (TABLE_STATS*) my_hash_search(&global_table_stats, (uchar*) old_key,
+                                  old_len);
+  if (table_stats)
+  {
+    /* The hash frees a deleted record, so the statistics go to a new one */
+    TABLE_STATS *moved_stats= (TABLE_STATS*)
+      my_memdup(PSI_INSTRUMENT_ME, table_stats, sizeof(TABLE_STATS),
+                MYF(MY_WME));
+    my_hash_delete(&global_table_stats, (uchar*) table_stats);
+    if (moved_stats)
+    {
+      memcpy(moved_stats->table, new_key, new_len);
+      moved_stats->table_name_length= new_len;
+      if (my_hash_insert(&global_table_stats, (uchar*) moved_stats))
+      {
+        my_free(moved_stats);
+        res= 1;
+      }
+    }
+    else
+      res= 1;
+  }
+  mysql_mutex_unlock(&LOCK_global_table_stats);
+
+  mysql_mutex_lock(&LOCK_global_index_stats);
+  std::vector<INDEX_STATS*> moved;
+  for (uint i= 0; i < global_index_stats.records; i++)
+  {
+    INDEX_STATS *index_stats=
+      (INDEX_STATS*) my_hash_element(&global_index_stats, i);
+    if (index_stats->index_name_length >= old_len &&
+        !cs->strnncoll(index_stats->index, old_len, old_key, old_len))
+      moved.push_back(index_stats);
+  }
+  for (INDEX_STATS *index_stats : moved)
+  {
+    size_t index_len= index_stats->index_name_length - old_len;
+    INDEX_STATS *moved_stats= (INDEX_STATS*)
+      my_memdup(PSI_INSTRUMENT_ME, index_stats, sizeof(INDEX_STATS),
+                MYF(MY_WME));
+    my_hash_delete(&global_index_stats, (uchar*) index_stats);
+    if (!moved_stats || new_len + index_len > sizeof(moved_stats->index))
+    {
+      my_free(moved_stats);
+      res= 1;
+      continue;
+    }
+    memmove(moved_stats->index + new_len, moved_stats->index + old_len,
+            index_len);
+    memcpy(moved_stats->index, new_key, new_len);
+    moved_stats->index_name_length= new_len + index_len;
+    if (my_hash_insert(&global_index_stats, (uchar*) moved_stats))
+    {
+      my_free(moved_stats);
+      res= 1;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_global_index_stats);
+  DBUG_RETURN(res);
+}
+
+
+/**
   @brief
   Rename a table in all statistical tables
 
@@ -4028,6 +4131,13 @@ int rename_table_in_stat_tables(THD *thd, const LEX_CSTRING *db,
   TABLE *stat_table;
   int rc= 0;
   DBUG_ENTER("rename_table_in_stat_tables");
+
+  /*
+    The usage statistics (userstat) do not depend on the statistical tables
+    below, so they are moved even when those cannot be updated.
+  */
+  if (rename_global_table_stat(thd, db, tab, new_db, new_tab))
+    rc= 1;
 
   TABLE_LIST *tables=
     static_cast<TABLE_LIST*>(my_malloc(PSI_NOT_INSTRUMENTED,
