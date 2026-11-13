@@ -1,0 +1,41 @@
+--echo #
+--echo # MDEV-41962 SQL a plugin runs through the plain SQL service outside an
+--echo # extension statement is offered to the extension plugins as well (the
+--echo # dispatch in execute_server_code()). test_sql_service runs it from
+--echo # SET GLOBAL and stores what happened in the variable.
+--echo #
+--source include/not_embedded.inc
+if (!$TEST_SQL_SERVICE_SO) {
+  skip No TEST_SQL_SERVICE plugin;
+}
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_service SONAME 'test_sql_service';
+
+--echo # On the client's THD: the statement is claimed (OK, or the plugin's
+--echo # error, not a parse error)
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST SQLEXT OK';
+SELECT @@test_sql_service_execute_sql_local AS r;
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST SQLEXT ERROR';
+SELECT @@test_sql_service_execute_sql_local AS r;
+--echo # On the THD of the plugin's own connection
+SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT OK';
+SELECT @@test_sql_service_execute_sql_global AS r;
+SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT ERROR';
+SELECT @@test_sql_service_execute_sql_global AS r;
+--echo # Access checks there grant everything but what the built-in rules
+--echo # deny to every user
+SET GLOBAL test_sql_service_execute_sql_local=
+  'TEST SQLEXT ACCESS INSERT no_such_db no_such_table';
+SELECT @@test_sql_service_execute_sql_local AS r;
+SET GLOBAL test_sql_service_execute_sql_local=
+  'TEST SQLEXT ACCESS INSERT information_schema';
+SELECT @@test_sql_service_execute_sql_local AS r;
+--echo # An unclaimed statement keeps its parse error
+SET GLOBAL test_sql_service_execute_sql_local= 'TEST NOTHING';
+SELECT @@test_sql_service_execute_sql_local AS r;
+
+UNINSTALL PLUGIN test_sql_service;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

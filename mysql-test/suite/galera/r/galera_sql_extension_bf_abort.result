@@ -1,0 +1,127 @@
+#
+# MDEV-41962 Galera: a transaction from another node that conflicts
+# with the client's aborts the client's transaction (a BF abort) while
+# SQL an SQL extension handler runs as the client is in progress. The
+# client gets what it gets for the same SQL sent directly, and its
+# transaction is gone, also when the handler drops the error.
+#
+connection node_2;
+connection node_1;
+connection node_1;
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 CHAR(10)) ENGINE=InnoDB;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+# The same SQL sent directly, for comparison
+connection node_2;
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+SELECT SLEEP(100) AS s;
+connection node_2a;
+connection node_1;
+INSERT INTO t1 VALUES (1, 'node_1');
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The transaction is gone: node_1's row is there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	node_1
+bf_aborts
+1
+connection node_1;
+DELETE FROM t1;
+connection node_2a;
+connection node_1;
+# Relayed by the handler
+connection node_2;
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+TEST SQLEXT SQL SELECT SLEEP(100) AS s;
+connection node_2a;
+connection node_1;
+INSERT INTO t1 VALUES (1, 'node_1');
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The transaction is gone: node_1's row is there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	node_1
+bf_aborts
+1
+connection node_1;
+DELETE FROM t1;
+connection node_2a;
+connection node_1;
+# Dropped by the handler
+connection node_2;
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+TEST SQLEXT SWALLOW SELECT SLEEP(100) AS s;
+connection node_2a;
+connection node_1;
+INSERT INTO t1 VALUES (1, 'node_1');
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The transaction is gone: node_1's row is there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	node_1
+bf_aborts
+1
+connection node_1;
+DELETE FROM t1;
+connection node_2a;
+connection node_1;
+connection node_2;
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+TEST SQLEXT SWALLOW OK SELECT SLEEP(100) AS s;
+connection node_2a;
+connection node_1;
+INSERT INTO t1 VALUES (1, 'node_1');
+connection node_2;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The transaction is gone: node_1's row is there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	node_1
+bf_aborts
+1
+connection node_1;
+DELETE FROM t1;
+connection node_2a;
+connection node_1;
+# An abort that comes between statements fails the next one, before
+# any handler runs
+connection node_2;
+BEGIN;
+INSERT INTO t1 VALUES (1, 'node_2');
+connection node_1;
+INSERT INTO t1 VALUES (1, 'node_1');
+connection node_2a;
+connection node_2;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (2, 'node_2');
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	node_1
+disconnect node_2a;
+connection node_1;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+disconnect node_2;
+disconnect node_1;

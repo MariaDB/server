@@ -1,0 +1,54 @@
+#
+# MDEV-41962 Replication: SQL that a handler runs as the client is logged as plain
+# SQL, so a replica applies it without the plugin. The extension
+# statement itself is never logged.
+#
+include/master-slave.inc
+[connection master]
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1, 'sql');
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (2, 'forward');
+TEST SQLEXT FORWARD UPDATE t1 SET b = 'updated' WHERE a = 1;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3, 'rolled back');
+ROLLBACK;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (4, 'committed');
+COMMIT;
+# A handler that changes data and then fails, in a transaction and
+# in autocommit: the replica ends up with what the primary kept
+BEGIN|
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (5, "trx"); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+COMMIT|
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (6, "autocommit"); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	forward
+4	committed
+5	trx
+6	autocommit
+connection slave;
+# The replica has the changes, and no plugin
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	updated
+2	forward
+4	committed
+5	trx
+6	autocommit
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+WHERE plugin_name LIKE 'test_sql_extension%';
+plugins
+0
+SHOW GLOBAL STATUS LIKE 'Com_sql_extension';
+Variable_name	Value
+Com_sql_extension	0
+connection master;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+include/rpl_end.inc
+# End of 13.2 tests

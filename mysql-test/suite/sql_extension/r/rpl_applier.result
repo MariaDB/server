@@ -1,0 +1,40 @@
+#
+# MDEV-41962 A replication applier never hands a statement to an SQL
+# extension plugin: a statement event whose text a plugin would claim
+# fails on the replica with the parse error, even with the plugin
+# installed. Masters never log such text, so the test patches a binary
+# log and feeds it to the replica as its relay log.
+#
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("Slave SQL.*You have an error in your SQL syntax");
+call mtr.add_suppression("Slave: You have an error in your SQL syntax");
+include/stop_slave.inc
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# A statement event of the right length, in a binary log without
+# checksums, so that its text can be replaced in place
+connection master;
+SET @old_binlog_checksum= @@global.binlog_checksum;
+SET GLOBAL binlog_checksum= NONE;
+FLUSH BINARY LOGS;
+CREATE DATABASE sqlext_placeholder_db;
+FLUSH BINARY LOGS;
+SET GLOBAL binlog_checksum= @old_binlog_checksum;
+SET sql_log_bin= 0;
+DROP DATABASE sqlext_placeholder_db;
+SET sql_log_bin= 1;
+connection slave;
+RESET SLAVE;
+# The patched log becomes the replica's relay log (the steps of
+# include/setup_fake_relay_log.inc, which would print a local path)
+# The applier refuses it with the parse error; the plugin never runs
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1064]
+# Extension statements run by the applier: 0
+# The same text from a client is claimed
+TEST SQLEXT OK;
+affected rows: 0
+UNINSTALL PLUGIN test_sql_extension;
+include/rpl_end.inc
+# End of 13.2 tests

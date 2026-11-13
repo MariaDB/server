@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "sql_plugin.h"                         // Includes mariadb.h
+#include "sql_extension.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include <signal.h>
@@ -2118,6 +2119,7 @@ static void clean_up(bool print_message, bool use_dummy_thd)
   semi_sync_master_deinit();
 #endif
   plugin_shutdown();
+  sql_extension_free();
   udf_free();
   ha_end();
   if (tc_log)
@@ -3771,6 +3773,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_warnings",        STMT_STATUS(SQLCOM_SHOW_WARNS)},
   {"shutdown",             STMT_STATUS(SQLCOM_SHUTDOWN)},
   {"signal",               STMT_STATUS(SQLCOM_SIGNAL)},
+  {"sql_extension",        STMT_STATUS(SQLCOM_SQL_EXTENSION)},
   {"start_all_slaves",     STMT_STATUS(SQLCOM_SLAVE_ALL_START)},
   {"start_slave",          STMT_STATUS(SQLCOM_SLAVE_START)},
   {"stmt_close",           COM_STATUS(com_stmt_close)},
@@ -5539,6 +5542,11 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
 
+  if (sql_extension_init())
+  {
+    sql_print_error("Out of memory setting up the SQL extension registry");
+    unireg_abort(1);
+  }
   /*
     Plugins may not be completed because system table DDLs are only
     run after the ddl recovery done. Therefore between the

@@ -46,6 +46,7 @@
 #define VERSION_sql_service             0x0102
 #define VERSION_thd_mdl                 0x0100
 #define VERSION_print_check_msg         0x0100
+#define VERSION_sql_extension           0x0100
 
 #define VERSION_provider_bzip2          0x0100
 #define VERSION_provider_lz4            0x0100

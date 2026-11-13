@@ -1,0 +1,54 @@
+#
+# MDEV-41962 SQL run by a handler as the client is binary-logged as plain SQL,
+# according to the client's sql_log_bin; the extension statement is not
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT);
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+TEST SQLEXT LOCAL SQL INSERT INTO t1 VALUES (2);
+SET sql_log_bin= 0;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3);
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (5);
+SET sql_log_bin= 1;
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (4);
+# Only the first and the last INSERT are logged
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (1)
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4)
+master-bin.000001	#	Query	#	#	COMMIT
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+# A handler that changes data and then fails: the binary log has
+# what the table kept, in a transaction and in autocommit
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+BEGIN|
+TEST SQLEXT SCRIPT 'INSERT INTO t2 VALUES (1); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+COMMIT|
+TEST SQLEXT SCRIPT 'INSERT INTO t2 VALUES (2); SELECT * FROM no_such_table'|
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (1)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (2)
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+SELECT * FROM t2 ORDER BY a;
+a
+1
+2
+DROP TABLE t2;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

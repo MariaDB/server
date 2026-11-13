@@ -1,0 +1,79 @@
+#
+# MDEV-41962 Results for clients that accept neither several results nor several
+# statements, simulated with debug flags (the rest is in results.test)
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# A client that does not accept several results gets one
+SET debug_dbug= '+d,sql_extension_no_client_multi_results';
+TEST SQLEXT FLAGS;
+multi_results	multi_statements
+0	1
+TEST SQLEXT ROWS;
+s	b	i	u
+café	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+affected rows: 2
+TEST SQLEXT TWICE;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: the client does not accept several results
+TEST SQLEXT MULTI;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: the client does not accept several results
+# and only the error after rows
+TEST SQLEXT MULTI ERROR;
+ERROR HY000: test_sql_extension: error after rows
+SET debug_dbug= '';
+# An OK the plugin set itself, not through the service (a plugin
+# built with the server headers can call my_ok()), is refused: at
+# the end of the statement, and at the first result of the service,
+# so that the client gets none of the results
+SET debug_dbug= '+d,sql_extension_plugin_sets_ok';
+TEST SQLEXT OK;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: a result was set outside the service
+TEST SQLEXT MULTI;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: a result was set outside the service
+SET debug_dbug= '';
+TEST SQLEXT OK;
+# As for CALL, a forwarded CALL that returns result sets needs a
+# client that accepts several results
+CREATE PROCEDURE p()
+BEGIN
+SELECT 1 AS x;
+SELECT 2 AS y;
+END|
+SET debug_dbug= '+d,sp_no_client_multi_results';
+CALL p();
+ERROR 0A000: PROCEDURE test.p can't return a result set in the given context
+TEST SQLEXT FORWARD CALL p();
+ERROR 0A000: PROCEDURE test.p can't return a result set in the given context
+SET debug_dbug= '';
+DROP PROCEDURE p;
+# Several statements of a script need a packet that allows them
+# (text protocol: a prepared statement never does)
+SET debug_dbug= '+d,sql_extension_no_client_multi_statements'|
+TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT 2 AS b'|
+ERROR HY000: test_sql_extension: several statements need CLIENT_MULTI_STATEMENTS
+TEST SQLEXT SCRIPT 'SELECT 1 AS a'|
+a
+1
+SET debug_dbug= ''|
+# KILL QUERY between two statements of a script: the next statement
+# is not run, the statement fails with the kill error after the
+# results sent so far
+connect  con1, localhost, root,,;
+SET DEBUG_SYNC= 'test_sql_extension_script SIGNAL first_done WAIT_FOR go';
+TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT 2 AS b'|
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR first_done';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+a
+1
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT FORWARD SELECT 3 AS c;
+c
+3
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

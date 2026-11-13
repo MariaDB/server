@@ -1,0 +1,193 @@
+--echo #
+--echo # MDEV-41962 Several results per statement, and results of SQL run as the client
+--echo # sent to the client as they are (sql_extension_forward_sql())
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+--echo # Text protocol where the flags or several statements matter: a
+--echo # prepared statement never allows several statements
+--disable_ps_protocol
+TEST SQLEXT FLAGS;
+--enable_ps_protocol
+
+--echo #
+--echo # Results made by the plugin: each but the last is followed by more
+--echo #
+--enable_info
+TEST SQLEXT TWICE;
+TEST SQLEXT MULTI;
+--disable_info
+--echo # An error after a result: the result, then the error
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT MULTI ERROR;
+--echo # Prepared: the same results, and never several statements
+PREPARE s FROM 'TEST SQLEXT MULTI';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'TEST SQLEXT FLAGS';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # A client that does not accept several results: see results_debug.test
+
+--echo #
+--echo # Forwarded results: as the server sends them
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b DECIMAL(5,2),
+                 c DATETIME(3), j JSON) ENGINE=InnoDB;
+--enable_info
+TEST SQLEXT FORWARD INSERT INTO t1 (b, c, j) VALUES (1.5, '2026-11-06 10:20:30.123', '[1]'), (2.25, NULL, NULL);
+--disable_info
+--echo # The client's insert id is that of the forwarded INSERT, and of an
+--echo # INSERT a handler runs as the client
+SELECT LAST_INSERT_ID();
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT, b INT) AUTO_INCREMENT=10;
+TEST SQLEXT SQL INSERT INTO t2 (b) VALUES (1), (2);
+SELECT LAST_INSERT_ID();
+DROP TABLE t2;
+--echo # The same metadata as the SELECT itself
+--disable_ps_protocol
+--enable_metadata
+SELECT * FROM t1;
+TEST SQLEXT FORWARD SELECT * FROM t1;
+--disable_metadata
+--enable_ps_protocol
+--echo # The same rows through the binary protocol, under --ps-protocol
+TEST SQLEXT FORWARD SELECT * FROM t1;
+--echo # Warnings and errors, with their SQLSTATE
+TEST SQLEXT FORWARD SELECT 1/0 AS x;
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT FORWARD SELECT * FROM no_such_table;
+--error ER_SIGNAL_EXCEPTION
+TEST SQLEXT FORWARD SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'from forward';
+--echo # SQL claimed by an extension plugin is refused
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT FORWARD TEST SQLEXT OK;
+--echo # One statement only: no text is an empty query, a trailing ';' is
+--echo # fine, a second statement is a syntax error
+--error ER_EMPTY_QUERY
+TEST SQLEXT FORWARD;
+TEST SQLEXT FORWARD 'SELECT 1 AS a;';
+--error ER_PARSE_ERROR
+TEST SQLEXT FORWARD 'SELECT 1 AS a; SELECT 2 AS b';
+
+--echo #
+--echo # An extension statement that stands for a CALL: the client gets what
+--echo # the CALL itself returns
+--echo #
+DELIMITER |;
+CREATE PROCEDURE p()
+BEGIN
+  SELECT a, b FROM t1 ORDER BY a;
+  SELECT COUNT(*) AS n FROM t1;
+  UPDATE t1 SET b= b + 1 WHERE a = 1;
+END|
+CREATE PROCEDURE p_err()
+BEGIN
+  SELECT 1 AS x;
+  SELECT * FROM no_such_table;
+  SELECT 2 AS y;
+END|
+DELIMITER ;|
+--enable_info
+CALL p();
+TEST SQLEXT FORWARD CALL p();
+--disable_info
+--error ER_NO_SUCH_TABLE
+CALL p_err();
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT FORWARD CALL p_err();
+--echo # As for CALL, the client must accept several results: see
+--echo # results_debug.test
+--echo # Prepared
+PREPARE s FROM 'TEST SQLEXT FORWARD CALL p()';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo #
+--echo # Extension statements that send results inside a CALL: each result
+--echo # is followed by more, and the CALL's own OK comes last
+--echo #
+DELIMITER |;
+CREATE PROCEDURE p_ext()
+BEGIN
+  EXECUTE IMMEDIATE 'TEST SQLEXT MULTI';
+  EXECUTE IMMEDIATE 'TEST SQLEXT FORWARD SELECT 1 AS a';
+  SELECT 2 AS b;
+END|
+CREATE PROCEDURE p_ext_err()
+BEGIN
+  EXECUTE IMMEDIATE 'TEST SQLEXT MULTI ERROR';
+  SELECT 'not run' AS c;
+END|
+DELIMITER ;|
+--enable_info
+CALL p_ext();
+--disable_info
+--error ER_UNKNOWN_ERROR
+CALL p_ext_err();
+--echo # Prepared
+PREPARE s FROM 'CALL p_ext()';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--echo # The connection is still in step
+SELECT 'next' AS r;
+DROP PROCEDURE p_ext;
+DROP PROCEDURE p_ext_err;
+
+--echo #
+--echo # A script: the results of its statements, until one fails
+--echo #
+--disable_ps_protocol
+DELIMITER |;
+--enable_info
+TEST SQLEXT SCRIPT 'SELECT COUNT(*) AS n FROM t1; UPDATE t1 SET b= 0 WHERE a = 2; SELECT b FROM t1 WHERE a = 2'|
+--disable_info
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT * FROM no_such_table; SELECT 2 AS b'|
+--echo # Several statements need a packet that allows them: see
+--echo # results_debug.test
+DELIMITER ;|
+--enable_ps_protocol
+
+--echo #
+--echo # Forwarded SQL runs as the client
+--echo #
+CREATE USER u1@localhost;
+GRANT SELECT ON test.t1 TO u1@localhost;
+GRANT EXECUTE ON PROCEDURE test.p TO u1@localhost;
+connect (u1, localhost, u1,,);
+TEST SQLEXT FORWARD SELECT a, CURRENT_USER() AS u FROM test.t1 ORDER BY a;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT FORWARD DELETE FROM test.t1;
+--echo # The procedure runs with its definer's rights, as with CALL
+--enable_info
+TEST SQLEXT FORWARD CALL test.p();
+--disable_info
+disconnect u1;
+connection default;
+DROP USER u1@localhost;
+
+--echo # Its transaction
+--enable_info
+BEGIN;
+TEST SQLEXT FORWARD DELETE FROM t1;
+ROLLBACK;
+--disable_info
+SELECT COUNT(*) AS n FROM t1;
+
+let $sqlext_verb= FORWARD;
+--source suite/sql_extension/include/kill_and_timeout.inc
+
+DROP PROCEDURE p;
+DROP PROCEDURE p_err;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 13.2 tests

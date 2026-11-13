@@ -1,0 +1,72 @@
+--echo #
+--echo # MDEV-41962 The query cache never serves an SQL extension statement: a carrier whose
+--echo # text starts like a SELECT (here "WITH SQLEXT ...") is looked up before
+--echo # parsing, and the SQL a handler then forwards to the client must not be
+--echo # stored under the carrier's text, or the next client sending the same text
+--echo # would get the stored result without the plugin running.
+--echo #
+--source include/not_embedded.inc
+--source include/have_query_cache.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2);
+CREATE USER u1@localhost, u2@localhost;
+GRANT SELECT ON test.t1 TO u1@localhost, u2@localhost;
+RESET QUERY CACHE;
+
+--echo # The cache itself works here (in the text protocol: prepared
+--echo # statements are never cached)
+connect (u1, localhost, u1,,test);
+--disable_ps_protocol
+let $hits= query_get_value(SHOW STATUS LIKE 'Qcache_hits', Value, 1);
+SELECT a FROM t1;
+SELECT a FROM t1;
+let $hits_after= query_get_value(SHOW STATUS LIKE 'Qcache_hits', Value, 1);
+--disable_query_log
+eval SELECT $hits_after - $hits AS hits_from_a_repeated_select;
+--enable_query_log
+--enable_ps_protocol
+connection default;
+RESET QUERY CACHE;
+
+--echo # A forwarded SELECT is not stored under the carrier's text
+connection u1;
+WITH SQLEXT FORWARD SELECT a FROM t1;
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+--echo # ... so another user sending the same text goes through the plugin
+connect (u2, localhost, u2,,test);
+let $hits= query_get_value(SHOW STATUS LIKE 'Qcache_hits', Value, 1);
+WITH SQLEXT FORWARD SELECT a FROM t1;
+let $hits_after= query_get_value(SHOW STATUS LIKE 'Qcache_hits', Value, 1);
+--disable_query_log
+eval SELECT $hits_after - $hits AS hits_from_the_extension_statement;
+--enable_query_log
+
+--echo # Nor a result set the plugin builds itself
+SET NAMES utf8mb4;
+WITH SQLEXT ROWS;
+SHOW STATUS LIKE 'Qcache_queries_in_cache';
+
+--echo # Nor through a prepared statement, after a cacheable SELECT left the
+--echo # connection's cache lookup state behind
+--disable_ps_protocol
+SELECT a FROM t1 WHERE a = 1;
+--enable_ps_protocol
+let $stored= query_get_value(SHOW STATUS LIKE 'Qcache_queries_in_cache', Value, 1);
+PREPARE s FROM 'WITH SQLEXT FORWARD SELECT a FROM t1';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+let $stored_after= query_get_value(SHOW STATUS LIKE 'Qcache_queries_in_cache', Value, 1);
+--disable_query_log
+eval SELECT $stored_after - $stored AS stored_by_execute;
+--enable_query_log
+disconnect u1;
+disconnect u2;
+connection default;
+
+DROP USER u1@localhost, u2@localhost;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

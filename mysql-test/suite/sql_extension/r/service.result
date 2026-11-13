@@ -1,0 +1,1152 @@
+#
+# MDEV-41962 SQL extension service: results, warnings, access checks, and SQL run
+# as the client
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+#
+# Results
+#
+SET NAMES utf8mb4;
+TEST SQLEXT ROWS;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	16	5	N	1	39	224
+def					b	253	3	3	Y	128	39	63
+def					i	8	21	20	N	32897	0	63
+def					u	8	21	20	Y	32928	0	63
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+# Also as a prepared statement, which has no columns at PREPARE
+PREPARE s FROM 'TEST SQLEXT ROWS';
+EXECUTE s;
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+EXECUTE s;
+s	b	i	u
+cafÃ©	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+DEALLOCATE PREPARE s;
+TEST SQLEXT INFO;
+affected rows: 3
+info: test_sql_extension: info
+# An OK message of 511 bytes is sent whole; a longer or ill-formed
+# one is refused, not cut or sent as '?'
+TEST SQLEXT INFO MAX;
+affected rows: 0
+info: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TEST SQLEXT INFO LONG;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: an OK message longer than 511 bytes
+TEST SQLEXT INFO ILL_FORMED;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: an OK message that is not well-formed utf8mb4
+SET NAMES DEFAULT;
+TEST SQLEXT WARN;
+Warnings:
+Note	1	test_sql_extension: note
+Warning	2	test_sql_extension: warning
+SHOW WARNINGS;
+Level	Code	Message
+Note	1	test_sql_extension: note
+Warning	2	test_sql_extension: warning
+# Several results per statement: see results.test
+#
+# Column types: the metadata follows the cells (DECIMAL scale,
+# fractional seconds, nullability)
+#
+# Text protocol only: with --ps-protocol the client computes other
+# "Max length" values and, as for CALL, does not show the JSON format
+# of columns first sent at EXECUTE
+TEST SQLEXT TYPES;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					d	5	22	6	Y	32896	31	63
+def					n	246	7	7	Y	32896	3	63
+def					dt	10	10	10	Y	128	0	63
+def					t	11	17	17	Y	128	6	63
+def					ts	12	21	21	Y	128	1	63
+def					j	253 (format=json)	52	13	Y	128	39	224
+d	n	dt	t	ts	j
+1.5	-12.500	2026-11-06	-838:59:59.000000	2026-11-06 10:20:30.5	{"a": [1, 2]}
+-0.002	3.125	0000-00-00	26:03:04.123456	2026-11-06 10:20:30.0	null
+NULL	NULL	NULL	NULL	NULL	NULL
+# With no rows, and with only NULLs, the metadata still describes
+# each column (strings at least 1 character wide; nullable only if
+# a NULL was sent)
+TEST SQLEXT EMPTY;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	4	0	N	1	39	224
+def					i	8	21	0	N	32897	0	63
+def					d	246	2	0	N	32897	0	63
+s	i	d
+TEST SQLEXT NULLS;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					s	253	4	0	Y	0	39	224
+def					i	8	21	0	Y	32896	0	63
+def					d	246	2	0	Y	32896	0	63
+s	i	d
+NULL	NULL	NULL
+NULL	NULL	NULL
+PREPARE s FROM 'TEST SQLEXT TYPES';
+EXECUTE s;
+d	n	dt	t	ts	j
+1.5	-12.500	2026-11-06	-838:59:59.000000	2026-11-06 10:20:30.5	{"a": [1, 2]}
+-0.002	3.125	0000-00-00	26:03:04.123456	2026-11-06 10:20:30.0	null
+NULL	NULL	NULL	NULL	NULL	NULL
+DEALLOCATE PREPARE s;
+# Values at the limits of each type are accepted
+TEST SQLEXT BAD INTEGER -9223372036854775808;
+c
+-9223372036854775808
+TEST SQLEXT BAD UNSIGNED 18446744073709551615;
+c
+18446744073709551615
+TEST SQLEXT BAD DOUBLE 1.7976931348623157e308;
+c
+1.7976931348623157e308
+TEST SQLEXT BAD DECIMAL 123456789012345678901234567.12345678901234567890123456789012345678;
+c
+123456789012345678901234567.12345678901234567890123456789012345678
+TEST SQLEXT BAD DECIMAL 0.00000000000000000000000000000000000001;
+c
+0.00000000000000000000000000000000000001
+TEST SQLEXT BAD TIME 838:59:59;
+c
+838:59:59
+TEST SQLEXT BAD TIME -34 22:59:59.999999;
+c
+-838:59:59.999999
+TEST SQLEXT BAD DATETIME 9999-12-31 23:59:59.999999;
+c
+9999-12-31 23:59:59.999999
+TEST SQLEXT BAD JSON [1, "two", {"three": null}];
+c
+[1, "two", {"three": null}]
+TEST SQLEXT BAD STRING cafÃ©;
+c
+cafÃ©
+# Other values are refused before anything is sent
+TEST SQLEXT BAD STRING ILL_FORMED;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid utf8mb4 string
+# Malformed result sets are refused as well
+TEST SQLEXT BADSET NOCOLS;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: a result set needs columns
+TEST SQLEXT BADSET NONAME;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: column 1 has no name
+TEST SQLEXT BADSET BADTYPE;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: column `c` has the unknown type 99
+TEST SQLEXT BADSET NOCELLS;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: rows were given without cells
+# A call with a thd other than execute()'s is an invalid argument
+TEST SQLEXT BADTHD;
+ERROR HY000: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_send_ok.
+# also from a thread of the plugin, with no THD: the error goes to the
+# handle and to the error log
+call mtr.add_suppression("Invalid argument error: thd is not the connection of the execute\\(\\) in progress in function sql_extension_connect_as_client");
+TEST SQLEXT NOTHD;
+ERROR HY000: test_sql_extension: refused: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_connect_as_client.
+# Other invalid calls: a NULL handle or query, no thd. With a THD, the
+# handle gets the error that was raised.
+TEST SQLEXT BADCALL MYSQL;
+ERROR HY000: Invalid argument error: mysql is NULL in function sql_extension_connect_as_client.
+TEST SQLEXT BADCALL HANDLE;
+ERROR HY000: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_connect_as_client.
+SHOW WARNINGS;
+Level	Code	Message
+Error	3047	Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_connect_as_client.
+Note	1105	test_sql_extension: handle: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_connect_as_client.
+TEST SQLEXT BADCALL QUERY;
+ERROR HY000: Invalid argument error: query is NULL in function sql_extension_forward_sql.
+TEST SQLEXT BADCALL FORWARD;
+ERROR HY000: Invalid argument error: thd is not the connection of the execute() in progress in function sql_extension_forward_sql.
+TEST SQLEXT BAD INTEGER 12x;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid integer
+TEST SQLEXT BAD INTEGER 9223372036854775808;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid integer
+TEST SQLEXT BAD UNSIGNED -1;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid unsigned integer
+TEST SQLEXT BAD DOUBLE abc;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DOUBLE 1e400;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DOUBLE;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid double
+TEST SQLEXT BAD DECIMAL 1.2.3;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid decimal
+TEST SQLEXT BAD DECIMAL 1234567890123456789012345678901234567890123456789012345678901234567;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+TEST SQLEXT BAD DECIMAL 0.000000000000000000000000000000000000001;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+# Two cells that fit on their own, but not in one DECIMAL column:
+# 60 digits before the point and 11 after
+TEST SQLEXT BAD2 DECIMAL 123456789012345678901234567890123456789012345678901234567890 0.12345678901;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: decimal column `c` needs more than 65 digits or more than 38 after the point
+TEST SQLEXT BAD DATE 2026-13-01;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid date
+TEST SQLEXT BAD DATE 2026-11-06 10:20:30;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid date
+TEST SQLEXT BAD DATETIME 2026-11-06;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid datetime
+TEST SQLEXT BAD DATETIME 2026-11-06 10:20:30.1234567;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid datetime
+TEST SQLEXT BAD TIME 839:00:00;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid time
+TEST SQLEXT BAD TIME 10:61:00;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid time
+TEST SQLEXT BAD JSON {"a": ;
+ERROR HY000: SQL extension plugin 'test_sql_extension' sent an invalid result: cell 1 of column `c` is not a valid JSON document
+TEST SQLEXT BAD NOSUCHTYPE x;
+ERROR HY000: test_sql_extension: no type 'NOSUCHTYPE'
+#
+# Access checks and SQL run as the client
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE db1.t2 (a INT);
+INSERT INTO db1.t1 VALUES (1);
+CREATE USER u1@localhost;
+GRANT SELECT ON db1.t1 TO u1@localhost;
+connect  u1, localhost, u1,,;
+TEST SQLEXT ACCESS db1 t1;
+# An invalid call names the argument
+TEST SQLEXT ACCESS;
+ERROR HY000: Invalid argument error: db is NULL or empty in function sql_extension_check_access.
+TEST SQLEXT ACCESS db1 '';
+ERROR HY000: Invalid argument error: table is empty in function sql_extension_check_access.
+TEST SQLEXT ACCESS NOPRIV db1;
+ERROR HY000: Invalid argument error: privileges is 0 in function sql_extension_check_access.
+TEST SQLEXT ACCESS BADBIT db1;
+ERROR HY000: Invalid argument error: privileges has unknown bits in function sql_extension_check_access.
+# Names are checked as a statement's would be
+TEST SQLEXT ACCESS SELECT a2345678901234567890123456789012345678901234567890123456789012345;
+ERROR 42000: Incorrect database name 'a2345678901234567890123456789012345678901234567890123456789012345'
+TEST SQLEXT ACCESS SELECT db1 b2345678901234567890123456789012345678901234567890123456789012345;
+ERROR 42000: Incorrect table name 'b2345678901234567890123456789012345678901234567890123456789012345'
+TEST SQLEXT ACCESS db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+TEST SQLEXT ACCESS db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+# Every privilege GRANT accepts on a database can be checked
+connection default;
+GRANT LOCK TABLES, EVENT ON db1.* TO u1@localhost;
+GRANT REFERENCES ON db1.t1 TO u1@localhost;
+connection u1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS EVENT db1;
+TEST SQLEXT ACCESS REFERENCES db1 t1;
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+TEST SQLEXT ACCESS SHOW_CREATE_ROUTINE db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+TEST SQLEXT ACCESS DELETE_HISTORY db1 t1;
+ERROR 42000: DELETE HISTORY command denied to user 'u1'@'localhost' for table `db1`.`t1`
+TEST SQLEXT ACCESS GRANT_OPTION db1 t1;
+ERROR 42000: GRANT command denied to user 'u1'@'localhost' for table `db1`.`t1`
+# A database name is checked as a name, not as a GRANT pattern
+connection default;
+CREATE DATABASE my_db;
+GRANT SELECT ON `my\_db`.* TO u1@localhost WITH GRANT OPTION;
+connection u1;
+TEST SQLEXT ACCESS SELECT my_db;
+TEST SQLEXT ACCESS GRANT_OPTION my_db;
+# Databases with built-in access rules
+TEST SQLEXT ACCESS SELECT information_schema;
+TEST SQLEXT ACCESS INSERT information_schema;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'information_schema'
+TEST SQLEXT ACCESS SELECT performance_schema;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'performance_schema'
+# The current database is checked through the privileges cached for it
+USE db1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+# Global grants count
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON *.* TO u2@localhost;
+connect  u2, localhost, u2,,;
+TEST SQLEXT ACCESS SELECT db1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+TEST SQLEXT ACCESS INSERT db1;
+ERROR 42000: Access denied for user 'u2'@'localhost' to database 'db1'
+disconnect u2;
+# Grants of the active role and of PUBLIC count
+connection default;
+CREATE ROLE r1;
+GRANT SELECT ON db1.t2 TO r1;
+GRANT r1 TO u1@localhost;
+GRANT INSERT ON db1.* TO PUBLIC;
+connection u1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+SET ROLE r1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE NONE;
+TEST SQLEXT ACCESS SELECT db1 t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+TEST SQLEXT ACCESS INSERT db1;
+TEST SQLEXT ACCESS INSERT db1 t2;
+connection default;
+REVOKE INSERT ON db1.* FROM PUBLIC;
+DELETE FROM mysql.global_priv WHERE user = 'PUBLIC';
+FLUSH PRIVILEGES;
+DROP ROLE r1;
+connection u1;
+# The current database's grants are cached until the next USE, as
+# for any statement
+TEST SQLEXT ACCESS INSERT db1;
+USE db1;
+TEST SQLEXT ACCESS INSERT db1;
+ERROR 42000: Access denied for user 'u1'@'localhost' to database 'db1'
+# The client's grants apply to the SQL a handler runs
+TEST SQLEXT SQL SELECT a, CURRENT_USER() AS u FROM db1.t1;
+a	u
+1	u1@localhost
+TEST SQLEXT SQL SELECT * FROM db1.t2;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `db1`.`t2`
+TEST SQLEXT SQL INSERT INTO db1.t1 VALUES (2);
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `db1`.`t1`
+# The plain SQL service skips them
+TEST SQLEXT LOCAL SQL INSERT INTO db1.t1 VALUES (2);
+# The client's current database
+USE db1;
+TEST SQLEXT SQL SELECT DATABASE() AS db, COUNT(*) AS n FROM t1;
+db	n
+db1	2
+disconnect u1;
+connection default;
+# The client's transaction
+BEGIN;
+affected rows: 0
+TEST SQLEXT SQL INSERT INTO db1.t1 VALUES (3), (4);
+affected rows: 2
+ROLLBACK;
+affected rows: 0
+SELECT * FROM db1.t1 ORDER BY a;
+a
+1
+2
+# A statement that fails after sending some rows (the second row's
+# subquery returns two rows): the error is relayed, and the rows
+# already read are freed (checked under ASan)
+TEST SQLEXT SQL SELECT IF(a = 2, (SELECT 1 UNION ALL SELECT 2), a) AS v FROM db1.t1 ORDER BY a;
+ERROR 21000: Subquery returns more than 1 row
+TEST SQLEXT LOCAL SQL SELECT IF(a = 2, (SELECT 1 UNION ALL SELECT 2), a) AS v FROM db1.t1 ORDER BY a;
+ERROR 21000: Subquery returns more than 1 row
+TEST SQLEXT SQL SELECT COUNT(*) AS n FROM db1.t1;
+n
+2
+# SQL a handler runs after raising an error leaves that error to the
+# statement, also when the SQL fails, and through the plain service
+TEST SQLEXT RAISE SELECT 1 AS a;
+ERROR HY000: test_sql_extension: raised before its SQL
+TEST SQLEXT RAISE SELECT * FROM no_such_table;
+ERROR HY000: test_sql_extension: raised before its SQL
+TEST SQLEXT LOCAL RAISE SELECT 1 AS a;
+ERROR HY000: test_sql_extension: raised before its SQL
+# A connection opened for one statement cannot be used by a later
+# one, nor by another client
+TEST SQLEXT KEEP SELECT 1 AS a;
+a
+1
+TEST SQLEXT REUSE SELECT 2 AS b;
+ERROR HY000: This connection can only be used by the execute() of the SQL extension statement it was opened for
+connect  con3, localhost, root,,;
+TEST SQLEXT REUSE SELECT 2 AS b;
+ERROR HY000: This connection can only be used by the execute() of the SQL extension statement it was opened for
+disconnect con3;
+connection default;
+TEST SQLEXT KEEP CLOSE;
+# nor by another thread of the plugin, even during the statement
+TEST SQLEXT THREAD SELECT 1 AS a;
+ERROR HY000: test_sql_extension: refused: This connection can only be used by the execute() of the SQL extension statement it was opened for
+#
+# SQL that changes the client's session or transaction: it does,
+# as when the client sends it
+#
+CREATE TABLE db1.t3 (a INT) ENGINE=InnoDB;
+# COMMIT, ROLLBACK and an implicit commit end the client's transaction
+BEGIN;
+TEST SQLEXT SQL INSERT INTO db1.t3 VALUES (1);
+TEST SQLEXT SQL COMMIT;
+SELECT @@in_transaction;
+@@in_transaction
+0
+ROLLBACK;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO db1.t3 VALUES (2);
+TEST SQLEXT SQL CREATE TABLE db1.t4 (a INT);
+SELECT @@in_transaction;
+@@in_transaction
+0
+ROLLBACK;
+DROP TABLE db1.t4;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO db1.t3 VALUES (3);
+TEST SQLEXT SQL ROLLBACK;
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT * FROM db1.t3 ORDER BY a;
+a
+1
+2
+# START TRANSACTION and autocommit start or set the client's
+TEST SQLEXT SQL START TRANSACTION;
+SELECT @@in_transaction;
+@@in_transaction
+1
+ROLLBACK;
+TEST SQLEXT SQL SET autocommit= 0;
+SELECT @@autocommit;
+@@autocommit
+0
+SET autocommit= 1;
+# USE changes the client's current database
+TEST SQLEXT SQL USE db1;
+SELECT DATABASE();
+DATABASE()
+db1
+USE test;
+# LOCK TABLES and UNLOCK TABLES lock and unlock the client's tables
+TEST SQLEXT SQL LOCK TABLES db1.t3 READ;
+SELECT COUNT(*) FROM db1.t1;
+ERROR HY000: Table 't1' was not locked with LOCK TABLES
+UNLOCK TABLES;
+LOCK TABLES db1.t3 READ;
+TEST SQLEXT SQL UNLOCK TABLES;
+SELECT COUNT(*) FROM db1.t1;
+COUNT(*)
+2
+DROP TABLE db1.t3;
+# EXECUTE of a prepared extension statement is refused like the
+# statement itself
+PREPARE s FROM 'TEST SQLEXT OK';
+TEST SQLEXT FORWARD EXECUTE s;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT SQL EXECUTE s;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT LOCAL SQL EXECUTE s;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+EXECUTE s;
+DEALLOCATE PREPARE s;
+#
+# LOCK TABLES: the client's locked tables
+#
+LOCK TABLES db1.t1 WRITE;
+TEST SQLEXT SQL INSERT INTO db1.t1 VALUES (5);
+TEST SQLEXT SQL SELECT * FROM db1.t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+# Forwarded SQL runs on the client's THD too, with its locks
+TEST SQLEXT FORWARD SELECT COUNT(*) AS n FROM db1.t1;
+n
+3
+TEST SQLEXT FORWARD SELECT * FROM db1.t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+UNLOCK TABLES;
+LOCK TABLES db1.t1 READ;
+TEST SQLEXT SQL SELECT COUNT(*) AS n FROM db1.t1;
+n
+3
+TEST SQLEXT SQL INSERT INTO db1.t1 VALUES (6);
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+TEST SQLEXT FORWARD INSERT INTO db1.t1 VALUES (6);
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+# ROLLBACK undoes the handler's changes; the locks stay
+SET autocommit= 0;
+LOCK TABLES db1.t1 WRITE;
+TEST SQLEXT SQL INSERT INTO db1.t1 VALUES (7);
+ROLLBACK;
+SELECT COUNT(*) AS n FROM db1.t1 WHERE a = 7;
+n
+0
+# Other connections still wait for the client's lock
+connect  con2, localhost, root,,;
+SELECT COUNT(*) AS n FROM db1.t1;
+connection default;
+UNLOCK TABLES;
+SET autocommit= 1;
+connection con2;
+n
+3
+disconnect con2;
+connection default;
+#
+# KILL QUERY and max_statement_time stop the SQL a handler runs
+#
+# The timer of the extension statement applies: the SQL fails, as
+# in a stored procedure (a plain SELECT SLEEP() would return 1)
+SET max_statement_time= 0.2;
+TEST SQLEXT SQL SELECT SLEEP(10) AS s;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+TEST SQLEXT SQL SELECT 1 AS a;
+a
+1
+# KILL QUERY while the SQL runs
+connect  con1, localhost, root,,;
+TEST SQLEXT SQL SELECT SLEEP(100);
+connection default;
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT SQL SELECT 1 AS a;
+a
+1
+disconnect con1;
+connection default;
+# KILL CONNECTION while the SQL runs: the connection ends
+connect  con1, localhost, root,,;
+TEST SQLEXT SQL SELECT SLEEP(100);
+connection default;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+# The timer of the extension statement applies: the SQL fails, as
+# in a stored procedure (a plain SELECT SLEEP() would return 1)
+SET max_statement_time= 0.2;
+TEST SQLEXT SWALLOW SELECT SLEEP(10) AS s;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+TEST SQLEXT SWALLOW SELECT 1 AS a;
+# KILL QUERY while the SQL runs
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW SELECT SLEEP(100);
+connection default;
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT SWALLOW SELECT 1 AS a;
+disconnect con1;
+connection default;
+# KILL CONNECTION while the SQL runs: the connection ends
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW SELECT SLEEP(100);
+connection default;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+# A handler that goes on after its SQL was killed: the client gets
+# the OK or the rows it sends, then the kill error, as from a CALL
+# The timer of the extension statement applies: the SQL fails, as
+# in a stored procedure (a plain SELECT SLEEP() would return 1)
+SET max_statement_time= 0.2;
+TEST SQLEXT SWALLOW OK SELECT SLEEP(10) AS s;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+TEST SQLEXT SWALLOW OK SELECT 1 AS a;
+# KILL QUERY while the SQL runs
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW OK SELECT SLEEP(100);
+connection default;
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT SWALLOW OK SELECT 1 AS a;
+disconnect con1;
+connection default;
+# KILL CONNECTION while the SQL runs: the connection ends
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW OK SELECT SLEEP(100);
+connection default;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+# The timer of the extension statement applies: the SQL fails, as
+# in a stored procedure (a plain SELECT SLEEP() would return 1)
+SET max_statement_time= 0.2;
+TEST SQLEXT SWALLOW ROWS SELECT SLEEP(10) AS s;
+r
+after
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+TEST SQLEXT SWALLOW ROWS SELECT 1 AS a;
+r
+after
+# KILL QUERY while the SQL runs
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW ROWS SELECT SLEEP(100);
+connection default;
+connection con1;
+r
+after
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT SWALLOW ROWS SELECT 1 AS a;
+r
+after
+disconnect con1;
+connection default;
+# KILL CONNECTION while the SQL runs: the connection ends
+connect  con1, localhost, root,,;
+TEST SQLEXT SWALLOW ROWS SELECT SLEEP(100);
+connection default;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+# The plain SQL service on the client's THD leaves the timer to the
+# extension statement too
+SET max_statement_time= 0.2;
+TEST SQLEXT LOCAL SQL SELECT SLEEP(10) AS s;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+# LIMIT ROWS EXAMINED counts each statement on its own: the second run
+# returns every row, as the first did
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+TEST SQLEXT SQL2 SELECT a FROM t1 LIMIT ROWS EXAMINED 6;
+a
+1
+2
+3
+4
+# A statement that reaches the limit does not stop the next ones: the
+# second run returns the same two rows, and a script goes on with
+# every row
+TEST SQLEXT SQL2 SELECT a FROM t1 LIMIT ROWS EXAMINED 2;
+a
+1
+2
+TEST SQLEXT SCRIPT 'SELECT a FROM t1 LIMIT ROWS EXAMINED 2; UPDATE t1 SET a= a + 10; SELECT a FROM t1'|
+a
+1
+2
+a
+11
+12
+13
+14
+Warnings:
+Warning	1931	Query execution was interrupted. The query exceeded LIMIT ROWS EXAMINED 2. The query result may be incomplete
+DROP TABLE t1;
+#
+# SQL whose error rolls back the client's transaction (a deadlock)
+# fails the statement with that error, even if the handler drops it
+#
+CREATE TABLE db1.t5 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO db1.t5 VALUES (1, 0), (2, 0);
+CREATE TABLE db1.t6 (a INT) ENGINE=InnoDB;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW UPDATE db1.t5 SET v= 1 WHERE id= 2;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# After the OK or the row the handler sends, as from a CALL
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW OK UPDATE db1.t5 SET v= 1 WHERE id= 2;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW ROWS UPDATE db1.t5 SET v= 1 WHERE id= 2;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+r
+after
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# Through the plain SQL service on the client's connection too
+# (which writes the error of its query to the server log)
+call mtr.add_suppression("Deadlock found when trying to get lock; try restarting transaction");
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT LOCAL SWALLOW UPDATE db1.t5 SET v= 1 WHERE id= 2;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# A handler that fails with an error of its own keeps it, as for a
+# kill; the transaction is gone all the same
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT RAISE UPDATE db1.t5 SET v= 1 WHERE id= 2;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR HY000: test_sql_extension: raised before its SQL
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# In autocommit too: the statement's work is rolled back
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+TEST SQLEXT SWALLOW UPDATE db1.t5 SET v= 1 ORDER BY id;
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# A stored procedure that handles the deadlock itself succeeds, as
+# when the client calls it: the error is the procedure's to handle
+CREATE PROCEDURE db1.p_dl()
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1213 SET @dl= 'deadlock handled';
+UPDATE db1.t5 SET v= 1 WHERE id= 2;
+END|
+SET @dl= NULL;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SQL CALL db1.p_dl();
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @dl;
+@dl
+deadlock handled
+# Also when the handler forwards the CALL
+SET @dl= NULL;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT FORWARD CALL db1.p_dl();
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @dl;
+@dl
+deadlock handled
+# But not when the error escapes the procedure's handler, which the
+# handler of the extension statement then drops: RESIGNAL
+CREATE PROCEDURE db1.p_resignal()
+BEGIN
+DECLARE EXIT HANDLER FOR 1213 RESIGNAL;
+UPDATE db1.t5 SET v= 1 WHERE id= 2;
+END|
+# or another error
+CREATE PROCEDURE db1.p_other()
+BEGIN
+DECLARE EXIT HANDLER FOR 1213
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'after the deadlock';
+UPDATE db1.t5 SET v= 1 WHERE id= 2;
+END|
+# Nor does a later error with the same number make up for a
+# deadlock the extension's handler dropped
+CREATE PROCEDURE db1.p_same_errno()
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1213 SET @dl= 'signal handled';
+SIGNAL SQLSTATE '40001' SET MYSQL_ERRNO= 1213;
+END|
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW CALL db1.p_resignal();
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW CALL db1.p_other();
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SET @dl= NULL;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW 'UPDATE db1.t5 SET v= 1 WHERE id= 2; CALL db1.p_same_errno()';
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @dl;
+@dl
+signal handled
+# A handler of an outer procedure takes a deadlock from an inner one:
+# handled, as when the client calls it
+CREATE PROCEDURE db1.p_inner()
+UPDATE db1.t5 SET v= 1 WHERE id= 2|
+CREATE PROCEDURE db1.p_outer()
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1213 SET @dl= 'outer handled';
+CALL db1.p_inner();
+END|
+SET @dl= NULL;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SQL CALL db1.p_outer();
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @dl;
+@dl
+outer handled
+# A later error the handler drops, unrelated to the rollback, does not
+# undo the handling
+SET @dl= NULL;
+connect  con_dl, localhost, root,,;
+# The other transaction does more work, so InnoDB picks the client's
+# as the victim
+BEGIN;
+INSERT INTO db1.t6 VALUES (1), (2), (3), (4), (5), (6), (7), (8);
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+UPDATE db1.t5 SET v= 1 WHERE id= 1;
+TEST SQLEXT SWALLOW 'CALL db1.p_dl(); SELECT * FROM db1.no_such_table';
+connection con_dl;
+UPDATE db1.t5 SET v= 2 WHERE id= 1;
+COMMIT;
+disconnect con_dl;
+connection default;
+# The client's transaction is gone, with its INSERT
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+SELECT * FROM db1.t5 ORDER BY id;
+id	v
+1	2
+2	2
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @dl;
+@dl
+deadlock handled
+DROP PROCEDURE db1.p_inner;
+DROP PROCEDURE db1.p_outer;
+DROP PROCEDURE db1.p_resignal;
+DROP PROCEDURE db1.p_other;
+DROP PROCEDURE db1.p_same_errno;
+DROP PROCEDURE db1.p_dl;
+DROP TABLE db1.t5, db1.t6;
+# A lock wait timeout rolls back only the statement that timed out
+# (without innodb_rollback_on_timeout, see rollback_on_timeout.test):
+# a handler may drop it, and the client's transaction goes on
+CREATE TABLE db1.t5 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO db1.t5 VALUES (1, 0), (2, 0);
+CREATE TABLE db1.t6 (a INT) ENGINE=InnoDB;
+connect  con_lw, localhost, root,,;
+BEGIN;
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+TEST SQLEXT SWALLOW UPDATE db1.t5 SET v= 1 WHERE id= 2;
+SET innodb_lock_wait_timeout= DEFAULT;
+# Whether the client's transaction, with its INSERT, is still there
+SELECT @@in_transaction;
+@@in_transaction
+1
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+1
+ROLLBACK;
+connection con_lw;
+ROLLBACK;
+disconnect con_lw;
+connection default;
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# The error reaches the client when the handler passes it on
+connect  con_lw, localhost, root,,;
+BEGIN;
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+TEST SQLEXT SQL UPDATE db1.t5 SET v= 1 WHERE id= 2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET innodb_lock_wait_timeout= DEFAULT;
+# Whether the client's transaction, with its INSERT, is still there
+SELECT @@in_transaction;
+@@in_transaction
+1
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+1
+ROLLBACK;
+connection con_lw;
+ROLLBACK;
+disconnect con_lw;
+connection default;
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+DROP TABLE db1.t5, db1.t6;
+# A rollback no engine asked for is not such an error: CHECK TABLE
+# on a corrupt table rolls back without one, and its rows still
+# reach the client
+CREATE TABLE db1.t7 (a INT NOT NULL, b INT NOT NULL) ENGINE=CSV;
+TEST SQLEXT SQL CHECK TABLE db1.t7;
+Table	Op	Msg_type	Msg_text
+db1.t7	check	error	Corrupt
+DROP TABLE db1.t7;
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP DATABASE my_db;
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

@@ -173,6 +173,8 @@ extern plugin_ref plugin_lock(THD *thd, plugin_ref ptr);
 extern plugin_ref plugin_lock_ready(THD *thd, plugin_ref ptr, bool *failed);
 extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name,
                                       int type);
+extern plugin_ref plugin_lock_by_name_ready(THD *thd,
+                                            const LEX_CSTRING *name, int type);
 extern void plugin_unlock(THD *thd, plugin_ref plugin);
 extern void plugin_unlock_list(THD *thd, plugin_ref *list, size_t count);
 extern bool mysql_install_plugin(THD *thd, const LEX_CSTRING *name,

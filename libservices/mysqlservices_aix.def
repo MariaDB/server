@@ -12,6 +12,7 @@ my_sha1_service
 my_sha2_service
 my_snprintf_service
 progress_report_service
+sql_extension_service
 thd_alloc_service
 thd_autoinc_service
 thd_error_context_service

@@ -1,0 +1,50 @@
+--echo #
+--echo # MDEV-41962 SQL extension plugins loaded at server start-up: all ten plugins
+--echo # of the library are loaded; the overlapping and invalid ones, and the one
+--echo # whose init() fails, are refused
+--echo # and the server starts with the others.
+--echo #
+--source include/not_embedded.inc
+
+call mtr.add_suppression("Plugin 'test_sql_extension.*' registration as a SQL EXTENSION failed");
+call mtr.add_suppression("SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps");
+call mtr.add_suppression("Invalid SQL extension descriptor in plugin 'test_sql_extension_");
+call mtr.add_suppression("Plugin 'test_sql_extension_bad_init' init function returned error");
+
+SELECT plugin_name, plugin_type, plugin_status
+  FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+
+--echo # The refusals are in the error log, with the plugin and the reason
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps prefix 'TEST SQLEXT' of plugin 'test_sql_extension';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Plugin 'test_sql_extension_overlap' registration as a SQL EXTENSION failed;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Invalid SQL extension descriptor in plugin 'test_sql_extension_bad': execute\(\) is not set;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Plugin 'test_sql_extension_bad' registration as a SQL EXTENSION failed;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Invalid SQL extension descriptor in plugin 'test_sql_extension_empty': neither prefixes nor recognize\(\) is set;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Invalid SQL extension descriptor in plugin 'test_sql_extension_bad_prefix': a keyword must start with a letter or '_';
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Invalid SQL extension descriptor in plugin 'test_sql_extension_mixed': both prefixes and recognize\(\) are set;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Invalid SQL extension descriptor in plugin 'test_sql_extension_bad_priority': priority is set with prefixes;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= Plugin 'test_sql_extension_bad_init' init function returned error;
+--source include/search_pattern_in_file.inc
+
+--echo # The plugins loaded at start-up are in the registry: the prefix
+--echo # plugin, both recognizers in priority order, and the refused prefix
+--echo # belongs to the plugin that kept it
+--enable_info
+TEST SQLEXT OK;
+TEST RECOGNIZE x;
+TEST RECOGNIZE LOW x;
+--disable_info
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT OVERLAP x;
+
+--echo # End of 13.2 tests

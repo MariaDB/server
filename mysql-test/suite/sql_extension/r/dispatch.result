@@ -1,0 +1,233 @@
+#
+# MDEV-41962 SQL extension framework: dispatch after a parse failure, execution,
+# prepared statements, multi-statements, nesting
+#
+# Without the plugin, the statement is an ordinary parse error
+TEST SQLEXT OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXT OK' at line 1
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+#
+# Claimed statements
+#
+TEST SQLEXT OK;
+affected rows: 0
+TEST SQLEXT;
+affected rows: 0
+test   sqlext
+ok;
+affected rows: 0
+/* c */ TEST -- c
+# c
+SQLEXT;
+affected rows: 0
+SHOW WARNINGS;
+Level	Code	Message
+TEST SQLEXT ERROR;
+ERROR HY000: test_sql_extension: error
+TEST SQLEXT FAIL;
+ERROR HY000: SQL extension plugin 'test_sql_extension' failed without reporting an error
+# The handler gets the statement text exactly as sent
+/* lead */ Test SqlExt   ECHO  'a;b' ;
+ERROR HY000: test_sql_extension: [/* lead */ Test SqlExt   ECHO  'a;b']
+#
+# Not claimed: the parse error is unchanged, byte for byte
+#
+TEST SQLEXTRA OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXTRA OK' at line 1
+TEST;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST' at line 1
+SELEKT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEKT 1' at line 1
+SELECT 1 TEST SQLEXT OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SQLEXT OK' at line 1
+# Only syntax errors are offered to plugins. "WITH SQLEXT" is a
+# claimed prefix that also starts a CTE, so the parser can reject such
+# a statement with another error, which it keeps
+WITH SQLEXT AS (SELECT @@no_such_variable) SELECT 1;
+ERROR HY000: Unknown system variable 'no_such_variable'
+# A statement that parses is never offered
+SELECT * FROM no_such_table;
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+Com_sql_extension: 7
+#
+# Prepared statements: the plugin is locked again for each EXECUTE
+#
+PREPARE s FROM 'TEST SQLEXT OK';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+PREPARE s FROM 'TEST SQLEXT ECHO prepared';
+EXECUTE s;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO prepared]
+UNINSTALL PLUGIN test_sql_extension;
+EXECUTE s;
+ERROR HY000: Plugin 'test_sql_extension' is not loaded
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+EXECUTE s;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO prepared]
+DEALLOCATE PREPARE s;
+EXECUTE IMMEDIATE 'TEST SQLEXT OK';
+EXECUTE IMMEDIATE 'TEST SQLEXT FAIL';
+ERROR HY000: SQL extension plugin 'test_sql_extension' failed without reporting an error
+# A ? in an extension statement is text for the handler, not a
+# parameter marker: the statement has no parameters
+TEST SQLEXT ECHO a ? b;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO a ? b]
+PREPARE s FROM 'TEST SQLEXT ECHO a ? b';
+EXECUTE s;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO a ? b]
+EXECUTE s USING 1;
+ERROR HY000: Incorrect arguments to EXECUTE
+DEALLOCATE PREPARE s;
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO a ? b' USING 1;
+ERROR HY000: Incorrect arguments to EXECUTE
+# Neither a recognizer nor a prefix plugin can split a prepared
+# statement (no multi-statements); a ';' that ends it is fine. The
+# error points at what cannot follow, as for an ordinary statement
+PREPARE s FROM 'TEST RECOGNIZE x; SELECT 1';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1' at line 1
+PREPARE s FROM 'TEST SQLEXT OK; SELECT 1';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1' at line 1
+PREPARE s FROM 'TEST SQLEXT OK;
+SELECT 1';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 1' at line 2
+PREPARE s FROM 'TEST SQLEXT ECHO x ; ';
+EXECUTE s;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO x]
+DEALLOCATE PREPARE s;
+# A claim shorter than the statement stands if only whitespace or ';'
+# follows it; anything else keeps the parse error
+TEST RECOGNIZE SHORT;
+affected rows: 0
+TEST RECOGNIZE SHORT   ;
+affected rows: 0
+TEST RECOGNIZE SHORT tail;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'tail' at line 1
+# A claim past the end of the statement is a plugin bug: refused,
+# with an error that names the plugin
+TEST RECOGNIZE PAST;
+ERROR HY000: SQL extension plugin 'test_sql_extension_recognizer' sent an invalid result: recognize() claimed 29 bytes of a 19-byte statement
+#
+# Multi-statement packets (text protocol only)
+#
+# A recognizer claims its statement; the rest runs normally
+TEST RECOGNIZE first ; SELECT 'second' AS r|
+r
+second
+TEST RECOGNIZE ECHO only this ; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST RECOGNIZE ECHO only this ]
+# A prefix plugin's statement ends at the first ';', as an ordinary
+# one does; the rest runs normally
+TEST SQLEXT OK; SELECT 'second' AS r|
+r
+second
+TEST SQLEXT ECHO only this; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO only this]
+# ... a ';' in a string, a quoted identifier or a comment does not
+# end it
+TEST SQLEXT ECHO 'a;b' "c;d" `e;f` /* g;h */ /*!100000 i;j */ -- k;l
+# m;n
+; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO 'a;b' "c;d" `e;f` /* g;h */ /*!100000 i;j */ -- k;l
+# m;n
+]
+# ... nor does one after a backslash in a string, unless the
+# sql_mode says so: with NO_BACKSLASH_ESCAPES a backslash is plain,
+# with ANSI_QUOTES "..." is an identifier, with no escapes. (mysqltest
+# reads quotes by these modes too: each statement is written to be
+# balanced in the mode it runs in.)
+TEST SQLEXT ECHO 'a\';b'; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO 'a\';b']
+TEST SQLEXT ECHO "a\";b"; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO "a\";b"]
+SET sql_mode= CONCAT(@@sql_mode, ',NO_BACKSLASH_ESCAPES')|
+TEST SQLEXT ECHO 'a\';b''; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO 'a\']
+SET sql_mode= DEFAULT|
+SET sql_mode= CONCAT(@@sql_mode, ',ANSI_QUOTES')|
+TEST SQLEXT ECHO "a\";b""; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO "a\"]
+SET sql_mode= DEFAULT|
+# ... and in the client's character set: in sjis, 0x955C is one
+# character, whose second byte is not a backslash, so the string
+# ends at the quote after it and 'second' runs
+SET NAMES sjis|
+TEST SQLEXT OK '•\'; SELECT 'second' AS r|
+r
+second
+SET NAMES latin1|
+# An unterminated comment or string: the statement runs to the end
+# of the text (sent in a string, which mysqltest can read)
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO /* a; SELECT 1'|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO /* a; SELECT 1]
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO "a; SELECT 1'|
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO "a; SELECT 1]
+# Extension statements that are not first in the packet: the claim
+# starts where the statement starts, and the rest goes on normally
+SELECT 'first' AS r; TEST RECOGNIZE second; SELECT 'third' AS r|
+r
+first
+r
+third
+# Two claims in one packet, each with its own text
+TEST RECOGNIZE a; TEST RECOGNIZE b; SELECT 'after both' AS r|
+r
+after both
+TEST RECOGNIZE a; TEST RECOGNIZE ECHO b; SELECT 'not run' AS r|
+ERROR HY000: test_sql_extension: [TEST RECOGNIZE ECHO b]
+# A prefix plugin's statement after an ordinary one, and before
+# another
+SELECT 'first' AS r; TEST SQLEXT OK; SELECT 'third' AS r|
+r
+first
+r
+third
+SELECT 'first' AS r; TEST SQLEXT ECHO second; SELECT 'not run' AS r|
+r
+first
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO second]
+#
+# Stored programs: static bodies never see extensions, dynamic SQL does
+#
+# "CREATE PROCEDURE SQLEXT" is a claimed prefix, but the statement is a
+# stored program whose body failed to parse: never offered
+CREATE PROCEDURE SQLEXT() TEST SQLEXT OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SQLEXT OK' at line 1
+CREATE PROCEDURE p1() EXECUTE IMMEDIATE 'TEST SQLEXT OK';
+CALL p1();
+DROP PROCEDURE p1;
+#
+# SQL run by a handler: ordinary SQL works, extension SQL is refused
+#
+CREATE TABLE t1 (a INT);
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+1
+TEST SQLEXT SQL SELECT * FROM no_such_table;
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+TEST SQLEXT SQL SELEKT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEKT 1' at line 1
+TEST SQLEXT SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT SQL TEST RECOGNIZE x;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension_recognizer' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+# Also under LOCK TABLES: as the client on its THD, and through the
+# plain SQL service, which then runs it on a THD of its own
+LOCK TABLES t1 WRITE;
+TEST SQLEXT SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+UNLOCK TABLES;
+# The guard is released after each statement
+TEST SQLEXT OK;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+TEST SQLEXT OK;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXT OK' at line 1
+# End of 13.2 tests

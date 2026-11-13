@@ -1,0 +1,35 @@
+#
+# MDEV-41962 KILL QUERY between two statements a handler runs as the client: the
+# second one fails, the kill is not reset under the handler. The same
+# through the plain SQL service, which runs on the client's THD.
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+connect  con1, localhost, root,,;
+connection con1;
+SET DEBUG_SYNC= 'test_sql_extension_sql2 SIGNAL between WAIT_FOR go';
+TEST SQLEXT SQL2 SELECT 1 AS a;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR between';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The next statement is not affected
+TEST SQLEXT SQL2 SELECT 1 AS a;
+a
+1
+SET DEBUG_SYNC= 'RESET';
+connection con1;
+SET DEBUG_SYNC= 'test_sql_extension_sql2 SIGNAL between WAIT_FOR go';
+TEST SQLEXT LOCAL SQL2 SELECT 1 AS a;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR between';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The next statement is not affected
+TEST SQLEXT LOCAL SQL2 SELECT 1 AS a;
+SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+connection default;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests
