@@ -37,6 +37,7 @@
 #include "rpl_filter.h"
 #include "log_event.h"
 #include <mysql.h>
+#include "semisync_master.h"                    // Repl_pos
 
 
 struct Slave_info
@@ -47,7 +48,23 @@ struct Slave_info
   char user[USERNAME_LENGTH+1];
   char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
   uint16 port;
+  /// `nullptr` until Binlog Dump actually starts
+  Repl_pos *dump_pos;
+  /**
+    This is only used in semi-sync; async will leave this as `nullptr`.
+    @note
+      To minimize mutex overhead, this field is synchronized
+      with Repl_semi_sync_master::LOCK_binlog instead of THD::LOCK_thd_data.
+      The Ack Receiver, additionally holding Ack_receiver::m_mutex,
+      relies on Binlog Dump threads calling Ack_receiver::remove_slave()
+      (through Repl_semi_sync_master::dump_end()) before unregistering slaves.
+  */
+  Repl_semi_sync_trx_info *ack_pos;
 };
+
+Repl_pos *&slave_info_dump_pos(Slave_info* si) { return si->dump_pos; }
+void slave_info_set_ack_pos(Slave_info* si, Repl_semi_sync_trx_info *ack_pos)
+{ si->ack_pos= ack_pos; }
 
 
 std::atomic<bool> warn_slaves_not_needed_for_purge= {true};
@@ -100,6 +117,7 @@ void THD::unregister_slave()
   if (auto old_si= slave_info)
   {
     mysql_mutex_lock(&LOCK_thd_data);
+    delete slave_info->dump_pos;
     slave_info= 0;
     mysql_mutex_unlock(&LOCK_thd_data);
     my_free(old_si);
@@ -160,6 +178,9 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   if (!*si->host)
     ::strmake(si->host, main_security_ctx.host_or_ip, sizeof(si->host));
 
+  // Only my_malloc(), so must manually initialize all fields
+  si->dump_pos= si->ack_pos= nullptr;
+
   unregister_slave();
   mysql_mutex_lock(&LOCK_thd_data);
   slave_info= si;
@@ -190,6 +211,7 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
   mysql_mutex_lock(&thd->LOCK_thd_data);
   if (auto si= thd->slave_info)
   {
+    String string;
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
     protocol->store(si->host, strlen(si->host), &my_charset_bin);
@@ -200,8 +222,19 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
     }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);
+    for (auto *pos:
+        std::initializer_list<Repl_pos *>{si->dump_pos, si->ack_pos})
+      if (likely(pos))
+      {
+        if ((res= pos->get_full_pos(string)))
+          goto err;
+        protocol->store(&string);
+      }
+      else
+        protocol->store_null();
     res= protocol->write();
   }
+err:
   mysql_mutex_unlock(&thd->LOCK_thd_data);
   return res;
 }
@@ -244,11 +277,23 @@ bool show_slave_hosts(THD* thd)
                        Item_return_int(thd, "Master_id", 10, MYSQL_TYPE_LONG),
                        thd->mem_root);
 
+  static constexpr uint FN_POS_LEN=
+    FN_REFLEN + LONGLONG_BUFFER_SIZE; // +1 for ':', -1 for '\0'
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Sent_pos", FN_POS_LEN),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Ack_pos", FN_POS_LEN),
+                       thd->mem_root);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);
 
-  if (server_threads.iterate(show_slave_hosts_callback, protocol))
+  repl_semisync_master->lock();
+  int res= server_threads.iterate(show_slave_hosts_callback, protocol);
+  repl_semisync_master->unlock();
+  if (res)
     DBUG_RETURN(true);
 
   my_eof(thd);
