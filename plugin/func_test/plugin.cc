@@ -640,10 +640,7 @@ public:
 protected:
   Item *shallow_copy(THD *thd) const override
   {
-    Self *item= new (thd->mem_root) Self(thd, const_cast<Self *>(this));
-    if (!item || item->setup_cache(thd, value))
-      return nullptr;
-    return item;
+    return get_item_copy<Self>(thd, this);
   }
 };
 
