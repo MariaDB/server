@@ -15,9 +15,7 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/libmysqld/include
-                    ${PCRE_INCLUDE_DIRS}
                     ${CMAKE_SOURCE_DIR}/sql
-                    ${MY_READLINE_INCLUDE_DIR}
                     )
 
 
@@ -29,12 +27,12 @@ MYSQL_ADD_EXECUTABLE(mariadb-embedded ../../client/completion_hash.cc
                COMPONENT Client)
 TARGET_LINK_LIBRARIES(mariadb-embedded mysqlserver)
 IF(UNIX)
-  TARGET_LINK_LIBRARIES(mariadb-embedded ${MY_READLINE_LIBRARY})
+  TARGET_LINK_LIBRARIES(mariadb-embedded MariaDB::readline)
 ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mariadb-test-embedded ../../client/mysqltest.cc
   COMPONENT Test)
-TARGET_LINK_LIBRARIES(mariadb-test-embedded mysqlserver pcre2-posix pcre2-8)
+TARGET_LINK_LIBRARIES(mariadb-test-embedded mysqlserver MariaDB::pcre2-posix MariaDB::pcre2-8)
 SET_SOURCE_FILES_PROPERTIES(../../client/mysqltest.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
 
 IF(CMAKE_GENERATOR MATCHES "Xcode")
