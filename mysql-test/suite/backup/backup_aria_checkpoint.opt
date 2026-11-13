@@ -1,0 +1,3 @@
+--aria-pagecache-buffer-size=128k
+--aria-checkpoint-interval=1
+--aria-checkpoint-log-activity=0

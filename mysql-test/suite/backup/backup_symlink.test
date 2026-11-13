@@ -1,0 +1,13 @@
+--source include/not_windows.inc
+--source include/have_symlink.inc
+--mkdir $MYSQL_TMP_DIR/db
+--exec ln -s $MYSQL_TMP_DIR/db $MARIADB_DATADIR/symdb
+CREATE TABLE symdb.t(a INT);
+evalp BACKUP SERVER TO '$MYSQL_TMP_DIR/backup';
+--file_exists $MYSQL_TMP_DIR/backup/symdb/t.frm
+--rmdir $MYSQL_TMP_DIR/backup
+DROP DATABASE symdb;
+--error 1
+--file_exists $MARIADB_DATADIR/symdb
+--error 1
+--file_exists $MYSQL_TMP_DIR/db

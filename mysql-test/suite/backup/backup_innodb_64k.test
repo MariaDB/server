@@ -1,0 +1,3 @@
+--source include/have_innodb.inc
+evalp BACKUP SERVER TO '$MYSQL_TMP_DIR/backup';
+--rmdir $MYSQL_TMP_DIR/backup

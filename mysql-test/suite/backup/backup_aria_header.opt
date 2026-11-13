@@ -1,0 +1,3 @@
+--loose-performance-schema
+--loose-performance-schema-instrument='wait/synch/mutex/aria/%=ON'
+--loose-performance-schema-consumer-events-waits-current=ON

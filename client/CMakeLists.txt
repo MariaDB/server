@@ -93,7 +93,10 @@ TARGET_LINK_LIBRARIES(mariadb-conv mysys strings)
 
 IF(WIN32)
   MYSQL_ADD_EXECUTABLE(echo echo.c COMPONENT Test)
-ENDIF(WIN32)
+ELSE()
+  # just a code example, do not install it
+  CONFIGURE_FILE(mariadb-backup-cat mariadb-backup-cat COPYONLY)
+ENDIF()
 
 # async_example is just a code example, do not install it.
 ADD_EXECUTABLE(async_example async_example.c)
