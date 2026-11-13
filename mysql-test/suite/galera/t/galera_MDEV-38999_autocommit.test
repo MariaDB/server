@@ -1,0 +1,51 @@
+#
+# MDEV-38999: a lock-risk signal (wsrep_has_changes/wsrep_trx_locking_read_done)
+# must not survive COMMIT. With autocommit=0, the first UPDATE after COMMIT
+# starts a new transaction and must wait for the applier again.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100), (2, 200);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 6;
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_init.inc
+
+--connection node_2
+SET autocommit=0;
+UPDATE t1 SET f1=f1+1 WHERE id=1;
+COMMIT;
+
+--source include/galera_mdev38999_pause_applier.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (3, 300);
+
+--source include/galera_mdev38999_wait_applier_paused.inc
+
+--connection node_2
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t1 SET f1=f1+1 WHERE id=1;
+# The failed UPDATE started a brand new transaction (the previous one ended
+# at COMMIT above) and never touched anything itself, so this ROLLBACK must
+# succeed cleanly - same requirement as the explicit-BEGIN case in
+# galera_MDEV-38999.test. A tolerant assertion here couldn't tell a working
+# reset_error() from a broken one on this specific (autocommit=0) path.
+ROLLBACK;
+
+--source include/galera_mdev38999_resume_applier.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_cleanup.inc

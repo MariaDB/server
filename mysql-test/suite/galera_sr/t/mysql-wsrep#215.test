@@ -20,6 +20,11 @@ SET SESSION wsrep_trx_fragment_unit = 'statements';
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --let $expected_cert_failures = `SELECT VARIABLE_VALUE + 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_cert_failures'`
 
+# The applier below is deliberately paused mid-apply via a debug sync point
+# to force the certification failure this test exercises. node_1's own read
+# of t1 further down must not wait on that same, deliberately-stuck apply.
+SET SESSION wsrep_sync_wait = 0;
+
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 
