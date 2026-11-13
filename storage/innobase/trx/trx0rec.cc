@@ -2174,12 +2174,19 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
     stats->undo_records_read++;
   const auto savepoint= mtr->get_savepoint();
   dberr_t err= DB_MISSING_HISTORY;
-  purge_sys_t::view_guard check{v_status == TRX_UNDO_CHECK_PURGE_PAGES
+  purge_sys_t::view_guard check{v_status & (TRX_UNDO_CHECK_PURGE_PAGES |
+                                            TRX_UNDO_PREV_IN_PURGE)
                                 ? purge_sys_t::view_guard::PURGE
                                 : v_status == TRX_UNDO_CHECK_PURGEABILITY
                                 ? purge_sys_t::view_guard::VIEW
                                 : purge_sys_t::view_guard::END_VIEW};
-  if (!check.view().changes_visible(rec_trx_id))
+  /* With TRX_UNDO_PREV_IN_PURGE, a purge task is recovering the virtual
+  column values of rec from the undo log, and it needs the undo log record
+  even if purge_sys.view or purge_sys.end_view sees rec_trx_id.
+  The callers will not walk past the undo log record that is being
+  purged, and no undo log record at or after it can have been freed. */
+  if (v_status & TRX_UNDO_PREV_IN_PURGE ||
+      !check.view().changes_visible(rec_trx_id))
   {
     trx_undo_rec_t *undo_rec= nullptr;
     static_assert(ROLL_PTR_RSEG_ID_POS == 48, "");
