@@ -1,0 +1,12 @@
+#
+# MDEV-21386 PURGE BINARY LOGS should raise an error
+# if binary logging is disabled
+#
+SHOW VARIABLES LIKE 'log_bin';
+Variable_name	Value
+log_bin	OFF
+PURGE BINARY LOGS TO 'master-bin.000001';
+ERROR HY000: You are not using binary logging
+PURGE BINARY LOGS BEFORE '2030-01-01 00:00:00';
+ERROR HY000: You are not using binary logging
+# End of 13.2 tests

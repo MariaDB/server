@@ -6,6 +6,7 @@
 #
 --error ER_SUBQUERIES_NOT_SUPPORTED
 purge master logs before (select adddate(current_timestamp(), interval -4 day));
+--error ER_NO_BINARY_LOGGING
 purge master logs before adddate(current_timestamp(), interval -4 day);
 
 --disable_warnings

@@ -109,10 +109,12 @@ DROP TABLE t1;
 
 --echo # Test case 8: Check that the statements 'PURGE BINARY LOGS BEFORE'
 --echo # is supported by prepared statements
+--error ER_NO_BINARY_LOGGING
 PURGE BINARY LOGS BEFORE '2020-11-17';
 
 --echo # Check that the statements 'PURGE BINARY LOGS TO' is supported by
 --echo # prepared statements
+--error ER_NO_BINARY_LOGGING
 PURGE BINARY LOGS TO 'mariadb-bin.000063';
 
 --echo # Test case 9: Check that the statements 'HANDLER OPEN/HANDLER READ/

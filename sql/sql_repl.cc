@@ -818,8 +818,8 @@ bool purge_master_logs(THD* thd, const char* to_log)
 {
   if (!mysql_bin_log.is_open())
   {
-    my_ok(thd);
-    return FALSE;
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return TRUE;
   }
 
   MDL_ticket *ticket;
@@ -877,8 +877,8 @@ bool purge_master_logs_before_date(THD* thd, time_t purge_time)
 {
   if (!mysql_bin_log.is_open())
   {
-    my_ok(thd);
-    return 0;
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return TRUE;
   }
   int res;
   if (!opt_binlog_engine_hton)
