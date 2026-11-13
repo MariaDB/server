@@ -146,8 +146,8 @@ void cleanup_digest(void)
 }
 
 C_MODE_START
-static const uchar *digest_hash_get_key(const void *entry, size_t *length,
-                                        my_bool)
+static const void *digest_hash_get_key(const void *entry, size_t *length,
+                                       my_bool)
 {
   const PFS_statements_digest_stat * const *typed_entry;
   const PFS_statements_digest_stat *digest;
@@ -158,7 +158,7 @@ static const uchar *digest_hash_get_key(const void *entry, size_t *length,
   assert(digest != NULL);
   *length= sizeof (PFS_digest_key);
   result= & digest->m_digest_key;
-  return reinterpret_cast<const uchar *>(result);
+  return result;
 }
 C_MODE_END
 

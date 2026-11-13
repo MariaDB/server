@@ -638,13 +638,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static const uchar *db_dirs_hash_get_key(const void *data, size_t *len_ret,
-                                         my_bool)
+static const void *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                        my_bool)
 {
   auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return reinterpret_cast<const uchar *>(e->str);
+  return e->str;
 }
 
 

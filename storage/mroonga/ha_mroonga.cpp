@@ -614,22 +614,22 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
 }
 #endif
 
-static const uchar *mrn_open_tables_get_key(const void *record, size_t *length,
-                                            my_bool)
+static const void *mrn_open_tables_get_key(const void *record, size_t *length,
+                                           my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
   auto share = static_cast<const MRN_SHARE *>(record);
   *length = share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<const uchar *>(share->table_name));
+  DBUG_RETURN(share->table_name);
 }
 
-static const uchar *mrn_long_term_share_get_key(const void *record,
-                                                size_t *length, my_bool)
+static const void *mrn_long_term_share_get_key(const void *record,
+                                               size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
   auto long_term_share= static_cast<const MRN_LONG_TERM_SHARE *>(record);
   *length = long_term_share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<const uchar *>(long_term_share->table_name));
+  DBUG_RETURN(long_term_share->table_name);
 }
 
 /* status */
@@ -707,12 +707,12 @@ static grn_logger mrn_logger = {
   NULL
 };
 
-static const uchar *mrn_allocated_thds_get_key(const void *record,
-                                               size_t *length, my_bool)
+static const void *mrn_allocated_thds_get_key(const void *record,
+                                              size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
   *length = sizeof(THD *);
-  DBUG_RETURN(static_cast<const uchar *>(record));
+  DBUG_RETURN(record);
 }
 
 /* system functions */

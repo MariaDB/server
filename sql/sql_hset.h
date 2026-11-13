@@ -32,7 +32,7 @@ public:
     Constructs an empty unique hash.
   */
   Hash_set(PSI_memory_key psi_key,
-           const uchar *(*K)(const void *, size_t *, my_bool),
+           const void *(*K)(const void *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
     my_hash_init(psi_key, &m_hash, cs, START_SIZE, 0, 0, K, 0, HASH_UNIQUE);

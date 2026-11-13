@@ -32,7 +32,7 @@
 typedef struct st_hash_info {
   uint32 next;					/* index to next key */
   my_hash_value_type hash_nr;
-  uchar *data;					/* data for current entry */
+  void *data;					/* data for current entry */
 } HASH_LINK;
 
 static uint my_hash_mask(my_hash_value_type hashnr,
@@ -190,7 +190,7 @@ void my_hash_reset(HASH *hash)
 */
 
 static inline char*
-my_hash_key(const HASH *hash, const uchar *record, size_t *length,
+my_hash_key(const HASH *hash, const void *record, size_t *length,
             my_bool first)
 {
   if (hash->get_key)
@@ -222,7 +222,7 @@ static
 #if !defined(__USLC__) && !defined(__sgi)
 inline
 #endif
-my_hash_value_type rec_hashnr(HASH *hash,const uchar *record)
+my_hash_value_type rec_hashnr(HASH *hash, const void *record)
 {
   size_t length;
   uchar *key= (uchar*) my_hash_key(hash, record, &length, 0);
@@ -230,16 +230,16 @@ my_hash_value_type rec_hashnr(HASH *hash,const uchar *record)
 }
 
 
-uchar* my_hash_search(const HASH *hash, const uchar *key, size_t length)
+void* my_hash_search(const HASH *hash, const uchar *key, size_t length)
 {
   HASH_SEARCH_STATE state;
   return my_hash_first(hash, key, length, &state);
 }
 
-uchar* my_hash_search_using_hash_value(const HASH *hash, 
-                                       my_hash_value_type hash_value,
-                                       const uchar *key,
-                                       size_t length)
+void* my_hash_search_using_hash_value(const HASH *hash,
+                                      my_hash_value_type hash_value,
+                                      const uchar *key,
+                                      size_t length)
 {
   HASH_SEARCH_STATE state;
   return my_hash_first_from_hash_value(hash, hash_value,
@@ -254,10 +254,10 @@ uchar* my_hash_search_using_hash_value(const HASH *hash,
    Assigns the number of the found record to HASH_SEARCH_STATE state
 */
 
-uchar* my_hash_first(const HASH *hash, const uchar *key, size_t length,
-                     HASH_SEARCH_STATE *current_record)
+void* my_hash_first(const HASH *hash, const uchar *key, size_t length,
+                    HASH_SEARCH_STATE *current_record)
 {
-  uchar *res;
+  void *res;
   DBUG_ASSERT(my_hash_inited(hash));
 
   res= my_hash_first_from_hash_value(hash,
@@ -269,11 +269,11 @@ uchar* my_hash_first(const HASH *hash, const uchar *key, size_t length,
 }
 
 
-uchar* my_hash_first_from_hash_value(const HASH *hash,
-                                     my_hash_value_type hash_value,
-                                     const uchar *key,
-                                     size_t length,
-                                     HASH_SEARCH_STATE *current_record)
+void* my_hash_first_from_hash_value(const HASH *hash,
+                                    my_hash_value_type hash_value,
+                                    const uchar *key,
+                                    size_t length,
+                                    HASH_SEARCH_STATE *current_record)
 {
   HASH_LINK *pos;
   DBUG_ENTER("my_hash_first_from_hash_value");
@@ -310,8 +310,8 @@ uchar* my_hash_first_from_hash_value(const HASH *hash,
 	/* Get next record with identical key */
 	/* Can only be called if previous calls was my_hash_search */
 
-uchar* my_hash_next(const HASH *hash, const uchar *key, size_t length,
-                    HASH_SEARCH_STATE *current_record)
+void* my_hash_next(const HASH *hash, const uchar *key, size_t length,
+                   HASH_SEARCH_STATE *current_record)
 {
   HASH_LINK *pos;
   uint idx;
@@ -392,7 +392,7 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
    @retval  1  Duplicate key or out of memory
 */
 
-my_bool my_hash_insert(HASH *info, const uchar *record)
+my_bool my_hash_insert(HASH *info, const void *record)
 {
   int flag;
   size_t idx, halfbuff, first_index;
@@ -532,7 +532,7 @@ my_bool my_hash_insert(HASH *info, const uchar *record)
       movelink(data,(uint) (pos-data),(uint) (gpos-data),(uint) (empty-data));
     }
   }
-  pos->data=    (uchar*) record;
+  pos->data=    (void*) record;
   pos->hash_nr= current_hash_nr;
   if (++info->records == info->blength)
     info->blength+= info->blength;
@@ -559,7 +559,7 @@ my_bool my_hash_insert(HASH *info, const uchar *record)
    @retval  1 Record not found
 */
 
-my_bool my_hash_delete(HASH *hash, uchar *record)
+my_bool my_hash_delete(HASH *hash, void *record)
 {
   uint pos2,idx,empty_index;
   my_hash_value_type pos_hashnr, lastpos_hashnr;
@@ -638,7 +638,7 @@ my_bool my_hash_delete(HASH *hash, uchar *record)
 exit:
   (void) pop_dynamic(&hash->array);
   if (hash->free)
-    (*hash->free)((uchar*) record);
+    (*hash->free)(record);
   DBUG_RETURN(0);
 }
 
@@ -648,7 +648,7 @@ exit:
    This is much more efficient than using a delete & insert.
 */
 
-my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
+my_bool my_hash_update(HASH *hash, void *record, uchar *old_key,
                        size_t old_key_length)
 {
   uint new_index, new_pos_index, org_index, records, idx;
@@ -660,11 +660,11 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 
   new_key= (uchar*) my_hash_key(hash, record, &length, 1);
   hash_nr= hash->hash_function(hash->charset, new_key, length);
-  
+
   if (HASH_UNIQUE & hash->flags)
   {
     HASH_SEARCH_STATE state;
-    uchar *found;
+    void *found;
 
     if ((found= my_hash_first_from_hash_value(hash, hash_nr, new_key, length,
                                               &state)))
@@ -763,7 +763,7 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 }
 
 
-uchar *my_hash_element(HASH *hash, size_t idx)
+void *my_hash_element(HASH *hash, size_t idx)
 {
   if (idx < hash->records)
     return dynamic_element(&hash->array,idx,HASH_LINK*)->data;
@@ -777,7 +777,7 @@ uchar *my_hash_element(HASH *hash, size_t idx)
 */
 
 void my_hash_replace(HASH *hash, HASH_SEARCH_STATE *current_record,
-                     uchar *new_row)
+                     void *new_row)
 {
   if (*current_record != NO_RECORD)            /* Safety */
     dynamic_element(&hash->array, *current_record, HASH_LINK*)->data= new_row;
@@ -886,8 +886,8 @@ my_bool my_hash_check(HASH *hash)
 
 #define RECORDS 1000
 
-const uchar *test_get_key(const void *data, size_t *length,
-                          my_bool not_used __attribute__((unused)))
+const void *test_get_key(const void *data, size_t *length,
+                         my_bool not_used __attribute__((unused)))
 {
   *length= 2;
   return data;
