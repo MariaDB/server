@@ -437,3 +437,20 @@ select * from t1;
 drop table t1;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-BUGFIX-3 Assertion in Field::move_field_offset() in a multi-table
+--echo # UPDATE of a table with a BEFORE UPDATE trigger: the temporary table
+--echo # took the default values through the triggers' copies of the NOT NULL
+--echo # fields, whose null bits are outside the record
+--echo #
+create table t1 (id int not null primary key, name varchar(255) not null,
+                 flag tinyint not null default 0);
+create trigger t1bu before update on t1 for each row set @x= old.name;
+insert t1 (id, name, flag) values (1, 'a', 7), (2, 'b', 0);
+update t1 n join t1 o on o.id = 1 set n.name= o.name, n.flag= o.flag
+  where n.id = 2;
+select * from t1;
+drop table t1;
+
+--echo # End of 12.3 tests

@@ -22912,7 +22912,15 @@ bool Create_tmp_table::finalize(THD *thd,
          inherit the default value that is defined for the field referred
          by the Item_field object from which 'field' has been created.
       */
-      Field *orig_field= m_default_field[i];
+      /*
+        The table's own field: the field of an UPDATE of a table with
+        BEFORE triggers can be the triggers' copy of a NOT NULL field
+        (Table_triggers_list::record0_field), whose null bit is outside
+        the record, in extra_null_bitmap, so it has no place in
+        default_values
+      */
+      Field *orig_field=
+        m_default_field[i]->table->field[m_default_field[i]->field_index];
       /* Get the value from default_values */
       if (orig_field->is_null_in_record(orig_field->table->s->default_values))
         field->set_null();
