@@ -1,0 +1,60 @@
+#
+# MDEV-39918: Crash in execute_degenerate_jtbm_semi_join with non-SINGLE_SELECT_ENGINE
+#
+# Recursive CTE with window function (original crash)
+SELECT 1 FROM (SELECT 1 AS x) AS t
+WHERE x IN (
+WITH RECURSIVE x(x) AS (SELECT 10 AS x)
+SELECT ROW_NUMBER() OVER (ORDER BY AVG(x))
+FROM (SELECT 1 AS x WHERE 1=0) AS d WHERE x
+);
+1
+1
+# Truly recursive CTE nested in derived table
+SELECT 1 FROM (SELECT 1 AS x) AS outer_t
+WHERE x IN (
+SELECT ROW_NUMBER() OVER (ORDER BY AVG(x))
+FROM (
+WITH RECURSIVE x(x) AS (SELECT 1 UNION SELECT x + 1 FROM x WHERE x < 3)
+SELECT * FROM x WHERE 1=0
+) AS d WHERE x
+);
+1
+1
+# Simple UNION subquery (no tables in first SELECT)
+SELECT 1 FROM (SELECT 1 AS x) AS t
+WHERE x IN (SELECT 1 UNION SELECT 2);
+1
+1
+# UNION ALL with degenerate first branch
+SELECT * FROM (SELECT 1 AS x UNION ALL SELECT 2) AS t
+WHERE x IN (SELECT 1 UNION ALL SELECT 2);
+x
+1
+2
+# EXCEPT variant
+SELECT 1 FROM (SELECT 1 AS x) AS t
+WHERE x IN (SELECT 1 EXCEPT SELECT 2);
+1
+1
+# INTERSECT variant
+SELECT 1 FROM (SELECT 1 AS x) AS t
+WHERE x IN (SELECT 1 INTERSECT SELECT 1);
+1
+1
+# Non-degenerate subquery (has tables, should work as before)
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT * FROM t1 WHERE a IN (SELECT a FROM t1 WHERE a > 1);
+a
+2
+3
+DROP TABLE t1;
+# UNION with table in one branch, no table in another
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (5);
+SELECT * FROM (SELECT 1 AS x) AS t
+WHERE x IN (SELECT 1 UNION SELECT a FROM t2);
+x
+1
+DROP TABLE t2;
