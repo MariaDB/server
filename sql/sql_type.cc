@@ -7272,6 +7272,48 @@ bool Type_handler_string_result::
   return false;
 }
 
+
+/***************************************************************************/
+
+bool Type_handler::
+       Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *item) const
+{
+  item->fix_length_and_dec_string();
+  return false;
+}
+
+
+bool Type_handler_int_result::
+       Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *item) const
+{
+  item->fix_length_and_dec_int();
+  return false;
+}
+
+
+bool Type_handler_decimal_result::
+       Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *item) const
+{
+  item->fix_length_and_dec_decimal();
+  return false;
+}
+
+
+bool Type_handler_real_result::
+       Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *item) const
+{
+  item->fix_length_and_dec_real();
+  return false;
+}
+
+
+bool Type_handler_float::
+       Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *item) const
+{
+  item->fix_length_and_dec_float();
+  return false;
+}
+
 /***************************************************************************/
 
 const Vers_type_handler* Type_handler_temporal_result::vers() const

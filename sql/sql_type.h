@@ -79,6 +79,7 @@ class Item_func_minus;
 class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
+class Item_func_json_quote;
 class Item_type_holder;
 class cmp_item;
 class in_vector;
@@ -4504,6 +4505,8 @@ public:
   Item_func_div_fix_length_and_dec(Item_func_div *func) const= 0;
   virtual bool
   Item_func_mod_fix_length_and_dec(Item_func_mod *func) const= 0;
+  virtual bool
+  Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *func) const;
 
   virtual const Vers_type_handler *vers() const { return NULL; }
 };
@@ -5046,6 +5049,8 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *)
+                                               const override;
 };
 
 
@@ -5184,6 +5189,8 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *)
+                                               const override;
 };
 
 
@@ -5409,6 +5416,8 @@ public:
   bool Item_func_mul_fix_length_and_dec(Item_func_mul *) const override;
   bool Item_func_div_fix_length_and_dec(Item_func_div *) const override;
   bool Item_func_mod_fix_length_and_dec(Item_func_mod *) const override;
+  bool Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *)
+                                               const override;
   const Vers_type_handler *vers() const override { return &vers_type_trx; }
 };
 
@@ -6215,6 +6224,8 @@ public:
                                               String *) const override;
   String *Item_func_min_max_val_str(Item_func_min_max *, String *)
                                     const override;
+  bool Item_func_json_quote_fix_length_and_dec(Item_func_json_quote *)
+                                               const override;
 };
 
 
