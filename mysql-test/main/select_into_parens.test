@@ -1,0 +1,151 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39176: Allow parenthesized SELECT INTO in stored procedures
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+INSERT INTO t1 VALUES (1, 'one'), (2, 'two'), (3, 'three');
+
+--echo #
+--echo # Test 1: Basic parenthesized SELECT INTO in stored procedure
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p1(IN p INT)
+BEGIN
+  DECLARE v INT;
+  (SELECT a INTO v FROM t1 WHERE a = p LIMIT 1);
+  SELECT v AS result;
+END//
+DELIMITER ;//
+
+CALL p1(2);
+
+--echo #
+--echo # Test 2: Parenthesized SELECT INTO with multiple variables
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p2(IN p INT)
+BEGIN
+  DECLARE va INT;
+  DECLARE vb VARCHAR(32);
+  (SELECT a, b INTO va, vb FROM t1 WHERE a = p LIMIT 1);
+  SELECT va, vb;
+END//
+DELIMITER ;//
+
+CALL p2(1);
+
+--echo #
+--echo # Test 3: Parenthesized SELECT INTO inside IF block (original bug report)
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p3(IN in_var INT)
+BEGIN
+  DECLARE ivar INT;
+  IF in_var IS NOT NULL THEN
+    (SELECT a INTO ivar FROM t1 WHERE a = in_var LIMIT 1);
+  END IF;
+  SELECT ivar AS result;
+END//
+DELIMITER ;//
+
+CALL p3(3);
+CALL p3(NULL);
+
+--echo #
+--echo # Test 4: Double parentheses
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p4(IN p INT)
+BEGIN
+  DECLARE v INT;
+  ((SELECT a INTO v FROM t1 WHERE a = p LIMIT 1));
+  SELECT v AS result;
+END//
+DELIMITER ;//
+
+CALL p4(1);
+
+--echo #
+--echo # Test 5: Non-parenthesized SELECT INTO still works
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p5(IN p INT)
+BEGIN
+  DECLARE v INT;
+  SELECT a INTO v FROM t1 WHERE a = p LIMIT 1;
+  SELECT v AS result;
+END//
+DELIMITER ;//
+
+CALL p5(3);
+
+--echo #
+--echo # Test 6: Parenthesized SELECT INTO with UNION should error
+--echo #
+--error ER_PARSE_ERROR
+(SELECT 1 INTO @var) UNION (SELECT 1);
+
+--error ER_PARSE_ERROR
+(SELECT 1) UNION (SELECT 1 INTO @var);
+
+--echo #
+--echo # Test 7: Parenthesized SELECT INTO with WITH clause in stored procedure
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p6(IN p INT)
+BEGIN
+  DECLARE v INT;
+  (WITH cte AS (SELECT a FROM t1 WHERE a = p) SELECT a INTO v FROM cte LIMIT 1);
+  SELECT v AS result;
+END//
+DELIMITER ;//
+
+CALL p6(2);
+
+--echo #
+--echo # Test 8: Parenthesized SELECT INTO with ORDER BY and LIMIT
+--echo #
+DELIMITER //;
+CREATE PROCEDURE p7(IN p INT)
+BEGIN
+  DECLARE v INT;
+  (SELECT a INTO v FROM t1 WHERE a <= p ORDER BY a DESC LIMIT 1);
+  SELECT v AS result;
+END//
+DELIMITER ;//
+
+CALL p7(3);
+
+--echo #
+--echo # Test 9: SET var = (SELECT INTO) should error (subquery context)
+--echo #
+DELIMITER //;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p_bad()
+BEGIN
+  DECLARE var1 VARCHAR(10);
+  DECLARE var2 VARCHAR(10);
+  SET var1 = (SELECT 'val' INTO var2);
+  SELECT var1, var2;
+END//
+DELIMITER ;//
+
+--echo #
+--echo # Test 10: Top-level parenthesized SELECT INTO (outside stored procedure)
+--echo #
+(SELECT 1 INTO @var);
+SELECT @var;
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+DROP PROCEDURE p4;
+DROP PROCEDURE p5;
+DROP PROCEDURE p6;
+DROP PROCEDURE p7;
+DROP TABLE t1;
