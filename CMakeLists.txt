@@ -550,7 +550,7 @@ ADD_SUBDIRECTORY(extra/aws_sdk)
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   SET(EXPORTED comp_err comp_sql factorial uca-dump)
   IF(NOT WITHOUT_SERVER)
-    SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
+    SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token generate_option_list)
   ENDIF()
   # minimal target to build only binaries for export
   ADD_CUSTOM_TARGET(import_executables DEPENDS ${EXPORTED})
