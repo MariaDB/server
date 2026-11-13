@@ -629,6 +629,7 @@ rtr_adjust_upper_level(
 
 	if (err == DB_FAIL) {
 		cursor.rtr_info = sea_cur->rtr_info;
+		cursor.rtr_info_borrowed = true;
 		cursor.tree_height = sea_cur->tree_height;
 
 		/* Recreate a memory heap as input parameter for
@@ -1128,6 +1129,11 @@ corrupted:
 				rec = NULL;
 				goto after_insert; }
 	);
+	DBUG_EXECUTE_IF("rtr_nonleaf_page_need_second_split",
+			if (!iterated && page_level) {
+				rec = NULL;
+				goto after_insert; }
+	);
 
 	rec = page_cur_tuple_insert(page_cursor, tuple,
 				    offsets, heap, n_ext, mtr);
@@ -1189,10 +1195,14 @@ after_insert:
 			ibuf_reset_free_bits(block);
 		}
 
-		/* We need to clean the parent path here and search father
-		node later, otherwise, it's possible that find a wrong
-		parent. */
-		rtr_clean_rtr_info(cursor->rtr_info, true);
+		if (!cursor->rtr_info_borrowed) {
+			/* We need to clean the parent path here and
+			search father node later, otherwise, it's
+			possible that find a wrong parent. The search
+			path of a borrowed rtr_info is still used by
+			its owner. */
+			rtr_clean_rtr_info(cursor->rtr_info, true);
+		}
 		cursor->rtr_info = NULL;
 		IF_DBUG(iterated=true,);
 
