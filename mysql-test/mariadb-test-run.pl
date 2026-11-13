@@ -440,7 +440,6 @@ sub main {
   }
   
   #######################################################################
-  my $num_tests= $mtr_report::tests_total= @$tests;
   if ( $opt_parallel eq "auto" ) {
     # Try to find a suitable value for number of workers
     if (IS_WINDOWS)
@@ -456,9 +455,10 @@ sub main {
       my $sys_info= My::SysInfo->new();
       $opt_parallel= $sys_info->num_cpus()+int($sys_info->min_bogomips()/500)-4;
     }
+    my $num_runs= @$tests * ($opt_repeat > 1 ? $opt_repeat : 1);
     my $max_par= $ENV{MTR_MAX_PARALLEL} || 8;
     $opt_parallel= $max_par if ($opt_parallel > $max_par);
-    $opt_parallel= $num_tests if ($opt_parallel > $num_tests);
+    $opt_parallel= $num_runs if ($opt_parallel > $num_runs);
     $opt_parallel= 1 if ($opt_parallel < 1);
     mtr_report("Using parallel: $opt_parallel");
   }
@@ -469,6 +469,13 @@ sub main {
                "Setting parallel to 1");
     $opt_parallel= 1;
   }
+
+  if ($opt_parallel > 1 && $opt_repeat > 1)
+  {
+    $tests= [ map { $_->split_repetitions($opt_repeat, $opt_parallel) }
+              @$tests ];
+  }
+  my $num_tests= $mtr_report::tests_total= @$tests;
 
   # Create server socket on any free port
   my $server = new IO::Socket::INET
@@ -735,9 +742,9 @@ sub parse_protocol($$) {
       }
     }
 
-    # Repeat test $opt_repeat number of times
+    # Repeat this batch on the same worker, preserving retry accounting.
     my $repeat= $result->{repeat} || 1;
-    if ($repeat < $opt_repeat)
+    if ($repeat < ($result->{repeat_count} || $opt_repeat))
     {
       $result->{retries}= 0;
       $result->{rep_failures}++ if $result->{failures};
@@ -6178,7 +6185,8 @@ Misc options
   force-restart         Always restart servers between tests
   parallel=N            Run tests in N parallel threads (default 1)
                         Use parallel=auto for auto-setting of N
-  repeat=N              Run each test N number of times
+  repeat=N              Run each test N number of times, distributing repeats
+                        across parallel workers when available
   retry=N               Retry tests that fail up to N times (default $opt_retry).
                         Retries are also limited by the maximum number of
                         failures before stopping, set with the --retry-failure

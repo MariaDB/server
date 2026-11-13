@@ -48,6 +48,24 @@ sub copy {
   $copy;
 }
 
+sub split_repetitions {
+  my ($self, $repeat, $parallel)= @_;
+  return ($self) if $self->{skip};
+
+  my $jobs= $repeat < $parallel ? $repeat : $parallel;
+  my @tests;
+  for my $i (0..$jobs-1)
+  {
+    my $test= $self->copy();
+    # Each batch needs its own identity in the running-test map.
+    delete $test->{key};
+    $test->{repeat_count}= int($repeat / $jobs) + ($i < $repeat % $jobs);
+    push @tests, $test;
+  }
+  return @tests;
+}
+
+
 sub fullname {
   my ($self)= @_;
   $self->{name} . (defined $self->{combinations}
