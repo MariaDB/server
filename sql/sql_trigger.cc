@@ -561,6 +561,15 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
+  /*
+    Resolve the DEFINER and check that the user may use it before TOI
+    replicates the statement: the applier runs with all privileges, so
+    a DEFINER refused here would otherwise be accepted by the other
+    nodes, and the trigger would run there with the DEFINER's privileges.
+  */
+  if (create && sp_process_definer(thd))
+    goto end;
+
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
 
   /* We should have only one table in table list. */
@@ -921,8 +930,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   if (error_if_mysql50_prefix(lex->spname->m_name.str, ER_SP_WRONG_NAME))
     DBUG_RETURN(true);
 
-  if (sp_process_definer(thd))
-    DBUG_RETURN(true);
+  /* lex->definer was resolved and checked by mysql_create_or_drop_trigger() */
+  DBUG_ASSERT(lex->definer);
 
   /*
     Let us check if all references to fields in old/new versions of row in
