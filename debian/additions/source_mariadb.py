@@ -43,6 +43,10 @@ def add_info(report):
     for f in os.listdir('/etc/mysql/mariadb.conf.d'):
         _add_my_conf_files(report, os.path.join('/etc/mysql/mariadb.conf.d', f))
     try:
+        report['MariaDBVarLibDirListing'] = str(os.listdir('/var/lib/mariadb'))
+    except OSError:
+        report['MariaDBVarLibDirListing'] = str(False)
+    try:
         report['MySQLVarLibDirListing'] = str(os.listdir('/var/lib/mysql'))
     except OSError:
         report['MySQLVarLibDirListing'] = str(False)
