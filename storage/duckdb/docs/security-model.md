@@ -79,9 +79,10 @@ checkpoint threshold). Relevant to security:
 
 - `enable_external_access` is **left at its default (enabled)** — filesystem
   access is permitted.
-- `autoload_known_extensions=true` and `autoinstall_known_extensions=true` are
-  **explicitly enabled**, so known extensions can be fetched and loaded on
-  demand.
+- `autoload_known_extensions` and `autoinstall_known_extensions` follow the
+  read-only `duckdb_allow_remote_access` variable, **OFF by default**, so
+  extensions such as `httpfs` are not fetched or loaded on demand. Set it to ON
+  at startup to allow remote access.
 - No `allowed_directories`, `allow_community_extensions=false`, or
   `lock_configuration` restrictions are applied.
 
@@ -105,8 +106,9 @@ user, on the shared instance, a caller can:
 - **Write arbitrary local files** as the server user
   (e.g. `COPY (...) TO '/path/file'`), which can corrupt data, fill disks, or
   serve as a step toward code execution.
-- **Reach the network** via auto-installable extensions such as `httpfs`,
-  enabling SSRF and exfiltration to remote endpoints.
+- **Reach the network** via extensions such as `httpfs`, enabling SSRF and
+  exfiltration to remote endpoints. Automatic install/load is off by default
+  (`duckdb_allow_remote_access`), but an explicit `INSTALL httpfs` still works.
 - **Attach external databases** (`ATTACH`) and read/modify their contents.
 - **Change global DuckDB settings** on the shared instance (e.g. `SET GLOBAL
   memory_limit`/`threads`), enabling resource-exhaustion / denial of service
@@ -149,8 +151,7 @@ For operators:
 (OFF by default) and the `SUPER` privilege. Further engine hardening remains
 unimplemented (out of scope for this document but worth tracking): applying and
 locking DuckDB security configuration at instance creation —
-`enable_external_access=false`, disabling extension autoinstall/autoload,
-`allow_community_extensions=false`, `allowed_directories`, and
+`enable_external_access=false`, `allow_community_extensions=false`, `allowed_directories`, and
 `lock_configuration=true` — and/or replacing the coarse `SUPER` check with a
 dedicated per-function privilege.
 

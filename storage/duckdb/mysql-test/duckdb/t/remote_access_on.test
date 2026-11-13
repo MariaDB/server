@@ -1,0 +1,7 @@
+--source ../include/have_duckdb.inc
+
+--echo #
+--echo # duckdb_allow_remote_access=ON restores extension autoinstall/autoload
+--echo #
+SELECT @@GLOBAL.duckdb_allow_remote_access;
+SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
