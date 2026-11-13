@@ -1533,9 +1533,9 @@ bool buf_pool_t::create() noexcept
   /* The scratch buffer grows on demand and releases the page frames that it
   stops using, so this only decides how many slots are available before the
   first growth. A slot costs 32 bytes, and its page frame is allocated when
-  the slot is first reserved, so a generous number of slots is cheap. Debug
-  builds start with a single slot, so that a second concurrent page
-  reorganization exercises the growth path. */
+  the slot is first reserved, so a generous number of slots is cheap. A page
+  reorganization holds at most 2 slots. Debug builds start with a single
+  slot, so that grow() runs at the first logged page reorganization. */
   scratch_buf.create(IF_DBUG(1, 64));
 
   last_activity_count= srv_get_activity_count();
@@ -1737,9 +1737,9 @@ buf_pool_t::scratch_buffer::grow(chunk *c) noexcept
     growths suffice and grow() stays rare. The size of one chunk is
     limited, because a chunk is a single contiguous allocation of 32
     bytes per slot. Past the limit, growth continues by chunks of that
-    size, so the limit does not bound the number of slots. A thread holds
-    at most one slot, so the limit first applies when more than about
-    32000 page reorganizations are concurrent. */
+    size, so the limit does not bound the number of slots. A page
+    reorganization holds at most 2 slots, so the limit first applies when
+    more than about 16000 page reorganizations are concurrent. */
     next->io_buf_t::create(std::min<size_t>(c->n_slots * 2, 16 * 1024));
     /* Publish the chunk only after its slots are usable. */
     c->next.store(next, std::memory_order_release);

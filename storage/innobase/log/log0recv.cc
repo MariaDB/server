@@ -3141,6 +3141,20 @@ restart:
                         has_size, has_flags);
           }
         parsed_ok:
+          /* FIXME: For MEMSET and MEMMOVE, rlen here is the length of
+          the fill pattern or of the source offset. It is not the length
+          of the range that the record writes. mtr_t::memset(),
+          mtr_t::memmove() and log_phys_t::apply() continue from the end
+          of the written range. Thus the parser calculates a lower offset
+          for a later same_page record than the offset at which recovery
+          applies it. Then a valid MEMMOVE whose source is below its
+          destination can fail the check of s below. The calculated s is
+          too small, or the subtraction that calculates s gives a very
+          large unsigned value. The parser then reports the record as
+          corrupted. To fix this, the MEMSET and MEMMOVE branches must
+          increase last_offset by llen, the length of the written range.
+          Do not change rlen, because l + rlen is the end of the
+          record. */
           last_offset+= rlen;
           if (ENC_10_8 && size_t(cl - decrypt_buf) < srv_page_size)
             (l= recs)+= cl - decrypt_buf;

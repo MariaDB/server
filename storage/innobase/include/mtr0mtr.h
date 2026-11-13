@@ -789,6 +789,10 @@ private:
   const buf_page_t* m_last;
   /** The current byte offset in m_last, or 0 */
   uint16_t m_last_offset;
+  /** The difference between m_last_offset and the end of the last record
+  that this mini-transaction wrote, as the recovery parser calculates it.
+  See mtr_t::memmove(). */
+  uint16_t m_last_lag;
 
   /** specifies which operations should be logged; default MTR_LOG_ALL */
   uint16_t m_log_mode:2;

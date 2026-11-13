@@ -202,6 +202,7 @@ void mtr_t::start()
 
   m_last= nullptr;
   m_last_offset= 0;
+  m_last_lag= 0;
 
   new(&m_log) mtr_buf_t();
 
