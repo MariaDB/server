@@ -596,3 +596,52 @@ c1
 2233999999
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-36258 Decimal user variables retain their scale with cursors
+#
+CREATE TABLE t1 (a DECIMAL, b DECIMAL(10,4), c DECIMAL(10,2));
+INSERT INTO t1 VALUES (100, 12.3400, -12.34);
+SELECT a INTO @aaa FROM t1;
+SELECT b INTO @fractional FROM t1;
+SELECT c INTO @negative FROM t1;
+DROP TABLE t1;
+SELECT @aaa AS integral, @fractional AS fractional, @negative AS negative;
+integral	fractional	negative
+100	12.3400	-12.34
+SET @aaa=NULL;
+SELECT @aaa AS null_value;
+null_value
+NULL
+SET @aaa=CAST(REPEAT('9',65) AS DECIMAL(65,0));
+SELECT @aaa AS large_integer;
+large_integer
+99999999999999999999999999999999999999999999999999999999999999999
+SET @aaa=CAST(100 AS DECIMAL(10,0));
+PREPARE stmt FROM 'CREATE TABLE t1 AS SELECT @aaa AS value';
+EXECUTE stmt;
+SELECT value FROM t1;
+value
+100
+DROP TABLE t1;
+SET @aaa=CAST(12.3400 AS DECIMAL(10,4));
+EXECUTE stmt;
+SELECT value FROM t1;
+value
+12.3400
+DROP TABLE t1;
+SET @aaa=NULL;
+EXECUTE stmt;
+SELECT value FROM t1;
+value
+NULL
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt;
+SET @aaa=CAST(100 AS DECIMAL(10,0));
+CREATE TABLE t1 AS SELECT
+@aaa:=CAST(12.3400 AS DECIMAL(10,4)) AS assigned, @aaa AS read_value;
+SELECT assigned=12.3400 AS assigned_ok, read_value=12.3400 AS read_ok FROM t1;
+assigned_ok	read_ok
+1	1
+DROP TABLE t1;
+SET @aaa=NULL, @fractional=NULL, @negative=NULL;
+# End of 10.11 tests
