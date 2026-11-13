@@ -1,0 +1,81 @@
+CREATE TABLE big (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(200))
+ENGINE=InnoDB;
+INSERT INTO big (v) SELECT REPEAT('x',200) FROM seq_1_to_60000;
+CREATE TABLE s1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s1;
+CREATE TABLE s3 LIKE s1;
+INSERT INTO s1 VALUES (1);
+INSERT INTO s2 VALUES (1);
+INSERT INTO s3 VALUES (1);
+#
+# page_intermittent_checksum_mismatch fails the 4th read of a page
+# whose number is nonzero. It must skip the DICT_HDR page (page 7)
+# of the system tablespace, and fail some other page instead.
+#
+# Keep s1,s2,s3 in the dictionary cache and warm the DICT_HDR page.
+SELECT * FROM s1;
+a
+1
+SELECT * FROM s2;
+a
+1
+SELECT * FROM s3;
+a
+1
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+DROP TABLE x;
+# Evict the DICT_HDR page and other pages from the small buffer pool.
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SET GLOBAL debug_dbug='+d,page_intermittent_checksum_mismatch';
+# Reads 1..3 of nonzero pages: the roots of s1, s2, s3.
+SELECT * FROM s1;
+a
+1
+SELECT * FROM s2;
+a
+1
+SELECT * FROM s3;
+a
+1
+# The 4th read would be the DICT_HDR page (dict_hdr_get_new_id()).
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+SET GLOBAL debug_dbug=DEFAULT;
+DROP TABLE IF EXISTS x;
+#
+# dict_hdr_checksum_mismatch simulates corruption of the DICT_HDR
+# page (page 7) of the system tablespace when it is read from disk.
+# The server must terminate with an explanatory message in the error
+# log, instead of crashing on a null pointer dereference.
+#
+# Evict the DICT_HDR page from the small buffer pool.
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SET GLOBAL debug_dbug='+d,dict_hdr_checksum_mismatch';
+# dict_hdr_get_new_id() must read the DICT_HDR page from disk.
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+ERROR HY000: Lost connection to server during query
+FOUND 1 /\[FATAL\] InnoDB: Unable to read the dictionary header page \[page id: space=0, page number=7\] of the system tablespace; the system tablespace is corrupted or unreadable/ in mysqld.1.err
+# Restart with a larger buffer pool, which the flushing scenario below
+# needs for the DICT_HDR page to be evicted and re-read. This also
+# resets the counter of page_intermittent_checksum_mismatch.
+# restart: --innodb-buffer-pool-size=128M
+#
+# page_intermittent_checksum_mismatch while pages are being flushed.
+# The tables created above are dropped only at the end: dropping them
+# here would read pages and consume the 4th-read fault injection
+# before the DICT_HDR page is reached.
+#
+SET @sd= @@GLOBAL.innodb_lru_scan_depth;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+SET debug_dbug='+d,page_intermittent_checksum_mismatch';
+SET GLOBAL innodb_lru_scan_depth=86400;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+SET debug_dbug='';
+DROP TABLE t2;
+DROP TABLE t1;
+SET GLOBAL innodb_lru_scan_depth= @sd;
+DROP TABLE big, s1, s2, s3;
