@@ -1,0 +1,238 @@
+#
+# MDEV-42186: Replay warnings must not reveal which tables a view uses,
+# when the user has NO access to the table definition.
+#
+CREATE TABLE secret_t1 (a INT PRIMARY KEY, b INT, KEY idx_b (b));
+CREATE TABLE secret_t2 (a INT PRIMARY KEY, c INT, KEY idx_c (c));
+INSERT INTO secret_t1 VALUES (1,1),(2,2),(3,3),(4,4);
+INSERT INTO secret_t2 VALUES (1,10),(2,20),(3,30),(4,40);
+CREATE SQL SECURITY DEFINER VIEW v1 AS
+SELECT secret_t1.a, secret_t1.b, secret_t2.c
+FROM secret_t1 JOIN secret_t2 USING (a);
+# A table with two composite indexes, so that index_merge intersect
+# (ROR) costing calls records_in_range():
+CREATE TABLE secret_t3 (a INT PRIMARY KEY, b INT, c INT, d INT,
+KEY k1 (b,c), KEY k2 (c,d)) ENGINE=InnoDB;
+INSERT INTO secret_t3 SELECT seq, seq%50, seq%30, seq%40 FROM seq_1_to_5000;
+ANALYZE TABLE secret_t3;
+Table	Op	Msg_type	Msg_text
+test.secret_t3	analyze	status	Engine-independent statistics collected
+test.secret_t3	analyze	status	OK
+# The view has a hidden predicate (c=7) that the user doesn't know about:
+CREATE SQL SECURITY DEFINER VIEW v2 AS SELECT a, b, c, d FROM secret_t3 WHERE c=7;
+CREATE USER u1@localhost;
+GRANT SELECT ON test.v1 TO u1@localhost;
+GRANT SELECT ON test.v2 TO u1@localhost;
+connect  con1,localhost,u1,,test;
+# The user can't see the tables or the view definition:
+SELECT * FROM secret_t1;
+ERROR 42000: SELECT command denied to user 'u1'@'localhost' for table `test`.`secret_t1`
+SHOW CREATE VIEW v1;
+ERROR 42000: SHOW VIEW command denied to user 'u1'@'localhost' for table `test`.`v1`
+select * from v1;
+a	b	c
+1	1	10
+2	2	20
+3	3	30
+4	4	40
+# A replay context that mentions only a dummy table:
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+# BUG if the warnings below name test.secret_t1 / test.secret_t2 / their indexes
+SELECT * FROM v1 WHERE b BETWEEN 1 AND 3;
+a	b	c
+1	1	10
+2	2	20
+3	3	30
+# The user's query doesn't mention c at all.
+# BUG if the warning below reveals test.secret_t3, its key number and
+# the view's hidden constant (7) (records_in_range call)
+SELECT * FROM v2 WHERE b=3 AND d=4;
+SHOW WARNINGS;
+Level	Code	Message
+disconnect con1;
+connection default;
+#
+# Column-level grants never enable the replay, even when they cover
+# every column of the table: a table-level SELECT is required
+#
+connection default;
+CREATE TABLE pub_t (a INT PRIMARY KEY, b INT, c INT, KEY idx_b (b));
+INSERT INTO pub_t VALUES (1,1,1),(2,2,2),(3,3,3),(4,4,4);
+CREATE USER u3@localhost;
+GRANT SELECT (a, b) ON test.pub_t TO u3@localhost;
+CREATE USER u4@localhost;
+GRANT SELECT (a, b, c) ON test.pub_t TO u4@localhost;
+connect  con3,localhost,u3,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+# Column c is not readable: no replay, no warnings
+SELECT a, b FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+disconnect con3;
+connect  con4,localhost,u4,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+# All columns are covered by column grants, still no replay, no warnings
+SELECT a, b FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+disconnect con4;
+#
+# One unreadable table disables the replay for the whole statement
+#
+connection default;
+CREATE USER u5@localhost;
+GRANT SELECT ON test.pub_t TO u5@localhost;
+GRANT SELECT ON test.v1 TO u5@localhost;
+connect  con5,localhost,u5,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+SELECT * FROM pub_t JOIN v1 USING (a) WHERE pub_t.b < 3;
+SHOW WARNINGS;
+Level	Code	Message
+disconnect con5;
+#
+# A view over a view
+#
+connection default;
+CREATE SQL SECURITY DEFINER VIEW v3 AS SELECT * FROM v1;
+GRANT SELECT ON test.v3 TO u1@localhost;
+connect  con1,localhost,u1,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+SELECT * FROM v3 WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+disconnect con1;
+#
+# A prepared statement executed twice: the second execution doesn't
+# reopen the view, the privilege check must still apply
+#
+connect  con1,localhost,u1,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+PREPARE ps FROM 'SELECT * FROM v1 WHERE b BETWEEN 1 AND 3';
+EXECUTE ps;
+SHOW WARNINGS;
+EXECUTE ps;
+SHOW WARNINGS;
+DEALLOCATE PREPARE ps;
+disconnect con1;
+#
+# The replay must keep working when the invoker can read the table
+#
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON test.pub_t TO u2@localhost;
+connect  con2,localhost,u2,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+# Table-level SELECT: the replay is applied, so the mismatch is reported
+SELECT * FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.PRIMARY doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of index contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of range contexts
+disconnect con2;
+#
+# Tables used by a stored function are checked too. The check runs when
+# the function is called, so the outer pub_t is still replayed.
+#
+connection default;
+CREATE FUNCTION f1() RETURNS INT SQL SECURITY DEFINER
+RETURN (SELECT MAX(b) FROM secret_t1);
+GRANT EXECUTE ON FUNCTION test.f1 TO u2@localhost;
+connect  con2,localhost,u2,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+SELECT f1() FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.PRIMARY doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of index contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of range contexts
+disconnect con2;
+#
+# A DEFINER trigger that reads a table the invoker can't read
+#
+connection default;
+CREATE TABLE trg_t (a INT);
+CREATE TRIGGER trg_t_ai AFTER INSERT ON trg_t FOR EACH ROW
+SET @max_b= (SELECT MAX(b) FROM secret_t1);
+GRANT SELECT, INSERT ON test.trg_t TO u2@localhost;
+connect  con2,localhost,u2,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+# Strict mode turns the replay mismatch warnings into errors for INSERT
+SET sql_mode='';
+INSERT INTO trg_t SELECT a FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.PRIMARY doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of index contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of range contexts
+disconnect con2;
+#
+# A SQL SECURITY INVOKER function runs with the invoker's privileges
+#
+connection default;
+CREATE FUNCTION f2() RETURNS INT SQL SECURITY INVOKER
+RETURN (SELECT MAX(b) FROM pub_t);
+GRANT EXECUTE ON FUNCTION test.f2 TO u2@localhost;
+connect  con2,localhost,u2,,test;
+SET @ctx='{"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]}';
+SET optimizer_replay_context='ctx';
+SELECT f2() FROM pub_t WHERE b BETWEEN 1 AND 3;
+SHOW WARNINGS;
+Level	Code	Message
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.PRIMARY doesn't exist in the list of index contexts
+Warning	4271	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of index contexts
+Warning	4270	Failed to match the stats from replay context with the optimizer stats: test.pub_t doesn't exist in the list of table contexts
+Warning	4272	Failed to match the stats from replay context with the optimizer stats: test.pub_t.idx_b doesn't exist in the list of range contexts
+disconnect con2;
+connection default;
+DROP FUNCTION f2;
+DROP TRIGGER trg_t_ai;
+DROP TABLE trg_t;
+DROP FUNCTION f1;
+DROP USER u2@localhost, u3@localhost, u4@localhost, u5@localhost;
+DROP VIEW v3;
+DROP TABLE pub_t;
+DROP USER u1@localhost;
+DROP VIEW v1, v2;
+DROP TABLE secret_t1, secret_t2, secret_t3;
+#
+# Single-table DELETE/UPDATE through a mergeable view keeps the view
+# in the table list, it must not be checked as a base table
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1_mergeable AS SELECT a FROM t1;
+SET @ctx='{}';
+SET optimizer_replay_context='ctx';
+DELETE FROM v1_mergeable WHERE a=1;
+Warnings:
+Warning	4269	Failed to parse saved optimizer context: "tables" element not present at offset 2.
+UPDATE v1_mergeable SET a=3;
+Warnings:
+Warning	4269	Failed to parse saved optimizer context: "tables" element not present at offset 2.
+SET @ctx='';
+DELETE FROM v1_mergeable;
+Warnings:
+Warning	4269	Failed to parse saved optimizer context:  at offset 0.
+SET optimizer_replay_context=DEFAULT;
+DROP VIEW v1_mergeable;
+DROP TABLE t1;
+# End of 13.1 tests

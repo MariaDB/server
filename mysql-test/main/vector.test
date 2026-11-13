@@ -482,6 +482,12 @@ INSERT INTO t_vec VALUES
   (2, VEC_FromText('[2,2,2,2]')),
   (3, VEC_FromText('[3,3,3,3]'));
 
+# innodb needs time for the index size to stabilize
+if ($MTR_COMBINATION_INNODB) {
+--let $wait_condition=select index_size=49152 from information_schema.vector_indexes where table_schema = database() and table_name = 't_vec'
+--source include/wait_condition.inc
+}
+
 query_vertical SELECT
   INDEX_SIZE,
   TOTAL_NODES,
