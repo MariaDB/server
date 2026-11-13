@@ -1,0 +1,17 @@
+#
+# MDEV-41728 Stale PRIMARY KEY values in a SPATIAL INDEX built by
+#            ALTER TABLE when the clustered index page was evicted
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, g POINT NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq,
+POINT(FLOOR(RAND(seq) * 1000000), FLOOR(RAND(seq + 7777777) * 1000000))
+FROM seq_1_to_200000;
+SET @save_dbug=@@SESSION.debug_dbug;
+SET debug_dbug='+d,row_merge_instrument_log_check_flush';
+ALTER TABLE t1 ADD SPATIAL INDEX(g);
+SET debug_dbug=@save_dbug;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 10.11 tests
