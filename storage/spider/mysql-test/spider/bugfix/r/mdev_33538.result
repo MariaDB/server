@@ -2,8 +2,8 @@ show create table information_schema.SPIDER_ALLOC_MEM;
 Table	Create Table
 SPIDER_ALLOC_MEM	CREATE TEMPORARY TABLE `SPIDER_ALLOC_MEM` (
   `ID` int(10) unsigned NOT NULL,
-  `FUNC_NAME` varchar(64),
-  `FILE_NAME` varchar(64),
+  `FUNC_NAME` longtext,
+  `FILE_NAME` longtext,
   `LINE_NO` int(10) unsigned,
   `TOTAL_ALLOC_MEM` bigint(20) unsigned,
   `CURRENT_ALLOC_MEM` bigint(20),

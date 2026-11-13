@@ -1,0 +1,47 @@
+# sj-materialize wrong results reproducer: materialization with blobs
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=on,in_to_exists=off,semijoin=off';
+
+create table t1_16 (a1 blob(16), a2 blob(16));
+create table t2_16 (b1 blob(16), b2 blob(16));
+
+insert into t1_16 values
+ (concat('1 - 00', repeat('x', 10)), concat('2 - 00', repeat('x', 10)));
+insert into t1_16 values
+ (concat('1 - 01', repeat('x', 10)), concat('2 - 01', repeat('x', 10)));
+insert into t1_16 values
+ (concat('1 - 02', repeat('x', 10)), concat('2 - 02', repeat('x', 10)));
+
+insert into t2_16 values
+ (concat('1 - 01', repeat('x', 10)), concat('2 - 01', repeat('x', 10)));
+insert into t2_16 values
+ (concat('1 - 02', repeat('x', 10)), concat('2 - 02', repeat('x', 10)));
+insert into t2_16 values
+ (concat('1 - 03', repeat('x', 10)), concat('2 - 03', repeat('x', 10)));
+
+# group_concat with materialization forced via group_concat_max_len
+set @@group_concat_max_len = 256;
+
+EXPLAIN select left(a1,7), left(a2,7)
+from t1_16
+where a1 in (select group_concat(b1) from t2_16 group by b2);
+
+--sorted_result
+select left(a1,7), left(a2,7)
+from t1_16
+where a1 in (select group_concat(b1) from t2_16 group by b2);
+
+# Simple IN (b1 is blob) with materialization forced
+EXPLAIN select left(a1,7), left(a2,7)
+from t1_16
+where a1 in (select substring(b1,1,16) from t2_16 where b1 > '0');
+
+--sorted_result
+select left(a1,7), left(a2,7)
+from t1_16
+where a1 in (select substring(b1,1,16) from t2_16 where b1 > '0');
+
+drop table t1_16, t2_16;
+set @@group_concat_max_len = DEFAULT;
+set optimizer_switch=@save_optimizer_switch;
