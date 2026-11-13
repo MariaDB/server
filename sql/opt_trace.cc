@@ -143,11 +143,36 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
   writer->add("expanded_query", str.c_ptr_safe(), str.length());
 }
 
+/*
+  Report that the invoker lacks privileges: both the optimizer trace and the
+  optimizer context recorder must not expose their output.
+*/
+static void report_missing_privilege(THD *thd)
+{
+  thd->opt_trace.missing_privilege();
+  if (thd->opt_ctx_recorder)
+    thd->opt_ctx_recorder->missing_privilege();
+}
+
+/*
+  @return true if there is nothing to protect: neither a started optimizer
+  trace nor an optimizer context recorder would expose anything.
+*/
+static bool opt_trace_no_output_to_protect(THD *thd)
+{
+  return thd->system_thread ||
+         (likely(!thd->opt_ctx_recorder) &&
+          (likely(!(thd->variables.optimizer_trace &
+                    Opt_trace_context::FLAG_ENABLED)) ||
+           likely(!thd->trace_started())));
+}
+
 void opt_trace_disable_if_no_security_context_access(THD *thd)
 {
-  if (likely(!(thd->variables.optimizer_trace &
-               Opt_trace_context::FLAG_ENABLED)) ||  // (1)
-      thd->system_thread)                            // (2)
+  if (thd->system_thread ||                                 // (2)
+      (likely(!thd->opt_ctx_recorder) &&
+       likely(!(thd->variables.optimizer_trace &
+                Opt_trace_context::FLAG_ENABLED))))         // (1)
   {
     /*
       (1) We know that the routine's execution starts with "enabled=off".
@@ -156,6 +181,8 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
       If it does not stay so, it means the definer sets it to "on" somewhere
       in the routine's body. Then it is his conscious decision to generate
       traces, thus it is still correct to skip the security check.
+      This does not apply to the optimizer context recorder: it is enabled
+      by the invoker, regardless of the trace.
 
       (2) Threads of the Events Scheduler have an unusual security context
       (thd->m_main_security_ctx.priv_user==NULL, see comment in
@@ -163,8 +190,7 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     */
     return;
   }
-  Opt_trace_context *const trace= &thd->opt_trace;
-  if (unlikely(!thd->trace_started()))
+  if (unlikely(!thd->trace_started()) && !thd->opt_ctx_recorder)
   {
     /*
       @@optimizer_trace has "enabled=on" but trace is not started.
@@ -206,25 +232,25 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
       !thd->main_security_ctx.is_priv_user(
          Lex_cstring_strlen(thd->security_context()->priv_user),
          Lex_cstring_strlen(thd->security_context()->priv_host)))
-    trace->missing_privilege();
+  {
+    report_missing_privilege(thd);
+  }
 }
 
 void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
 {
-  if (likely(!(thd->variables.optimizer_trace &
-               Opt_trace_context::FLAG_ENABLED)) ||
-      thd->system_thread ||
-      likely(!thd->trace_started()))
+  if (opt_trace_no_output_to_protect(thd))
     return;
 
-  Opt_trace_context *const trace= &thd->opt_trace;
   bool full_access;
   Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
   const bool rc= check_show_routine_access(thd, sp, &full_access) || !full_access;
   thd->set_security_context(backup_thd_sctx);
   if (rc)
-    trace->missing_privilege();
+  {
+    report_missing_privilege(thd);
+  }
 }
 
 /**
@@ -245,13 +271,9 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
 
 void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
 {
-  if (likely(!(thd->variables.optimizer_trace &
-              Opt_trace_context::FLAG_ENABLED)) ||
-      thd->system_thread ||
-      likely(!thd->trace_started()))
+  if (opt_trace_no_output_to_protect(thd))
     return;
 
-  Opt_trace_context *const trace= &thd->opt_trace;
   Security_context *const backup_thd_sctx= thd->security_context();
   thd->set_security_context(&thd->main_security_ctx);
   const TABLE_LIST *const first_not_own_table= thd->lex->first_not_own_table();
@@ -269,6 +291,15 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
       const GRANT_INFO backup_grant_info= t->grant;
       Security_context *const backup_table_sctx= t->security_ctx;
       t->security_ctx= NULL;
+
+      /*
+        check_table_access() skips check_access() for sequences, leaving
+        grant.privilege empty, so fill in the db/global-level privilege here.
+      */
+      if (t->sequence)
+        check_access(thd, SELECT_ACL, t->get_db_name().str,
+                     &t->grant.privilege, &t->grant.m_internal, 0, true);
+
       /*
         (1) check_table_access() fills t->grant.privilege.
         (2) Because SELECT privileges can be column-based,
@@ -293,7 +324,7 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
       t->grant= backup_grant_info;
       if (rc)
       {
-        trace->missing_privilege();
+        report_missing_privilege(thd);
         break;
       }
     }
@@ -305,14 +336,9 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
 void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
                                          TABLE_LIST *underlying_tables)
 {
-
-  if (likely(!(thd->variables.optimizer_trace &
-               Opt_trace_context::FLAG_ENABLED)) ||
-      thd->system_thread ||
-      likely(!thd->trace_started()))
+  if (opt_trace_no_output_to_protect(thd))
     return;
 
-  Opt_trace_context *const trace= &thd->opt_trace;
   Security_context *const backup_table_sctx= view->security_ctx;
   Security_context *const backup_thd_sctx= thd->security_context();
   const GRANT_INFO backup_grant_info= view->grant;
@@ -328,7 +354,7 @@ void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
 
   if (rc)
   {
-    trace->missing_privilege();
+    report_missing_privilege(thd);
     return;
   }
   /*
@@ -509,7 +535,6 @@ void Opt_trace_start::init_traceable(THD *thd,
                thd->variables.optimizer_trace_max_mem_size);
     ctx->set_query(query, query_length, query_charset);
     traceable= TRUE;
-    opt_trace_disable_if_no_tables_access(thd, tbl);
     Json_writer *w= ctx->get_current_json();
     w->start_object();
     w->add_member("steps").start_array();

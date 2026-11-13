@@ -24,6 +24,7 @@
 #include "my_json_writer.h"
 #include "hash.h"
 #include "opt_trace.h"
+#include "sql_parse.h"
 
 #include "sql_select.h"
 #include "sql_explain.h"
@@ -242,6 +243,7 @@ static bool is_base_table(const TABLE_LIST *tbl)
           tbl->table->s->tmp_table != INTERNAL_TMP_TABLE &&
           tbl->table->s->tmp_table != SYSTEM_TMP_TABLE);
 }
+
 
 static
 void dump_mrr_info_calls(List<Multi_range_read_const_call_record> *mrr_list,
@@ -716,6 +718,14 @@ bool Optimizer_context_recorder::dump_sql_script(THD* thd, String &sql_script)
   StringBuffer<1024> sys_vars_script;
   Json_writer ctx_writer;
   Json_writer_object context(&ctx_writer);
+
+  if (missing_priv)
+  {
+    sql_script.set_charset(system_charset_info);
+    sql_script.append(STRING_WITH_LEN("select 'Insufficient privileges';"));
+    return false;
+  }
+
   Json_writer_array context_list(&ctx_writer, "tables");
   HASH table_name_hash;
   HASH used_storage_engines;
@@ -1035,7 +1045,7 @@ void Optimizer_context_recorder::record_multi_range_read_info_const(
     Do not record calls that are made at execution phase by "Range checked
     for each record"
   */
-  if (current_thd->lex->explain->is_query_plan_ready())
+  if (missing_priv || current_thd->lex->explain->is_query_plan_ready())
     return;
 
   mrr_counter++;
@@ -1089,6 +1099,9 @@ void Optimizer_context_recorder::record_cost_for_index_read(
     const TABLE *table, uint key, ha_rows records,
     bool eq_ref, const ALL_READ_COST *cost)
 {
+  if (missing_priv)
+    return;
+
   cost_index_read_call_record *idx_read_rec=
       new (mem_root) cost_index_read_call_record;
 
@@ -1130,6 +1143,9 @@ void Optimizer_context_recorder::record_records_in_range(
     uint keynr, const key_range *min_range, const key_range *max_range,
     ha_rows records)
 {
+  if (missing_priv)
+    return;
+
   records_in_range_call_record *rec_in_range_ctx=
       new (mem_root) records_in_range_call_record;
 
@@ -1160,7 +1176,10 @@ void Optimizer_context_recorder::record_records_in_range(
 
 void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 {
-  StringBuffer<512> output(&my_charset_utf8mb4_bin);
+  if (missing_priv)
+  {
+    return;
+  }
 
   /*
     Due to use of prepare_captured_row_read(), we have values for all
@@ -1171,6 +1190,7 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
     So, use relaxed @@sql_mode setting here also to make the REPLACE statement
     is processed (i.e. not fails with an error).
   */
+  StringBuffer<512> output(&my_charset_utf8mb4_bin);
   output.append(
     STRING_WITH_LEN("SET STATEMENT sql_mode="
                     "REPLACE(REPLACE(@@sql_mode,'STRICT_ALL_TABLES',''),"
@@ -1194,6 +1214,9 @@ void Optimizer_context_recorder::record_table_row(TABLE *tbl, int row_index)
 
 void Optimizer_context_recorder::record_subquery_exec(Item_subselect *subq)
 {
+  if (missing_priv)
+    return;
+
   /* Do not record subquery executions done after the optimization phase */
   if (current_thd->lex->explain->is_query_plan_ready())
     return;

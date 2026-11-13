@@ -3764,6 +3764,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   init_optimizer_context_replay_if_needed(thd);
   init_optimizer_context_recorder_if_needed(thd, all_tables);
 
+  opt_trace_disable_if_no_tables_access(thd, all_tables);
+
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;
 

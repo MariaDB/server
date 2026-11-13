@@ -90,6 +90,8 @@ public:
 
   bool has_records();
 
+  void missing_privilege() { missing_priv= true; }
+
   Mem_root_dynamic_array<uint> subquery_runs;
 
 private:
@@ -106,6 +108,12 @@ private:
     counter that tracks record_multi_range_read_info_const() calls
   */
   ulong mrr_counter= 0;
+
+  /*
+    If true, the user doesn't have enough privileges to see the context.
+    (We still collect the context but will not provide it to the user)
+  */
+  bool missing_priv= false;
 
   table_context_for_store *search(uchar *tbl_name, size_t tbl_name_len);
   void dump_recorded_table_calls(table_context_for_store *tbl,
