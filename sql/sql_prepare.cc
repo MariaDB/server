@@ -2353,6 +2353,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   Opt_trace_start ots(thd);
   ots.init(thd, tables, lex->sql_command, &lex->var_list, thd->query(),
            thd->query_length(), thd->variables.character_set_client);
+  opt_trace_disable_if_no_tables_access(thd, tables);
 
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");

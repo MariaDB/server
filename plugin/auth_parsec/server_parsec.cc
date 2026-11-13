@@ -245,10 +245,9 @@ int digest_to_binary(const char *hash, size_t hash_length,
   auto stored= (Passwd_as_stored*)hash;
   auto memory= (Passwd_in_memory*)out;
 
-  memory->iterations= base62_to_uchar(stored->iterations);
-
   if (hash_length != sizeof (*stored) || *out_length < sizeof(*memory) ||
-      stored->algorithm != 'P' || memory->iterations == 255 ||
+      stored->algorithm != 'P' ||
+      (memory->iterations= base62_to_uchar(stored->iterations)) == 255 ||
       stored->colon != ':' || stored->colon2 != ':')
   {
     my_printf_error(ER_PASSWD_LENGTH, "Wrong ext-salt format", 0);
