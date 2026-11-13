@@ -8096,6 +8096,7 @@ SHOW_VAR status_vars[]= {
   {"Open_tables",              (char*) &show_open_tables,       SHOW_SIMPLE_FUNC},
   {"Opened_files",             (char*) &my_file_total_opened, SHOW_LONG_NOFLUSH},
   {"Opened_plugin_libraries",  (char*) &dlopen_count, SHOW_LONG},
+  {"Opened_streams",           (char*) &my_stream_total_opened, SHOW_LONG_NOFLUSH},
   {"Opened_table_definitions", (char*) offsetof(STATUS_VAR, opened_shares), SHOW_LONG_STATUS},
   {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_views",             (char*) offsetof(STATUS_VAR, opened_views), SHOW_LONG_STATUS},
