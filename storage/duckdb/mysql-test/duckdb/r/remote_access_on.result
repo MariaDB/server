@@ -1,0 +1,15 @@
+#
+# duckdb_allow_remote_access=ON restores extension autoinstall/autoload
+#
+SELECT @@GLOBAL.duckdb_allow_remote_access;
+@@GLOBAL.duckdb_allow_remote_access
+1
+SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
+run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name')
+name	value	
+VARCHAR	VARCHAR	
+[ Rows: 2]
+autoinstall_known_extensions	true
+autoload_known_extensions	true
+
+

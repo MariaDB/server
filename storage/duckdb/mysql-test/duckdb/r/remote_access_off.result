@@ -1,0 +1,17 @@
+#
+# Remote access (extension autoinstall/autoload, e.g. httpfs) is OFF by default
+#
+SELECT @@GLOBAL.duckdb_allow_remote_access;
+@@GLOBAL.duckdb_allow_remote_access
+0
+SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
+run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name')
+name	value	
+VARCHAR	VARCHAR	
+[ Rows: 2]
+autoinstall_known_extensions	false
+autoload_known_extensions	false
+
+
+SET GLOBAL duckdb_allow_remote_access = ON;
+ERROR HY000: Variable 'duckdb_allow_remote_access' is a read only variable

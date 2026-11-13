@@ -198,8 +198,10 @@ bool DuckdbManager::Initialize()
         throw duckdb::InvalidInputException(
             "DuckDB initialization query failed: %s", result->GetError());
     };
-    init_query("SET autoload_known_extensions=true");
-    init_query("SET autoinstall_known_extensions=true");
+    /* Remote access (httpfs etc.) is off unless explicitly enabled. */
+    const char *remote= allow_remote_access ? "true" : "false";
+    init_query(std::string("SET autoload_known_extensions=") + remote);
+    init_query(std::string("SET autoinstall_known_extensions=") + remote);
 
     /*
       Register MariaDB-compatible SQL macros for functions that DuckDB

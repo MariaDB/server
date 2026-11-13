@@ -1568,6 +1568,12 @@ static MYSQL_SYSVAR_BOOL(use_double_for_decimal,
                          "Use DOUBLE for DECIMAL precision > 38", NULL, NULL,
                          TRUE);
 
+static MYSQL_SYSVAR_BOOL(allow_remote_access, myduck::allow_remote_access,
+                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
+                         "Allow DuckDB to auto-install and load extensions "
+                         "such as httpfs (network access)",
+                         NULL, NULL, FALSE);
+
 static MYSQL_SYSVAR_BOOL(require_primary_key, myduck::require_primary_key,
                          PLUGIN_VAR_RQCMDARG,
                          "Require primary key for DuckDB tables", NULL, NULL,
@@ -1651,7 +1657,7 @@ static struct st_mysql_sys_var *duckdb_system_variables[]= {
     MYSQL_SYSVAR(max_temp_directory_size), MYSQL_SYSVAR(max_threads),
     MYSQL_SYSVAR(use_direct_io), MYSQL_SYSVAR(scheduler_process_partial),
     MYSQL_SYSVAR(checkpoint_threshold), MYSQL_SYSVAR(use_double_for_decimal),
-    MYSQL_SYSVAR(require_primary_key),
+    MYSQL_SYSVAR(require_primary_key), MYSQL_SYSVAR(allow_remote_access),
     MYSQL_SYSVAR(appender_allocator_flush_threshold),
     MYSQL_SYSVAR(log_options),
     /* Session proxy */

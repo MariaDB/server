@@ -194,7 +194,7 @@ Changes made:
 - `ExtensionUtil` → `Catalog::GetSystemCatalog` + `CatalogTransaction` + `CreateFunction`
 - `scheduler_process_partial` removed (gone in v1.5)
 - `core_functions` added to `duckdb_extensions.cmake` (was built-in in v1.3, separate extension in v1.5)
-- `autoload_known_extensions` + `autoinstall_known_extensions` enabled at DB init
+- `autoload_known_extensions` + `autoinstall_known_extensions` set at DB init from `duckdb_allow_remote_access` (OFF by default)
 - `DUCKDB_EXTENSION_AUTOLOAD_DEFAULT` + `DUCKDB_EXTENSION_AUTOINSTALL_DEFAULT` cmake flags
 - `duckdb_error_h` target dependency on `GenError` fixed for clean builds
 
