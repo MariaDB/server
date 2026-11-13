@@ -1,0 +1,37 @@
+#
+# MDEV-39993: mariadb-upgrade drops existing EXECUTE grants on sys stored
+# routines during upgrade because sys schema scripts use DROP+CREATE
+# instead of CREATE OR REPLACE
+#
+--source include/have_perfschema.inc
+
+CREATE USER testuser@localhost;
+
+GRANT EXECUTE ON FUNCTION sys.quote_identifier TO testuser@localhost;
+GRANT EXECUTE ON PROCEDURE sys.table_exists TO testuser@localhost;
+
+--echo # Grants BEFORE running upgrade
+--sorted_result
+SHOW GRANTS FOR testuser@localhost;
+
+--echo # Run mariadb-upgrade (re-installs sys schema)
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Grants AFTER running upgrade (must be preserved)
+--sorted_result
+SHOW GRANTS FOR testuser@localhost;
+
+--echo # Verify routines still work after replacement
+SELECT sys.quote_identifier('test') AS quoted;
+
+--echo # Verify CREATE OR REPLACE works for fresh routine (simulate new install)
+DROP FUNCTION IF EXISTS sys.quote_identifier;
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo # Routine recreated successfully
+SELECT sys.quote_identifier('test') AS quoted;
+
+# Cleanup
+--let $MYSQLD_DATADIR= `select @@datadir`
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+DROP USER testuser@localhost;
