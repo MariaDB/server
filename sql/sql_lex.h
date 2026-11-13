@@ -3752,6 +3752,8 @@ public:
   Sql_cmd *m_sql_cmd;
 
   enum enum_duplicates duplicates;
+  /* Represents INSERT...VALUES as <alias> */
+  Lex_ident_table insert_values_alias;
   enum enum_tx_isolation tx_isolation;
   enum enum_ha_read_modes ha_read_mode;
   union {
