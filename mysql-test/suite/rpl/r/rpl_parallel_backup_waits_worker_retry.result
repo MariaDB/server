@@ -1,0 +1,154 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-36025 backup taken from parallel replica may contain prepared transactions
+#
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE = innodb;
+INSERT INTO  t1 VALUES (1, 0);
+INSERT INTO  t1 VALUES (2, 0);
+connection slave;
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads  = @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode     = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 2;
+SET @@global.slave_parallel_mode   = 'optimistic';
+connection master;
+begin /* trx1/L1 */;
+delete from t1 where a = 1;
+update t1 set b = 1 where a = 2;
+commit;
+begin /* trx2/F2 */;
+delete from t1 where a = 2;
+commit;
+connect  aux_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BEGIN;
+DELETE FROM t1 WHERE a = 1;
+connection slave;
+include/start_slave.inc
+connection aux_slave;
+connect  backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+ROLLBACK;
+connection aux_slave;
+connection aux_slave;
+connection backup_slave;
+BACKUP STAGE END;
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= 3;
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (11,0), (12,0), (13,0), (14,0);
+connection master;
+connection slave;
+include/stop_slave.inc
+connection aux_slave;
+BEGIN;
+DELETE FROM t1 WHERE a = 11;
+connection master;
+begin /* trx1/L1 */;
+delete from t1 where a = 11;
+update t1 set b = 1 where a = 12;
+commit;
+begin /* trx2/F2 */;
+delete from t1 where a = 12;
+update t1 set b=2 where a=14;
+commit;
+begin /* trx3/F3  */;
+delete from t1 where a = 13;
+commit;
+connection slave;
+include/start_slave.inc
+connection aux_slave;
+connection backup_slave;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+connect  aux_slave2,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BEGIN;
+UPDATE t1 SET b=2 WHERE a=14;
+connection slave;
+connection aux_slave;
+ROLLBACK;
+connection aux_slave;
+connection aux_slave2;
+ROLLBACK;
+connection backup_slave;
+BACKUP STAGE END;
+connection master;
+connection slave;
+include/diff_tables.inc [master:t1,slave:t1]
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= 4;
+include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES (21,0), (22,0), (23,0), (24,0);
+connection master;
+connection slave;
+include/stop_slave.inc
+connection aux_slave;
+BEGIN;
+DELETE FROM t1 WHERE a = 21;
+connection master;
+begin /* trx1/L1 */;
+delete from t1 where a = 21;
+update t1 set b = 1 where a = 22;
+commit;
+begin /* trx2/F2 */;
+delete from t1 where a = 22;
+update t1 set b=2 where a=24;
+commit;
+begin /* trx3/F3  */;
+delete from t1 where a = 23;
+commit;
+connection slave;
+include/start_slave.inc
+connection aux_slave;
+connection backup_slave;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+connection aux_slave2;
+BEGIN;
+UPDATE t1 SET b=1 WHERE a=24;
+connection slave;
+connection aux_slave;
+ROLLBACK;
+# prove the MDL lock state is about to become /*granted*/ S2,S5(F2); /* waitng */ X3
+connection aux_slave;
+connection master;
+INSERT INTO t1 VALUES (25,0) /* L4 third slave group commit leader */;
+connection slave;
+connection aux_slave2;
+ROLLBACK;
+connection backup_slave;
+L4's S6 is waiting
+connection slave;
+INSERT(25) is backup-locked out
+select * from t1 where a = 25;
+a	b
+connection backup_slave;
+BACKUP STAGE END;
+connection master;
+connection slave;
+INSERT(25) is done
+select * from t1 where a = 25;
+a	b
+25	0
+include/diff_tables.inc [master:t1,slave:t1]
+connection slave;
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1;
+include/rpl_end.inc
+# End of the tests
