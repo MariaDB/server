@@ -3522,47 +3522,6 @@ mariadb> SELECT sys.extract_table_from_file_name('/var/lib/mysql/employees/emplo
 1 row in set (0.02 sec)
 ```         
 
-#### format_bytes
-
-##### Description
-
-Takes a raw bytes value, and converts it to a human readable format.
-
-##### Parameters
-
-* bytes (TEXT): A raw bytes value.
-
-##### Returns
-
-TEXT
-
-##### Example
-```SQL
-mariadb> SELECT format_bytes(2348723492723746) AS size;
-+----------+
-| size     |
-+----------+
-| 2.09 PiB |
-+----------+
-1 row in set (0.00 sec)
-
-mariadb> SELECT format_bytes(2348723492723) AS size;
-+----------+
-| size     |
-+----------+
-| 2.14 TiB |
-+----------+
-1 row in set (0.00 sec)
-
-mariadb> SELECT format_bytes(23487234) AS size;
-+-----------+
-| size      |
-+-----------+
-| 22.40 MiB |
-+-----------+
-1 row in set (0.00 sec)
-```
-
 #### format_path
 
 ##### Description
@@ -3631,49 +3590,6 @@ mariadb> SELECT sys.format_statement(digest_text)
 | CREATE SQL SECURITY INVOKER VI ... LIKE ? ORDER BY `timer_start`  |
 +-------------------------------------------------------------------+
 5 rows in set (0.00 sec)
-```
-
-#### format_time
-
-##### Description
-
-Takes a raw picoseconds value, and converts it to a human readable form.
-             
-Picoseconds are the precision that all latency values are printed in within Performance Schema, however are not user friendly when wanting to scan output from the command line.
-
-##### Parameters
-
-* picoseconds (TEXT): The raw picoseconds value to convert.
-
-##### Returns
-
-TEXT
-
-##### Example
-```SQL
-mariadb> select format_time(342342342342345);
-+------------------------------+
-| format_time(342342342342345) |
-+------------------------------+
-| 00:05:42                     |
-+------------------------------+
-1 row in set (0.00 sec)
-
-mariadb> select format_time(342342342);
-+------------------------+
-| format_time(342342342) |
-+------------------------+
-| 342.34 us              |
-+------------------------+
-1 row in set (0.00 sec)
-
-mariadb> select format_time(34234);
- +--------------------+
-| format_time(34234) |
-+--------------------+
-| 34.23 ns           |
-+--------------------+
-1 row in set (0.00 sec)
 ```
 
 #### list_add
@@ -3882,39 +3798,6 @@ mariadb> SELECT sys.ps_is_thread_instrumented(CONNECTION_ID());
 | YES                                            |
 +------------------------------------------------+
 1 row in set (0.10 sec)
-```
-
-#### ps_thread_id
-
-##### Description
-
-Return the Performance Schema THREAD_ID for the specified connection ID.
-
-##### Parameters
-
-* in_connection_id (BIGINT UNSIGNED): The id of the connection to return the thread id for. If NULL, the current connection thread id is returned.
-
-##### Returns
-
-BIGINT UNSIGNED
-
-##### Example
-```SQL
-mariadb> SELECT sys.ps_thread_id(79);
-+----------------------+
-| sys.ps_thread_id(79) |
-+----------------------+
-|                   98 |
-+----------------------+
-1 row in set (0.00 sec)
-
-mariadb> SELECT sys.ps_thread_id(CONNECTION_ID());
-+-----------------------------------+
-| sys.ps_thread_id(CONNECTION_ID()) |
-+-----------------------------------+
-|                                98 |
-+-----------------------------------+
-1 row in set (0.00 sec)
 ```
 
 #### ps_thread_stack
