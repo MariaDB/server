@@ -6568,6 +6568,11 @@ static void loc_on_close_free(MYSQL *mysql)
 {
   Protocol_local *p= (Protocol_local *) mysql->thd;
   THD *thd= p->new_thd;
+  /*
+    The results not read, e.g. the OK that ends a CALL whose rows were
+    read: only the next command on the connection would free them
+  */
+  p->clear_data_list();
   delete p;
   if (thd)
   {

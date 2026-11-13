@@ -116,4 +116,22 @@ drop table t1;
 uninstall plugin test_sql_service;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
+#
+# MDEV-BUGFIX-2 Closing a connection frees the results not read: the OK
+# after the rows of a CALL
+#
+install plugin test_sql_service soname 'test_sql_service';
+create procedure test.p() select 1 as a union all select 2;
+set global test_sql_service_execute_sql_local= 'call test.p()';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 2 rows.
+set global test_sql_service_execute_sql_global= 'call test.p()';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 2 rows.
+drop procedure test.p;
+uninstall plugin test_sql_service;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
 # End of 13.2 tests
