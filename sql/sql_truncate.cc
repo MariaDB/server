@@ -345,7 +345,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUE);
 #endif
 
-    *global_tmp_table= table->s->global_tmp_table();
+    *global_tmp_table= table->s->is_gtt();
     table_ref->mdl_request.ticket= table->mdl_ticket;
   }
   else
@@ -386,7 +386,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       }
     }
 #endif
-    *global_tmp_table= share->global_tmp_table();
+    *global_tmp_table= share->is_gtt();
 
     if (!versioned)
       tdc_remove_referenced_share(thd, share);
@@ -457,7 +457,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   /* Initialize, or reinitialize in case of reexecution (SP). */
   m_ticket_downgrade= NULL;
 
-  if (table_ref->table && table_ref->table->s->global_tmp_table())
+  if (table_ref->table && table_ref->table->s->is_gtt())
   {
     TABLE_SHARE *s= table_ref->table->s;
     DBUG_ASSERT(s->tmp_table);

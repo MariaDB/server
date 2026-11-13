@@ -2320,14 +2320,8 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
     bzero(this, sizeof(*this));
   }
   bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
-  bool global_tmp_table() const
-  {
-    /*
-      options & HA_LEX_CREATE_GLOBAL_TMP_TABLE is only true when
-      creating a global temporary table definition.
-    */
-    return (bool) (gtt_options & GTT_TABLE);
-  }
+  /* True when creating a global temporary table (GTT) definition */
+  bool is_gtt() const { return (bool) (gtt_options & GTT_TABLE); }
   bool on_commit_delete() const
   { return gtt_options & GTT_ON_COMMIT_DELETE_ROWS; }
   void use_default_db_type(THD *thd)

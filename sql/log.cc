@@ -6712,7 +6712,7 @@ bool THD::binlog_write_table_maps()
       }
       if (table->file->row_logging)
       {
-        DBUG_ASSERT(!table->s->global_tmp_table());
+        DBUG_ASSERT(!table->s->is_gtt());
         if (mysql_bin_log.write_table_map(this, table, with_annotate))
           DBUG_RETURN(1);
         with_annotate= 0;

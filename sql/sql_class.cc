@@ -7164,11 +7164,16 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if (!share->using_binlog())
       {
         /*
-          This is a temporary table which was not logged in the
-          binary log or a GTT table. GTT tables does not support stmt logging.
+          This is one of:
+          - A temporary table whose creation was not logged in the binary
+            log.
+          - A GTT instance.
+          - A GTT definition, opened by statements that use the definition
+            instead of an instance, like ALTER TABLE.
+          Changes to GTT tables are never logged as statements.
           Disable statement logging to enforce row level logging.
         */
-        DBUG_ASSERT(share->tmp_table || share->global_tmp_table());
+        DBUG_ASSERT(share->tmp_table || share->is_gtt_definition());
         flags&= ~HA_BINLOG_STMT_CAPABLE;
         /* We can only use row logging */
         set_current_stmt_binlog_format_row();

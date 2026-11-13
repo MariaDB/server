@@ -1174,7 +1174,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
     if (check_if_log_table(table, TRUE, "DROP"))
       DBUG_RETURN(true);
 
-    if (is_temporary_table(table) && table->table->s->global_tmp_table())
+    if (is_temporary_table(table) && table->table->s->is_gtt())
     {
       if (drop_temporary)
         my_error(ER_BAD_TABLE_ERROR, MYF(0), table->alias.str);
@@ -4137,7 +4137,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
                           *key_info_buffer, *key_count);
   );
 
-  if (create_info->global_tmp_table())
+  if (create_info->is_gtt())
   {
     if (alter_info->partition_flags || IF_PARTITIONING(thd->work_part_info, 0))
     {
@@ -4649,7 +4649,7 @@ check_global_temporary_tables_for_create(THD *thd,
     return FALSE;
 
   const TABLE *table= create_info->table;
-  if ((table && table->s->tmp_table && table->s->global_tmp_table()) ||
+  if ((table && table->s->is_gtt_instance()) ||
       thd->find_temporary_table(db, table_name, THD::TMP_TABLE_ANY,
                                 TMP_TABLE_GLOBAL))
   {
@@ -5360,7 +5360,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (thd->locked_tables_mode && pos_in_locked_tables &&
       create_info->or_replace())
   {
-    if (create_info->global_tmp_table())
+    if (create_info->is_gtt())
     {
       /*
         A global temporary table is not locked by LOCK TABLES. The
@@ -5429,7 +5429,7 @@ err:
         table_creation_was_logged will be set when the share is created.
       */
       create_info->table->s->table_creation_was_logged=
-        !create_info->table->s->global_tmp_table() ? 1 : 2;
+        !create_info->table->s->is_gtt() ? 1 : 2;
     }
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
@@ -5930,7 +5930,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     Do not inherit the ON COMMIT behavior,
     if the new table is not global temporary.
   */
-  if (!create_info->global_tmp_table())
+  if (!create_info->is_gtt())
     create_info->gtt_options= GTT_NONE;
 
   local_create_info.table_options|= create_info->table_options;
@@ -5972,7 +5972,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     on a non temporary table
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
-      create_info->or_replace() && create_info->global_tmp_table())
+      create_info->or_replace() && create_info->is_gtt())
   {
     /*
       A global temporary table is not locked by LOCK TABLES. The
@@ -6047,7 +6047,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     we have to write the full table definition to the binary log.
   */
   force_generated_create|= (!src_table->table->s->table_creation_was_logged ||
-                            src_table->table->s->global_tmp_table());
+                            src_table->table->s->is_gtt());
 
   if (thd->is_binlog_format_row() || force_generated_create)
   {
@@ -6072,7 +6072,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     if (!(create_info->tmp_table()) || force_generated_create)
     {
       // Case 2 & 5
-      if (src_table->table->s->local_tmp_table() || force_generated_create)
+      if (src_table->table->s->is_local_tmp_table() || force_generated_create)
       {
         char buf[2048];
         String query(buf, sizeof(buf), system_charset_info);
@@ -6160,7 +6160,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           }
           if (local_create_info.table && thd->tmp_table_binlog_handled)
             local_create_info.table->s->table_creation_was_logged=
-              !local_create_info.table->s->global_tmp_table() ? 1 : 2;
+              !local_create_info.table->s->is_gtt() ? 1 : 2;
 
           if (new_table)
           {
@@ -6199,7 +6199,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           we should log a delete of it.
         */
         local_create_info.table->s->table_creation_was_logged=
-          !local_create_info.table->s->global_tmp_table() ? 1 : 2;
+          !local_create_info.table->s->is_gtt() ? 1 : 2;
         do_logging= TRUE;
       }
     }
@@ -6427,7 +6427,7 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
-  if (table_list->table->s->global_tmp_table())
+  if (table_list->table->s->is_gtt())
   {
     my_error(ER_CANNOT_DISCARD_TEMPORARY_TABLE, MYF(0));
     thd->tablespace_op=FALSE;
@@ -7832,7 +7832,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
       ha_alter_info->key_count= table->s->keys;
   }
 
-  if (table->s->global_tmp_table())
+  if (table->s->is_gtt())
     ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
 
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
@@ -10941,7 +10941,7 @@ const char *online_alter_check_supported(THD *thd,
   if (!*online)
     return "CHANGE COLUMN ... AUTO_INCREMENT";
 
-  *online= !table->s->global_tmp_table();
+  *online= !table->s->is_gtt();
   if (!*online)
     return "GLOBAL TEMPORARY TABLE";
 
@@ -11218,7 +11218,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     }
   }
 
-  if (table->s->global_tmp_table())
+  if (table->s->is_gtt())
   {
     if (thd->find_tmp_table_share(table_list, TMP_TABLE_GLOBAL))
     {
@@ -13716,7 +13716,7 @@ bool check_engine(THD *thd, const char *db_name,
                         ha_resolve_storage_engine_name(*new_engine),
                         table_name);
   }
-  if ((create_info->tmp_table() || create_info->global_tmp_table()) &&
+  if ((create_info->tmp_table() || create_info->is_gtt()) &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
   {
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
@@ -14025,7 +14025,7 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
             the replaced table. See select_create::send_eof().
           */
           if (create_info.pos_in_locked_tables &&
-              create_info.global_tmp_table())
+              create_info.is_gtt())
             (void) thd->locked_tables_list.
               unlock_locked_table(thd, create_info.mdl_ticket);
         }

@@ -1100,7 +1100,7 @@ struct TABLE_SHARE
   {
     if (is_view)
       return TABLE_REF_VIEW;
-    if (global_tmp_table())
+    if (is_gtt())
       return TABLE_REF_BASE_TABLE;
     switch (tmp_table) {
     case NO_TMP_TABLE:
@@ -1259,15 +1259,21 @@ struct TABLE_SHARE
   }
   bool on_commit_delete() const
   { return gtt_options & GTT_ON_COMMIT_DELETE_ROWS; }
-  bool global_tmp_table() const
-  {
-    /*
-      options & HA_LEX_CREATE_GLOBAL_TMP_TABLE is only true when
-      creating a global temporary table definition.
-    */
-    return gtt_options & GTT_TABLE;
-  }
-  bool local_tmp_table() const { return tmp_table && !global_tmp_table(); }
+  /*
+    GTT = global temporary table.
+    is_gtt() is true both for the GTT definition (the TABLE_SHARE in
+    the table definition cache) and for a GTT instance (the connection
+    local temporary table created from the definition). Only an
+    instance has tmp_table set. Use is_gtt_instance() to test for an
+    instance.
+  */
+  inline bool is_gtt() const { return gtt_options & GTT_TABLE; }
+  /* True for a connection local instance of a GTT */
+  inline bool is_gtt_instance() const { return tmp_table && is_gtt(); }
+  /* True for the GTT definition, opened from the table definition cache */
+  inline bool is_gtt_definition() const { return !tmp_table && is_gtt(); }
+  /* True for a table created with CREATE TEMPORARY TABLE */
+  inline bool is_local_tmp_table() const { return tmp_table && !is_gtt(); }
 };
 
 /* not NULL, but cannot be dereferenced */

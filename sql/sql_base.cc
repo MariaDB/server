@@ -1934,6 +1934,17 @@ bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
 
+/*
+  True if the table is opened as a GTT instance. A GTT definition
+  opened from the table definition cache is not an instance.
+*/
+
+static inline bool is_gtt_instance(const TABLE_LIST *tl)
+{
+  return tl->table && tl->table->s->is_gtt_instance();
+}
+
+
 /**
   Release the MDL lock on a global temporary table (GTT) definition.
 

@@ -32,7 +32,7 @@
 
 bool is_user_tmp_table(TMP_TABLE_SHARE *share)
 {
-  if (share->global_tmp_table())
+  if (share->is_gtt())
   {
     /*
       This is either a global temporary table (GTT) definition table or
@@ -314,7 +314,7 @@ TMP_TABLE_SHARE *THD::find_tmp_table_share(const char *key, size_t key_length,
     if (share->table_cache_key.length - tmp_table_suffix == key_length &&
         !memcmp(share->table_cache_key.str, key, key_length) &&
         (find_kind == TMP_TABLE_LOCAL_OR_GLOBAL ||
-         share->global_tmp_table() == (find_kind == TMP_TABLE_GLOBAL)))
+         share->is_gtt() == (find_kind == TMP_TABLE_GLOBAL)))
     {
       result= share;
       break;
@@ -1138,7 +1138,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
     Add share to the head of the temporary table share list.
     GTT instances are added to the end and counted.
   */
-  if (share->global_tmp_table())
+  if (share->is_gtt())
   {
     temporary_tables->push_back(share);
     temporary_tables->global_temporary_tables_count++;
@@ -1185,7 +1185,7 @@ TABLE *THD::find_temporary_table(const char *key, uint key_length,
     if (share->table_cache_key.length == key_length &&
         !memcmp(share->table_cache_key.str, key, key_length) &&
         (find_kind == TMP_TABLE_LOCAL_OR_GLOBAL ||
-         share->global_tmp_table() == (find_kind == TMP_TABLE_GLOBAL)))
+         share->is_gtt() == (find_kind == TMP_TABLE_GLOBAL)))
     {
       /* A matching TMP_TABLE_SHARE is found. */
 
@@ -1418,7 +1418,7 @@ void THD::global_tmp_drop_database(const Lex_ident_db &db)
   All_tmp_tables_list::Iterator it(*temporary_tables);
   while (TMP_TABLE_SHARE *share= it++)
   {
-    if (share->global_tmp_table() && share->db.streq(db))
+    if (share->is_gtt() && share->db.streq(db))
       drop_tmp_table_share(NULL, share, true);
   }
 }
@@ -1742,7 +1742,7 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
   }
-  if (share->global_tmp_table())
+  if (share->is_gtt())
   {
     /* Counted in create_temporary_table() */
     DBUG_ASSERT(temporary_tables->global_temporary_tables_count > 0);

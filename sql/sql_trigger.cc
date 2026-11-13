@@ -620,7 +620,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
   table= tables->table;
 
-  if (table->s->global_tmp_table())
+  if (table->s->is_gtt())
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), table->s->table_name.str);
     goto end;

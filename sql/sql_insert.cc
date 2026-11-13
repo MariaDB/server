@@ -4581,7 +4581,7 @@ bool select_insert::prepare_eof(bool in_create_table)
       (table->s->using_binlog() ||
        ((in_create_table &&
          (!table->s->tmp_table || thd->binlog_create_tmp_table()) &&
-         !table->s->global_tmp_table()))) &&
+         !table->s->is_gtt()))) &&
        (likely(!error) ||
         (!in_create_table &&
          (thd->transaction->stmt.modified_non_trans_table ||
@@ -4961,7 +4961,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
           definition in the table definition cache. Remove it, as we
           delete the definition.
         */
-        if (create_info->global_tmp_table())
+        if (create_info->is_gtt())
           tdc_remove_table(thd, table_list->db.str,
                            table_list->table_name.str);
         recover_rm_table();                     // Needed by Galera
@@ -5009,7 +5009,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     with temporary tables that will be logged later if needed.
   */
   save_table_creation_was_logged= table->s->table_creation_was_logged;
-  table->s->table_creation_was_logged= !table->s->global_tmp_table() ? 1 : 2;
+  table->s->table_creation_was_logged= !table->s->is_gtt() ? 1 : 2;
 
   /*
     mysql_lock_tables() below should never fail with request to reopen table
@@ -5099,7 +5099,7 @@ int select_create::postlock(THD *thd, TABLE **tables)
 
   TABLE const *const table = *tables;
   if ((thd->is_current_stmt_binlog_format_row() &&
-      !table->s->tmp_table) || table->s->global_tmp_table())
+      !table->s->tmp_table) || table->s->is_gtt())
     return binlog_show_create_table(thd, *tables, create_info);
   return 0;
 }
@@ -5248,7 +5248,7 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
   if (thd->binlog_ready())
   {
     DBUG_ASSERT(thd->is_current_stmt_binlog_format_row() ||
-                table->s->global_tmp_table());
+                table->s->is_gtt());
     StringBuffer<2048> query(system_charset_info);
     TABLE_LIST tmp_table_list;
     int errcode;
@@ -5264,7 +5264,7 @@ static int binlog_show_create_table(THD *thd, TABLE *table,
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
                               query.ptr(), query.length(),
                               /* is_trans */ TRUE,
-                              /* direct */ table->s->global_tmp_table(),
+                              /* direct */ table->s->is_gtt(),
                               /* suppress_use */ FALSE,
                               errcode) > 0;
   }
@@ -5411,7 +5411,7 @@ bool select_create::send_eof()
   }
   debug_crash_here("ddl_log_create_after_prepare_eof");
 
-  if (table->s->tmp_table && !table->s->global_tmp_table())
+  if (table->s->is_local_tmp_table())
   {
     /*
       Now is good time to add the new table to THD temporary tables list.
@@ -5552,7 +5552,7 @@ bool select_create::send_eof()
       locks of the replaced table are released by
       Sql_cmd_create_table_like::execute() at end of statement.
     */
-    if (create_info->pos_in_locked_tables && !create_info->global_tmp_table())
+    if (create_info->pos_in_locked_tables && !create_info->is_gtt())
     {
       /*
         If we are under lock tables, we have created a table that was
@@ -5618,8 +5618,8 @@ void select_create::abort_result_set()
   bool drop_table_was_logged= false;
   if (table)
   {
-    bool tmp_table= table->s->tmp_table && !table->s->global_tmp_table();
-    bool gtt_instance= table->s->global_tmp_table();
+    bool tmp_table=    table->s->is_local_tmp_table();
+    bool gtt_instance= table->s->is_gtt_instance();
     bool table_creation_was_logged= (!tmp_table ||
                                      table->s->table_creation_was_logged ||
                                      create_info->table_was_deleted);

@@ -226,7 +226,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
     if (current_table_list)
       mysql_ha_close_childs(thd, current_table_list, &next_global);
     thd->mark_tmp_table_as_free_for_reuse(table);
-    if (table->s->global_tmp_table())
+    if (table->s->is_gtt())
       table->mdl_ticket= NULL;
   }
   if (handler->mdl_request.ticket)

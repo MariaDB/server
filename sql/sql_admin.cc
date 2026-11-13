@@ -794,7 +794,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       goto send_result;
     }
 
-    if (table->table->s->global_tmp_table())
+    if (table->table->s->is_gtt())
     {
       result_code= HA_ADMIN_NOT_IMPLEMENTED;
       goto send_result;

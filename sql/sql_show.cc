@@ -2197,7 +2197,7 @@ end_options:
   append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
   append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
 
-  if (table->s->global_tmp_table())
+  if (table->s->is_gtt())
   {
     LEX_CSTRING on_commit= table->s->on_commit_delete()
                      ? LEX_CSTRING{STRING_WITH_LEN(" ON COMMIT DELETE ROWS")}
@@ -2308,7 +2308,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
 
-  if (share->global_tmp_table())
+  if (share->is_gtt())
     packet->append(STRING_WITH_LEN("GLOBAL TEMPORARY "));
   else if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
@@ -5626,7 +5626,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       }
 
       // We should skip it to hide the local table, with Temporary='Y'
-      if (share_temp->global_tmp_table())
+      if (share_temp->is_gtt())
         continue;
 
       TABLE *tmp_tbl= share_temp->all_tmp_tables.front();
