@@ -1728,6 +1728,21 @@ PageConverter::adjust_cluster_index_blob_column(
 
 	field += len - (BTR_EXTERN_FIELD_REF_SIZE - BTR_EXTERN_SPACE_ID);
 
+	/* The length cannot exceed 4GiB: that is the
+	maximum possible size of any InnoDB column. */
+	if (mach_read_from_4(field + BTR_EXTERN_LEN)
+	    & ~((BTR_EXTERN_OWNER_FLAG | BTR_EXTERN_INHERITED_FLAG) << 24)) {
+
+		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ER_INNODB_INDEX_CORRUPT,
+			"Externally stored column(" ULINTPF
+			") has an impossible BLOB length"
+			" in the cluster index %s",
+			i, m_cluster_index->name());
+
+		return(DB_CORRUPTION);
+	}
+
 	mach_write_to_4(field, get_space_id());
 
 	if (UNIV_LIKELY_NULL(m_rec_iter.current_block()->page.zip.data)) {
@@ -1864,6 +1879,19 @@ PageConverter::update_records(
 	ibool	comp = dict_table_is_comp(m_cfg->m_table);
 	bool	clust_index = m_index->m_srv_index == m_cluster_index;
 
+	const page_t* const page = block->page.frame;
+
+	/* Validate the heap top, the record list and the directory */
+	if (!(comp ? page_simple_validate_new(page)
+	      : page_simple_validate_old(page))) {
+		return DB_CORRUPTION;
+	}
+
+	const byte* const heap_top = page
+		+ page_header_get_field(page, PAGE_HEAP_TOP);
+	const byte* const heap_start = page
+		+ (comp ? PAGE_NEW_SUPREMUM_END : PAGE_OLD_SUPREMUM_END);
+
 	/* This will also position the cursor on the first user record. */
 	rec_t* rec = m_rec_iter.open(block, m_index->m_srv_index);
 
@@ -1877,6 +1905,12 @@ PageConverter::update_records(
 	    && m_index->m_srv_index->is_instant()) {
 		/* Expect to find the hidden metadata record */
 		if (page_rec_is_supremum(rec)) {
+			return DB_CORRUPTION;
+		}
+
+		/* A corrupted "next record" pointer could point
+		outside the record heap. */
+		if (rec < heap_start || rec >= heap_top) {
 			return DB_CORRUPTION;
 		}
 
@@ -1897,6 +1931,11 @@ PageConverter::update_records(
 
 	while (!m_rec_iter.end()) {
 		rec = m_rec_iter.current();
+
+		if (rec < heap_start || rec >= heap_top) {
+			return DB_CORRUPTION;
+		}
+
 		deleted = rec_get_deleted_flag(rec, comp);
 
 		/* For the clustered index we have to adjust the BLOB
@@ -1910,6 +1949,18 @@ first:
 				rec, m_index->m_srv_index, m_offsets,
 				m_index->m_srv_index->n_core_fields,
 				ULINT_UNDEFINED, &m_heap);
+
+			/* The record must lie entirely within the
+			record heap, and must contain the system
+			columns that we will write. */
+			if (rec - rec_offs_extra_size(m_offsets) < heap_start
+			    || rec + rec_offs_data_size(m_offsets) > heap_top
+			    || (clust_index
+				&& rec_offs_n_fields(m_offsets)
+				<= (m_cluster_index->n_uniq
+				    ? m_cluster_index->n_uniq : 1) + 1)) {
+				return DB_CORRUPTION;
+			}
 		}
 
 		if (clust_index) {
