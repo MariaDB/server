@@ -1946,29 +1946,77 @@ static inline bool is_gtt_instance(const TABLE_LIST *tl)
 
 
 /**
-  Release the MDL lock on a global temporary table (GTT) definition.
+  Release the MDL locks on global temporary table (GTT) definitions
 
   A GTT instance is local to the connection, like a local temporary
-  table, and needs no MDL lock after it has been created. The lock is
-  only released if it was taken by this statement and is not shared
-  with another TABLE_LIST in the statement.
+  table, and needs no MDL lock after it has been created.
+
+  open_and_process_table() counts, in the GTT instance share, the
+  elements in the list that use the instance and hold an MDL ticket on
+  the GTT definition. If the count is 1, the ticket is only used by one
+  element and can be released directly. Otherwise the following
+  elements can hold the same ticket, which is shared by all elements
+  that requested the same or a weaker lock. Those are cleared before
+  the ticket is released, so that the ticket is released only once.
+  One GTT instance can also have several different tickets, for
+  example from LOCK TABLES of the same GTT with READ and WRITE. Each
+  of them is released once
+
+  This is not used for statements that commit at end, like CREATE TABLE
+  ... SELECT. These are the only statements where an element that is
+  not a GTT instance, the OPEN_STUB target table, can share a ticket
+  with a GTT instance. Their locks are released at end of statement.
+
+  @param tables   List of opened tables, linked with next_global
+  @param release  If false, only reset the counts. The locks are kept,
+                  or released by a rollback to an MDL savepoint.
 */
 
-static void release_gtt_mdl_lock(THD *thd, TABLE_LIST *table_list,
-                                 Open_table_context *ot_ctx)
+static void release_gtt_mdl_locks(THD *thd, TABLE_LIST *tables,
+                                  bool release)
 {
-  MDL_ticket *ticket= table_list->mdl_request.ticket;
-
-  if (!ticket ||
-      thd->mdl_context.has_lock(ot_ctx->start_of_statement_svp(), ticket))
-    return;
-  for (TABLE_LIST *tl= thd->lex->query_tables; tl; tl= tl->next_global)
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
-    if (tl != table_list && tl->mdl_request.ticket == ticket)
-      return;
+    MDL_ticket *ticket= tl->mdl_request.ticket;
+    TMP_TABLE_SHARE *share;
+
+    if (!ticket || !is_gtt_instance(tl))
+      continue;
+    share= tmp_table_share(tl->table);
+    DBUG_ASSERT(share->gtt_mdl_count > 0);
+    share->gtt_mdl_count--;
+    if (!release)
+      continue;
+    if (unlikely(share->gtt_mdl_count))
+    {
+      /* Forget the ticket in the following elements using it */
+      for (TABLE_LIST *next= tl->next_global; next; next= next->next_global)
+      {
+        if (next->mdl_request.ticket == ticket)
+        {
+          /* Only GTT instances can share a ticket with a GTT instance */
+          DBUG_ASSERT(is_gtt_instance(next));
+          next->mdl_request.ticket= NULL;
+          if (!--share->gtt_mdl_count)
+            break;
+        }
+      }
+    }
+    /*
+      share->gtt_mdl_count may not be 0 here if a following element
+      holds a different ticket for the same GTT instance.
+    */
+    thd->mdl_context.release_lock(tl->mdl_request.duration, ticket);
+    tl->mdl_request.ticket= NULL;
   }
-  thd->mdl_context.release_lock(table_list->mdl_request.duration, ticket);
-  table_list->mdl_request.ticket= NULL;
+#ifndef DBUG_OFF
+  /* Check that the all gtt_mdl_count are 0 (all locks are handled) */
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    if (is_gtt_instance(tl))
+      DBUG_ASSERT(tmp_table_share(tl->table)->gtt_mdl_count == 0);
+  }
+#endif
 }
 
 
@@ -2148,7 +2196,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       if (table->s->table_cache_key.length == key_length &&
 	  !memcmp(table->s->table_cache_key.str, key, key_length) &&
-          !(skip_gtt_definition && table->s->global_tmp_table()))
+          !(skip_gtt_definition && table->s->is_gtt()))
       {
         if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
@@ -2202,7 +2250,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
         DBUG_RETURN(true);
 #endif
       /* A GTT definition is only used if the statement asks for it */
-      DBUG_ASSERT(!best_table->s->global_tmp_table() ||
+      DBUG_ASSERT(!best_table->s->is_gtt() ||
                   thd->use_real_global_temporary_share(table_list));
       goto reset;
     }
@@ -2446,9 +2494,7 @@ retry_share:
       {
         if (unlikely(open_global_temporary_table(thd, share, table_list)))
           goto err_lock;
-        /* The GTT instance does not need the MDL lock */
-        if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK))
-          release_gtt_mdl_lock(thd, table_list, ot_ctx);
+        /* The MDL lock is released by open_tables() */
         table= table_list->table;
         goto finalize;
       }
@@ -3540,6 +3586,7 @@ Open_table_context::Open_table_context(THD *thd, uint flags)
    m_action(OT_NO_ACTION),
    m_has_locks(thd->mdl_context.has_locks()),
    m_has_protection_against_grl(0),
+   m_has_gtt_mdl_locks(false),
    vers_create_count(0)
 {}
 
@@ -4426,6 +4473,14 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     goto end;
   }
 
+  /* Count the MDL locks of GTT instances, see release_gtt_mdl_locks() */
+  if (tables->mdl_request.ticket && is_gtt_instance(tables) &&
+      !(flags & MYSQL_OPEN_HAS_MDL_LOCK))
+  {
+    tmp_table_share(tables->table)->gtt_mdl_count++;
+    ot_ctx->set_has_gtt_mdl_locks();
+  }
+
   /*
     We can't rely on simple check for TABLE_LIST::view to determine
     that this is a view since during re-execution we might reopen
@@ -4918,6 +4973,9 @@ restart:
             have failed to open since closing tables can trigger removal of
             elements from the table list (if MERGE tables are involved),
           */
+          /* The locks are released by close_tables_for_reopen() */
+          if (ot_ctx.has_gtt_mdl_locks())
+            release_gtt_mdl_locks(thd, *start, false);
           close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
                                   false);
 
@@ -4988,6 +5046,9 @@ restart:
           /* F.ex. deadlock happened */
           if (ot_ctx.can_recover_from_failed_open())
           {
+            /* The locks are released by close_tables_for_reopen() */
+            if (ot_ctx.has_gtt_mdl_locks())
+              release_gtt_mdl_locks(thd, *start, false);
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp(),
                                     true);
@@ -5117,6 +5178,16 @@ restart:
   }
 
 error:
+  /*
+    GTT instances do not need the MDL locks on their definitions. On
+    error, the locks are released by the caller.
+  */
+  if (ot_ctx.has_gtt_mdl_locks())
+    release_gtt_mdl_locks(thd, *start,
+                          !error &&
+                          !(thd->sql_command_flags() &
+                            CF_IMPLICIT_COMMIT_END));
+
   THD_STAGE_INFO(thd, stage_after_opening_tables);
   thd_proc_info(thd, 0);
 

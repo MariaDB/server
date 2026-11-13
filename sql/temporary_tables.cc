@@ -1114,6 +1114,7 @@ TMP_TABLE_SHARE *THD::create_temporary_table(LEX_CUSTRING *frm,
 
   /* Initialize the all_tmp_tables list. */
   share->all_tmp_tables.empty();
+  share->gtt_mdl_count= 0;
 
   /*
     We need to alloc & initialize temporary_tables if this happens

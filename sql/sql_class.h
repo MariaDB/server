@@ -2035,7 +2035,21 @@ public:
     for this share.
   */
   All_share_tables_list all_tmp_tables;
+  /*
+    For a GTT instance: number of TABLE_LIST elements in the list being
+    opened by open_tables() that use this instance and hold an MDL
+    ticket on the GTT definition. See release_gtt_mdl_locks().
+  */
+  uint gtt_mdl_count;
 };
+
+/* Return the TMP_TABLE_SHARE of an opened temporary table */
+
+static inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
+{
+  DBUG_ASSERT(table->s->tmp_table);
+  return static_cast<TMP_TABLE_SHARE *>(table->s);
+}
 
 /**
   Helper class which specifies which members of TMP_TABLE_SHARE are
@@ -6038,12 +6052,6 @@ private:
   {
     return uint4korr(share->table_cache_key.str +
                      share->table_cache_key.length - 4);
-  }
-
-  static inline TMP_TABLE_SHARE *tmp_table_share(TABLE *table)
-  {
-    DBUG_ASSERT(table->s->tmp_table);
-    return static_cast<TMP_TABLE_SHARE *>(table->s);
   }
 
 public:

@@ -613,6 +613,10 @@ public:
     return (bool) (m_has_protection_against_grl & MDL_BIT(mdl_type));
   }
 
+  /* A GTT instance was opened with an MDL lock on its definition */
+  void set_has_gtt_mdl_locks() { m_has_gtt_mdl_locks= true; }
+  bool has_gtt_mdl_locks() const { return m_has_gtt_mdl_locks; }
+
 private:
   /* THD for which tables are opened. */
   THD *m_thd;
@@ -643,6 +647,8 @@ private:
     protection against global read lock.
   */
   mdl_bitmap_t m_has_protection_against_grl;
+  /* See set_has_gtt_mdl_locks() */
+  bool m_has_gtt_mdl_locks;
 
 public:
   uint vers_create_count;
