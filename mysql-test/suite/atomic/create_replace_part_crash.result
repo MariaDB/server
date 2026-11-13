@@ -1,0 +1,17 @@
+CREATE TABLE t0 (a INT) ENGINE=InnoDB;
+INSERT INTO t0 VALUES (1),(2),(3);
+CREATE TABLE t1 (b INT) ENGINE=InnoDB PARTITION BY HASH (b) PARTITIONS 2;
+INSERT INTO t1 VALUES (10),(20);
+# Crash during CREATE OR REPLACE of a partitioned InnoDB table
+set @@debug_dbug="+d,ddl_log_create_after_create_table",@debug_crash_counter=1;
+CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB PARTITION BY HASH (a) PARTITIONS 2 SELECT a FROM t0;
+# No orphaned partition tablespaces or .par files must survive recovery.
+# Before the fix this listed t1#P#p0.ibd, t1#P#p1.ibd and t1.par.
+# The table can be (re)created partitioned: no leftover tablespace clash.
+# Before the fix this failed with ER_TABLE_EXISTS_ERROR (1050).
+CREATE OR REPLACE TABLE t1 (c INT) ENGINE=InnoDB PARTITION BY HASH (c) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+DROP TABLE t1, t0;
