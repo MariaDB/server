@@ -1,0 +1,257 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+if ($SP_PROTOCOL)
+{
+  --skip Test runs statements as users without privileges on the sp-protocol wrapper
+}
+
+--echo #
+--echo # MDEV-42186: Replay warnings must not reveal which tables a view uses,
+--echo # when the user has NO access to the table definition.
+--echo #
+
+CREATE TABLE secret_t1 (a INT PRIMARY KEY, b INT, KEY idx_b (b));
+CREATE TABLE secret_t2 (a INT PRIMARY KEY, c INT, KEY idx_c (c));
+INSERT INTO secret_t1 VALUES (1,1),(2,2),(3,3),(4,4);
+INSERT INTO secret_t2 VALUES (1,10),(2,20),(3,30),(4,40);
+CREATE SQL SECURITY DEFINER VIEW v1 AS
+SELECT secret_t1.a, secret_t1.b, secret_t2.c
+FROM secret_t1 JOIN secret_t2 USING (a);
+
+
+--echo # A table with two composite indexes, so that index_merge intersect
+--echo # (ROR) costing calls records_in_range():
+CREATE TABLE secret_t3 (a INT PRIMARY KEY, b INT, c INT, d INT,
+                        KEY k1 (b,c), KEY k2 (c,d)) ENGINE=InnoDB;
+INSERT INTO secret_t3 SELECT seq, seq%50, seq%30, seq%40 FROM seq_1_to_5000;
+ANALYZE TABLE secret_t3;
+--echo # The view has a hidden predicate (c=7) that the user doesn't know about:
+CREATE SQL SECURITY DEFINER VIEW v2 AS SELECT a, b, c, d FROM secret_t3 WHERE c=7;
+
+CREATE USER u1@localhost;
+GRANT SELECT ON test.v1 TO u1@localhost;
+GRANT SELECT ON test.v2 TO u1@localhost;
+
+connect (con1,localhost,u1,,test);
+
+--echo # The user can't see the tables or the view definition:
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM secret_t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+SHOW CREATE VIEW v1;
+select * from v1;
+
+--echo # A replay context that mentions only a dummy table:
+let $ctx_json= {"tables":[{"name":"test.dummy","file_stat_records":1,"data_file_length":1,"index_file_length":1,"mean_rec_length":1,"read_cost_io":1,"read_cost_cpu":1}]};
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+
+--echo # BUG if the warnings below name test.secret_t1 / test.secret_t2 / their indexes
+SELECT * FROM v1 WHERE b BETWEEN 1 AND 3;
+
+--echo # The user's query doesn't mention c at all.
+--echo # BUG if the warning below reveals test.secret_t3, its key number and
+--echo # the view's hidden constant (7) (records_in_range call)
+--disable_result_log
+SELECT * FROM v2 WHERE b=3 AND d=4;
+--enable_result_log
+SHOW WARNINGS;
+
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Column-level grants never enable the replay, even when they cover
+--echo # every column of the table: a table-level SELECT is required
+--echo #
+
+connection default;
+CREATE TABLE pub_t (a INT PRIMARY KEY, b INT, c INT, KEY idx_b (b));
+INSERT INTO pub_t VALUES (1,1,1),(2,2,2),(3,3,3),(4,4,4);
+CREATE USER u3@localhost;
+GRANT SELECT (a, b) ON test.pub_t TO u3@localhost;
+CREATE USER u4@localhost;
+GRANT SELECT (a, b, c) ON test.pub_t TO u4@localhost;
+
+connect (con3,localhost,u3,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--echo # Column c is not readable: no replay, no warnings
+--disable_result_log
+SELECT a, b FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con3;
+
+connect (con4,localhost,u4,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--echo # All columns are covered by column grants, still no replay, no warnings
+--disable_result_log
+SELECT a, b FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con4;
+
+--echo #
+--echo # One unreadable table disables the replay for the whole statement
+--echo #
+
+connection default;
+CREATE USER u5@localhost;
+GRANT SELECT ON test.pub_t TO u5@localhost;
+GRANT SELECT ON test.v1 TO u5@localhost;
+
+connect (con5,localhost,u5,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--disable_result_log
+SELECT * FROM pub_t JOIN v1 USING (a) WHERE pub_t.b < 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con5;
+
+--echo #
+--echo # A view over a view
+--echo #
+
+connection default;
+CREATE SQL SECURITY DEFINER VIEW v3 AS SELECT * FROM v1;
+GRANT SELECT ON test.v3 TO u1@localhost;
+
+connect (con1,localhost,u1,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--disable_result_log
+SELECT * FROM v3 WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con1;
+
+--echo #
+--echo # A prepared statement executed twice: the second execution doesn't
+--echo # reopen the view, the privilege check must still apply
+--echo #
+
+connect (con1,localhost,u1,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+PREPARE ps FROM 'SELECT * FROM v1 WHERE b BETWEEN 1 AND 3';
+--disable_result_log
+EXECUTE ps;
+SHOW WARNINGS;
+EXECUTE ps;
+SHOW WARNINGS;
+--enable_result_log
+DEALLOCATE PREPARE ps;
+disconnect con1;
+
+--echo #
+--echo # The replay must keep working when the invoker can read the table
+--echo #
+
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON test.pub_t TO u2@localhost;
+
+connect (con2,localhost,u2,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--echo # Table-level SELECT: the replay is applied, so the mismatch is reported
+--disable_result_log
+SELECT * FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con2;
+
+--echo #
+--echo # Tables used by a stored function are checked too. The check runs when
+--echo # the function is called, so the outer pub_t is still replayed.
+--echo #
+
+connection default;
+CREATE FUNCTION f1() RETURNS INT SQL SECURITY DEFINER
+  RETURN (SELECT MAX(b) FROM secret_t1);
+GRANT EXECUTE ON FUNCTION test.f1 TO u2@localhost;
+
+connect (con2,localhost,u2,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--disable_result_log
+SELECT f1() FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con2;
+
+--echo #
+--echo # A DEFINER trigger that reads a table the invoker can't read
+--echo #
+
+connection default;
+CREATE TABLE trg_t (a INT);
+CREATE TRIGGER trg_t_ai AFTER INSERT ON trg_t FOR EACH ROW
+  SET @max_b= (SELECT MAX(b) FROM secret_t1);
+GRANT SELECT, INSERT ON test.trg_t TO u2@localhost;
+
+connect (con2,localhost,u2,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--echo # Strict mode turns the replay mismatch warnings into errors for INSERT
+SET sql_mode='';
+--disable_result_log
+INSERT INTO trg_t SELECT a FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con2;
+
+--echo #
+--echo # A SQL SECURITY INVOKER function runs with the invoker's privileges
+--echo #
+
+connection default;
+CREATE FUNCTION f2() RETURNS INT SQL SECURITY INVOKER
+  RETURN (SELECT MAX(b) FROM pub_t);
+GRANT EXECUTE ON FUNCTION test.f2 TO u2@localhost;
+
+connect (con2,localhost,u2,,test);
+--eval SET @ctx='$ctx_json'
+SET optimizer_replay_context='ctx';
+--disable_result_log
+SELECT f2() FROM pub_t WHERE b BETWEEN 1 AND 3;
+--enable_result_log
+SHOW WARNINGS;
+disconnect con2;
+
+connection default;
+DROP FUNCTION f2;
+DROP TRIGGER trg_t_ai;
+DROP TABLE trg_t;
+DROP FUNCTION f1;
+DROP USER u2@localhost, u3@localhost, u4@localhost, u5@localhost;
+DROP VIEW v3;
+DROP TABLE pub_t;
+DROP USER u1@localhost;
+DROP VIEW v1, v2;
+DROP TABLE secret_t1, secret_t2, secret_t3;
+
+--echo #
+--echo # Single-table DELETE/UPDATE through a mergeable view keeps the view
+--echo # in the table list, it must not be checked as a base table
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE VIEW v1_mergeable AS SELECT a FROM t1;
+SET @ctx='{}';
+SET optimizer_replay_context='ctx';
+DELETE FROM v1_mergeable WHERE a=1;
+UPDATE v1_mergeable SET a=3;
+SET @ctx='';
+DELETE FROM v1_mergeable;
+SET optimizer_replay_context=DEFAULT;
+DROP VIEW v1_mergeable;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests
