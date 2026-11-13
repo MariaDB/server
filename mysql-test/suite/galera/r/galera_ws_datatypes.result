@@ -285,7 +285,7 @@ INSERT INTO fc_num (a,b,c,dt,e) VALUES
 # No matching parent row for this combination, the insert is rejected
 INSERT INTO fc_num (a,b,c,dt,e) VALUES
 (9.5, 9.25, '2026-01-01 10:00:00', '2026-01-01', '2026-01-01 10:00:00');
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`fc_num`, CONSTRAINT `fc_num_ibfk_1` FOREIGN KEY (`a`, `b`, `c`, `dt`, `e`) REFERENCES `fp_num` (`a`, `b`, `c`, `dt`, `e`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`fc_num`, CONSTRAINT `1` FOREIGN KEY (`a`, `b`, `c`, `dt`, `e`) REFERENCES `fp_num` (`a`, `b`, `c`, `dt`, `e`))
 connection node_2;
 SELECT COUNT(*) AS EXPECT_1 FROM fp_num;
 EXPECT_1
@@ -343,7 +343,7 @@ INSERT INTO mfc (a,b,c) VALUES (1,2,3);
 # Last column (c) is non-NULL and does not match: the constraint is
 # checked and fails
 INSERT INTO mfc (a,b,c) VALUES (1,2,99);
-ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`mfc`, CONSTRAINT `mfc_ibfk_1` FOREIGN KEY (`a`, `b`, `c`) REFERENCES `mfp` (`a`, `b`, `c`))
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`mfc`, CONSTRAINT `1` FOREIGN KEY (`a`, `b`, `c`) REFERENCES `mfp` (`a`, `b`, `c`))
 connection node_2;
 SELECT COUNT(*) AS EXPECT_1 FROM mfp;
 EXPECT_1
