@@ -794,6 +794,31 @@ template<bool flag>
 void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
   MY_ATTRIBUTE((nonnull));
 
+
+/** Modify the delete-mark flag of a secondary index leaf record.
+If the index has_trx_id(), also overwrite the DB_TRX_ID of the
+record with the identifier of the transaction. For other indexes
+this is btr_rec_set_deleted().
+@tparam         flag    the value of the delete-mark flag
+@param          block   buffer block
+@param          rec     leaf page record
+@param          index   secondary index
+@param          mtr     mini-transaction  */
+template<bool flag>
+void btr_rec_set_deleted_sec(buf_block_t *block, rec_t *rec,
+                             const dict_index_t *index, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
+
+/** Store DB_TRX_ID into the trailing field of a secondary index
+entry that is about to be inserted or that is used to build a record.
+@param  entry   leaf entry
+@param  index   secondary index
+@param  trx_id  transaction identifier */
+void btr_cur_write_sec_trx_id(dtuple_t *entry, const dict_index_t *index,
+                              trx_id_t trx_id)
+  MY_ATTRIBUTE((nonnull));
+
+
 /** If pessimistic delete fails because of lack of file space, there
 is still a good change of success a little later.  Try this many
 times. */
