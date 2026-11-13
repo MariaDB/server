@@ -93,4 +93,17 @@ show status like 'test_sql_query_result';
 drop table t1;
 uninstall plugin test_sql_service;
 
+--echo #
+--echo # MDEV-BUGFIX-2 Closing a connection frees the results not read: the OK
+--echo # after the rows of a CALL
+--echo #
+install plugin test_sql_service soname 'test_sql_service';
+create procedure test.p() select 1 as a union all select 2;
+set global test_sql_service_execute_sql_local= 'call test.p()';
+show status like 'test_sql_query_result';
+set global test_sql_service_execute_sql_global= 'call test.p()';
+show status like 'test_sql_query_result';
+drop procedure test.p;
+uninstall plugin test_sql_service;
+
 --echo # End of 13.2 tests
