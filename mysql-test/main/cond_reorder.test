@@ -1,0 +1,144 @@
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-40439 Evaluate cheap subconditions before expensive ones
+--echo #            in WHERE and ON conditions
+--echo #
+
+# f() counts its calls in @calls. It is DETERMINISTIC because otherwise
+# used_tables() of a call would include RAND_TABLE_BIT, and a term like
+# f(t1.a) > 0 would not go to outer_ref_cond, but would be attached
+# to the last table of the subquery.
+DELIMITER |;
+CREATE FUNCTION f(x INT) RETURNS INT DETERMINISTIC
+BEGIN
+  SET @calls= @calls + 1;
+  RETURN x;
+END|
+DELIMITER ;|
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq % 5 FROM seq_1_to_10;
+CREATE TABLE t2 (k INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_10;
+# c is kept out of equalities, so that f(t3.c) stays on t3
+CREATE TABLE t3 (k INT, m INT, c INT);
+INSERT INTO t3 SELECT seq, seq % 2, seq FROM seq_1_to_10;
+CREATE TABLE t_one (a INT);
+INSERT INTO t_one VALUES (1);
+
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+
+# Equality propagation puts equalities like b = 1 before the other
+# conditions anyway, so the cheap conditions below are not equalities,
+# except for outer references, which it does not handle
+
+--disable_ps2_protocol
+--echo # AND: f() is called only for the 2 rows with b > 3
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3;
+SELECT @calls;
+
+--echo # OR: f() is called only for the 2 rows where b <> 1 is false
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) = 0 OR b <> 1;
+SELECT @calls;
+
+--echo # Correlated subquery: executed only for the 2 rows with b > 3
+SET @cnt= 0;
+SELECT COUNT(*) FROM t1
+WHERE (SELECT MAX(t2.k) + 0 * (@cnt:= @cnt + 1) FROM t2 WHERE t2.k = t1.a) > 0
+  AND t1.b > 3;
+SELECT @cnt;
+
+--echo # Outer join, nested loops: ON condition inside trigger conditions.
+--echo # f() is called only for the 5 matches with m > 0, twice each: the
+--echo # condition is checked again when the first match is found
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 0;
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 LEFT JOIN t3 ON t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+SELECT @calls;
+SET join_cache_level= @save_join_cache_level;
+
+--echo # BNL scan filter, built in make_join_select():
+--echo # f() is called only for the 5 rows of t3 with m > 0
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t3
+WHERE t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+SELECT @calls;
+
+--echo # BNL scan filter of an inner table, built in check_join_cache_usage().
+--echo # f() is called for the 5 rows of t3 with m > 0, and twice for each
+--echo # of the 5 matches in the join condition, which keeps the whole ON
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 LEFT JOIN t3 ON t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+SELECT @calls;
+
+--echo # outer_ref_cond: f() is called only for the 2 outer rows with b = 1
+SET @calls= 0;
+SELECT a, (SELECT MAX(t3.k) FROM t3
+           WHERE f(t1.a) > 0 AND t1.b = 1 AND t3.k <= t1.a) AS m
+FROM t1;
+SELECT @calls;
+
+--echo # outer_ref_cond with only const tables in the subquery: the same
+SET @calls= 0;
+SELECT a, (SELECT MAX(t_one.a) FROM t_one
+           WHERE f(t1.a) > 0 AND t1.b = 1) AS m
+FROM t1;
+SELECT @calls;
+
+# Terms with RAND_TABLE_BIT and no columns are attached at the end of the
+# last table's condition, so the ones below refer to t1.a to stay in place
+
+--echo # Non-deterministic RAND(): the AND keeps its order, f() is called
+--echo # for all 10 rows
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND RAND(1) < a AND b > 3;
+SELECT @calls;
+
+--echo # Nested lists are still processed: f() is called only for
+--echo # the 8 rows where b > 3 is false
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE (f(a) > 0 OR b > 3) AND RAND(1) < a;
+SELECT @calls;
+
+--echo # A user variable assigned by the statement: the order is kept,
+--echo # f() is called and @v is updated for all 10 rows
+SET @calls= 0, @v= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND (@v:= @v + a) > 0 AND b > 3;
+SELECT @calls, @v;
+
+--echo # Prepared statement: the same order in every execution
+PREPARE st FROM 'SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3';
+SET @calls= 0;
+EXECUTE st;
+SELECT @calls;
+SET @calls= 0;
+EXECUTE st;
+SELECT @calls;
+DEALLOCATE PREPARE st;
+--enable_ps2_protocol
+
+--echo # EXPLAIN shows the final order
+--source include/explain-no-costs.inc
+EXPLAIN FORMAT=JSON SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3;
+--source include/explain-no-costs.inc
+EXPLAIN FORMAT=JSON
+SELECT a, (SELECT MAX(t3.k) FROM t3
+           WHERE f(t1.a) > 0 AND t1.b = 1 AND t3.k <= t1.a) AS m
+FROM t1;
+
+--echo # RAND() stays after the subquery
+--source include/explain-no-costs.inc
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1
+WHERE t1.a >= (SELECT MAX(t2.k) FROM t2 WHERE t2.k = t1.b) AND RAND() < 0.5;
+
+SET optimizer_switch= @save_optimizer_switch;
+DROP FUNCTION f;
+DROP TABLE t1, t2, t3, t_one;
+
+--echo # End of 13.2 tests
