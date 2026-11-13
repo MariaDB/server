@@ -5453,6 +5453,14 @@ bool select_create::send_eof()
               WSREP_SERVICE_KEY_EXCLUSIVE);
       rcode= rcode || wsrep_append_table_keys(thd, nullptr, select_tables,
               WSREP_SERVICE_KEY_SHARED);
+      /*
+        CREATE OR REPLACE dropped the old table, InnoDB X-locked its
+        FOREIGN KEY child tables (MDEV-39955). The new table has the same
+        children.
+      */
+      if (create_info->or_replace())
+        rcode= rcode || wsrep_append_child_table_keys(thd, table,
+                WSREP_SERVICE_KEY_EXCLUSIVE);
       if (rcode)
       {
         DBUG_PRINT("wsrep", ("row key failed: %d", rcode));
