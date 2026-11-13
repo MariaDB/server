@@ -2059,10 +2059,14 @@ void Optimizer_context_replay::restore_modified_table_stats()
 }
 
 /*
-  Returns if the in memory representation of the
-  parsed replay json context contain any records
+  Returns true if the replay can be used: the user has privilege to read
+  the context, and the in memory representation of the parsed replay json
+  context contains any records
 */
-bool Optimizer_context_replay::has_records() { return !ctx_list.is_empty(); }
+bool Optimizer_context_replay::has_records()
+{
+  return !missing_priv && !ctx_list.is_empty();
+}
 
 /*
   parse the replay json context that abides to the structure defined in

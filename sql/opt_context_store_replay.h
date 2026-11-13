@@ -203,6 +203,7 @@ public:
   /* Restore the saved statistics back (to be done at query end) */
   void restore_modified_table_stats();
 
+  void missing_privilege() { missing_priv= true; }
   /*
     "Infusion" functions.
     When the optimizer needs some data, for example to call index_read_cost(),
@@ -240,6 +241,10 @@ private:
   List<Saved_table_stats> saved_table_stats;
 
   List<table_context_for_replay> ctx_list;
+  /*
+    If true, the user doesn't have enough privileges to see the context.
+  */
+  bool missing_priv= false;
   bool parse();
   bool has_records();
   Mem_root_dynamic_array<double> *

@@ -143,25 +143,35 @@ void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
   writer->add("expanded_query", str.c_ptr_safe(), str.length());
 }
 
+/* @return true if the optimizer context recorder or replay is in use */
+static inline bool opt_ctx_in_use(THD *thd)
+{
+  return thd->opt_ctx_recorder || thd->opt_ctx_replay;
+}
+
 /*
-  Report that the invoker lacks privileges: both the optimizer trace and the
-  optimizer context recorder must not expose their output.
+  Report that the invoker lacks privileges: All of the optimizer trace,
+  optimizer context recorder, and optimizer context replay
+  must not expose their output.
 */
 static void report_missing_privilege(THD *thd)
 {
   thd->opt_trace.missing_privilege();
   if (thd->opt_ctx_recorder)
     thd->opt_ctx_recorder->missing_privilege();
+  if (thd->opt_ctx_replay)
+    thd->opt_ctx_replay->missing_privilege();
 }
 
 /*
-  @return true if there is nothing to protect: neither a started optimizer
-  trace nor an optimizer context recorder would expose anything.
+  @return true if there is nothing to protect: none of started optimizer
+  trace, optimizer context recorder, optimizer context replay
+  would expose anything.
 */
 static bool opt_trace_no_output_to_protect(THD *thd)
 {
   return thd->system_thread ||
-         (likely(!thd->opt_ctx_recorder) &&
+         (likely(!opt_ctx_in_use(thd)) &&
           (likely(!(thd->variables.optimizer_trace &
                     Opt_trace_context::FLAG_ENABLED)) ||
            likely(!thd->trace_started())));
@@ -170,7 +180,7 @@ static bool opt_trace_no_output_to_protect(THD *thd)
 void opt_trace_disable_if_no_security_context_access(THD *thd)
 {
   if (thd->system_thread ||                                 // (2)
-      (likely(!thd->opt_ctx_recorder) &&
+      (likely(!opt_ctx_in_use(thd)) &&
        likely(!(thd->variables.optimizer_trace &
                 Opt_trace_context::FLAG_ENABLED))))         // (1)
   {
@@ -181,8 +191,8 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
       If it does not stay so, it means the definer sets it to "on" somewhere
       in the routine's body. Then it is his conscious decision to generate
       traces, thus it is still correct to skip the security check.
-      This does not apply to the optimizer context recorder: it is enabled
-      by the invoker, regardless of the trace.
+      This does not apply to the optimizer context recorder and replay: they
+      are enabled by the invoker, regardless of the trace.
 
       (2) Threads of the Events Scheduler have an unusual security context
       (thd->m_main_security_ctx.priv_user==NULL, see comment in
@@ -190,7 +200,7 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     */
     return;
   }
-  if (unlikely(!thd->trace_started()) && !thd->opt_ctx_recorder)
+  if (unlikely(!thd->trace_started()) && !opt_ctx_in_use(thd))
   {
     /*
       @@optimizer_trace has "enabled=on" but trace is not started.
@@ -254,7 +264,7 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
 }
 
 /**
-   If tracing is on, checks additional privileges on a list of tables/views,
+   If tracing, context recording or replay is on, checks additional privileges on a list of tables/views,
    to make sure that the user has the right to do SHOW CREATE TABLE/VIEW and
    "SELECT *". For that:
    - this functions checks table-level SELECT
