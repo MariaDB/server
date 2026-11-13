@@ -134,7 +134,9 @@ void trx_undo_page_init(const buf_block_t &block);
 
 /** Allocate an undo log page.
 @param[in,out]	undo	undo log
-@param[in,out]	mtr	mini-transaction that does not hold any page latch
+@param[in,out]	mtr	mini-transaction. Until it is committed, the
+			calling thread must not allocate or free pages of
+			the tablespace of undo in another mini-transaction.
 @param[out]	err	error code
 @return	X-latched block if success
 @retval	nullptr	on failure */
@@ -401,6 +403,19 @@ private:
 					/*!< Size of the transaction undo
 					log page header, in bytes */
 /* @} */
+
+/** Determine how large an undo log record may be. An undo log record
+is never split between pages, so a record that does not fit on an empty
+undo log page cannot be written at all.
+@return the maximum size of an undo log record, in bytes */
+inline size_t trx_undo_max_rec_size()
+{
+  /* This must agree with trx_undo_left() on a freshly initialized
+  undo log page, where TRX_UNDO_PAGE_FREE is
+  TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE. */
+  return srv_page_size - (TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE) -
+    (10 + FIL_PAGE_DATA_END);
+}
 
 /** An update undo segment with just one page can be reused if it has
 at most this many bytes used; we must leave space at least for one new undo

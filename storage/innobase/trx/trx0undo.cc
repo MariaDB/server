@@ -640,7 +640,9 @@ trx_undo_read_xid(const trx_ulogf_t* log_hdr, XID* xid)
 
 /** Allocate an undo log page.
 @param[in,out]	undo	undo log
-@param[in,out]	mtr	mini-transaction that does not hold any page latch
+@param[in,out]	mtr	mini-transaction. Until it is committed, the
+			calling thread must not allocate or free pages of
+			the tablespace of undo in another mini-transaction.
 @param[out]	err	error code
 @return	X-latched block if success
 @retval	nullptr	on failure */
