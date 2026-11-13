@@ -1,0 +1,30 @@
+--- full_backup.result
++++ full_backup,SERVER.result
+@@ -3,10 +3,6 @@
+ SET GLOBAL innodb_max_purge_lag_wait=0;
+ # xtrabackup backup
+ NOT FOUND /InnoDB: Allocated tablespace ID/ in backup.log
+-SELECT variable_value FROM information_schema.global_status
+-WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+-variable_value
+-0
+ INSERT INTO t VALUES(2);
+ # xtrabackup prepare
+ # shutdown server
+@@ -44,16 +40,3 @@
+ #
+ # MDEV-34713: mariadb_upgrade_info should be backed up and restored
+ #
+-CREATE TABLE t2(i INT) ENGINE INNODB;
+-INSERT INTO t2 VALUES(100);
+-# xtrabackup backup
+-# xtrabackup prepare
+-# shutdown server
+-# remove datadir
+-# xtrabackup move back
+-# restart: --innodb_undo_tablespaces=0
+-FOUND 1 /^[0-9]+\.[0-9]+\.[0-9]+/ in mariadb_upgrade_info
+-SELECT * FROM t2;
+-i
+-100
+-DROP TABLE t2;
