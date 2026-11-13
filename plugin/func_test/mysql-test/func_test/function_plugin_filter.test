@@ -1,0 +1,38 @@
+--source include/have_udf.inc
+
+--echo #
+--echo # MDEV-41352 SIGSEGV in Item_field::used_tables on a plugin aggregate
+--echo #            with FILTER
+--echo #
+
+CREATE TABLE t (c INT);
+SELECT test_plugin_count(1) FILTER (WHERE c) FROM t;
+DROP TABLE t;
+
+CREATE TABLE t (id INT PRIMARY KEY, g INT, v INT);
+INSERT INTO t VALUES (1,1,10),(2,1,20),(3,2,30),(4,2,NULL),(5,3,50);
+SELECT test_plugin_count(v) FILTER (WHERE v > 15) FROM t;
+SELECT count(v) FILTER (WHERE v > 15) AS c,
+       test_plugin_count(v) FILTER (WHERE v > 15) AS pc,
+       test_plugin_first(v) FILTER (WHERE v > 15) AS pf
+FROM t;
+SELECT g, count(v) FILTER (WHERE id > 1) AS c,
+       test_plugin_count(v) FILTER (WHERE id > 1) AS pc,
+       test_plugin_first(v) FILTER (WHERE id > 1) AS pf
+FROM t GROUP BY g ORDER BY g;
+SELECT count(DISTINCT g) FILTER (WHERE v > 15) AS c,
+       test_plugin_count(DISTINCT g) FILTER (WHERE v > 15) AS pc
+FROM t;
+SELECT id, count(v) FILTER (WHERE v > 15) OVER w AS c,
+       test_plugin_count(v) FILTER (WHERE v > 15) OVER w AS pc
+FROM t
+WINDOW w AS (ORDER BY id ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+ORDER BY id;
+--error ER_WRONG_USAGE
+SELECT test_plugin_count(v) FILTER (WHERE count(v) > 1) FROM t;
+CREATE VIEW v1 AS
+SELECT test_plugin_count(v) FILTER (WHERE v > 15) AS pc FROM t;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t;
