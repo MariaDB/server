@@ -162,9 +162,11 @@ source "$harness_path" $unrelated_port $own_port
 kill \$own_socat_pid 2>/dev/null || :
 DRIVER2
   close($dout);
-  chmod 0755, $driver_path;
 
-  my $result = `"$driver_path" 2>&1`;
+  # Invoked via bash, not executed directly: $MYSQLTEST_VARDIR can be
+  # on a noexec-mounted tmpfs, where a direct exec of the script file
+  # fails with "Permission denied" regardless of its mode bits.
+  my $result = `bash "$driver_path" 2>&1`;
   my $rc = $?;
 
   kill('TERM', -$unrelated_pid);
