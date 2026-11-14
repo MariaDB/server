@@ -1,0 +1,100 @@
+#
+# MDEV-42240 Case conversion of unallocated empty strings
+#
+SET NAMES utf8mb4;
+SELECT HEX(LOWER(REGEXP_SUBSTR('1', '[a-z]+'))) AS lower_empty,
+HEX(UPPER(REGEXP_SUBSTR('1', '[a-z]+'))) AS upper_empty;
+lower_empty	upper_empty
+	
+SELECT HEX(LCASE(SFORMAT(''))) AS lower_empty,
+HEX(UCASE(SFORMAT('', 'abc'))) AS upper_empty;
+lower_empty	upper_empty
+	
+SELECT CHARSET(LOWER(REGEXP_SUBSTR('1', '[a-z]+'))) AS lower_charset,
+CHARSET(UPPER(SFORMAT(''))) AS upper_charset;
+lower_charset	upper_charset
+utf8mb4	utf8mb4
+CREATE TABLE t1 (id INT, a VARCHAR(10) CHARACTER SET utf8mb4);
+INSERT INTO t1 VALUES (1, 'ABC'), (2, '1'), (3, NULL), (4, ''), (5, 'DeF');
+SELECT id, HEX(LOWER(REGEXP_SUBSTR(a, '[A-Za-z]+'))) AS lower_value,
+HEX(UPPER(REGEXP_SUBSTR(a, '[A-Za-z]+'))) AS upper_value
+FROM t1 ORDER BY id;
+id	lower_value	upper_value
+1	616263	414243
+2		
+3	NULL	NULL
+4		
+5	646566	444546
+SELECT id, HEX(LOWER(SFORMAT(a))) AS lower_value,
+HEX(UPPER(SFORMAT(a))) AS upper_value FROM t1 ORDER BY id;
+id	lower_value	upper_value
+1	616263	414243
+2	31	31
+3	NULL	NULL
+4		
+5	646566	444546
+SELECT id FROM t1 WHERE LOWER(REGEXP_SUBSTR(a, '[A-Za-z]+')) = ''
+  ORDER BY id;
+id
+2
+4
+SELECT id FROM t1 WHERE UPPER(SFORMAT(a)) = '' ORDER BY id;
+id
+4
+PREPARE stmt FROM
+"SELECT HEX(LOWER(REGEXP_SUBSTR(?, '[A-Za-z]+'))) AS value";
+SET @a='ABC';
+EXECUTE stmt USING @a;
+value
+616263
+SET @a='1';
+EXECUTE stmt USING @a;
+value
+
+SET @a=NULL;
+EXECUTE stmt USING @a;
+value
+NULL
+SET @a='DeF';
+EXECUTE stmt USING @a;
+value
+646566
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+SELECT LOWER(_utf8mb4 0xC384) AS lower_value,
+UPPER(_utf8mb4 0xC3A4) AS upper_value;
+lower_value	upper_value
+ä	Ä
+SELECT HEX(LOWER(_binary 'ABC')) AS binary_lower,
+HEX(UPPER(_binary 'abc')) AS binary_upper;
+binary_lower	binary_upper
+414243	616263
+SET NAMES latin1;
+SELECT HEX(LCASE(REGEXP_SUBSTR(_latin1 '1', _latin1 '[a-z]+')))
+AS lower_empty,
+HEX(UCASE(REGEXP_SUBSTR(_latin1 '1', _latin1 '[a-z]+')))
+AS upper_empty;
+lower_empty	upper_empty
+	
+SELECT HEX(LOWER(SFORMAT(_latin1 ''))) AS lower_empty,
+HEX(UPPER(SFORMAT(_latin1 '', _latin1 'abc'))) AS upper_empty;
+lower_empty	upper_empty
+	
+SELECT CHARSET(LOWER(REGEXP_SUBSTR(_latin1 '1', _latin1 '[a-z]+')))
+AS lower_charset,
+CHARSET(UPPER(SFORMAT(_latin1 ''))) AS upper_charset;
+lower_charset	upper_charset
+latin1	latin1
+SELECT LOWER(REGEXP_SUBSTR('ABC', '[A-Z]+')) AS lower_value,
+UPPER(REGEXP_SUBSTR('abc', '[a-z]+')) AS upper_value;
+lower_value	upper_value
+abc	ABC
+SELECT LOWER(NULL) AS lower_null, UPPER(NULL) AS upper_null;
+lower_null	upper_null
+NULL	NULL
+SELECT HEX(LOWER(SUBSTRING('abc', 5))) AS substring_empty,
+HEX(UPPER(EXTRACTVALUE('a', 'a'))) AS xml_empty;
+substring_empty	xml_empty
+	
+SET NAMES utf8mb4;
+# End of 11.4 tests

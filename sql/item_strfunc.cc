@@ -2029,6 +2029,16 @@ String *Item_str_conv::val_str(String *str)
     return nullptr;
   }
 
+  /*
+    REGEXP_SUBSTR() and SFORMAT() can return an empty String with a NULL buffer.
+    The case converters still need a valid pointer when the string is empty.
+  */
+  if (!res->length())
+  {
+    null_value= false;
+    return make_empty_result(str);
+  }
+
   size_t alloced_length= res->length() * multiply, len;
 
   if (str->alloc((alloced_length)))
