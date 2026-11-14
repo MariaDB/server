@@ -465,6 +465,8 @@ static bool send_prep_stmt(Prepared_statement *stmt, uint columns)
     Send types and names of placeholders to the client
     XXX: fix this nasty upcast from List<Item_param> to List<Item>
   */
+  /* The reply is written here, not by Protocol::end_statement() */
+  thd->set_disconnect_uninterruptible();
   error= my_net_write(net, buff, sizeof(buff));
   if (stmt->param_count && likely(!error))
   {

@@ -8,6 +8,7 @@
 --enable_result_log
 --enable_query_log
 
+call mtr.add_suppression("Client disconnected");
 SET spider_same_server_link=ON, spider_net_read_timeout=1;
 evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');

@@ -1,5 +1,8 @@
 --source include/not_embedded.inc
 
+# The client leaves in the middle of a statement
+call mtr.add_suppression("Client disconnected");
+
 connect (con1,localhost,root,,);
 connect (con2,localhost,root,,);
 connection con1;

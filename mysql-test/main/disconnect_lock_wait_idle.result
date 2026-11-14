@@ -1,0 +1,72 @@
+#
+# MDEV-38741 Client disconnect fails to abort a lock wait
+# The client disconnects after its statement is read, but before the
+# statement starts. The watcher finds the idle connection gone, and the
+# statement is aborted when it starts.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connect  con1,localhost,root;
+SET innodb_lock_wait_timeout=3600;
+SET DEBUG_SYNC='dispatch_command_before_set_command SIGNAL at_start WAIT_FOR go';
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_start';
+connection con1;
+disconnect con1;
+connection default;
+# The watcher finds the idle connection gone and notes it
+SET DEBUG_SYNC='now SIGNAL go';
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
+# COM_QUIT after the disconnect was noted is not a failure, nothing is logged
+# The client process quits at once, mysqltest would wait for the server
+SET DEBUG_SYNC='RESET';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_quit';
+SET DEBUG_SYNC='now SIGNAL go2';
+NOT FOUND matches in mysqld.1.err
+# A connection killed by someone else is not logged as a disconnect
+SET DEBUG_SYNC='RESET';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_kill';
+SET DEBUG_SYNC='now SIGNAL go3';
+NOT FOUND matches in mysqld.1.err
+# A command with only its reply left is not aborted, if the client leaves
+# after getting it. The lost connection is logged as usual.
+connect  con4,localhost,root;
+SET DEBUG_SYNC='dispatch_command_after_end_statement SIGNAL answered WAIT_FOR go4';
+SELECT 1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR answered';
+connection con4;
+1
+1
+disconnect con4;
+connection default;
+# The watcher notes the disconnect, the command is not killed
+SET DEBUG_SYNC='now SIGNAL go4';
+FOUND 1 matches in mysqld.1.err
+# A read-only SELECT sends its result before the statement ends, a
+# client that quits then is not aborted either
+connect  con5,localhost,root;
+SET DEBUG_SYNC='select_send_after_early_eof SIGNAL early WAIT_FOR go5';
+SELECT 1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR early';
+connection con5;
+1
+1
+disconnect con5;
+connection default;
+SET DEBUG_SYNC='now SIGNAL go5';
+FOUND 1 matches in mysqld.1.err
+disconnect blocker;
+SET DEBUG_SYNC='reset';
+DROP TABLE t1;
+# End of 13.2 tests

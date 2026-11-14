@@ -61,6 +61,8 @@ C_MODE_START
   #define SD_BOTH 0x02
 */
 #define SHUT_RDWR 0x02
+/* SHUT_WR is SD_SEND, 0x01 in winsock2.h */
+#define SHUT_WR 0x01
 #else
 #include <netdb.h>     /* getaddrinfo() & co */
 #endif

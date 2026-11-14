@@ -1,0 +1,79 @@
+#
+# MDEV-38741 Client disconnect fails to abort a lock wait
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+# Orderly disconnects log nothing, also if the thread is still finishing
+connection default;
+NOT FOUND matches in mysqld.1.err
+aborted_clients
+0
+# The default connection, a unix socket where there are any, then TCP
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
+FOUND 1 matches in mysqld.1.err
+aborted_clients
+1
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+# Disconnect abruptly, the server is not reading from the socket
+connection con1;
+disconnect con1;
+connection default;
+# The connection is logged once, with the reason
+FOUND 1 matches in mysqld.1.err
+FOUND 1 matches in mysqld.1.err
+aborted_clients
+1
+# With the watcher OFF, a connection is not aborted, if it was switched OFF
+# before the connection was made, and if after
+SET GLOBAL disconnect_watcher= OFF;
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+connection con1;
+disconnect con1;
+connection default;
+# Not noticed, the statement keeps waiting until the lock is released
+still_waiting
+1
+connection blocker;
+COMMIT;
+connection default;
+NOT FOUND matches in mysqld.1.err
+SET GLOBAL disconnect_watcher= 1;
+connection blocker;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+SET innodb_lock_wait_timeout=3600;
+SELECT * FROM t1 FOR UPDATE;
+connection default;
+SET GLOBAL disconnect_watcher= OFF;
+connection con1;
+disconnect con1;
+connection default;
+# Not noticed, the statement keeps waiting until the lock is released
+still_waiting
+1
+connection blocker;
+COMMIT;
+connection default;
+NOT FOUND matches in mysqld.1.err
+SET GLOBAL disconnect_watcher= 1;
+disconnect blocker;
+DROP TABLE t1;
+# End of 13.2 tests
