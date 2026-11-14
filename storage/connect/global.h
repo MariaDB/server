@@ -223,6 +223,8 @@ DllExport BOOL    PlugSubSet(void *, size_t);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport size_t  PlugSubAllocLeft(PGLOBAL, void *);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
+DllExport bool    PlugFmtName(PGLOBAL g, char *buf, size_t sz, char *pos,
+                              const char *format, ...);
 DllExport void    htrc(char const *fmt, ...);
 DllExport void    xtrc(uint, char const* fmt, ...);
 DllExport uint    GetTraceValue(void);

@@ -1,0 +1,225 @@
+#
+#  MDEV-42044: `information_schema.OPTIMIZER_CONTEXT` exposes row data, DDL ...
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, name VARCHAR(40), pw VARCHAR(40));
+INSERT INTO t1 VALUES (1,'alice','SECRET-1'),(2,'bob','SECRET-2');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+CREATE SQL SECURITY DEFINER VIEW v1 AS SELECT id, name FROM t1;
+CREATE TABLE t3 (id INT PRIMARY KEY, shown VARCHAR(40), hidden VARCHAR(40));
+INSERT INTO t3 VALUES (1,'shown-1','HIDDEN-1');
+CREATE FUNCTION f1() RETURNS VARCHAR(40) SQL SECURITY DEFINER
+RETURN (SELECT shown FROM t3 WHERE id=1);
+CREATE USER u1@localhost;
+GRANT SELECT ON test.v1 TO u1@localhost;
+CREATE USER u2@localhost;
+GRANT SELECT (id, name) ON test.t1 TO u2@localhost;
+CREATE USER u3@localhost;
+GRANT EXECUTE ON FUNCTION test.f1 TO u3@localhost;
+CREATE USER u4@localhost;
+GRANT SELECT ON test.t1 TO u4@localhost;
+CREATE USER u5@localhost;
+GRANT SELECT (id, name, pw) ON test.t1 TO u5@localhost;
+connect  con1,localhost,u1,,test;
+SHOW CREATE TABLE t1;
+ERROR 42000: SHOW command denied to user 'u1'@'localhost' for table `test`.`t1`
+SHOW CREATE VIEW v1;
+ERROR 42000: SHOW VIEW command denied to user 'u1'@'localhost' for table `test`.`v1`
+SET optimizer_record_context=ON;
+SELECT name FROM v1 WHERE id=1;
+name
+alice
+# BUG if 1 (CREATE TABLE of t1, incl. hidden column name)
+SELECT CONTEXT LIKE '%CREATE TABLE%`t1`%`pw`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+# BUG if 1 (view definition)
+SELECT CONTEXT LIKE '%CREATE%VIEW%test.v1 AS select%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+# The context is replaced with the marker
+SELECT CONTEXT FROM information_schema.OPTIMIZER_CONTEXT;
+CONTEXT
+select 'Insufficient privileges';
+# BUG if 1 (const-row lookup through the view dumped the hidden column)
+SELECT name FROM v1 WHERE id=1;
+name
+alice
+SELECT CONTEXT LIKE '%SECRET-1%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con1;
+connect  con2,localhost,u2,,test;
+SET optimizer_record_context=ON;
+SELECT MAX(id) FROM t1;
+MAX(id)
+2
+# BUG if 1 (full row of the MAX(id) row incl. hidden column)
+SELECT CONTEXT LIKE '%VALUES (2, ''bob'', ''SECRET-2'')%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+# The context is replaced with the marker
+SELECT CONTEXT FROM information_schema.OPTIMIZER_CONTEXT;
+CONTEXT
+select 'Insufficient privileges';
+SELECT pw FROM t1 WHERE id=2;
+ERROR 42000: SELECT command denied to user 'u2'@'localhost' for column 'pw' in table 't1'
+# BUG if 1 (const-row lookup by PK dumped the hidden column)
+SELECT name FROM t1 WHERE id=2;
+name
+bob
+SELECT CONTEXT LIKE '%SECRET-2%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con2;
+# Users who can read all columns: rows must still be recorded
+connect  con4,localhost,u4,,test;
+SET optimizer_record_context=ON;
+SELECT MAX(id) FROM t1;
+MAX(id)
+2
+SELECT CONTEXT LIKE '%VALUES (2, ''bob'', ''SECRET-2'')%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+disconnect con4;
+connect  con5,localhost,u5,,test;
+SET optimizer_record_context=ON;
+SELECT name FROM t1 WHERE id=2;
+name
+bob
+SELECT CONTEXT LIKE '%VALUES (2, ''bob'', ''SECRET-2'')%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con5;
+connect  con3,localhost,u3,,test;
+SELECT shown FROM t3;
+ERROR 42000: SELECT command denied to user 'u3'@'localhost' for table `test`.`t3`
+SET optimizer_record_context=ON;
+SELECT f1();
+f1()
+shown-1
+# BUG if 1 (column of t3 that f1() does not return)
+SELECT CONTEXT LIKE '%HIDDEN-1%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con3;
+# Column-level grants, query reads no row: DDL and persistent statistics
+# of the table still include the hidden column
+connect  con4,localhost,u2,,test;
+SET optimizer_record_context=ON;
+SELECT name FROM t1 WHERE id > 0;
+name
+alice
+bob
+# (hidden column in the DDL or statistics)
+SELECT CONTEXT LIKE '%`pw`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con4;
+# Function that is prelocked but not executed: its table is not covered
+# by the Optimizer Trace checks
+connect  con5,localhost,u3,,test;
+SET optimizer_record_context=ON;
+SELECT IF(0, f1(), 1) AS if_cond;
+if_cond
+1
+# (DDL of t3 including the hidden column)
+SELECT CONTEXT LIKE '%`hidden`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+disconnect con5;
+connection default;
+# DEFINER trigger which reads a table the invoker cannot read
+CREATE TABLE t4 (a INT, b INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t4 FOR EACH ROW
+SET NEW.b= (SELECT COUNT(*) FROM t3 WHERE id > 0);
+CREATE USER u6@localhost;
+GRANT INSERT, SELECT ON test.t4 TO u6@localhost;
+connect  con6,localhost,u6,,test;
+SET optimizer_record_context=ON;
+INSERT INTO t4(a) VALUES (1);
+# (DDL of t3 including the hidden column)
+SELECT CONTEXT LIKE '%`hidden`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+0
+disconnect con6;
+# Same with optimizer_trace=on: the trace must not expose it either
+connect  con7,localhost,u3,,test;
+SET optimizer_record_context=ON;
+SET optimizer_trace='enabled=on';
+SELECT IF(0, f1(), 1) AS if_cond;
+if_cond
+1
+SELECT CONTEXT LIKE '%`hidden`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+disconnect con7;
+connection default;
+# A fully privileged user gets the complete context for everything
+SET optimizer_record_context=ON;
+SELECT IF(0, f1(), 1) AS if_cond;
+if_cond
+1
+SELECT CONTEXT LIKE '%CREATE TABLE%`t3`%`hidden`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+SELECT name FROM v1 WHERE id=1;
+name
+alice
+SELECT CONTEXT LIKE '%CREATE%VIEW%v1%' AND CONTEXT LIKE '%CREATE TABLE%`t1`%`pw`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+INSERT INTO t4(a) VALUES (2);
+SELECT CONTEXT LIKE '%CREATE TABLE%`t3`%' AS has_perm FROM information_schema.OPTIMIZER_CONTEXT;
+has_perm
+1
+SET optimizer_record_context=OFF;
+DROP USER u1@localhost, u2@localhost, u3@localhost, u4@localhost, u5@localhost,
+u6@localhost;
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1, t3, t4;
+create table t1(a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+CREATE USER 'foo'@'%';
+grant select(a) on test.t1 to 'foo'@'%';
+change_user foo,,;
+use test;
+select sin(0) AS sin0;
+sin0
+0
+set optimizer_trace="enabled=on";
+set optimizer_record_context=1;
+select a,'q2' from test.t1;
+a	q2
+1	q2
+2	q2
+3	q2
+# INSUFFICIENT PRIVILEGES should be set to 1 
+# Trace and Query should be empty
+# foo has SELECT only on column a, but not on b, so nothing is recorded
+select * from information_schema.OPTIMIZER_TRACE;
+QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
+		0	1
+select * from information_schema.OPTIMIZER_CONTEXT;
+QUERY	CONTEXT
+select a,'q2' from test.t1	select 'Insufficient privileges';
+set optimizer_trace="enabled=off";
+SET optimizer_record_context=off;
+# Same, with the optimizer trace disabled
+set optimizer_record_context=1;
+select a,'q3' from test.t1;
+a	q3
+1	q3
+2	q3
+3	q3
+select * from information_schema.OPTIMIZER_CONTEXT;
+QUERY	CONTEXT
+select a,'q3' from test.t1	select 'Insufficient privileges';
+SET optimizer_record_context=off;
+change_user root,,;
+drop table test.t1;
+drop user if exists foo;
+# End of 13.1 tests

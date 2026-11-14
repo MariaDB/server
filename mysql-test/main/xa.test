@@ -830,4 +830,23 @@ xa commit 'c:foo';
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-41520 Unescaped XID bytes in SESSION_TRACK_TRANSACTION_CHARACTERISTICS
+--echo #
+set session session_track_transaction_info = 2;
+--enable_session_track_info
+xa start    x'2720', '', 1;
+xa end      x'2720', '', 1;
+xa rollback x'2720', '', 1;
+
+xa start    'x', '', 2;
+xa end      'x', '', 2;
+xa rollback 'x', '', 2;
+
+eval xa start    '$(repeat(1,64))', '$(repeat(2,64))', 1234567890;
+eval xa end      '$(repeat(1,64))', '$(repeat(2,64))', 1234567890;
+eval xa rollback '$(repeat(1,64))', '$(repeat(2,64))', 1234567890;
+--disable_session_track_info
+set session session_track_transaction_info = default;
+
 --echo # End of 10.11 tests

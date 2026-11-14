@@ -570,4 +570,22 @@ show create table t2;
 insert into t2 values (vec_fromtext('[1]'));
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-39822 MHNSW index returns wrong results for M >= 128
+--echo #
+--error ER_BAD_OPTION_VALUE
+create table t (v vector(1) not null, vector (v) m=200);
+
+# test for vector index table not matching server expectations
+call mtr.add_suppression('Index for table ''t1'' is corrupt; try to repair it');
+create table t1 (v vector(1) not null, vector index (v) m=100);
+create table t2 (v vector(1) not null, vector index (v) m=3);
+insert into t1 select vec_fromtext(concat('[', seq, ']')) from seq_1_to_20;
+flush tables;
+--remove_file $MARIADB_DATADIR/test/t1.frm
+--copy_file $MARIADB_DATADIR/test/t2.frm $MARIADB_DATADIR/test/t1.frm
+--error ER_NOT_KEYFILE 
+select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
+drop table t1, t2;
+
 --echo # End of 11.8 tests

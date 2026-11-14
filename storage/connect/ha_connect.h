@@ -1,4 +1,5 @@
-/* Copyright (C) MariaDB Corporation Ab
+/* Copyright (c) 2004, 2020, Olivier Bertrand.
+   Copyright (c) 2013, 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -196,6 +197,7 @@ public:
 //void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
+  bool     check_subtable_privileges(THD *thd, TABLE_SHARE *s, MODE mode);
   bool     IsPartitioned(void);
   bool     IsUnique(uint n);
   PCSZ     GetDataPath(void) {return datapath;}

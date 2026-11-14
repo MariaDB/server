@@ -315,3 +315,31 @@ DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/mulexp3.json
 --remove_file $MYSQLD_DATADIR/test/mulexp4.json
 --remove_file $MYSQLD_DATADIR/test/mulexp5.json
+
+--echo #
+--echo # Discovery of column names and paths that do not fit
+--echo #
+perl;
+  my $d= "$ENV{MARIADB_DATADIR}/test";
+  my %f= ('long1.json' => '[{"' . 'a' x 64 . '":1}]',
+          'long2.json' => '[{"' . 'a' x 65 . '":1}]',
+          'long3.json' => '[{"a":{"' . 'x' x 100 . '":{"' . 'y' x 300 . '":1}}}]');
+  while (my ($n, $s)= each %f) {
+    open my $fh, '>', "$d/$n" or die "open $d/$n: $!";
+    print $fh $s, "\n";
+    close $fh;
+  }
+EOF
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='long1.json';
+SELECT CHAR_LENGTH(column_name) FROM information_schema.columns
+  WHERE table_schema='test' AND table_name='t1';
+DROP TABLE t1;
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='long2.json';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='long3.json';
+--remove_file $MARIADB_DATADIR/test/long1.json
+--remove_file $MARIADB_DATADIR/test/long2.json
+--remove_file $MARIADB_DATADIR/test/long3.json
+
+--echo # End of 10.11 tests

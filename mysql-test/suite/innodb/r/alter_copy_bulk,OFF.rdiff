@@ -1,8 +1,12 @@
 --- bulk_copy_alter.result
 +++ bulk_copy_alter,non_bulk_alter_copy.result
-@@ -6,7 +6,7 @@
- INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
- ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+@@ -11,9 +11,9 @@
+ index_name	stat_name	stat_value
+ GEN_CLUST_INDEX	n_leaf_pages	1009
+ GEN_CLUST_INDEX	size	1059
+-f2	n_leaf_pages	63
++f2	n_leaf_pages	64
+ f2	size	97
  ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
 -ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
 +ERROR 23000: Duplicate entry 'aa' for key 'PRIMARY'

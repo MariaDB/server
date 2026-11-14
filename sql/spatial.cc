@@ -2276,10 +2276,10 @@ int Gis_polygon::is_valid(int *valid) const
   collector.prepare_operation();
   scan_it.init(&collector);
 
-  border_count= (char *) my_alloca(num_rings);
+  border_count= (char *) my_safe_alloca(num_rings);
   bzero(border_count, num_rings);
-  touches_count= (char *) my_alloca(num_rings);
-  internals= (char *) my_alloca(num_rings);
+  touches_count= (char *) my_safe_alloca(num_rings);
+  internals= (char *) my_safe_alloca(num_rings);
 
   while (scan_it.more_points())
   {
@@ -2376,9 +2376,9 @@ int Gis_polygon::is_valid(int *valid) const
 exit:
   collector.reset();
   scan_it.reset();
-  my_afree(border_count);
-  my_afree(touches_count);
-  my_afree(internals);
+  my_safe_afree(border_count, num_rings);
+  my_safe_afree(touches_count, num_rings);
+  my_safe_afree(internals, num_rings);
 
   return result;
 
@@ -3996,7 +3996,7 @@ int Gis_multi_polygon::is_valid(int *valid) const
   
   collector.prepare_operation();
   scan_it.init(&collector);
-  internals= (char *) my_alloca(num_geometries);
+  internals= (char *) my_safe_alloca(num_geometries);
 
   while (scan_it.more_points())
   {
@@ -4067,7 +4067,7 @@ int Gis_multi_polygon::is_valid(int *valid) const
 exit:
   collector.reset();
   scan_it.reset();
-  my_afree(internals);
+  my_safe_afree(internals, num_geometries);
   return result;
 }
 

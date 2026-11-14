@@ -341,3 +341,19 @@ part3	.txt
 DROP TABLE t1;
 DROP TABLE dr1;
 set @@global.connect_exact_info=OFF;
+#
+# MDEV-41946 CONNECT: table option value used as printf format string, crash in ha_connect::GetRealString
+#
+CREATE TABLE t1 (id INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=CSV
+FILE_NAME='P[%p-%d-%n-%%]-%s-%s.csv'
+  PARTITION BY RANGE(id) (PARTITION p1 VALUES LESS THAN(10),
+PARTITION p2 VALUES LESS THAN(MAXVALUE));
+INSERT INTO t1 VALUES (1),(20);
+SELECT * FROM t1;
+id
+1
+20
+P[%p-%d-%n-%%]-p1-%s.csv
+P[%p-%d-%n-%%]-p2-%s.csv
+DROP TABLE t1;
+# End of 10.11 tests
