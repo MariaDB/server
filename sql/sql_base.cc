@@ -8139,12 +8139,16 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
       bool any_privileges= ((Item_field *) item)->any_privileges;
       Item_subselect *subsel= thd->lex->current_select->master_unit()->item;
       if (subsel &&
-          subsel->substype() == Item_subselect::EXISTS_SUBS)
+          subsel->substype() == Item_subselect::EXISTS_SUBS &&
+          !select_lex->having)
       {
         /*
           It is EXISTS(SELECT * ...) and we can replace * by any constant.
 
           Item_int do not need fix_fields() because it is basic constant.
+          If the subquery contains a HAVING clause, '*' cannot be replaced
+          by a constant, because the HAVING clause may reference columns
+          that are visible through the '*' expansion (MDEV-31286).
         */
         it.replace(new (thd->mem_root) Item_int(thd, "Not_used", (longlong) 1,
                                 MY_INT64_NUM_DECIMAL_DIGITS));
