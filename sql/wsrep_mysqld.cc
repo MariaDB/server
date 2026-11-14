@@ -70,8 +70,6 @@ const char *wsrep_SR_store_types[]= { "none", "table", NullS };
  * Begin configuration options
  */
 
-extern my_bool plugins_are_initialized;
-
 /* System variables. */
 READ_ONLY_SYSVAR const char *wsrep_provider;
 const char *wsrep_provider_options;

@@ -1,4 +1,5 @@
 /* Copyright (C) 2013 Kentoku Shiba
+   Copyright (c) 2026, MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,6 +20,7 @@
 #include "mysql/plugin.h"
 #include "sql_class.h"
 #include "sql_i_s.h"
+#include "sql_acl.h"
 
 static const LEX_STRING metadata_lock_info_lock_name[] = {
   { C_STRING_WITH_LEN("Backup lock") },
@@ -63,6 +65,7 @@ struct st_i_s_metadata_param
 {
   THD   *thd;
   TABLE *table;
+  bool  see_all;
 };
 
 int i_s_metadata_lock_info_fill_row(
@@ -78,6 +81,19 @@ int i_s_metadata_lock_info_fill_row(
   const MDL_key *mdl_key = mdl_ticket->get_key();
   MDL_key::enum_mdl_namespace mdl_namespace = mdl_key->mdl_namespace();
   if (!granted)
+    DBUG_RETURN(0);
+  /*
+    Without PROCESS only locks of the same user's threads are visible.
+
+    Reading the owner's main_security_ctx is safe: the ticket is granted
+    and mdl_iterate() holds the lock's m_rwlock, so the owner cannot
+    release the ticket. And the owner releases all its tickets
+    (THD::cleanup()) before main_security_ctx can change (COM_CHANGE_USER)
+    or the THD is destroyed.
+  */
+  if (!param->see_all &&
+      !mdl_ctx->get_thd()->main_security_ctx.priv_user_matches(
+                                                         thd->security_ctx))
     DBUG_RETURN(0);
   table->field[0]->store((longlong) mdl_ctx->get_thread_id(), TRUE);
   table->field[1]->set_notnull();
@@ -122,6 +138,7 @@ int i_s_metadata_lock_info_fill_table(
   DBUG_ENTER("i_s_metadata_lock_info_fill_table");
   param.table = tables->table;
   param.thd = thd;
+  param.see_all = !check_global_access(thd, PROCESS_ACL, true);
   DBUG_RETURN(mdl_iterate(i_s_metadata_lock_info_fill_row, &param));
 }
 

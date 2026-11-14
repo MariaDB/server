@@ -5515,6 +5515,10 @@ static int init_server_components()
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
 
+  /* ignore_db_dirs is read-only once plugins are initialized */
+  if (opt_bin_log)
+    ignore_db_dirs_append(BINLOG_CACHE_DIR);
+
   /*
     Plugins may not be completed because system table DDLs are only
     run after the ddl recovery done. Therefore between the

@@ -14,4 +14,32 @@ c
 drop database test1;
 use test;
 drop procedure p1;
+set path default;
+#
+# MDEV-39596 Unexpected "No database selected" error for a CALL inside an anonymous block
+#
+create database test1;
+create procedure test1.p1() select 1;
+create function test1.f1() returns int return 2;
+create package pkg procedure p(); end; $$
+create package body pkg procedure p() select 'test.pkg.p'; end; $$
+begin not atomic call pkg.p(); end; $$
+test.pkg.p
+test.pkg.p
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+begin not atomic call test1.p1(); end; $$
+1
+1
+begin not atomic select test1.f1(); end; $$
+test1.f1()
+2
+begin not atomic call p1(); end; $$
+ERROR 3D000: No database selected
+begin not atomic call pkg.p(); end; $$
+ERROR 42000: PROCEDURE pkg.p does not exist
+use test;
+drop package pkg;
+drop database test1;
 # End of 12.3 tests

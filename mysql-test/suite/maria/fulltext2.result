@@ -91,3 +91,11 @@ select a from t1 where match(b) against ('ciao' in boolean mode);
 a
 1000
 drop table t1;
+#
+# MDEV-39752 use-of-uninitialized-value in ftb_parse_query_internal
+#
+CREATE TABLE t1 (c1 INT KEY,c2 TEXT,c3 JSON) ENGINE=Aria;
+SELECT * FROM t1 WHERE MATCH(c2) AGAINST ('(a ' IN BOOLEAN MODE);
+c1	c2	c3
+DROP TABLE t1;
+# End of 10.11 tests

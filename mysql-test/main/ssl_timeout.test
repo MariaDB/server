@@ -6,6 +6,7 @@ connect (ssl_con,localhost,root,,,,,SSL read_timeout=5$_timeout_adjustment);
 
 --echo # Check ssl turned on
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
+let $ssl_con_id= `SELECT CONNECTION_ID()`;
 
 # --error CR_SERVER_LOST
 --error 2013,2026
@@ -13,3 +14,12 @@ SELECT SLEEP(600);
 
 connection default;
 disconnect ssl_con;
+
+# The server side SLEEP(600) outlives the client, so later tests could see it
+--disable_query_log
+--error 0,ER_NO_SUCH_THREAD
+eval KILL $ssl_con_id;
+--enable_query_log
+let $wait_condition= SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PROCESSLIST
+                     WHERE ID = $ssl_con_id;
+--source include/wait_condition.inc

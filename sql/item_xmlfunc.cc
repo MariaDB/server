@@ -2520,6 +2520,14 @@ static int my_xpath_parse_MultiplicativeExpr(MY_XPATH *xpath)
 */
 static int my_xpath_parse_UnaryExpr(MY_XPATH *xpath)
 {
+  /*
+    Check for stack overrun because each '-' recurses directly into this
+    function without going through my_xpath_parse_OrExpr(), which would
+    otherwise perform the check (MDEV-33843 follow-up).
+  */
+  if (check_stack_overrun(xpath->thd, STACK_MIN_SIZE, NULL))
+    return 0;
+
   if (!my_xpath_parse_term(xpath, MY_XPATH_LEX_MINUS))
     return my_xpath_parse_UnionExpr(xpath);
   if (!my_xpath_parse_UnaryExpr(xpath))

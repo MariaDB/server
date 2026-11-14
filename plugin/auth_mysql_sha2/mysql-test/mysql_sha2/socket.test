@@ -20,8 +20,16 @@ call checkme();
 disconnect con4;
 replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
 error ER_ACCESS_DENIED_ERROR;
-connect con5, localhost,test2 pwd,,,,,$proto NOSSL;
-
+connect con5, localhost,test2,pwd,,,,,$proto NOSSL;
 connection default;
+
+eval create user t470@localhost identified via caching_sha2_password using PASSWORD('$(repeat("x", 470))');
+--error ER_PASSWD_LENGTH
+eval create user t471@localhost identified via caching_sha2_password using PASSWORD('$(repeat("x", 471))');
+connect t470,localhost,t470,xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,,,,$proto NOSSL;
+select user(), current_user();
+disconnect t470;
+connection default;
+drop user t470@localhost;
 
 source fini.inc;
