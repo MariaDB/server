@@ -4541,6 +4541,7 @@ n_field_mismatch:
 		rec_get_nth_field_offs(offsets, i, &len);
 
 		ulint fixed_size;
+		ulint logical_len= len;
 
 		if (is_alter_metadata && i == index->first_user_field()) {
 			fixed_size = FIELD_REF_SIZE;
@@ -4556,10 +4557,24 @@ n_field_mismatch:
 			if (rec_offs_nth_extern(offsets, i)) {
 				const byte* data = rec_get_nth_field(
 					rec, offsets, i, &len);
+				if (len < BTR_EXTERN_FIELD_REF_SIZE) {
+					goto len_mismatch;
+				}
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				const byte* field_ref= data + len;
 				ulint extern_len = mach_read_from_4(
-					data + len + BTR_EXTERN_LEN + 4);
-				if (fixed_size == extern_len + len) {
+					field_ref + BTR_EXTERN_LEN + 4);
+				logical_len= len + extern_len;
+
+				/* Purge may legitimately have disowned a BLOB of a
+				delete-marked record. */
+				if (!rec_get_deleted_flag(rec, page_is_comp(page)) &&
+				    !btr_validate_externally_stored_field(field_ref,
+									  *index)) {
+					goto len_mismatch;
+				}
+
+				if (fixed_size == logical_len) {
 					goto next_field;
 				}
 			}
@@ -4574,13 +4589,16 @@ n_field_mismatch:
 
 		if (len_is_stored(len)
 		    && (field->prefix_len
-			? len > field->prefix_len
-			: (fixed_size && len != fixed_size))) {
+			? logical_len > field->prefix_len
+			: (fixed_size
+			   ? logical_len != fixed_size
+			   : (!DATA_LARGE_MTYPE(field->col->mtype)
+			      && logical_len > field->col->len)))) {
 len_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
 			ib::error	error;
 
-			error << "Field " << i << " len is " << len
+			error << "Field " << i << " len is " << logical_len
 				<< ", should be " << fixed_size;
 
 			if (dump_on_error) {
