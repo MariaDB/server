@@ -6611,6 +6611,168 @@ btr_copy_externally_stored_field_prefix_low(
     : btr_copy_blob_prefix(buf, len, id, offset);
 }
 
+/** Validate an uncompressed BLOB chain without copying its contents. */
+static bool
+btr_validate_blob_field(const byte* field_ref, uint32_t expected_len,
+			uint32_t max_pages) noexcept
+{
+	page_id_t id{mach_read_from_4(field_ref + BTR_EXTERN_SPACE_ID),
+		     mach_read_from_4(field_ref + BTR_EXTERN_PAGE_NO)};
+	uint32_t offset= mach_read_from_4(field_ref + BTR_EXTERN_OFFSET);
+	uint64_t actual_len= 0;
+	THD* thd{current_thd};
+
+	for (uint32_t n= 0; n < max_pages; n++) {
+		mtr_t mtr{thd ? thd_to_trx(thd) : nullptr};
+		mtr.start();
+		buf_block_t* block= buf_page_get(id, 0, RW_S_LATCH, &mtr);
+		if (!block || btr_check_blob_fil_page_type(*block, "validate")) {
+			mtr.commit();
+			return false;
+		}
+
+		if (offset < FIL_PAGE_DATA ||
+		    offset > srv_page_size - FIL_PAGE_DATA_END - BTR_BLOB_HDR_SIZE) {
+			mtr.commit();
+			return false;
+		}
+
+		const byte* header= buf_block_get_frame(block) + offset;
+		const uint32_t part_len= btr_blob_get_part_len(header);
+		const uint32_t max_part_len= static_cast<uint32_t>(
+			srv_page_size - FIL_PAGE_DATA_END - offset
+			- BTR_BLOB_HDR_SIZE);
+		const uint32_t next_page= btr_blob_get_next_page_no(header);
+		mtr.commit();
+
+		if (!part_len || part_len > max_part_len ||
+		    (actual_len += part_len) > expected_len) {
+			return false;
+		}
+		if (next_page == FIL_NULL) {
+			return actual_len == expected_len;
+		}
+
+		id.set_page_no(next_page);
+		offset= FIL_PAGE_DATA;
+	}
+
+	/* A valid chain cannot contain more pages than its tablespace. */
+	return false;
+}
+
+/** Validate a compressed BLOB chain without materialising its contents. */
+static bool
+btr_validate_zblob_field(const byte* field_ref, uint32_t expected_len,
+			 uint32_t zip_size, uint32_t max_pages) noexcept
+{
+	page_id_t id{mach_read_from_4(field_ref + BTR_EXTERN_SPACE_ID),
+		     mach_read_from_4(field_ref + BTR_EXTERN_PAGE_NO)};
+	uint32_t offset= mach_read_from_4(field_ref + BTR_EXTERN_OFFSET);
+	uint16_t page_type= FIL_PAGE_TYPE_ZBLOB;
+	byte output;
+	z_stream stream{};
+	mem_heap_t* heap= mem_heap_create(40000);
+	page_zip_set_alloc(&stream, heap);
+
+	if (inflateInit(&stream) != Z_OK) {
+		mem_heap_free(heap);
+		return false;
+	}
+	stream.next_out= &output;
+	stream.avail_out= 1;
+
+	for (uint32_t n= 0; n < max_pages; n++) {
+		buf_page_t* bpage= buf_page_get_zip(id);
+		if (!bpage || fil_page_get_type(bpage->zip.data) != page_type ||
+		    offset > zip_size - 4) {
+			if (bpage) bpage->lock.s_unlock();
+			inflateEnd(&stream);
+			mem_heap_free(heap);
+			return false;
+		}
+
+		const uint32_t next_page= mach_read_from_4(bpage->zip.data + offset);
+		offset= offset == FIL_PAGE_NEXT ? FIL_PAGE_DATA : offset + 4;
+		if (offset > zip_size) {
+			bpage->lock.s_unlock();
+			inflateEnd(&stream);
+			mem_heap_free(heap);
+			return false;
+		}
+		stream.next_in= bpage->zip.data + offset;
+		stream.avail_in= uInt(zip_size - offset);
+
+		for (;;) {
+			const int err= inflate(&stream, Z_NO_FLUSH);
+			if (stream.total_out > expected_len) {
+				bpage->lock.s_unlock();
+				inflateEnd(&stream);
+				mem_heap_free(heap);
+				return false;
+			}
+			if (err == Z_STREAM_END) {
+				const bool valid= next_page == FIL_NULL &&
+					stream.total_out == expected_len;
+				bpage->lock.s_unlock();
+				inflateEnd(&stream);
+				mem_heap_free(heap);
+				return valid;
+			}
+			if (!stream.avail_out) {
+				stream.next_out= &output;
+				stream.avail_out= 1;
+			}
+			if (err != Z_OK || !stream.avail_in) {
+				break;
+			}
+		}
+
+		bpage->lock.s_unlock();
+		if (next_page == FIL_NULL) {
+			inflateEnd(&stream);
+			mem_heap_free(heap);
+			return false;
+		}
+		id.set_page_no(next_page);
+		offset= FIL_PAGE_NEXT;
+		page_type= FIL_PAGE_TYPE_ZBLOB2;
+	}
+
+	inflateEnd(&stream);
+	mem_heap_free(heap);
+	return false;
+}
+
+bool
+btr_validate_externally_stored_field(const byte* field_ref,
+				     const dict_index_t& index) noexcept
+{
+	const uint32_t space_id= mach_read_from_4(field_ref + BTR_EXTERN_SPACE_ID);
+	const uint32_t page_no= mach_read_from_4(field_ref + BTR_EXTERN_PAGE_NO);
+	const uint32_t flags= mach_read_from_4(field_ref + BTR_EXTERN_LEN);
+	const uint32_t expected_len=
+		mach_read_from_4(field_ref + BTR_EXTERN_LEN + 4);
+	const uint32_t allowed_flags= uint32_t(BTR_EXTERN_OWNER_FLAG |
+		BTR_EXTERN_INHERITED_FLAG) << 24;
+
+	if (space_id != index.table->space_id || page_no == FIL_NULL ||
+	    !expected_len || flags & ~allowed_flags) {
+		return false;
+	}
+
+	fil_space_t* const space= index.table->space;
+	const uint32_t max_pages= space ? space->get_size() : 0;
+	if (!max_pages) {
+		return false;
+	}
+
+	return space->zip_size()
+		? btr_validate_zblob_field(field_ref, expected_len,
+					   space->zip_size(), max_pages)
+		: btr_validate_blob_field(field_ref, expected_len, max_pages);
+}
+
 /** Copies the prefix of an externally stored field of a record.
 The clustered index record must be protected by a lock or a page latch.
 @param[out]	buf		the field, or a prefix of it
