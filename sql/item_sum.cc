@@ -1380,8 +1380,8 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
-  bool ret= init_result_field(thd, max_length, maybe_null(),
-                              &null_value, &name);
+  /* See the comment in Item_func_sp::fix_fields() */
+  bool ret= init_result_field(thd, 0, maybe_null(), &null_value, &name);
   if (arena)
     thd->restore_active_arena(arena, &backup);
 

@@ -2823,6 +2823,8 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+  init_sql_alloc(key_memory_sp_head_call_root, &result_field_mem_root,
+                 DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(0));
 }
 
 Item_sp::Item_sp(THD *thd, Item_sp *item):
@@ -2834,6 +2836,8 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+  init_sql_alloc(key_memory_sp_head_call_root, &result_field_mem_root,
+                 DEFAULT_ROOT_BLOCK_SIZE, 0, MYF(0));
 }
 
 LEX_CSTRING
@@ -2897,6 +2901,13 @@ Item_sp::free_call_ctx()
 void
 Item_sp::cleanup()
 {
+  /*
+    The field was built from m_sp, which may be a different sp_head on the
+    next execution, so it is built again by init_result_field().
+  */
+  delete sp_result_field;
+  sp_result_field= NULL;
+  free_root(&result_field_mem_root, MYF(MY_MARK_BLOCKS_FREE));
   m_sp= NULL;
   free_call_ctx();
   dummy_table->alias.free();
@@ -3062,6 +3073,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   DBUG_ENTER("Item_sp::init_result_field");
 
   DBUG_ASSERT(m_sp != NULL);
+  DBUG_ASSERT(sp_result_field == NULL);
 
   /*
      A Field needs to be attached to a Table.
@@ -3075,26 +3087,26 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   dummy_table->s->table_name= empty_clex_str;
   dummy_table->maybe_null= maybe_null;
 
+  MEM_ROOT *save_mem_root= thd->mem_root;
+  thd->mem_root= &result_field_mem_root;
+  sp_result_field= m_sp->create_result_field(max_length, name, dummy_table);
+  thd->mem_root= save_mem_root;
   if (!sp_result_field)
+    DBUG_RETURN(true);
+
+  if (sp_result_field->pack_length() > sizeof(result_buf))
   {
-    sp_result_field= m_sp->create_result_field(max_length, name,
-                                               dummy_table);
-    if (!sp_result_field)
-      DBUG_RETURN(true);
-
-    if (sp_result_field->pack_length() > sizeof(result_buf))
-    {
-      void *tmp;
-      if (!(tmp= thd->alloc(sp_result_field->pack_length())))
-        DBUG_RETURN(TRUE);
-      sp_result_field->move_field((uchar*) tmp);
-    }
-    else
-      sp_result_field->move_field(result_buf);
-
-    sp_result_field->null_ptr= (uchar *) null_value;
-    sp_result_field->null_bit= 1;
+    void *tmp;
+    if (!(tmp= alloc_root(&result_field_mem_root,
+                          sp_result_field->pack_length())))
+      DBUG_RETURN(TRUE);
+    sp_result_field->move_field((uchar*) tmp);
   }
+  else
+    sp_result_field->move_field(result_buf);
+
+  sp_result_field->null_ptr= (uchar *) null_value;
+  sp_result_field->null_bit= 1;
   DBUG_RETURN(FALSE);
 }
 
