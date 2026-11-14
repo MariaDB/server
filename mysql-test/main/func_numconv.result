@@ -1523,3 +1523,28 @@ SELECT to_number('1', 'TM9');
 ERROR 42000: This version of MariaDB doesn't yet support '<number format>='TM9''
 SELECT to_number('1', 'TME');
 ERROR 42000: This version of MariaDB doesn't yet support '<number format>='TME''
+#
+# MDEV-42246 Assertion `0' failed in Protocol::end_statement() on SELECT TO_NUMBER(NULL, NULL)
+#
+SELECT to_number(NULL, NULL);
+to_number(NULL, NULL)
+NULL
+SELECT to_number('1', NULL);
+to_number('1', NULL)
+NULL
+SELECT to_number('1', CONVERT(NULL USING ucs2));
+to_number('1', CONVERT(NULL USING ucs2))
+NULL
+SELECT to_number('12', CONVERT('99' USING ucs2));
+to_number('12', CONVERT('99' USING ucs2))
+12
+CREATE TABLE t1 AS SELECT to_number('1', NULL) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t1;
+#
+# End of 12.3 tests
+#

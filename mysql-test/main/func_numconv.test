@@ -951,3 +951,20 @@ SELECT to_number('1', 'TM');
 SELECT to_number('1', 'TM9');
 --error ER_NOT_SUPPORTED_YET
 SELECT to_number('1', 'TME');
+
+
+--echo #
+--echo # MDEV-42246 Assertion `0' failed in Protocol::end_statement() on SELECT TO_NUMBER(NULL, NULL)
+--echo #
+
+SELECT to_number(NULL, NULL);
+SELECT to_number('1', NULL);
+SELECT to_number('1', CONVERT(NULL USING ucs2));
+SELECT to_number('12', CONVERT('99' USING ucs2));
+CREATE TABLE t1 AS SELECT to_number('1', NULL) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
