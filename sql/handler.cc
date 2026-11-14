@@ -6792,32 +6792,31 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
   discover_table_existence, etc), it still *may* be quite expensive
   and must be used sparingly.
 
-  @retval true    Table exists (even if the error occurred, like bad frm)
-  @retval false   Table does not exist (one can do CREATE TABLE table_name)
+  @return TABLE_TYPE_UNKNOWN   Table does not exist (one can do CREATE
+                               TABLE table_name)
+  @return TABLE_TYPE_FRM_ONLY  The .frm file exists, but the table can't
+                               be opened (engine not loaded, frm is
+                               invalid). *hton will be NULL.
+  @return TABLE_TYPE_NORMAL, TABLE_TYPE_SEQUENCE, TABLE_TYPE_VIEW or
+          TABLE_TYPE_GLOBAL_TEMPORARY   Type of the existing table
+
+  As TABLE_TYPE_UNKNOWN is 0, the return value can be tested as a bool.
 
   @note if frm exists and the table in engine doesn't, *hton will be set,
-        but the return value will be false.
-
-  @note if frm file exists, but the table cannot be opened (engine not
-        loaded, frm is invalid), the return value will be true, but
-        *hton will be NULL.
+        but the return value will be TABLE_TYPE_UNKNOWN.
 */
 
-bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
-                     const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
-                     handlerton **hton, bool *is_sequence)
+Table_type ha_table_exists(THD *thd, const LEX_CSTRING *db,
+                           const LEX_CSTRING *table_name,
+                           LEX_CUSTRING *table_id, handlerton **hton)
 {
   handlerton *dummy;
-  bool dummy2;
   DBUG_ENTER("ha_table_exists");
 
   if (hton)
     *hton= 0;
   else if (engines_with_discover)
     hton= &dummy;
-  if (!is_sequence)
-    is_sequence= &dummy2;
-  *is_sequence= 0;
   if (table_id)
   {
     table_id->str= 0;
@@ -6827,57 +6826,76 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   TDC_element *element= tdc_lock_share(thd, db->str, table_name->str);
   if (element && element != MY_ERRPTR)
   {
+    Table_type type;
     if (!hton)
       hton= &dummy;
     *hton= element->share->db_type();
-    *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
+    type= (*hton == view_pseudo_hton ? TABLE_TYPE_VIEW :
+           element->share->table_type);
     if (*hton != view_pseudo_hton && element->share->tabledef_version.length &&
         table_id &&
         (table_id->str= (uchar*)
          thd->memdup(element->share->tabledef_version.str, MY_UUID_SIZE)))
       table_id->length= MY_UUID_SIZE;
     tdc_unlock_share(element);
-    DBUG_RETURN(TRUE);
+    /*
+      Change unlikely TABLE_TYPE_UNKNOWN to TABLE_TYPE_NORMAL as we know the
+      table exists
+    */
+    DBUG_RETURN(type == TABLE_TYPE_UNKNOWN ? TABLE_TYPE_NORMAL : type);
   }
 
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
-  st_discover_existence_args args= {path, path_len, db->str, table_name->str, 0, true};
+  st_discover_existence_args args=
+    {path, path_len, db->str, table_name->str, 0, true};
 
+  /*
+    TODO: let file_ext_exists() return a file descriptor and send it to
+    dd_frm_type(). This is also safer as it protects against the file being
+    removed between file_ext_exists() and dd_frm_type()
+  */
   if (file_ext_exists(path, path_len, reg_ext))
   {
-    bool exists= true;
+    /* frm file exists. We know that there should be a table behind it */
+    char engine_buf[NAME_CHAR_LEN + 1];
+    LEX_CSTRING engine= { engine_buf, 0 };
+    Table_type type= dd_frm_type(thd, path, &engine, table_id);
+
+    switch (type) {
+    case TABLE_TYPE_UNKNOWN:
+    case TABLE_TYPE_FRM_ONLY:
+      DBUG_PRINT("exit", (".frm exists but cannot be opened"));
+      DBUG_RETURN(TABLE_TYPE_FRM_ONLY);         // Frm exists
+    case TABLE_TYPE_VIEW:
+      if (hton)
+        *hton= view_pseudo_hton;
+      DBUG_PRINT("exit", ("Found view"));
+      DBUG_RETURN(TABLE_TYPE_VIEW);             // Frm exists
+    case TABLE_TYPE_SEQUENCE:
+    case TABLE_TYPE_GLOBAL_TEMPORARY:
+    case TABLE_TYPE_NORMAL:
+      break;
+    }
     if (hton)
     {
-      char engine_buf[NAME_CHAR_LEN + 1];
-      LEX_CSTRING engine= { engine_buf, 0 };
-      Table_type type= dd_frm_type(thd, path, &engine, table_id);
-
-      switch (type) {
-      case TABLE_TYPE_UNKNOWN:
-        DBUG_PRINT("exit", ("Exist, cannot be opened"));
-        DBUG_RETURN(true);                      // Frm exists
-      case TABLE_TYPE_VIEW:
-        *hton= view_pseudo_hton;
-        DBUG_PRINT("exit", ("Exist, view"));
-        DBUG_RETURN(true);                      // Frm exists
-      case TABLE_TYPE_SEQUENCE:
-        *is_sequence= true;
-        /* fall through */
-      case TABLE_TYPE_GLOBAL_TEMPORARY:
-      case TABLE_TYPE_NORMAL:
-        {
-          plugin_ref p=  plugin_lock_by_name(thd, &engine,
-                                             MYSQL_STORAGE_ENGINE_PLUGIN);
-          *hton= p ? plugin_hton(p) : NULL;
-          if (*hton)      // verify that the table really exists
-            exists= discover_existence(thd, p, &args);
-        }
+      plugin_ref p=  plugin_lock_by_name(thd, &engine,
+                                         MYSQL_STORAGE_ENGINE_PLUGIN);
+      if (!(*hton= p ? plugin_hton(p) : NULL))
+      {
+        DBUG_PRINT("exit", (".frm exists, engine not loaded"));
+        DBUG_RETURN(TABLE_TYPE_FRM_ONLY);
+      }
+      /* verify that the table really exists */
+      if (!discover_existence(thd, p, &args))
+      {
+        DBUG_PRINT("exit", ("Table does not exist"));
+        DBUG_RETURN(TABLE_TYPE_UNKNOWN);
       }
     }
-    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
-    DBUG_RETURN(exists);
+    DBUG_PRINT("exit", ("Exists"));
+    DBUG_RETURN(type);
   }
 
   args.frm_exists= false;
@@ -6887,13 +6905,13 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     if (hton)
       *hton= args.hton;
     DBUG_PRINT("exit", ("discovery found file"));
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(TABLE_TYPE_NORMAL);
   }
 
   if (need_full_discover_for_existence)
   {
     TABLE_LIST table;
-    bool exists;
+    Table_type type= TABLE_TYPE_NORMAL;
     uint flags = GTS_TABLE | GTS_VIEW;
 
     if (!hton)
@@ -6908,6 +6926,10 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     if (hton && share)
     {
       *hton= share->db_type();
+      if (share->is_view)
+        type= TABLE_TYPE_VIEW;
+      else if (share->table_type != TABLE_TYPE_UNKNOWN)
+        type= share->table_type;
       if (table_id && share->tabledef_version.length &&
           (table_id->str=
            (uchar*) thd->memdup(share->tabledef_version.str, MY_UUID_SIZE)))
@@ -6916,13 +6938,17 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     }
 
     // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
-    exists= !no_such_table_handler.safely_trapped_errors();
-    DBUG_PRINT("exit", (exists ? "Exists" : "Does not exist"));
-    DBUG_RETURN(exists);
+    if (no_such_table_handler.safely_trapped_errors())
+    {
+      DBUG_PRINT("exit", ("Does not exist"));
+      DBUG_RETURN(TABLE_TYPE_UNKNOWN);
+    }
+    DBUG_PRINT("exit", ("Exists"));
+    DBUG_RETURN(type);
   }
 
   DBUG_PRINT("exit", ("Does not exist"));
-  DBUG_RETURN(FALSE);
+  DBUG_RETURN(TABLE_TYPE_UNKNOWN);
 }
 
 

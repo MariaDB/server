@@ -4817,9 +4817,12 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
   if (thd->get_stmt_da()->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
   {
     char path[FN_REFLEN];
+    Table_type type;
     build_table_filename(path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
-    if (dd_frm_type(thd, path, &engine_name, NULL) == TABLE_TYPE_NORMAL)
+
+    type= dd_frm_type(thd, path, &engine_name, NULL);
+    if (type == TABLE_TYPE_NORMAL || type == TABLE_TYPE_GLOBAL_TEMPORARY)
       tl->option= engine_name.str;
   }
 }
@@ -5059,19 +5062,24 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
   {
     CHARSET_INFO *cs= system_charset_info;
     handlerton *hton;
-    bool is_sequence;
+    Table_type type;
+    LEX_CSTRING table_type;
 
-    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence))
+    if ((type= ha_table_exists(thd, db_name, table_name, NULL, &hton)))
     {
-      if (hton == view_pseudo_hton)
-        table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
-      else if (is_sequence)
-        table->field[3]->store(STRING_WITH_LEN("SEQUENCE"), cs);
+      if (type == TABLE_TYPE_VIEW)
+        table_type= { STRING_WITH_LEN("VIEW") };
+      else if (type == TABLE_TYPE_SEQUENCE)
+        table_type= { STRING_WITH_LEN("SEQUENCE") };
+      else if (type == TABLE_TYPE_GLOBAL_TEMPORARY)
+        table_type= { STRING_WITH_LEN("GLOBAL TEMPORARY") };
       else
-        table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
+        table_type= { STRING_WITH_LEN("BASE TABLE") };
     }
     else
-      table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
+      table_type= { STRING_WITH_LEN("ERROR") };
+
+    table->field[3]->store(table_type.str, table_type.length, cs);
 
     if (unlikely(thd->is_error()) &&
         hide_object_error(thd->get_stmt_da()->sql_errno()))

@@ -1626,7 +1626,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         char engine_buf[NAME_CHAR_LEN + 1];
         LEX_CSTRING engine= { engine_buf, 0 };
         table_type= dd_frm_type(thd, path, &engine, &version);
-        if (table_type == TABLE_TYPE_NORMAL || table_type == TABLE_TYPE_SEQUENCE)
+        if (table_type == TABLE_TYPE_NORMAL ||
+            table_type == TABLE_TYPE_SEQUENCE ||
+            table_type == TABLE_TYPE_GLOBAL_TEMPORARY)
         {
           plugin_ref p= plugin_lock_by_name(thd, &engine,
                                            MYSQL_STORAGE_ENGINE_PLUGIN);

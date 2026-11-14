@@ -48,12 +48,13 @@ static int read_string(File file, uchar**to, size_t length)
   engine_name is a LEX_CSTRING, where engine_name->str must point to
   a buffer of at least NAME_CHAR_LEN+1 bytes.
   If engine_name is 0, then the function will only test if the file is a
-  view or not
+  view or not.
 
   @retval  TABLE_TYPE_UNKNOWN   error  - file can't be opened
   @retval  TABLE_TYPE_NORMAL    table
   @retval  TABLE_TYPE_SEQUENCE  sequence table
   @retval  TABLE_TYPE_VIEW      view
+  @retval  TABLE_TYPE_GLOBAL_TEMPORARY
 */
 
 Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
@@ -105,7 +106,11 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
 
   dbt= header[3];
 
-  if ((header[39] & 0x30) == (HA_CHOICE_YES << 4))
+  /* GTT options use bits 3 & 4 at position 59, see table.cc */
+  if (uint4korr(header + 51) >= 110400 &&
+      ((header[59] >> 3) & GTT_TABLE))
+    type= TABLE_TYPE_GLOBAL_TEMPORARY;
+  else if ((header[39] & 0x30) == (HA_CHOICE_YES << 4))
   {
     DBUG_PRINT("info", ("Sequence found"));
     type= TABLE_TYPE_SEQUENCE;

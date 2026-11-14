@@ -16,20 +16,25 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include "handler.h"
-
 /*
   Data dictionary API.
 */
 
 enum Table_type
 {
+  /*
+    The .frm file exists, but the table can't be opened. Used and returned
+    only by ha_table_exists().
+   */
+  TABLE_TYPE_FRM_ONLY= -1,
   TABLE_TYPE_UNKNOWN,
   TABLE_TYPE_NORMAL,                            /* Normal table */
   TABLE_TYPE_SEQUENCE,
   TABLE_TYPE_VIEW,
   TABLE_TYPE_GLOBAL_TEMPORARY,
 };
+
+#include "handler.h"
 
 /*
   Take extra care when using dd_frm_type() - it only checks the .frm file,
