@@ -3228,6 +3228,8 @@ class Regexp_processor_pcre
   int m_library_flags;
   CHARSET_INFO *m_library_charset;
   String m_prev_pattern;
+  /* The library flags the pattern in m_prev_pattern was compiled with */
+  int m_prev_flags;
   int m_pcre_exec_rc;
   PCRE2_SIZE *m_SubStrVec;
   void pcre_exec_warn(int rc) const;
@@ -3244,10 +3246,12 @@ public:
     m_pcre(NULL), m_pcre_match_data(NULL),
     m_conversion_is_needed(true), m_is_const(0),
     m_library_flags(0),
-    m_library_charset(&my_charset_utf8mb4_general_ci)
+    m_library_charset(&my_charset_utf8mb4_general_ci),
+    m_prev_flags(0)
   {}
   int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags);
+  bool set_match_type(const String *match_type_str, const char *func_name);
   bool fix_owner(Item_func *owner, Item *subject_arg, Item *pattern_arg);
   bool compile(String *pattern, bool send_error);
   bool compile(Item *item, bool send_error);
@@ -3277,6 +3281,7 @@ public:
     m_pcre= NULL;
     m_pcre_match_data= NULL;
     m_prev_pattern.length(0);
+    m_prev_flags= 0;
   }
   void cleanup();
   bool is_compiled() const { return m_pcre != NULL; }
@@ -3333,14 +3338,22 @@ class Item_func_regexp_instr :public Item_long_func
 {
   bool check_arguments() const override
   {
-    return (args[0]->check_type_can_return_str(func_name_cstring()) ||
-            args[1]->check_type_can_return_text(func_name_cstring()));
+    if (args[0]->check_type_can_return_str(func_name_cstring()) ||
+        args[1]->check_type_can_return_text(func_name_cstring()))
+      return true;
+    if (check_argument_types_can_return_int(2, MY_MIN(arg_count, 5)))
+      return true;
+    return arg_count > 5 &&
+           args[5]->check_type_can_return_str(func_name_cstring());
   }
+  bool get_int_arg(uint i, longlong *value);
+  bool wrong_argument_error();
   Regexp_processor_pcre re;
   DTCollation cmp_collation;
+  bool m_match_type_is_const;
 public:
-  Item_func_regexp_instr(THD *thd, Item *a, Item *b)
-   :Item_long_func(thd, a, b)
+  Item_func_regexp_instr(THD *thd, List<Item> &list)
+   :Item_long_func(thd, list), m_match_type_is_const(false)
   {}
   void cleanup() override
   {
