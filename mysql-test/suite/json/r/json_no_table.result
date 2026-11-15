@@ -2854,10 +2854,9 @@ json_unquote('"')
 "
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_unquote'
-error ER_INCORRECT_TYPE
 select json_quote(123);
 json_quote(123)
-NULL
+123
 error ER_INCORRECT_TYPE
 select json_unquote(123);
 json_unquote(123)
@@ -2976,10 +2975,9 @@ AS CHAR
 SELECT JSON_QUOTE( 'abc' );
 JSON_QUOTE( 'abc' )
 "abc"
-error ER_INCORRECT_TYPE
 SELECT JSON_QUOTE( 123 );
 JSON_QUOTE( 123 )
-NULL
+123
 SELECT json_compact( JSON_QUOTE( '123' ));
 json_compact( JSON_QUOTE( '123' ))
 "123"

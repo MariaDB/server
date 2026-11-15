@@ -1,0 +1,8 @@
+--echo # MDEV-42083: crash on condition pushdown
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2),(3,3);
+SELECT * FROM (SELECT a, b, COUNT(*) c FROM t1 GROUP BY a, b) d
+WHERE a MEMBER OF (JSON_ARRAY(b,9)) ORDER BY a;
+SELECT a, a MEMBER OF (JSON_ARRAY(a)) m FROM t1 GROUP BY a HAVING m ORDER BY a;
+DROP TABLE t1;
+

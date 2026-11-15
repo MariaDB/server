@@ -130,6 +130,51 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-13645 JSON_QUOTE() returns NULL for numeric arguments
+--echo #
+--echo # A number is a valid JSON value and is returned unquoted
+select json_quote(17), json_quote(-17), json_quote(3.14), json_quote(1.5e2);
+select json_quote(18446744073709551615), json_quote(-9223372036854775808);
+select json_valid(json_quote(17)), json_valid(json_quote(3.14));
+--echo # Strings and temporal values are still quoted, NULL is still NULL
+select json_quote('hello'), json_quote('"already_quoted"');
+select json_quote(date'2025-01-02'), json_quote(time'12:30:00');
+select json_quote(NULL), json_quote(NULL) is null;
+
+create table t1 (i int, u bigint unsigned, z int(5) zerofill,
+                 d decimal(6,2), dz decimal(6,2) zerofill, f double);
+insert into t1 values (1, 18446744073709551615, 7, 1.5, 1.5, 2.25),
+                      (NULL, NULL, NULL, NULL, NULL, NULL);
+--echo # ZEROFILL display padding must not leak into the JSON number
+select json_quote(i), json_quote(u), json_quote(z), json_quote(d),
+       json_quote(dz), json_quote(f) from t1 order by i desc;
+create table t2 as select json_quote(i) a, json_quote(f) b from t1;
+show create table t2;
+drop table t1, t2;
+
+--echo # The argument is evaluated exactly once
+--disable_ps2_protocol
+--disable_cursor_protocol
+set @i= 0, @d= 0.5, @r= 0.5e0;
+select json_quote(@i:= @i + 1), json_quote(@d:= @d + 1),
+       json_quote(@r:= @r + 1), @i, @d, @r;
+create table t1 (n int);
+insert into t1 values (0);
+delimiter $$;
+create function f1() returns int
+begin
+  update t1 set n= n + 1;
+  return 7;
+end$$
+delimiter ;$$
+select json_quote(f1());
+select n from t1;
+drop function f1;
+drop table t1;
+--enable_cursor_protocol
+--enable_ps2_protocol
+
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 select json_merge('string');
 select json_merge('string', 123);
