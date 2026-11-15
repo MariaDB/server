@@ -264,7 +264,7 @@ rec2.a
 Table	Create Table
 t2	CREATE TABLE "t2" (
   "a" bigint(20) DEFAULT NULL,
-  "b" varchar(11) DEFAULT NULL,
+  "b" longtext DEFAULT NULL,
   "c" double DEFAULT NULL
 )
 DROP PROCEDURE p1;

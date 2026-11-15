@@ -3,14 +3,14 @@ SET GLOBAL innodb_lock_wait_timeout=100000000;
 DESCRIBE INFORMATION_SCHEMA.INNODB_TRX;
 Field	Type	Null	Key	Default	Extra
 trx_id	bigint(21) unsigned	NO		NULL	
-trx_state	varchar(13)	NO		NULL	
+trx_state	longtext	NO		NULL	
 trx_started	datetime	NO		NULL	
-trx_requested_lock_id	varchar(81)	YES		NULL	
+trx_requested_lock_id	longtext	YES		NULL	
 trx_wait_started	datetime	YES		NULL	
 trx_weight	bigint(21) unsigned	NO		NULL	
 trx_mysql_thread_id	bigint(21) unsigned	NO		NULL	
-trx_query	varchar(1024)	YES		NULL	
-trx_operation_state	varchar(64)	YES		NULL	
+trx_query	longtext	YES		NULL	
+trx_operation_state	longtext	YES		NULL	
 trx_tables_in_use	bigint(21) unsigned	NO		NULL	
 trx_tables_locked	bigint(21) unsigned	NO		NULL	
 trx_lock_structs	bigint(21) unsigned	NO		NULL	
@@ -21,7 +21,7 @@ trx_concurrency_tickets	bigint(21) unsigned	NO		NULL
 trx_isolation_level	enum('READ UNCOMMITTED','READ COMMITTED','REPEATABLE READ','SERIALIZABLE')	NO		NULL	
 trx_unique_checks	int(1)	NO		NULL	
 trx_foreign_key_checks	int(1)	NO		NULL	
-trx_last_foreign_key_error	varchar(256)	YES		NULL	
+trx_last_foreign_key_error	longtext	YES		NULL	
 trx_is_read_only	int(1)	NO		NULL	
 trx_autocommit_non_locking	int(1)	NO		NULL	
 CREATE TABLE t1 (
