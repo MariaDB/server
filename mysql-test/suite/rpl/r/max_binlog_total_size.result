@@ -15,7 +15,6 @@ connection slave;
 STOP SLAVE IO_THREAD;
 include/wait_for_slave_io_to_stop.inc
 connection master;
-kill DUMP_THREAD;
 CREATE TABLE `t1` (
 `v1` int(11) DEFAULT NULL,
 `v2` varchar(8000) DEFAULT NULL,

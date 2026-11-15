@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-38741 A replica that stops closes its connection on purpose. The
+# dump thread of the master is aborted, and it is logged only with
+# log_warnings=4
+#
+# No heartbeat, so that only the watcher can end an idle dump thread
+connection slave;
+include/stop_slave.inc
+SET @old_slave_net_timeout= @@global.slave_net_timeout;
+SET GLOBAL slave_net_timeout= 7200;
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= 3600;
+include/start_slave.inc
+connection master;
+include/sync_slave_io_with_master.inc
+connection master;
+SET GLOBAL log_warnings= 4;
+connection slave;
+include/stop_slave.inc
+connection master;
+# The dump thread is gone
+FOUND 1 matches in mysqld.1.err
+# With the default log_warnings nothing more is logged
+SET GLOBAL log_warnings= 2;
+connection slave;
+include/start_slave.inc
+connection master;
+include/sync_slave_io_with_master.inc
+connection master;
+connection slave;
+include/stop_slave.inc
+connection master;
+FOUND 1 matches in mysqld.1.err
+connection slave;
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= 60.0000;
+SET GLOBAL slave_net_timeout= @old_slave_net_timeout;
+include/start_slave.inc
+include/rpl_end.inc

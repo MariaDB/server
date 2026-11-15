@@ -35,6 +35,7 @@
 #include "log.h"                                // flush_error_log
 #include "sql_view.h"         // mysql_create_view, mysql_drop_view
 #include "sql_insert.h"       // mysql_insert
+#include "disconnect_watcher.h"
 #include "sql_partition.h"    // struct partition_info
 #include "sql_db.h"           // mysql_change_db, mysql_create_db,
                               // mysql_rm_db, mysql_upgrade_db,
@@ -1653,12 +1654,14 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
   */
   if (command != COM_QUERY)
     thd->reset_for_next_command();
+  DEBUG_SYNC(thd, "dispatch_command_before_set_command");
   thd->set_command(command);
 
   thd->enable_slow_log= true;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->reset_kill_query();
+  thd->check_disconnect();
 
   DEBUG_SYNC(thd,"dispatch_command_before_set_time");
 
@@ -2122,6 +2125,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
   case COM_QUIT:
     /* Note: We don't calculate statistics for this command */
 
+    /* The client is expected to close the socket now, it is not a failure */
+    disconnect_watcher_remove(&thd->disconnect_watch, net->vio);
+
     /* Ensure that quit works even if max_mem_used is set */
     thd->variables.max_mem_used= LONGLONG_MAX;
     general_log_print(thd, command, NullS);
@@ -2303,6 +2309,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     /* Store the buffer in permanent memory */
     my_ok(thd, 0, 0, buff);
 #else
+    /* The reply is written here, not by Protocol::end_statement() */
+    thd->set_disconnect_uninterruptible();
     (void) my_net_write(net, (uchar*) buff, length);
     (void) net_flush(net);
     thd->get_stmt_da()->disable_status();
@@ -2447,6 +2455,10 @@ resume:
     thd->update_server_status();
     thd->protocol->end_statement();
     query_cache_end_of_result(thd);
+    if (thd->lex->sql_command != SQLCOM_SET_OPTION)
+    {
+      DEBUG_SYNC(thd, "dispatch_command_after_end_statement");
+    }
   }
   if (drop_more_results)
     thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;

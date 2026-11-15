@@ -1,0 +1,1 @@
+test_sql_service_disconnect : MDEV-42087 memory leak in sql_service when a statement fails after it sent its metadata

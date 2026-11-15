@@ -1,0 +1,67 @@
+--source include/have_disconnect_watcher.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-38741 A replica that stops closes its connection on purpose. The
+--echo # dump thread of the master is aborted, and it is logged only with
+--echo # log_warnings=4
+--echo #
+
+--echo # No heartbeat, so that only the watcher can end an idle dump thread
+--connection slave
+--source include/stop_slave.inc
+--let $default_heartbeat= `SELECT @@global.slave_net_timeout / 2`
+SET @old_slave_net_timeout= @@global.slave_net_timeout;
+SET GLOBAL slave_net_timeout= 7200;
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= 3600;
+--source include/start_slave.inc
+--connection master
+--source include/sync_slave_io_with_master.inc
+--connection master
+
+--let $old_log_warnings= `SELECT @@global.log_warnings`
+SET GLOBAL log_warnings= 4;
+
+--let $dump_id= `SELECT id FROM information_schema.processlist WHERE command = 'Binlog Dump'`
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+--echo # The dump thread is gone
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $dump_id;
+--source include/wait_condition.inc
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= BINLOG DUMP client disconnected;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+--echo # With the default log_warnings nothing more is logged
+--eval SET GLOBAL log_warnings= $old_log_warnings
+
+--connection slave
+--source include/start_slave.inc
+--connection master
+--source include/sync_slave_io_with_master.inc
+--connection master
+
+--let $dump_id= `SELECT id FROM information_schema.processlist WHERE command = 'Binlog Dump'`
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $dump_id;
+--source include/wait_condition.inc
+--source include/search_pattern_in_file.inc
+
+--connection slave
+--eval CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD= $default_heartbeat
+SET GLOBAL slave_net_timeout= @old_slave_net_timeout;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

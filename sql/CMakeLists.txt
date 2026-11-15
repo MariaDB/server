@@ -159,6 +159,7 @@ SET (SQL_SOURCE
                rpl_rli.cc rpl_mi.cc rpl_info_file.cc rpl_master_info_file.cc
                sql_servers.cc sql_audit.cc
                sql_connect.cc scheduler.cc sql_partition_admin.cc
+               disconnect_watcher.cc
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc

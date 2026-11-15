@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <thread>
+#include "my_atomic_wrapper.h"
 #include "dur_prop.h"
 #include <waiting_threads.h>
 #include "sql_array.h"
@@ -3579,8 +3580,9 @@ private:
   /*
     Type of current query: COM_STMT_PREPARE, COM_QUERY, etc. Set from
     first byte of the packet in do_command()
+    Read without a lock by the disconnect watcher, hence atomic.
   */
-  enum enum_server_command m_command;
+  Atomic_relaxed<enum enum_server_command> m_command;
 
 public:
   uint32     file_id;			// for LOAD DATA INFILE
@@ -4534,6 +4536,17 @@ public:
   bool       substitute_null_with_insert_id;
   bool	     in_lock_tables;
   bool       bootstrap, cleanup_done, free_connection_done;
+  /* Not NULL if the socket is registered in the client disconnect watcher */
+  struct Disconnect_watch *disconnect_watch= nullptr;
+  /*
+    DISCONNECT_MARKED is set when the client disconnect watcher finds the
+    client gone. The command sets DISCONNECT_UNINTERRUPTIBLE before it writes
+    the reply, there is nothing left to abort, and the signal after it is only
+    noted.
+  */
+  static constexpr uint8 DISCONNECT_MARKED= 1;
+  static constexpr uint8 DISCONNECT_UNINTERRUPTIBLE= 2;
+  Atomic_relaxed<uint8> disconnect_flags{0};
 
   /**  
     is set if a statement accesses a temporary table created through
@@ -4745,7 +4758,10 @@ public:
 #endif
   void awake_no_mutex(killed_state state_to_set,
                        int killed_errno_arg= 0,
-                       const char *killed_err_msg_arg= 0);
+                       const char *killed_err_msg_arg= 0,
+                       const char *abort_reason= "KILLED",
+                       uint abort_level= 3,
+                       bool shutdown_vio= true);
   void awake(killed_state state_to_set,
              int killed_errno_arg= 0,
              const char *killed_err_msg_arg= 0)
@@ -5467,6 +5483,15 @@ public:
   }
   int killed_errno();
   void reset_killed();
+  /*
+    Client disconnect, see disconnect_watcher.h. The connection thread calls
+    check_disconnect() when a command starts, and
+    set_disconnect_uninterruptible() when it sends the last reply.
+    kill_on_disconnect() is called by it, or by the watcher.
+  */
+  void check_disconnect();
+  void set_disconnect_uninterruptible();
+  void kill_on_disconnect();
   inline void reset_kill_query()
   {
     if (killed < KILL_CONNECTION)

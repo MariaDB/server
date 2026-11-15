@@ -66,6 +66,7 @@
 call mtr.add_suppression("Timeout waiting");
 call mtr.add_suppression("did not exit");
 call mtr.add_suppression("Got an error reading communication packets");
+call mtr.add_suppression("Client disconnected");
 
 --let $sav_master_timeout= `SELECT @@GLOBAL.rpl_semi_sync_master_timeout`
 --let $sav_enabled_master= `SELECT @@GLOBAL.rpl_semi_sync_master_enabled`

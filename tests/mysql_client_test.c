@@ -39,6 +39,7 @@
 #endif
 
 #include "mysql_client_fw.c"
+#include <my_net.h>                     /* SHUT_WR */
 #ifndef _WIN32
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -21116,7 +21117,7 @@ static void proxy_send_handshake_error(const char *client_ip)
     DIE_UNLESS(send(s, header, strlen(header), 0) > 0);
   }
   /* Half-close our write side so the server's handshake read hits EOF. */
-  DIE_UNLESS(shutdown(s, IF_WIN(SD_SEND,SHUT_WR)) == 0);
+  DIE_UNLESS(shutdown(s, SHUT_WR) == 0);
   /* Drain until the server closes, ensuring the error has been accounted. */
   {
     char buf[256];
@@ -24516,6 +24517,124 @@ static void test_mdev35953()
 
   mysql_query(mysql, "drop table t1");
 }
+
+
+static my_bool disconnect_watcher_is_on()
+{
+  int watcher= 0;
+  query_int_variable(mysql,
+                     "(SELECT COUNT(*) FROM information_schema.global_variables"
+                     " WHERE variable_name='DISCONNECT_WATCHER'"
+                     " AND variable_value='ON')", &watcher);
+  if (!watcher)
+    printf("Skipped, disconnect_watcher is not ON\n");
+  return watcher != 0;
+}
+
+
+/*
+  A client closes its sending side with a statement that waits for a lock
+  and another command behind it, written to the socket in one piece with their
+  headers. The waiting statement is aborted, the client gets its error, the
+  connection ends, and the command behind does not run.
+
+  @param stmt_closes  COM_STMT_CLOSE of that many prepared statements go first
+*/
+static void disconnect_pipelined_case(uint stmt_closes)
+{
+  enum { MAX_CLOSES= 10 };
+  /* Length (3 bytes), sequence number 0, COM_QUERY, the query. Twice. */
+  static const char queries[]=
+    "\x11\x00\x00\x00" "\x03" "SELECT * FROM t1"
+    "\x1e\x00\x00\x00" "\x03" "INSERT INTO marker VALUES (1)";
+  MYSQL_STMT *stmts[MAX_CLOSES];
+  char request[MAX_CLOSES * 9 + sizeof(queries)], *p= request;
+  MYSQL *blocker= mysql_client_init(NULL);
+  MYSQL *con= mysql_client_init(NULL);
+  int rc, marker= -1;
+  uint i;
+  my_socket s;
+
+  DIE_UNLESS(stmt_closes <= MAX_CLOSES);
+  DIE_UNLESS(blocker && con);
+  DIE_UNLESS(mysql_real_connect(blocker, opt_host, opt_user, opt_password,
+                                current_db, opt_port, opt_unix_socket, 0));
+  DIE_UNLESS(mysql_real_connect(con, opt_host, opt_user, opt_password,
+                                current_db, opt_port, opt_unix_socket, 0));
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT) ENGINE=MyISAM");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE marker (a INT) ENGINE=MyISAM");
+  myquery(rc);
+
+  for (i= 0; i < stmt_closes; i++)
+  {
+    stmts[i]= mysql_stmt_init(con);
+    rc= mysql_stmt_prepare(stmts[i], "SELECT 1", -1);
+    check_execute(stmts[i], rc);
+    /* Length (3 bytes), sequence number 0, COM_STMT_CLOSE, statement id */
+    memcpy(p, "\x05\x00\x00\x00\x19", 5);
+    int4store(p + 5, stmts[i]->stmt_id);
+    p+= 9;
+  }
+  memcpy(p, queries, sizeof(queries) - 1);
+  p+= sizeof(queries) - 1;
+
+  /* The statement of the client waits for this lock */
+  rc= mysql_query(blocker, "LOCK TABLES t1 WRITE");
+  myquery(rc);
+
+  /* The packets are written to the socket as they are */
+  DIE_UNLESS(!mysql_get_ssl_cipher(con));
+  s= mysql_get_socket(con);
+  DIE_UNLESS(send(s, request, (int) (p - request), 0) == (int) (p - request));
+  DIE_UNLESS(shutdown(s, SHUT_WR) == 0);
+
+  /*
+    The statement is aborted. The response to a command sent with sequence
+    number 0 has number 1, which the library does not know.
+  */
+  con->net.pkt_nr= 1;
+  rc= mysql_read_query_result(con);
+  if (!rc)                              /* the error follows the header */
+    DIE_UNLESS(!mysql_store_result(con));
+  /* The server closes with the INSERT unread, the reset can drop the error */
+  if (mysql_errno(con) != CR_SERVER_LOST)
+    DIE_UNLESS(mysql_errno(con) == ER_CONNECTION_KILLED);
+
+  /* The connection is closed, the INSERT was not run */
+  con->net.pkt_nr= 1;
+  rc= mysql_read_query_result(con);
+  DIE_UNLESS(rc && (mysql_errno(con) == CR_SERVER_LOST ||
+                    mysql_errno(con) == CR_SERVER_GONE_ERROR));
+
+  query_int_variable(mysql, "(SELECT COUNT(*) FROM marker)", &marker);
+  DIE_UNLESS(marker == 0);
+
+  mysql_close(con);
+  for (i= 0; i < stmt_closes; i++)
+    mysql_stmt_close(stmts[i]);
+  mysql_close(blocker);
+  rc= mysql_query(mysql, "DROP TABLE t1, marker");
+  myquery(rc);
+}
+
+
+static void test_disconnect_pipelined()
+{
+  myheader("test_disconnect_pipelined");
+  if (disconnect_watcher_is_on())
+    disconnect_pipelined_case(0);
+}
+
+
+/* Closing statements is graceful, a statement that follows them is not */
+static void test_disconnect_close_then_query()
+{
+  myheader("test_disconnect_close_then_query");
+  if (disconnect_watcher_is_on())
+    disconnect_pipelined_case(10);
+}
 #endif
 
 static struct my_tests_st my_tests[]= {
@@ -24845,6 +24964,8 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_mdev_36080", test_mdev_36080},
   { "test_mdev35953", test_mdev35953 },
+  { "test_disconnect_pipelined", test_disconnect_pipelined },
+  { "test_disconnect_close_then_query", test_disconnect_close_then_query },
 #endif
   { 0, 0 }
 };

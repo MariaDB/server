@@ -1,6 +1,9 @@
 --source include/have_ssl_communication.inc
 --source include/slow_environ.inc
 
+# The client times out and leaves while SLEEP() runs
+call mtr.add_suppression("Client disconnected");
+
 --echo # connect with read timeout so SLEEP() should timeout
 connect (ssl_con,localhost,root,,,,,SSL read_timeout=5$_timeout_adjustment);
 
