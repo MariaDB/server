@@ -1,0 +1,26 @@
+connection node_2;
+connection node_1;
+# Correct Galera library found
+CALL mtr.add_suppression("Inconsistency detected");
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER);
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'dbug=d,async_recv_force_inconsistency,async_recv_exit_before_closing_check';
+connection node_1;
+INSERT INTO t1 VALUES (1);
+connection node_2;
+SET SESSION wsrep_on = OFF;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+SET SESSION wsrep_on = OFF;
+SET GLOBAL wsrep_cluster_address = '';
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'signal=async_recv_exit_before_closing_check';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2a;
+disconnect node_2a;
+connection node_2;
+SET SESSION wsrep_on = OFF;
+connection node_1;
+SET wsrep_sync_wait = 0;
+DROP TABLE t1;
