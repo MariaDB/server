@@ -8,13 +8,13 @@ START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc
 connection master;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-3	slave2	SLAVE_PORT	1
-2	localhost	SLAVE_PORT	1
+Server_id	Host	Port	Master_id	Sent_pos	Ack_pos
+3	slave2	SLAVE_PORT	1	master-bin.000001:330	NULL
+2	localhost	SLAVE_PORT	1	master-bin.000001:330	NULL
 connection slave2;
 include/stop_slave_io.inc
 connection master;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-2	localhost	SLAVE_PORT	1
+Server_id	Host	Port	Master_id	Sent_pos	Ack_pos
+2	localhost	SLAVE_PORT	1	master-bin.000001:330	NULL
 include/rpl_end.inc

@@ -2718,6 +2718,28 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return "Failed to run hook 'after_send_event'";
   }
 
+  if (info->thd->slave_info &&
+      (/*TODO MDEV-40331 */ !opt_binlog_engine_hton || end_of_group_event))
+  {
+    if (!opt_binlog_engine_hton) // @ref Log_info_pos doesn't need locking here
+      mysql_mutex_lock(&info->thd->LOCK_thd_data);
+    bool error= slave_info_dump_pos(info->thd->slave_info)->set(
+      // both unused in @ref Gtid_pos
+      info->log_file_name + info->dirlen, pos,
+      /*
+        unused in @ref Log_info_pos
+        (would also be misleading outside of `end_of_group_event`)
+      */
+      &(info->cur_gtid));
+    if (!opt_binlog_engine_hton)
+      mysql_mutex_unlock(&info->thd->LOCK_thd_data);
+    if (error)
+    {
+      info->error= ER_OUTOFMEMORY;
+      return ER_THD(info->thd, info->error);
+    }
+  }
+
   return NULL;    /* Success */
 }
 
@@ -2942,7 +2964,34 @@ static int init_binlog_sender(binlog_send_info *info,
   // set current pos too
   linfo->pos= *pos;
   // note: publish that we use file, before we open it
-  thd->set_current_linfo(linfo);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  thd->current_linfo= linfo;
+  if (Slave_info *si= thd->slave_info)
+  {
+    Repl_pos *&dump_pos= slave_info_dump_pos(si);
+    if (opt_binlog_engine_hton)
+    {
+      auto *gtid_dump_pos= new Gtid_pos();
+      if (gtid_dump_pos)
+      {
+        if (gtid_dump_pos->set(info->gtid_state))
+          delete gtid_dump_pos; // fall-through to OOM
+        else
+          dump_pos= gtid_dump_pos;
+      }
+    }
+    else //TODO MDEV-40331: Also use GTID ACKs for the legacy binlog
+      dump_pos= new Log_info_pos(thd->current_linfo);
+    if (!dump_pos)
+    {
+      info->error= ER_OUTOFMEMORY;
+      info->errmsg= ER_THD(thd, info->error);
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
+      my_error(info->error, MYF(0));
+      return 1;
+    }
+  }
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (!opt_binlog_engine_hton &&
       check_start_offset(info, linfo->log_file_name, *pos))
@@ -3796,11 +3845,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     goto err;
   }
 #ifdef ENABLED_DEBUG_SYNC
-  DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
+  DBUG_EXECUTE_IF("pause_dump_thread_after_start",
                  {
                    const char act[]=
-                     "now "
-                     "WAIT_FOR greetings_from_kill_mysql";
+                     "now SIGNAL at_dump_thread_after_start "
+                     "WAIT_FOR continue_dump_thread_after_start NO_CLEAR_EVENT";
                    DBUG_ASSERT(!debug_sync_set_action(thd,
                                                       STRING_WITH_LEN(act)));
                  };);
@@ -3954,12 +4003,24 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
     THD_STAGE_INFO(thd,
                    stage_finished_reading_one_binlog_switching_to_next_binlog);
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     if (mysql_bin_log.find_next_log(&linfo, 1))
     {
+      // `linfo->log_file_name` is not overwritten on error, so don't change pos
+      mysql_mutex_unlock(&thd->LOCK_thd_data);
       info->errmsg= "could not find next log";
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       break;
     }
+    if (Slave_info *si= thd->slave_info)
+    {
+      constexpr rpl_gtid no_change= {0, 0, 0};
+      slave_info_dump_pos(si)->set(
+        // Semi-sync ACK positions are without the directory part
+        &(linfo.log_file_name[dirname_length(linfo.log_file_name)]),
+        BIN_LOG_HEADER_SIZE, &no_change);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
     /** start from start of next file */
     pos= BIN_LOG_HEADER_SIZE;
@@ -4504,12 +4565,6 @@ static my_bool kill_callback_collect(THD *thd, kill_callback_arg *arg)
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake_no_mutex(KILL_SLAVE_SAME_ID);  // Mark killed
-    /*
-      Remover the thread from ack_receiver to ensure it is not
-      sending acks to the master anymore.
-    */
-    ack_receiver.remove_slave(thd);
-
     mysql_mutex_unlock(&thd->LOCK_thd_data);
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }

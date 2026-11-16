@@ -1,0 +1,7 @@
+!include ../rpl/t/rpl_semi_sync_show_slave_hosts.cnf
+
+[mysqld]
+# `have_innodb_binlog.opt` that are lost due to the presence of `.cnf`s
+log-bin
+binlog-storage-engine=innodb
+max-binlog-size=256K

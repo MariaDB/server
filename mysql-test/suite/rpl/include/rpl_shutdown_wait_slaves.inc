@@ -31,7 +31,8 @@ while ($count)
 # until has received a signal from the shutdown thread.
 # This also proves delivery to a  started-in-middle-of-shutdown slave.
 --connection server_1
-SET @@GLOBAL.debug_dbug="+d,simulate_delay_at_shutdown";
+SET @@GLOBAL.debug_dbug=
+  '+d,simulate_delay_at_shutdown,pause_dump_thread_after_start';
 
 --connection server_4
 --source include/start_slave.inc

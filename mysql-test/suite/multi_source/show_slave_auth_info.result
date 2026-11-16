@@ -14,18 +14,18 @@ START ALL SLAVES;
 # Test
 connection master2;
 SHOW SLAVE HOSTS;
-Server_id	Host	Port	Master_id
-3	localhost	SERVER_MYPORT_3	2
-4	localhost	SERVER_MYPORT_4	2
+Server_id	Host	Port	Master_id	Sent_pos	Ack_pos
+3	localhost	SERVER_MYPORT_3	2	master-bin.000001:330	NULL
+4	localhost	SERVER_MYPORT_4	2	master-bin.000001:330	NULL
 connection master1;
 SHOW SLAVE HOSTS;
-Server_id	Host	User	Password	Port	Master_id
-3	localhost			SERVER_MYPORT_3	1
-4	localhost	my_user	my_password	SERVER_MYPORT_4	1
+Server_id	Host	User	Password	Port	Master_id	Sent_pos	Ack_pos
+3	localhost			SERVER_MYPORT_3	1	master-bin.000001:330	NULL
+4	localhost	my_user	my_password	SERVER_MYPORT_4	1	master-bin.000001:330	NULL
 SHOW REPLICA HOSTS;
-Server_id	Host	User	Password	Port	Master_id
-3	localhost			SERVER_MYPORT_3	1
-4	localhost	my_user	my_password	SERVER_MYPORT_4	1
+Server_id	Host	User	Password	Port	Master_id	Sent_pos	Ack_pos
+3	localhost			SERVER_MYPORT_3	1	master-bin.000001:330	NULL
+4	localhost	my_user	my_password	SERVER_MYPORT_4	1	master-bin.000001:330	NULL
 # Cleanup
 connection slave2;
 STOP ALL SLAVES;
