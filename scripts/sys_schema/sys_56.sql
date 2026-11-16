@@ -27,7 +27,6 @@ SOURCE ./functions/extract_schema_from_file_name.sql
 SOURCE ./functions/extract_table_from_file_name.sql
 SOURCE ./functions/format_path.sql
 SOURCE ./functions/format_statement.sql
-SOURCE ./functions/format_time.sql
 SOURCE ./functions/list_add.sql
 SOURCE ./functions/list_drop.sql
 SOURCE ./functions/ps_is_account_enabled.sql
@@ -35,7 +34,6 @@ SOURCE ./functions/ps_is_consumer_enabled.sql
 SOURCE ./functions/ps_is_instrument_default_enabled.sql
 SOURCE ./functions/ps_is_instrument_default_timed.sql
 SOURCE ./functions/ps_is_thread_instrumented.sql
-SOURCE ./functions/ps_thread_id.sql
 SOURCE ./functions/ps_thread_account.sql
 SOURCE ./functions/ps_thread_stack.sql
 SOURCE ./functions/quote_identifier.sql

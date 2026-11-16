@@ -70,6 +70,7 @@ pfs_instr.h
 pfs_instr_class.h
 pfs_lock.h
 pfs_memory.h
+pfs_native_func.h
 pfs_server.h
 pfs_setup_actor.h
 pfs_setup_object.h
@@ -187,6 +188,7 @@ pfs_host.cc
 pfs_instr.cc
 pfs_instr_class.cc
 pfs_memory.cc
+pfs_native_func.cc
 pfs_server.cc
 pfs_setup_actor.cc
 pfs_setup_object.cc

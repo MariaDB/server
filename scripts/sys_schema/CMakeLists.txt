@@ -8,10 +8,8 @@ ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_insert_set_user.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_update_set_user.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/extract_schema_from_file_name.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/extract_table_from_file_name.sql
-${CMAKE_CURRENT_SOURCE_DIR}/functions/format_bytes.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/format_path_57.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/format_statement.sql
-${CMAKE_CURRENT_SOURCE_DIR}/functions/format_time.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/list_add.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/list_drop.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_is_account_enabled.sql
@@ -19,7 +17,6 @@ ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_is_consumer_enabled.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_is_instrument_default_enabled.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_is_instrument_default_timed.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_is_thread_instrumented.sql
-${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_thread_id.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_thread_account.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_thread_stack.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/functions/ps_thread_trx_info.sql

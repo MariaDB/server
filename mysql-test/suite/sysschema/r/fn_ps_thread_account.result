@@ -4,6 +4,6 @@ NULL
 SELECT sys.ps_thread_account(234623462376);
 sys.ps_thread_account(234623462376)
 NULL
-SELECT sys.ps_thread_account(sys.ps_thread_id(NULL));
-sys.ps_thread_account(sys.ps_thread_id(NULL))
+SELECT sys.ps_thread_account(PS_CURRENT_THREAD_ID());
+sys.ps_thread_account(PS_CURRENT_THREAD_ID())
 root@localhost
