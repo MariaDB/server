@@ -15929,6 +15929,7 @@ reset_option:
 slave_reset_options:
           /* empty */ { Lex->reset_slave_info.all= false; }
         | ALL         { Lex->reset_slave_info.all= true; }
+        | FULL        { Lex->reset_slave_info.all= true; }
         ;
 
 master_reset_options:
