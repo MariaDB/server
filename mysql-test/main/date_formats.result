@@ -628,3 +628,31 @@ DATE_FORMAT('2023-03-26 03:00:00', '%z %Z')
 #
 # End of 11.3 test
 #
+#
+# MDEV-41375: Item_func_date_format::format_length() works badly for multi-byte character sets
+#
+SET NAMES utf8mb3;
+CREATE OR REPLACE TABLE t1 AS
+SELECT
+DATE_FORMAT('1997-10-04 22:23:00', '%T') AS c1,
+DATE_FORMAT('1997-10-04 22:23:00', _utf32 0x0000002500000054) AS c2,
+DATE_FORMAT('1997-10-04 22:23:00', _ucs2 0x00250054) AS c3,
+DATE_FORMAT('1997-10-04 22:23:00', _utf16le 0x25005400) AS c4,
+DATE_FORMAT('1997-10-04 22:23:00', _utf32 0x000000250000004D) AS c5,
+DATE_FORMAT('1997-10-04 22:23:00', _ucs2 0x00250059) AS c6,
+DATE_FORMAT('1997-10-04 22:23:00', 'I') AS c7,
+DATE_FORMAT('1997-10-04 22:23:00', 'ß') AS c8;
+DESCRIBE t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(8)	YES		NULL	
+c2	varchar(8)	YES		NULL	
+c3	varchar(8)	YES		NULL	
+c4	varchar(8)	YES		NULL	
+c5	varchar(64)	YES		NULL	
+c6	varchar(4)	YES		NULL	
+c7	varchar(1)	YES		NULL	
+c8	varchar(1)	YES		NULL	
+DROP TABLE t1;
+#
+# End of 11.4 tests.
+#
