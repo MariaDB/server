@@ -275,6 +275,7 @@ extern const char *my_collation_get_tailoring(uint id);
 /* statistics */
 extern ulong    my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
+extern ulong    my_stream_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
 extern int32    my_file_opened;

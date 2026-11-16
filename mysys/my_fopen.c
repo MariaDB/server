@@ -63,10 +63,12 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
     if ((uint)filedesc >= my_file_limit)
     {
       statistic_increment(my_stream_opened,&THR_LOCK_open);
+      statistic_increment(my_stream_total_opened, &THR_LOCK_open);
       DBUG_RETURN(fd);				/* safeguard */
     }
     my_file_info[filedesc].name= my_strdup(key_memory_my_file_info, filename, MyFlags);
     statistic_increment(my_stream_opened, &THR_LOCK_open);
+    statistic_increment(my_stream_total_opened, &THR_LOCK_open);
     statistic_increment(my_file_total_opened, &THR_LOCK_open);
     my_file_info[filedesc].type= STREAM_BY_FOPEN;
     DBUG_PRINT("exit",("stream: %p", fd));
@@ -219,6 +221,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
   else
   {
     statistic_increment(my_stream_opened, &THR_LOCK_open);
+    statistic_increment(my_stream_total_opened, &THR_LOCK_open);
     if ((uint) Filedes < (uint) my_file_limit)
     {
       if (my_file_info[Filedes].type != UNOPEN)
