@@ -1,11 +1,123 @@
 --echo #
---echo # MDEV-41962 SQL extension service: access checks
+--echo # MDEV-41962 SQL extension service: results, warnings and access checks
 --echo #
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/count_sessions.inc
 
 INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo #
+--echo # Results
+--echo #
+SET NAMES utf8mb4;
+--enable_metadata
+TEST SQLEXT ROWS;
+--disable_metadata
+--echo # Also as a prepared statement, which has no columns at PREPARE
+PREPARE s FROM 'TEST SQLEXT ROWS';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--enable_info
+TEST SQLEXT INFO;
+--echo # An OK message of 511 bytes is sent whole; a longer or ill-formed
+--echo # one is refused, not cut or sent as '?'
+TEST SQLEXT INFO MAX;
+--disable_info
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT INFO LONG;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT INFO ILL_FORMED;
+SET NAMES DEFAULT;
+TEST SQLEXT WARN;
+SHOW WARNINGS;
+--echo # Several results per statement: see results.test
+
+--echo #
+--echo # Column types: the metadata follows the cells (DECIMAL scale,
+--echo # fractional seconds, nullability)
+--echo #
+--echo # Text protocol only: with --ps-protocol the client computes other
+--echo # "Max length" values and, as for CALL, does not show the JSON format
+--echo # of columns first sent at EXECUTE
+--disable_ps_protocol
+--enable_metadata
+TEST SQLEXT TYPES;
+--echo # With no rows, and with only NULLs, the metadata still describes
+--echo # each column (strings at least 1 character wide; nullable only if
+--echo # a NULL was sent)
+TEST SQLEXT EMPTY;
+TEST SQLEXT NULLS;
+--disable_metadata
+--enable_ps_protocol
+PREPARE s FROM 'TEST SQLEXT TYPES';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--echo # Values at the limits of each type are accepted
+TEST SQLEXT BAD INTEGER -9223372036854775808;
+TEST SQLEXT BAD UNSIGNED 18446744073709551615;
+TEST SQLEXT BAD DOUBLE 1.7976931348623157e308;
+TEST SQLEXT BAD DECIMAL 123456789012345678901234567.12345678901234567890123456789012345678;
+TEST SQLEXT BAD DECIMAL 0.00000000000000000000000000000000000001;
+TEST SQLEXT BAD TIME 838:59:59;
+TEST SQLEXT BAD TIME -34 22:59:59.999999;
+TEST SQLEXT BAD DATETIME 9999-12-31 23:59:59.999999;
+TEST SQLEXT BAD JSON [1, "two", {"three": null}];
+TEST SQLEXT BAD STRING café;
+--echo # Other values are refused before anything is sent
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD STRING ILL_FORMED;
+--echo # Malformed result sets are refused as well
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NOCOLS;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NONAME;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET BADTYPE;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NOCELLS;
+--echo # A call with a thd other than execute()'s is an invalid argument
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT BADTHD;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD INTEGER 12x;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD INTEGER 9223372036854775808;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD UNSIGNED -1;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE abc;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE 1e400;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 1.2.3;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 1234567890123456789012345678901234567890123456789012345678901234567;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 0.000000000000000000000000000000000000001;
+--echo # Two cells that fit on their own, but not in one DECIMAL column:
+--echo # 60 digits before the point and 11 after
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD2 DECIMAL 123456789012345678901234567890123456789012345678901234567890 0.12345678901;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATE 2026-13-01;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATE 2026-11-06 10:20:30;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATETIME 2026-11-06;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATETIME 2026-11-06 10:20:30.1234567;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD TIME 839:00:00;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD TIME 10:61:00;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD JSON {"a": ;
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT BAD NOSUCHTYPE x;
 
 --echo #
 --echo # Access checks

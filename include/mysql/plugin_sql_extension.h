@@ -40,14 +40,16 @@
   performance_schema).
 
   A plugin works in utf8mb4 whatever the client's character set: the text
-  execute() gets is utf8mb4. Only recognize() gets the raw text, in the
-  client character set.
+  execute() gets, and the results it sends, which reach the client in its
+  character set as any result does. Only recognize() gets the raw text,
+  in the client character set.
 
   execute() runs on the client's connection, in the client's thread,
   while the statement executes: the plugin stays locked until it returns,
   so UNINSTALL PLUGIN unloads it only afterwards. It uses the SQL
   extension services:
-  - service_sql_extension.h: privilege checks.
+  - service_sql_extension.h: privilege checks;
+  - service_sql_extension_result.h: results.
 
   plugin/test_sql_extension is a complete example, exercised by the
   mysql-test suite sql_extension.
@@ -63,6 +65,7 @@
 
 #include <mysql/plugin.h>
 #include <mysql/service_sql_extension.h>
+#include <mysql/service_sql_extension_result.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -142,9 +145,9 @@ struct st_mariadb_sql_extension
   /**
     Required. Handles a claimed statement completely: it sends one or more
     results (result sets, OKs, results of forwarded SQL) through the SQL
-    extension service, or an error through the my_print_error service, or
-    results followed by an error (see service_sql_extension.h). If it sends
-    nothing and returns 0, the server sends OK.
+    extension services, or an error through the my_print_error service, or
+    results followed by an error (see service_sql_extension_result.h). If
+    it sends nothing and returns 0, the server sends OK.
 
     @param thd     the client connection
     @param query   the claimed statement text, in utf8mb4: converted from
@@ -152,7 +155,10 @@ struct st_mariadb_sql_extension
                    prepared in, for a prepared statement)
     @param length  its length in bytes
 
-    @return 0 on success, non-zero on failure.
+    @return 0 on success, non-zero on failure. A failure without an error
+            raised is reported as ER_SQL_EXTENSION_FAILED. An OK or end of
+            rows set on the connection by other means than the service is
+            refused as an invalid result.
   */
   int (*execute)(MYSQL_THD thd, const char *query, size_t length);
 

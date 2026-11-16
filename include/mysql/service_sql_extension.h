@@ -30,10 +30,11 @@
   The services of the execute() function of an SQL extension plugin
   (include/mysql/plugin_sql_extension.h). Their functions may only be
   called from execute(), on the THD it was given. This one checks the
-  client's privileges.
+  client's privileges. The others are for plugins that need them:
+  - service_sql_extension_result.h: send result sets and OK packets.
 
   A statement answers with an error raised with my_error() /
-  my_printf_error().
+  my_printf_error(), or with what the plugin sent through those services.
   When execute() returns 0 without sending anything, the client gets a
   plain OK. Notes and warnings are added to the statement with
   my_printf_error() and ME_NOTE or ME_WARNING.

@@ -23,6 +23,14 @@ SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT OK';
 SELECT @@test_sql_service_execute_sql_global AS r;
 SET GLOBAL test_sql_service_execute_sql_global= 'TEST SQLEXT ERROR';
 SELECT @@test_sql_service_execute_sql_global AS r;
+--echo # Access checks there grant everything but what the built-in rules
+--echo # deny to every user
+SET GLOBAL test_sql_service_execute_sql_local=
+  'TEST SQLEXT ACCESS INSERT no_such_db no_such_table';
+SELECT @@test_sql_service_execute_sql_local AS r;
+SET GLOBAL test_sql_service_execute_sql_local=
+  'TEST SQLEXT ACCESS INSERT information_schema';
+SELECT @@test_sql_service_execute_sql_local AS r;
 --echo # An unclaimed statement keeps its parse error
 SET GLOBAL test_sql_service_execute_sql_local= 'TEST NOTHING';
 SELECT @@test_sql_service_execute_sql_local AS r;

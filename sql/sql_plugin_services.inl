@@ -20,6 +20,7 @@
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_print_check_msg.h>
 #include <mysql/service_sql_extension.h>
+#include <mysql/service_sql_extension_result.h>
 
 struct st_service_ref {
   const char *name;
@@ -272,6 +273,13 @@ static struct sql_extension_service_st sql_extension_handler=
   sql_extension_check_access
 };
 
+static struct sql_extension_result_service_st sql_extension_result_handler=
+{
+  sql_extension_send_result_set,
+  sql_extension_send_ok,
+  sql_extension_client_flags
+};
+
 static struct thd_mdl_service_st thd_mdl_handler=
 {
   thd_mdl_context
@@ -375,6 +383,7 @@ static struct st_service_ref list_of_services[]=
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
   { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
   { "sql_extension_service",       VERSION_sql_extension,       &sql_extension_handler },
+  { "sql_extension_result_service", VERSION_sql_extension_result, &sql_extension_result_handler },
   { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },

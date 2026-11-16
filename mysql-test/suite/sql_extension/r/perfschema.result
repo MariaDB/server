@@ -23,6 +23,17 @@ TEST SQLEXT ERROR;
 ERROR HY000: test_sql_extension: error
 TEST SQLEXTRA OK;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXTRA OK' at line 1
+# Rows sent through the service count as rows sent: 2, and 1 + 1 in
+# two result sets with an OK between them
+TEST SQLEXT ROWS;
+s	b	i	u
+café	bÿn	-9223372036854775808	18446744073709551615
+	NULL	0	NULL
+TEST SQLEXT MULTI;
+first
+1
+third
+3
 # Prepared: the outer statement is recorded, as for any prepared one
 PREPARE s FROM 'TEST SQLEXT OK';
 EXECUTE s;
@@ -37,6 +48,8 @@ event_name	sql_text	mysql_errno	rows_sent
 statement/sql/sql_extension	TEST SQLEXT OK	0	0
 statement/sql/sql_extension	TEST SQLEXT ERROR	1105	0
 statement/sql/error	TEST SQLEXTRA OK	1064	0
+statement/sql/sql_extension	TEST SQLEXT ROWS	0	2
+statement/sql/sql_extension	TEST SQLEXT MULTI	0	2
 statement/sql/prepare_sql	PREPARE s FROM 'TEST SQLEXT OK'	0	0
 statement/sql/execute_sql	EXECUTE s	0	0
 UPDATE performance_schema.setup_instruments i JOIN saved_instruments s

@@ -5396,13 +5396,27 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message()
+private:
+  /** The message of err, the error of the kill */
+  const char *killed_message(int err)
+  {
+    mysql_mutex_assert_owner(&LOCK_thd_kill);
+    return killed_err ? killed_err->msg : ER_THD(this, err);
+  }
+public:
+  /**
+    Raise the error of the kill, if it has one (LIMIT ROWS EXAMINED
+    stops a statement without an error).
+    @return whether an error was raised
+  */
+  inline bool send_kill_message()
   {
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
-      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
+      my_message(err, killed_message(err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
+    return err != 0;
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
