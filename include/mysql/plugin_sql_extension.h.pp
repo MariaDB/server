@@ -713,6 +713,14 @@ void thd_set_ha_data(THD* thd, const struct transaction_participant *hton,
 void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 }
 extern "C" {
+extern struct sql_extension_service_st {
+  int (*check_access_func)(THD* thd, unsigned long long privileges,
+                           const char *db, const char *table);
+} *sql_extension_service;
+int sql_extension_check_access(THD* thd, unsigned long long privileges,
+                               const char *db, const char *table);
+}
+extern "C" {
 struct st_mariadb_sql_extension
 {
   int interface_version;

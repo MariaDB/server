@@ -32,13 +32,22 @@
   plugin, and EXECUTE ... USING is refused. They never come
   from the body of a stored program, view, trigger or event, nor from
   replication, which carries the SQL a handler ran as the client rather
-  than the extension statement.
+  than the extension statement. They also reach it from the SQL another
+  plugin runs through the plain SQL service (service_sql.h): such SQL
+  runs with no grants checked, and under LOCK TABLES on a connection of
+  its own, so sql_extension_check_access() then grants everything but
+  what the built-in rules deny to every user (information_schema,
+  performance_schema).
+
+  A plugin works in utf8mb4 whatever the client's character set: the text
+  execute() gets is utf8mb4. Only recognize() gets the raw text, in the
+  client character set.
 
   execute() runs on the client's connection, in the client's thread,
   while the statement executes: the plugin stays locked until it returns,
-  so UNINSTALL PLUGIN unloads it only afterwards. The SQL a handler runs
-  on behalf of the statement goes through the SQL extension service
-  (service_sql_extension.h), as the client.
+  so UNINSTALL PLUGIN unloads it only afterwards. It uses the SQL
+  extension services:
+  - service_sql_extension.h: privilege checks.
 
   plugin/test_sql_extension is a complete example, exercised by the
   mysql-test suite sql_extension.
@@ -53,6 +62,7 @@
 */
 
 #include <mysql/plugin.h>
+#include <mysql/service_sql_extension.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,7 +147,9 @@ struct st_mariadb_sql_extension
     nothing and returns 0, the server sends OK.
 
     @param thd     the client connection
-    @param query   the claimed statement text, in the client character set
+    @param query   the claimed statement text, in utf8mb4: converted from
+                   the client character set (the one the statement was
+                   prepared in, for a prepared statement)
     @param length  its length in bytes
 
     @return 0 on success, non-zero on failure.
