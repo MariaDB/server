@@ -5666,6 +5666,24 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 	goto error;
       }
     }
+
+    /*
+      FLUSH TABLES with a table list takes an exclusive MDL on each table.
+      and the MDL is held until the end of the statement. We must do TOI
+      replication before MDL locking.
+
+      But, not under LOCK TABLES, where the locks are checked by
+      reload_acl_and_cache() first.
+
+      FLUSH TABLES without a table list takes no MDL, it waits for
+      the open tables to be closed, which is not to be done under TOI.
+    */
+    if ((lex->type & REFRESH_TABLES) &&
+        !(lex->type & (REFRESH_FOR_EXPORT|REFRESH_READ_LOCK)) &&
+        first_table && !thd->locked_tables_mode)
+    {
+      WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
+    }
 #endif /* WITH_WSREP*/
 
 #ifdef HAVE_REPLICATION
@@ -5698,6 +5716,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         */
         if (first_table)
         {
+          /* No-op if TOI was begun above */
           WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
         }
         else

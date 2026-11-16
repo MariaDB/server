@@ -1,0 +1,91 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @tr1 = 1;
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW SET @tr2 = 1;
+connection node_2;
+#
+# A. DROP TRIGGER IF EXISTS ordered after DROP TRIGGER
+#
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TRIGGER tr1;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2a;
+connection node_1;
+DROP TRIGGER IF EXISTS tr1;
+# Ordered in TOI after it: node_2 has processed it
+connection node_2a;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+Warnings:
+Note	1360	Trigger does not exist
+SHOW WARNINGS;
+Level	Code	Message
+Note	1360	Trigger does not exist
+#
+# B. DROP TRIGGER ordered after DROP TRIGGER
+#
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+DROP TRIGGER tr2;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2a;
+connection node_1;
+DROP TRIGGER tr2;
+# Ordered in TOI after it: node_2 has processed it
+connection node_2a;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR HY000: Trigger does not exist
+#
+# C. CREATE TRIGGER ordered after CREATE TRIGGER of the same name
+#
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TRIGGER tr3 BEFORE INSERT ON t1 FOR EACH ROW SET @tr3 = 2;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2a;
+connection node_1;
+CREATE TRIGGER tr3 BEFORE INSERT ON t1 FOR EACH ROW SET @tr3 = 1;
+# Ordered in TOI after it: node_2 has processed it
+connection node_2a;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+ERROR HY000: Trigger 'test.tr3' already exists
+connection node_1a;
+SELECT TRIGGER_NAME, ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS
+WHERE TRIGGER_SCHEMA = 'test' ORDER BY TRIGGER_NAME;
+TRIGGER_NAME	ACTION_STATEMENT
+tr3	SET @tr3 = 2
+connection node_2a;
+SELECT TRIGGER_NAME, ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS
+WHERE TRIGGER_SCHEMA = 'test' ORDER BY TRIGGER_NAME;
+TRIGGER_NAME	ACTION_STATEMENT
+tr3	SET @tr3 = 2
+connection node_1;
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_2a;

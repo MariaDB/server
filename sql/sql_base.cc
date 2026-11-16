@@ -4926,15 +4926,38 @@ restart:
        At this point we have SE associated with table so we can check wsrep_mode
        rules at this point.
     */
+    bool wsrep_begin_toi= false; /* will be set if TOI is needed */
     if (WSREP(thd) &&
         wsrep_thd_is_local(thd) &&
         tbl &&
         tables == *start &&
         !wsrep_check_mode_after_open_table(thd,
-                                           tbl->file->ht, tables))
+                                           tbl->file->ht, tables,
+                                           &wsrep_begin_toi))
     {
       error= TRUE;
       goto error;
+    }
+
+    if (wsrep_begin_toi)
+    {
+      /*
+        DML on MyISAM or Aria tables will be replicated by TOI if wsrep_mode
+        configuration has REPLICATE_MYISAM or REPLICATE_ARIA.
+        MDL locks must not be held before replication to avoid cluster hanging.
+
+        Close the tables, release their MDLs, begin TOI and open the
+        tables again. The thread is in TOI then, and is not checked again.
+      */
+      close_tables_for_reopen(thd, start, ot_ctx.start_of_statement_svp(),
+                              false);
+      if (wsrep_to_isolation_begin(thd, NULL, NULL, *start) ||
+          thd->open_temporary_tables(*start))
+      {
+        error= TRUE;
+        goto error;
+      }
+      goto restart;
     }
 
     /* If user has issued wsrep_on = OFF and wsrep was on before

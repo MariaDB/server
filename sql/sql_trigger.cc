@@ -570,7 +570,49 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   if (create && sp_process_definer(thd))
     goto end;
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    /*
+      make sure to not hold the MDL on the trigger name before TOI replication
+
+      Release the MDL, begin TOI and acquire the MDL again. DROP TRIGGER
+      then finds the subject table again, an earlier ordered DDL may have
+      dropped the trigger, as on the other nodes. The privileges were
+      checked above, before TOI, as the appliers on the other nodes do not
+      check them.
+    */
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+    mdl_request_for_trn.ticket= NULL;
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
+
+    if (thd->mdl_context.acquire_lock(&mdl_request_for_trn,
+                                      thd->variables.lock_wait_timeout))
+      goto end;
+
+    if (!create)
+    {
+      thd->lex->reset_query_tables_list(FALSE);
+      thd->lex->sql_command= backup.sql_command;
+
+      if (add_table_for_trigger_internal(thd, thd->lex->spname,
+                                         thd->lex->if_exists(), &tables,
+                                         trn_path_buff))
+        goto end;
+
+      if (!tables)
+      {
+        /* Dropped by an earlier ordered DDL, and IF EXISTS was given */
+        result= FALSE;
+        stmt_query.set(thd->query(), thd->query_length(),
+                       system_charset_info);
+        action_executed= 1;
+        goto end;
+      }
+    }
+  }
+#endif /* WITH_WSREP */
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);

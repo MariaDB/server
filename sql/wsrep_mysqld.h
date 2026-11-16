@@ -211,7 +211,8 @@ extern bool wsrep_start_replication(const char *wsrep_cluster_address);
 extern void wsrep_shutdown();
 extern bool wsrep_check_mode (enum_wsrep_mode mask);
 extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
-                                               TABLE_LIST *tables);
+                                               TABLE_LIST *tables,
+                                               bool *begin_toi);
 extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);

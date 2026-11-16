@@ -38,6 +38,7 @@
 #include "ddl_log.h"
 #include "debug.h"              // debug_crash_here
 #include "wsrep_mysqld.h"
+#include "transaction.h"         // trans_rollback_stmt
 
 const LEX_CSTRING view_type= { STRING_WITH_LEN("VIEW") };
 
@@ -392,6 +393,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   @param thd thread handler
   @param views views to create
   @param mode VIEW_CREATE_NEW, VIEW_ALTER, VIEW_CREATE_OR_REPLACE
+  @param dry_run do all checks, but do not begin TOI and do not create
+                 the view, see wsrep_create_view_dry_run()
 
   @note This function handles both create and alter view commands.
 
@@ -399,8 +402,8 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
   @retval TRUE An error occurred.
 */
 
-bool mysql_create_view(THD *thd, TABLE_LIST *views,
-                       enum_view_create_mode mode)
+static bool create_view(THD *thd, TABLE_LIST *views,
+                        enum_view_create_mode mode, bool dry_run)
 {
   LEX *lex= thd->lex;
   bool link_to_local;
@@ -414,7 +417,9 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
   char backup_file_name[FN_REFLEN+2];
   bool res= FALSE;
-  DBUG_ENTER("mysql_create_view");
+  /* Replication and DEFINER checked before TOI was begun */
+  bool checked_before_toi= FALSE;
+  DBUG_ENTER("create_view");
 
   /*
     This is ensured in the parser.
@@ -462,6 +467,57 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     view->mdl_request.set_type(MDL_EXCLUSIVE);
   }
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_thd_is_local(thd) && !dry_run)
+  {
+    /*
+      Do not hold MDL locks before TOI replication.
+
+      Open the tables only to resolve whether the view should be
+      replicated and to complete and check the DEFINER, which goes into
+      the replicated statement. Then release the tables and their MDLs,
+      begin TOI, and open and lock the tables below. So the view is also
+      created from the tables as they are after all earlier ordered DDLs,
+      as on the other nodes.
+
+      The checks that need the tables locked and the SELECT prepared,
+      such as the column privilege check, were done by the dry run
+      before, see wsrep_create_view_dry_run().
+    */
+    uint counter;
+    MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+
+    if (thd->open_temporary_tables(lex->query_tables) ||
+        open_tables(thd, &lex->query_tables, &counter, 0))
+    {
+      res= TRUE;
+      goto err_no_relink;
+    }
+
+    /* Resolve should we replicate creation of the view.
+       It should be replicated if storage engine(s) associated
+       to view are replicated by Galera.
+    */
+    if (!wsrep_should_replicate_ddl_iterate(thd, tables))
+    {
+      res= TRUE;
+      goto err_no_relink;
+    }
+
+    if ((mode == VIEW_ALTER && fill_defined_view_parts(thd, view)) ||
+        sp_process_definer(thd))
+    {
+      res= TRUE;
+      goto err_no_relink;
+    }
+    checked_before_toi= TRUE;
+
+    DEBUG_SYNC(thd, "create_view_before_toi");
+    close_tables_for_reopen(thd, &lex->query_tables, mdl_savepoint, true);
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  }
+#endif /* WITH_WSREP */
+
   if (thd->open_temporary_tables(lex->query_tables) ||
       open_and_lock_tables(thd, lex->query_tables, TRUE, 0))
   {
@@ -470,11 +526,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
 #ifdef WITH_WSREP
-  /* Resolve should we replicate creation of the view.
-     It should be replicated if storage engine(s) associated
-     to view are replicated by Galera.
-  */
-  if (WSREP(thd) &&
+  /* Same check on appliers and in the dry run, done above otherwise */
+  if (WSREP(thd) && !checked_before_toi &&
       !wsrep_should_replicate_ddl_iterate(thd, tables))
   {
     res= TRUE;
@@ -485,15 +538,11 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   /*
     Complete the view definition (ALTER VIEW inherits DEFINER, ALGORITHM
     and SQL SECURITY from the existing view) and check that the user may
-    use the DEFINER. TOI is begun only after all checks, see below.
+    use the DEFINER.
   */
-  if (mode == VIEW_ALTER && fill_defined_view_parts(thd, view))
-  {
-    res= TRUE;
-    goto err_no_relink;
-  }
-
-  if (sp_process_definer(thd))
+  if (!checked_before_toi &&
+      ((mode == VIEW_ALTER && fill_defined_view_parts(thd, view)) ||
+       sp_process_definer(thd)))
   {
     res= TRUE;
     goto err_no_relink;
@@ -663,7 +712,16 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       }
     }
     
-    if (!final_priv && report_item)
+    if (!final_priv && report_item
+#ifdef WITH_WSREP
+        /*
+          Checked by the dry run before TOI was begun. The appliers on the
+          other nodes run with all privileges, so do not fail here either
+          if the privileges have changed since.
+        */
+        && !(WSREP(thd) && wsrep_thd_is_local_toi(thd))
+#endif
+        )
     {
       my_error(ER_COLUMNACCESS_DENIED_ERROR, MYF(0),
                "create view", thd->security_ctx->priv_user,
@@ -675,30 +733,12 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 #endif
 
-#ifdef WITH_WSREP
-  /*
-    Begin TOI only now, after all checks, privilege checks included: the
-    applier runs with all privileges, so a statement refused on this node
-    after TOI had begun would still be applied by the other nodes.
-
-    TOI expects the view to be the first table in the table list, as it
-    was before unlink_first_table() above, so link it back for the call.
-  */
-  if (WSREP(thd))
+  if (dry_run)
   {
-    TABLE_LIST *save_table_list= select_lex->context.table_list;
-    TABLE_LIST *save_first_name_resolution_table=
-      select_lex->context.first_name_resolution_table;
-
-    lex->link_first_table_back(view, link_to_local);
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-    view= lex->unlink_first_table(&link_to_local);
-
-    select_lex->context.table_list= save_table_list;
-    select_lex->context.first_name_resolution_table=
-      save_first_name_resolution_table;
+    /* All checks passed, see wsrep_create_view_dry_run() */
+    res= FALSE;
+    goto err;
   }
-#endif /* WITH_WSREP */
 
   res= mysql_register_view(thd, &ddl_log_state, view, mode, backup_file_name);
 
@@ -816,6 +856,112 @@ err_no_relink:
   ddl_log_complete(&ddl_log_state);
   ddl_log_complete(&ddl_log_state_tmp_file);
   DBUG_RETURN(res || thd->is_error());
+}
+
+
+#ifdef WITH_WSREP
+/**
+  Dry run of CREATE VIEW or ALTER VIEW before it is replicated in TOI.
+
+  The applier runs with all privileges, so a statement refused on this
+  node after TOI had begun would still be applied by the other nodes.
+  All checks must therefore be done before TOI. But some of them, such
+  as the column privilege check, need the tables locked and the SELECT
+  prepared, and the MDL locks must not be held while waiting in
+  TOI. A prepared SELECT cannot be prepared again after its tables
+  have been closed.
+
+  So parse the statement again into a separate LEX and run it with all
+  checks, but without TOI and without creating the view. Then release
+  its tables and locks. The statement itself is then executed with its
+  own LEX, with TOI begun before the tables are opened and locked.
+
+  Warnings of the dry run are discarded, the statement itself raises
+  them again. On error, its conditions are kept.
+
+  @retval FALSE All checks passed
+  @retval TRUE  A check failed, an error was raised
+*/
+
+static bool wsrep_create_view_dry_run(THD *thd)
+{
+  LEX *old_lex= thd->lex;
+  LEX lex;
+  Parser_state parser_state;
+  Diagnostics_area *da= thd->get_stmt_da();
+  Warning_info dry_run_wi(thd->query_id, false, true);
+  MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
+  /*
+    The dry run is not part of a prepared statement or stored procedure
+    being executed. Its tables are not those whose versions a prepared
+    statement has recorded, and what it allocates is discarded after the
+    statement, not kept in the persistent arena of the statement.
+  */
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
+  Query_arena dry_run_arena(thd->mem_root,
+                            Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  Query_arena *save_stmt_arena= thd->stmt_arena;
+  bool res= TRUE;
+  DBUG_ENTER("wsrep_create_view_dry_run");
+
+  if (parser_state.init(thd, thd->query(), thd->query_length()))
+    DBUG_RETURN(TRUE);
+
+  da->push_warning_info(&dry_run_wi);
+  thd->m_reprepare_observer= NULL;
+  thd->stmt_arena= &dry_run_arena;
+  thd->lex= &lex;
+  lex_start(thd);
+
+  if (!parse_sql(thd, &parser_state, NULL))
+  {
+    if (lex.sql_command == SQLCOM_CREATE_VIEW)
+      res= create_view(thd, lex.first_select_lex()->table_list.first,
+                       lex.create_view->mode, true);
+    else
+    {
+      DBUG_ASSERT(0);
+      my_error(ER_INTERNAL_ERROR, MYF(0), "CREATE VIEW dry run");
+    }
+  }
+
+  trans_rollback_stmt(thd);
+  close_thread_tables(thd);
+  thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
+  lex_end(&lex);
+  thd->lex= old_lex;
+  thd->m_reprepare_observer= save_reprepare_observer;
+  thd->stmt_arena= save_stmt_arena;
+
+  da->pop_warning_info();
+  if (res)
+    da->copy_sql_conditions_from_wi(thd, &dry_run_wi);
+
+  DBUG_RETURN(res);
+}
+#endif /* WITH_WSREP */
+
+
+/**
+  @brief Creating/altering VIEW procedure
+
+  @param thd thread handler
+  @param views views to create
+  @param mode VIEW_CREATE_NEW, VIEW_ALTER, VIEW_CREATE_OR_REPLACE
+
+  @retval FALSE Operation was a success.
+  @retval TRUE An error occurred.
+*/
+
+bool mysql_create_view(THD *thd, TABLE_LIST *views,
+                       enum_view_create_mode mode)
+{
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+      wsrep_create_view_dry_run(thd))
+    return TRUE;
+#endif
+  return create_view(thd, views, mode, false);
 }
 
 

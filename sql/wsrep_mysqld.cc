@@ -1455,9 +1455,19 @@ static void wsrep_push_warning(THD *thd,
   }
 }
 
+/*
+  Check wsrep_mode rules for a DML statement after its tables have been
+  opened.
+
+  @param begin_toi set to true if the statement must be replicated in
+                   TOI, the caller begins TOI
+
+  @return false on error
+*/
 bool wsrep_check_mode_after_open_table (THD *thd,
 	const handlerton *hton,
-	TABLE_LIST *tables)
+	TABLE_LIST *tables,
+	bool *begin_toi)
 {
   enum_sql_command sql_command= thd->lex->sql_command;
   bool is_dml_stmt= (thd->get_command() != COM_STMT_PREPARE &&
@@ -1481,7 +1491,7 @@ bool wsrep_check_mode_after_open_table (THD *thd,
   {
     /* It is not recommended to replicate MyISAM as it lacks rollback feature
     but if user demands then actions are replicated using TOI.
-    Following code will kick-start the TOI but this has to be done only once
+    The caller will kick-start the TOI but this has to be done only once
     per statement.
     Note: kick-start will take-care of creating isolation key for all tables
     involved in the list (provided all of them are MYISAM or Aria tables). */
@@ -1519,7 +1529,7 @@ bool wsrep_check_mode_after_open_table (THD *thd,
       wsrep_after_rollback(thd, true);
       wsrep_after_statement(thd);
 
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
+      *begin_toi= true;
     }
   } else if (db_type != DB_TYPE_UNKNOWN &&
              db_type != DB_TYPE_PERFORMANCE_SCHEMA)

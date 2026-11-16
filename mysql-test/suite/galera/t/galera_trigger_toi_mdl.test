@@ -1,0 +1,74 @@
+#
+# CREATE TRIGGER and DROP TRIGGER take an MDL on the trigger name. They
+# must not hold it while they wait in TOI, otherwise an applier of a
+# CREATE or DROP of the same trigger from the other node deadlocks with
+# them. After TOI they must see the trigger as it is after the earlier
+# ordered DDL, as the other node does.
+#
+# A. DROP TRIGGER IF EXISTS ordered after DROP TRIGGER of the same
+#    trigger succeeds, the trigger no longer exists.
+#
+# B. DROP TRIGGER ordered after DROP TRIGGER of the same trigger fails
+#    on both nodes.
+#
+# C. CREATE TRIGGER ordered after CREATE TRIGGER of the same name fails
+#    on both nodes, the earlier one is kept.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET @tr1 = 1;
+CREATE TRIGGER tr2 BEFORE UPDATE ON t1 FOR EACH ROW SET @tr2 = 1;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA = 'test'
+--source include/wait_condition.inc
+
+--echo #
+--echo # A. DROP TRIGGER IF EXISTS ordered after DROP TRIGGER
+--echo #
+--let $earlier = DROP TRIGGER tr1
+--let $local = DROP TRIGGER IF EXISTS tr1
+--source suite/galera/include/galera_toi_ordered_after.inc
+SHOW WARNINGS;
+
+--echo #
+--echo # B. DROP TRIGGER ordered after DROP TRIGGER
+--echo #
+--let $earlier = DROP TRIGGER tr2
+--let $local = DROP TRIGGER tr2
+--let $local_error = ER_TRG_DOES_NOT_EXIST
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--echo #
+--echo # C. CREATE TRIGGER ordered after CREATE TRIGGER of the same name
+--echo #
+--let $earlier = CREATE TRIGGER tr3 BEFORE INSERT ON t1 FOR EACH ROW SET @tr3 = 2
+--let $local = CREATE TRIGGER tr3 BEFORE INSERT ON t1 FOR EACH ROW SET @tr3 = 1
+--let $local_error = ER_TRG_ALREADY_EXISTS
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--connection node_1a
+SELECT TRIGGER_NAME, ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS
+  WHERE TRIGGER_SCHEMA = 'test' ORDER BY TRIGGER_NAME;
+--connection node_2a
+SELECT TRIGGER_NAME, ACTION_STATEMENT FROM INFORMATION_SCHEMA.TRIGGERS
+  WHERE TRIGGER_SCHEMA = 'test' ORDER BY TRIGGER_NAME;
+
+--connection node_1
+DROP TABLE t1;
+--disconnect node_1a
+--disconnect node_2a

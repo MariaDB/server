@@ -1,0 +1,215 @@
+#
+# CREATE VIEW opens and locks its tables, taking MDL, before it begins
+# TOI. It must not hold the MDL while it waits in TOI, otherwise an
+# applier that needs a conflicting MDL deadlocks with it.
+#
+# A. CREATE VIEW holds the MDL before it has begun TOI. The applier of
+#    a DDL from the other node must BF-abort it.
+#
+# B. CREATE VIEW waits in TOI for an earlier ordered DDL from the other
+#    node, whose applier needs a conflicting MDL. The applier must not
+#    be blocked, and CREATE VIEW must complete after it.
+#
+# C. As B, but the earlier DDL drops a column the view uses. CREATE VIEW
+#    must see the table as it is after the DDL, as the other node does,
+#    and fail on both nodes.
+#
+# D. CREATE VIEW opens its tables again after TOI has begun, and is run
+#    as a dry run before it with its own LEX: views over views, stored
+#    functions, a prepared statement executed twice and a stored
+#    procedure called twice.
+#
+# E. Warnings of the dry run are not duplicated, its errors are reported,
+#    also from a prepared statement.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+--echo #
+--echo # A. CREATE VIEW holds MDL on t1 before TOI
+--echo #
+--connection node_1
+SET DEBUG_SYNC = 'create_view_before_toi SIGNAL cv_parked WAIT_FOR cv_go';
+--send CREATE VIEW v1 AS SELECT f1, f2 FROM t1
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = 'now WAIT_FOR cv_parked';
+
+--connection node_2
+ALTER TABLE t1 ADD COLUMN f3 INT;
+
+--echo # The applier on node_1 BF-aborts CREATE VIEW and applies the ALTER
+--connection node_1a
+--let $wait_condition = SELECT COUNT(*) = 3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL cv_go';
+
+--connection node_1
+--error ER_QUERY_INTERRUPTED
+--reap
+SET DEBUG_SYNC = 'RESET';
+
+--connection node_1a
+SELECT COUNT(*) AS EXPECT_0 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v1';
+--connection node_2
+SELECT COUNT(*) AS EXPECT_0 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v1';
+
+--echo #
+--echo # B. CREATE VIEW waits in TOI for an earlier DDL on t1
+--echo #
+--connection node_1a
+--echo # Park the applier on node_1 before it applies the DDL from node_2
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+ALTER TABLE t1 ADD COLUMN f4 INT;
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--echo # CREATE VIEW is ordered after the ALTER and waits for it in TOI
+--connection node_1
+--send CREATE VIEW v2 AS SELECT f1, f2 FROM t1
+
+--echo # The CREATE VIEW has been ordered: node_2 has applied it
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v2'
+--source include/wait_condition.inc
+
+--echo # Release the ALTER, its applier needs an exclusive MDL on t1
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--let $wait_condition = SELECT COUNT(*) = 4 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_4 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+
+--connection node_1
+--reap
+
+--connection node_1a
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v2';
+--connection node_2
+SELECT COUNT(*) AS EXPECT_1 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v2';
+
+--echo #
+--echo # C. CREATE VIEW waits in TOI for an earlier DDL dropping a column
+--echo #
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+ALTER TABLE t1 DROP COLUMN f3;
+
+--connection node_1a
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+--connection node_2a
+--let $last_committed = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--echo # f3 still exists on node_1 when CREATE VIEW opens t1
+--connection node_1
+--send CREATE VIEW v3 AS SELECT f1, f3 FROM t1
+
+--echo # The CREATE VIEW has been ordered: node_2 has processed it,
+--echo # and refused it, because it applied the ALTER first
+--connection node_2a
+--let $wait_condition = SELECT VARIABLE_VALUE > $last_committed FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'
+--source include/wait_condition.inc
+
+--connection node_1a
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+--connection node_1
+--error ER_BAD_FIELD_ERROR
+--reap
+
+--connection node_1a
+SELECT COUNT(*) AS EXPECT_0 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v3';
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+--connection node_2
+SELECT COUNT(*) AS EXPECT_0 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v3';
+SELECT COUNT(*) AS EXPECT_3 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
+
+--echo #
+--echo # D. Tables are opened again after TOI has begun
+--echo #
+--connection node_1
+CREATE FUNCTION f_one() RETURNS INT DETERMINISTIC RETURN 1;
+CREATE VIEW v4 AS SELECT f1, f_one() AS one FROM v2;
+CREATE OR REPLACE VIEW v4 AS SELECT v2.f1, f_one() AS one FROM v2 JOIN t1 USING (f1);
+ALTER VIEW v4 AS SELECT f1 FROM v2;
+PREPARE stmt FROM 'CREATE OR REPLACE VIEW v5 AS SELECT f1, f_one() AS one FROM v4';
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+CREATE PROCEDURE p1() CREATE OR REPLACE VIEW v6 AS SELECT f1 FROM v5;
+CALL p1();
+CALL p1();
+INSERT INTO t1 (f1, f2) VALUES (1, 10);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+SELECT TABLE_NAME, VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS
+  WHERE TABLE_SCHEMA = 'test' ORDER BY TABLE_NAME;
+SELECT * FROM v5;
+
+--connection node_1
+SELECT TABLE_NAME, VIEW_DEFINITION FROM INFORMATION_SCHEMA.VIEWS
+  WHERE TABLE_SCHEMA = 'test' ORDER BY TABLE_NAME;
+SELECT * FROM v5;
+
+--echo #
+--echo # E. Warnings and errors of the dry run
+--echo #
+--connection node_1
+CREATE ALGORITHM=MERGE VIEW v7 AS SELECT COUNT(*) AS c FROM t1;
+SHOW WARNINGS;
+--error ER_NO_SUCH_TABLE
+CREATE VIEW v8 AS SELECT * FROM t_none;
+SHOW WARNINGS;
+CREATE TABLE t_none (f1 INT) ENGINE=InnoDB;
+PREPARE stmt FROM 'CREATE VIEW v8 AS SELECT f1 FROM t_none';
+DROP TABLE t_none;
+--error ER_NO_SUCH_TABLE
+EXECUTE stmt;
+CREATE TABLE t_none (f1 INT) ENGINE=InnoDB;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_NAME = 'v8'
+--source include/wait_condition.inc
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS
+  WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME IN ('v6', 'v7', 'v8')
+  ORDER BY TABLE_NAME;
+
+--connection node_1
+DROP VIEW v8, v7, v6, v5, v4, v2;
+DROP TABLE t_none;
+DROP PROCEDURE p1;
+DROP FUNCTION f_one;
+DROP TABLE t1;
+--disconnect node_1a
+--disconnect node_2a

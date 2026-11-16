@@ -1,0 +1,91 @@
+#
+# With wsrep_mode=REPLICATE_MYISAM, DML on MyISAM tables is replicated
+# in TOI, begun when the tables of the statement have been opened. It
+# must not hold their metadata locks while it waits in TOI, otherwise
+# an applier of a DDL from the other node on one of the tables
+# deadlocks with it.
+#
+# A. INSERT ordered after ALTER TABLE on the table
+#
+# B. INSERT ... SELECT ordered after ALTER TABLE on the source table
+#
+# C. INSERT ordered after ALTER TABLE on a table written by a trigger
+#    of the table (prelocking)
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1
+SET @save_wsrep_mode = @@GLOBAL.wsrep_mode;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+SET SESSION wsrep_sync_wait = 0;
+--connection node_2
+SET @save_wsrep_mode = @@GLOBAL.wsrep_mode;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (f1 INT PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t3 (f1 INT PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t2
+--source include/wait_condition.inc
+
+--echo #
+--echo # A. INSERT ordered after ALTER TABLE on the table
+--echo #
+--let $earlier = ALTER TABLE t1 ADD COLUMN f2 INT
+--let $local = INSERT INTO t1 (f1) VALUES (1)
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--echo #
+--echo # B. INSERT ... SELECT ordered after ALTER TABLE on the source table
+--echo #
+--let $earlier = ALTER TABLE t2 ADD COLUMN f2 INT
+--let $local = INSERT INTO t1 (f1) SELECT f1 FROM t2
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--echo #
+--echo # C. INSERT ordered after ALTER TABLE on a table written by a trigger
+--echo #
+--connection node_1
+CREATE TRIGGER tr1 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t3 (f1) VALUES (NEW.f1);
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME = 'tr1'
+--source include/wait_condition.inc
+--let $earlier = ALTER TABLE t3 ADD COLUMN f2 INT
+--let $local = INSERT INTO t1 (f1) VALUES (3)
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--connection node_1a
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t3 ORDER BY f1;
+SELECT TABLE_NAME, COUNT(*) AS COLUMNS FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = 'test' GROUP BY TABLE_NAME ORDER BY TABLE_NAME;
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t3
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t3 ORDER BY f1;
+SELECT TABLE_NAME, COUNT(*) AS COLUMNS FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_SCHEMA = 'test' GROUP BY TABLE_NAME ORDER BY TABLE_NAME;
+
+--connection node_1
+DROP TABLE t1, t2, t3;
+SET GLOBAL wsrep_mode = @save_wsrep_mode;
+--connection node_2
+SET GLOBAL wsrep_mode = @save_wsrep_mode;
+--disconnect node_1a
+--disconnect node_2a

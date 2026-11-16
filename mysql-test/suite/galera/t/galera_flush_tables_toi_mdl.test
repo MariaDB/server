@@ -1,0 +1,66 @@
+#
+# FLUSH TABLES with a table list takes an exclusive MDL on the tables.
+# It must not hold the MDL while it waits in TOI, otherwise an applier
+# that needs an MDL on one of the tables, even for plain DML, deadlocks
+# with it.
+#
+# A. FLUSH TABLES t1 waits in TOI for an earlier ordered INSERT into t1
+#    from the other node. The applier must not be blocked, and FLUSH
+#    TABLES must complete after it.
+#
+# B. FLUSH TABLES t1 takes the MDL in TOI: a local transaction that
+#    has t1 open is BF-aborted, as for other DDL.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_1
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_1a
+SET SESSION wsrep_sync_wait = 0;
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+--echo #
+--echo # A. FLUSH TABLES t1 waits in TOI for an earlier INSERT into t1
+--echo #
+--let $earlier = INSERT INTO t1 VALUES (1)
+--let $local = FLUSH TABLES t1
+--source suite/galera/include/galera_toi_ordered_after.inc
+
+--connection node_1a
+SELECT * FROM t1;
+
+--echo #
+--echo # B. FLUSH TABLES t1 BF-aborts a local transaction that has t1 open
+--echo #
+--connection node_1b
+BEGIN;
+SELECT * FROM t1;
+
+--connection node_1
+FLUSH TABLES t1;
+
+--connection node_1b
+--error ER_LOCK_DEADLOCK
+SELECT * FROM t1;
+ROLLBACK;
+
+--connection node_1
+DROP TABLE t1;
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_2a

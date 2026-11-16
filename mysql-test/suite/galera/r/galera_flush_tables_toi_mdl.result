@@ -1,0 +1,55 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+SET SESSION wsrep_sync_wait = 0;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_2a;
+SET SESSION wsrep_sync_wait = 0;
+connection node_2;
+#
+# A. FLUSH TABLES t1 waits in TOI for an earlier INSERT into t1
+#
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+INSERT INTO t1 VALUES (1);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_2a;
+connection node_1;
+FLUSH TABLES t1;
+# Ordered in TOI after it: node_2 has processed it
+connection node_2a;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+connection node_1;
+connection node_1a;
+SELECT * FROM t1;
+f1
+1
+#
+# B. FLUSH TABLES t1 BF-aborts a local transaction that has t1 open
+#
+connection node_1b;
+BEGIN;
+SELECT * FROM t1;
+f1
+1
+connection node_1;
+FLUSH TABLES t1;
+connection node_1b;
+SELECT * FROM t1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ROLLBACK;
+connection node_1;
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_2a;
