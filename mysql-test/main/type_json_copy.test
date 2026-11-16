@@ -1,0 +1,6 @@
+--source include/have_innodb.inc
+
+--let $json_copy_engine= MyISAM
+--source include/type_json_copy.inc
+--let $json_copy_engine= InnoDB
+--source include/type_json_copy.inc
