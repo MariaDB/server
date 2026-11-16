@@ -2369,20 +2369,211 @@ file_exists $MYSQLTEST_VARDIR/tmp/test_file1.tmp;
 # ----------------------------------------------------------------------------
 # test for copy_file
 # ----------------------------------------------------------------------------
+
+# ----------------------------------------------------------------------------
+# Test #1: Basic file copying (destination is a file)
+# ----------------------------------------------------------------------------
 --write_file $MYSQLTEST_VARDIR/tmp/file1.tmp
 file1
 EOF
 
 copy_file $MYSQLTEST_VARDIR/tmp/file1.tmp $MYSQLTEST_VARDIR/tmp/file2.tmp;
 file_exists $MYSQLTEST_VARDIR/tmp/file2.tmp;
+
+# clean up
 remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
 remove_file $MYSQLTEST_VARDIR/tmp/file2.tmp;
 
+# ----------------------------------------------------------------------------
+# Test #1: Basic file copying (destination is a directory)
+# ----------------------------------------------------------------------------
+--write_file $MYSQLTEST_VARDIR/tmp/file1.tmp
+file1
+EOF
+
+mkdir $MYSQLTEST_VARDIR/tmp/testdir;
+copy_file $MYSQLTEST_VARDIR/tmp/file1.tmp $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+file_exists $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+
+# clean up
+remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/testdir;
+
+# ----------------------------------------------------------------------------
+# Test #2: Copy with force override "-f"
+# ----------------------------------------------------------------------------
+--write_file $MYSQLTEST_VARDIR/tmp/file1.tmp
+file1
+EOF
+
+mkdir $MYSQLTEST_VARDIR/tmp/testdir;
+
+copy_file $MYSQLTEST_VARDIR/tmp/file1.tmp $MYSQLTEST_VARDIR/tmp/testdir;
+cat_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
+
+remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
+--write_file $MYSQLTEST_VARDIR/tmp/file1.tmp
+file1 more content
+EOF
+
+# Copy again without -f to make sure the file is not overwritten
+# Not logging the error back to MTR result as it contains local paths
+--error 1
+--exec echo "copy_file $MYSQLTEST_VARDIR/tmp/file1.tmp $MYSQLTEST_VARDIR/tmp/testdir;" | $MYSQL_TEST
+cat_file $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+
+# Copy again with -f to make sure the file is overwritten
+copy_file $MYSQLTEST_VARDIR/tmp/file1.tmp $MYSQLTEST_VARDIR/tmp/testdir -f;
+cat_file $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+
+# clean up
+remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/testdir/file1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/testdir;
+
+# ----------------------------------------------------------------------------
+# Test #3: Copy with wildcard
+# ----------------------------------------------------------------------------
+mkdir $MYSQLTEST_VARDIR/tmp/testdir;
+--write_file $MYSQLTEST_VARDIR/tmp/file1.tmp
+file1
+EOF
+--write_file $MYSQLTEST_VARDIR/tmp/file2.tmp
+file1
+EOF
+copy_file $MYSQLTEST_VARDIR/tmp/file*.tmp $MYSQLTEST_VARDIR/tmp/testdir;
+list_files $MYSQLTEST_VARDIR/tmp/testdir;
+
+# Clean up
+remove_file $MYSQLTEST_VARDIR/tmp/file1.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/file2.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/testdir;
+
+# ----------------------------------------------------------------------------
+# Test #4: Copy directory recursively
+# ----------------------------------------------------------------------------
+
+# Generate the directory structure and files
+# - d1
+#   |- f1.tmp
+#   `- d2
+#      `- f2.tmp
+mkdir $MYSQLTEST_VARDIR/tmp/d1;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp
+file1 content
+EOF
+mkdir $MYSQLTEST_VARDIR/tmp/d1/d2;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp
+file2 content
+EOF
+
+mkdir $MYSQLTEST_VARDIR/tmp/dst;
+
+# Copy to new directory
+copy_file $MYSQLTEST_VARDIR/tmp/d1 $MYSQLTEST_VARDIR/tmp/dst -r;
+
+# Verify that the copy succeeds
+# - dst
+#   `- d1
+#      |- f1.tmp
+#      `- d2
+#         `- f2.tmp
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/f1.tmp;
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/d2/f2.tmp;
+
+# Change source file content
+remove_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp
+file1 more content
+EOF
+
+remove_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp
+file2 more content
+EOF
+
+# Copy again to new directory with -r but wihtout -f to make sure that the existing files are not overwritten
+# Not logging the error back to MTR result as it contains local paths
+--error 1
+--exec echo "copy_file $MYSQLTEST_VARDIR/tmp/d1 $MYSQLTEST_VARDIR/tmp/dst -r;" | $MYSQL_TEST
+
+# Verify that the file content are not overwritten
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/f1.tmp;
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/d2/f2.tmp;
+
+# Copy again to new directory with -r but with -f to make sure that the existing files are successfully overwritten
+copy_file $MYSQLTEST_VARDIR/tmp/d1 $MYSQLTEST_VARDIR/tmp/dst -rf;
+
+# Verify that the copy succeeds
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/f1.tmp;
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d1/d2/f2.tmp;
+
+# Clean up
+remove_file $MYSQLTEST_VARDIR/tmp/dst/d1/d2/f2.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/dst/d1/f1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/dst/d1/d2;
+rmdir $MYSQLTEST_VARDIR/tmp/dst/d1;
+
+remove_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/d1/d2;
+rmdir $MYSQLTEST_VARDIR/tmp/d1;
+
+# ----------------------------------------------------------------------------
+# Test #5: Copy recursively with wildcard
+# ----------------------------------------------------------------------------
+
+# Generate the directory structure and files
+# - d1
+#   |- f1.tmp
+#   `- d2
+#      `- f2.tmp
+mkdir $MYSQLTEST_VARDIR/tmp/d1;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp
+file1 content
+EOF
+mkdir $MYSQLTEST_VARDIR/tmp/d1/d2;
+--write_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp
+file2 content
+EOF
+
+# Copy with wildcard pattern
+copy_file $MYSQLTEST_VARDIR/tmp/d1/* $MYSQLTEST_VARDIR/tmp/dst -r;
+
+
+# Verify that the copy succeeds
+# - dst
+#   |- f1.tmp
+#   `- d2
+#      `- f2.tmp
+cat_file $MYSQLTEST_VARDIR/tmp/dst/f1.tmp;
+cat_file $MYSQLTEST_VARDIR/tmp/dst/d2/f2.tmp;
+
+# Clean up
+remove_file $MYSQLTEST_VARDIR/tmp/dst/d2/f2.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/dst/f1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/dst/d2;
+rmdir $MYSQLTEST_VARDIR/tmp/dst;
+
+remove_file $MYSQLTEST_VARDIR/tmp/d1/d2/f2.tmp;
+remove_file $MYSQLTEST_VARDIR/tmp/d1/f1.tmp;
+rmdir $MYSQLTEST_VARDIR/tmp/d1/d2;
+rmdir $MYSQLTEST_VARDIR/tmp/d1;
+
+# ----------------------------------------------------------------------------
+# Test #6: Invalid argument
+# ----------------------------------------------------------------------------
+# Use '--exec' to spawn a separate process because syntax errors will terminate
+# the running process.
 --error 1
 --exec echo "copy_file ;" | $MYSQL_TEST 2>&1
 
 --error 1
 --exec echo "copy_file from_file;" | $MYSQL_TEST 2>&1
+
+--error 1
+--exec echo "copy_file from_file to_file -i;" | $MYSQL_TEST 2>&1
 
 
 # ----------------------------------------------------------------------------
