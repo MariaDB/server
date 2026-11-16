@@ -577,7 +577,7 @@ SELECT JSON_VALID(CONVERT(JSON_ARRAY(_binary'ab') USING ucs2)) AS from_binary_va
 from_binary_valid
 0
 Warnings:
-Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 1
 #
 # And the same going the other way, which was always refused
 #

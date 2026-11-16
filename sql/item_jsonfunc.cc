@@ -1296,7 +1296,8 @@ void report_json_error_ex(const char *js, json_engine_t *je,
     obliged to stop, so json_error() takes the reading at the refusal
     and this reports that one.
   */
-  int position= (int)((const char *) je->s.error_pos - js);
+  int position= (int)((const char *) je->s.error_pos - js)
+                  / (je->s.cs ? je->s.cs->mbminlen : 1);
   uint code;
 
   n_param++;

@@ -159,7 +159,7 @@ odd_length_ucs2
 NULL
 Warnings:
 Note	4035	Broken JSON string in argument 2 to function 'json_insert' at position 0
-Warning	4035	Broken JSON string in argument 1 to function 'json_insert' at position 30
+Warning	4035	Broken JSON string in argument 1 to function 'json_insert' at position 15
 # and inside a statement that stops on a warning
 CREATE TABLE t1 (id INT, doc LONGTEXT CHARACTER SET latin1);
 SET SESSION sql_mode='STRICT_ALL_TABLES';

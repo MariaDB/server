@@ -61,12 +61,12 @@ SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS ucs2_broken;
 ucs2_broken
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 8
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS ucs2_broken_is_valid;
 ucs2_broken_is_valid
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 8
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS ucs2_smuggled;
 ucs2_smuggled
 007B002200610022003A00200031002C0020002200620022003A00200031007D
@@ -92,12 +92,12 @@ SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS utf16_broken;
 utf16_broken
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 8
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS utf16_broken_is_valid;
 utf16_broken_is_valid
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 8
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS utf16_smuggled;
 utf16_smuggled
 007B002200610022003A00200031002C0020002200620022003A00200031007D
@@ -123,12 +123,12 @@ SELECT HEX(JSON_INSERT('{}', '$.a"b', 1)) AS utf32_broken;
 utf32_broken
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 16
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT(JSON_OBJECT(), '$.a"b', 1)) AS utf32_broken_is_valid;
 utf32_broken_is_valid
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 16
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_insert' at position 4
 SELECT HEX(JSON_INSERT('{}', '$.a":1,"b', 1)) AS utf32_smuggled;
 utf32_smuggled
 0000007B0000002200000061000000220000003A00000020000000310000002C000000200000002200000062000000220000003A00000020000000310000007D

@@ -32,17 +32,17 @@ SELECT JSON_VALID(JSON_SEARCH(@u, 'all', @m)) AS utf32_answer_reads;
 utf32_answer_reads
 0
 Warnings:
-Note	4035	Broken JSON string in argument 1 to function 'json_valid' at position 16
+Note	4035	Broken JSON string in argument 1 to function 'json_valid' at position 4
 SELECT JSON_VALID(JSON_ARRAY(JSON_SEARCH(@u, 'all', @m))) AS utf32_spliced;
 utf32_spliced
 NULL
 Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_array' at position 16
+Warning	4035	Broken JSON string in argument 1 to function 'json_array' at position 4
 SELECT JSON_TYPE(JSON_SEARCH(@u, 'all', @m)) AS utf32_type;
 utf32_type
 NULL
 Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_type' at position 16
+Warning	4035	Broken JSON string in argument 1 to function 'json_type' at position 4
 #
 # The same at two bytes to the character.
 #
@@ -112,5 +112,5 @@ id	spliced
 1	NULL
 2	1
 Warnings:
-Warning	4035	Broken JSON string in argument 1 to function 'json_array' at position 16
+Warning	4035	Broken JSON string in argument 1 to function 'json_array' at position 4
 DROP TABLE t;

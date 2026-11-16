@@ -70,5 +70,5 @@ SELECT JSON_EXTRACT('{"a":1,"b":oops}','$.a') AS malformed;
 malformed
 NULL
 Warnings:
-Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 24
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 12
 SET @@collation_connection= @save_collation_connection;
