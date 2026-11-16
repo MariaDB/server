@@ -49,6 +49,7 @@
 #define VERSION_sql_extension           0x0100
 #define VERSION_sql_extension_result    0x0100
 #define VERSION_sql_extension_client    0x0100
+#define VERSION_sql_extension_connection_data 0x0100
 
 #define VERSION_provider_bzip2          0x0100
 #define VERSION_provider_lz4            0x0100

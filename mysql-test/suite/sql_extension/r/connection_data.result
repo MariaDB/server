@@ -1,0 +1,104 @@
+#
+# MDEV-41962 SQL extension service: data a plugin keeps on the connection
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# Nothing kept yet
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: none
+# Kept for the later statements of the connection
+TEST SQLEXT DATA SET first;
+affected rows: 0
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: first
+SELECT 1;
+1
+1
+affected rows: 1
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: first
+# Also for prepared statements
+PREPARE s FROM 'TEST SQLEXT DATA GET';
+affected rows: 0
+info: Statement prepared
+EXECUTE s;
+affected rows: 0
+info: first
+DEALLOCATE PREPARE s;
+affected rows: 0
+# Replacing it frees the old data
+TEST SQLEXT DATA SET second;
+affected rows: 0
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: second
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+variable_value
+1
+# Another connection has its own
+connect  con1,localhost,root,,;
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: none
+TEST SQLEXT DATA SET con1_data;
+affected rows: 0
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: con1_data
+connection default;
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: second
+# Freed when the connection ends
+disconnect con1;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+variable_value
+2
+# Dropping it frees it
+TEST SQLEXT DATA DROP;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+variable_value
+3
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: none
+# Dropping nothing is fine
+TEST SQLEXT DATA DROP;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+variable_value
+3
+# COM_CHANGE_USER frees it, as it resets the session
+TEST SQLEXT DATA SET before_change_user;
+change_user root,,test;
+SELECT variable_value FROM information_schema.global_status
+WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+variable_value
+4
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: none
+# UNINSTALL while a connection keeps data: the plugin gets no more
+# statements, and its library stays loaded until the data is freed
+connect  con2,localhost,root,,;
+TEST SQLEXT DATA SET kept;
+connection default;
+UNINSTALL PLUGIN test_sql_extension;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+connection con2;
+TEST SQLEXT DATA GET;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST SQLEXT DATA GET' at line 1
+disconnect con2;
+connection default;
+# Installed again, it has nothing of the earlier installation
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+TEST SQLEXT DATA GET;
+affected rows: 0
+info: none
+UNINSTALL PLUGIN test_sql_extension;

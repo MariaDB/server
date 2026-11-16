@@ -13,6 +13,7 @@ my_sha2_service
 my_snprintf_service
 progress_report_service
 sql_extension_client_service
+sql_extension_connection_data_service
 sql_extension_result_service
 sql_extension_service
 thd_alloc_service

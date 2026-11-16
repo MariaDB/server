@@ -43,6 +43,7 @@ SET(MYSQLSERVICES_SOURCES
   sql_extension_service.c
   sql_extension_result_service.c
   sql_extension_client_service.c
+  sql_extension_connection_data_service.c
   provider_service_bzip2.c
   provider_service_lz4.c
   provider_service_lzma.c

@@ -1778,6 +1778,8 @@ void THD::cleanup(void)
 
   mysql_ull_cleanup(this);
   stmt_map.reset();
+  if (sql_extension_data)
+    sql_extension_free_connection_data(this);
   /* All metadata locks must have been released by now. */
   DBUG_ASSERT(!mdl_context.has_locks());
 

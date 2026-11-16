@@ -32,7 +32,8 @@
   called from execute(), on the THD it was given. This one checks the
   client's privileges. The others are for plugins that need them:
   - service_sql_extension_result.h: send result sets and OK packets;
-  - service_sql_extension_client.h: run SQL as the client.
+  - service_sql_extension_client.h: run SQL as the client;
+  - service_sql_extension_connection_data.h: keep data on the connection.
 
   A statement answers with an error raised with my_error() /
   my_printf_error(), or with what the plugin sent through those services.

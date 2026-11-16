@@ -492,6 +492,8 @@ struct Running_extension
   THD *thd;
   /** The plugin executing it, for error messages */
   const char *plugin_name;
+  /** The plugin, locked by Sql_cmd_sql_extension::execute() */
+  plugin_ref plugin;
   /** Where the service functions put its results */
   Result_sequence *results;
   /** Unique to the statement among all those of the server */
@@ -500,7 +502,7 @@ struct Running_extension
   Rollback_error *rollback;
 };
 thread_local Running_extension running=
-  { nullptr, nullptr, nullptr, 0, nullptr };
+  { nullptr, nullptr, nullptr, nullptr, 0, nullptr };
 /*
   Shared by all threads: under the thread pool the statements of one
   connection run on different threads, so a counter of each thread could
@@ -570,9 +572,12 @@ class Extension_running_guard
   Running_extension m_saved;
 public:
   Extension_running_guard(THD *thd, const char *plugin_name,
-                          Result_sequence &results, Rollback_error &rollback)
+                          plugin_ref plugin, Result_sequence &results,
+                          Rollback_error &rollback)
     : m_saved(running)
-  { running= { thd, plugin_name, &results, ++last_serial, &rollback }; }
+  {
+    running= { thd, plugin_name, plugin, &results, ++last_serial, &rollback };
+  }
   ~Extension_running_guard() { running= m_saved; }
   Extension_running_guard(const Extension_running_guard &)= delete;
   Extension_running_guard &operator=(const Extension_running_guard &)= delete;
@@ -788,7 +793,7 @@ bool Sql_cmd_sql_extension::execute(THD *thd)
       cursor, which skips the lookup: cleared here for every path.
     */
     thd->query_cache_is_applicable= 0;
-    Extension_running_guard guard(thd, m_plugin_name.str, results,
+    Extension_running_guard guard(thd, m_plugin_name.str, plugin, results,
                                   rollback);
     rc= d->execute(thd, m_text.str, m_text.length);
     /* A plugin built with the server headers can call my_ok() itself */
@@ -1654,6 +1659,111 @@ unsigned int sql_extension_client_flags(MYSQL_THD thd)
   if (check_service_call(thd, "sql_extension_client_flags", false))
     return 0;
   return client_flags(thd);
+}
+
+
+/**
+  One plugin's data on a connection (sql_extension_set_connection_data()).
+  The entry keeps the plugin locked, so its library, and with it free_data,
+  stays loaded until the data is freed, even after UNINSTALL PLUGIN, as
+  the per-connection data of a storage engine does (THD::ha_data).
+*/
+struct Sql_ext_connection_data
+{
+  Sql_ext_connection_data *next;
+  plugin_ref plugin;
+  void *data;
+  void (*free_data)(void *);
+};
+
+
+namespace {
+
+/* The entry of the running plugin, and the link that points to it */
+Sql_ext_connection_data **find_connection_data(THD *thd)
+{
+  Sql_ext_connection_data **link= &thd->sql_extension_data;
+  for (; *link; link= &(*link)->next)
+  {
+    /*
+      The same installation of the plugin: a reinstalled plugin has a new
+      st_plugin_int, so it does not get the data of the earlier one
+    */
+    if (plugin_ref_to_int((*link)->plugin) == plugin_ref_to_int(running.plugin))
+      break;
+  }
+  return link;
+}
+
+void free_entry(Sql_ext_connection_data *entry)
+{
+  if (entry->free_data)
+    entry->free_data(entry->data);
+  plugin_unlock(NULL, entry->plugin);
+  my_free(entry);
+}
+
+} // namespace
+
+
+void *sql_extension_get_connection_data(MYSQL_THD thd)
+{
+  if (check_service_call(thd, "sql_extension_get_connection_data", false))
+    return NULL;
+  Sql_ext_connection_data *entry= *find_connection_data(thd);
+  return entry ? entry->data : NULL;
+}
+
+
+int sql_extension_set_connection_data(MYSQL_THD thd, void *data,
+                                      void (*free_data)(void *))
+{
+  if (check_service_call(thd, "sql_extension_set_connection_data", false))
+    return 1;
+  Sql_ext_connection_data **link= find_connection_data(thd);
+  Sql_ext_connection_data *entry= *link;
+  if (!data)
+  {
+    if (entry)
+    {
+      *link= entry->next;
+      free_entry(entry);
+    }
+    return 0;
+  }
+  if (entry)
+  {
+    void *old_data= entry->data;
+    void (*old_free)(void *)= entry->free_data;
+    entry->data= data;
+    entry->free_data= free_data;
+    if (old_free && old_data != data)
+      old_free(old_data);
+    return 0;
+  }
+  entry= static_cast<Sql_ext_connection_data *>(
+           my_malloc(key_memory_sql_extension, sizeof(*entry),
+                     MYF(MY_WME)));
+  if (!entry)
+    return 1;
+  /* A second lock, held as long as the entry: the statement's ends with it */
+  entry->plugin= plugin_lock(NULL, running.plugin);
+  DBUG_ASSERT(entry->plugin);
+  entry->data= data;
+  entry->free_data= free_data;
+  entry->next= thd->sql_extension_data;
+  thd->sql_extension_data= entry;
+  return 0;
+}
+
+
+void sql_extension_free_connection_data(THD *thd)
+{
+  while (Sql_ext_connection_data *entry= thd->sql_extension_data)
+  {
+    thd->sql_extension_data= entry->next;
+    free_entry(entry);
+  }
 }
 
 

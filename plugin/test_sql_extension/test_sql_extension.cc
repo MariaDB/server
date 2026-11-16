@@ -140,6 +140,15 @@
                                                  during the statement, and
                                                  raises the error the handle
                                                  got
+                                DATA SET <word>  keeps <word> on the
+                                                 connection; DATA GET sends
+                                                 an OK with it as the
+                                                 message ("none" if
+                                                 nothing is kept); DATA DROP
+                                                 drops it. Frees are
+                                                 counted in the status
+                                                 variable
+                                                 test_sql_extension_data_frees
   test_sql_extension_overlap  claims "TEST OVERLAP FREE" and "TEST SQLEXT
                               OVERLAP": refused while test_sql_extension
                               is installed, the free prefix too; counts its
@@ -183,6 +192,7 @@
 #include <sql_plugin.h>                         // st_plugin_int
 #include <mysql/plugin_sql_extension.h>
 #include <mysqld_error.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <thread>
@@ -673,6 +683,54 @@ static int send_badset(MYSQL_THD thd, const char *p, const char *end)
   return 1;
 }
 
+static int data_frees= 0;
+
+static void data_free(void *data)
+{
+  data_frees++;
+  free(data);
+}
+
+/* DATA SET <word> | GET | DROP: data kept on the connection */
+static int connection_data(MYSQL_THD thd, const char *p, const char *end)
+{
+  const char *word;
+  size_t len;
+  next_word(p, end, &word, &len);
+  if (word_is(word, len, "GET"))
+  {
+    const char *data=
+      static_cast<const char *>(sql_extension_get_connection_data(thd));
+    return sql_extension_send_ok(thd, 0, data ? data : "none");
+  }
+  if (word_is(word, len, "DROP"))
+    return sql_extension_set_connection_data(thd, NULL, data_free);
+  if (word_is(word, len, "SET"))
+  {
+    const char *value;
+    size_t value_len;
+    next_word(word + len, end, &value, &value_len);
+    char *data= static_cast<char *>(malloc(value_len + 1));
+    if (!data)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: out of memory",
+                      0);
+      return 1;
+    }
+    memcpy(data, value, value_len);
+    data[value_len]= 0;
+    if (sql_extension_set_connection_data(thd, data, data_free))
+    {
+      free(data);
+      return 1;
+    }
+    return 0;
+  }
+  my_printf_error(ER_UNKNOWN_ERROR, "test_sql_extension: DATA %.*s", 0,
+                  (int) len, word);
+  return 1;
+}
+
 static int execute_main(MYSQL_THD thd, const char *query, size_t length)
 {
   const char *end= query + length;
@@ -698,6 +756,8 @@ static int execute_main(MYSQL_THD thd, const char *query, size_t length)
     return send_rows(thd);
   if (word_is(word, len, "TYPES"))
     return send_types(thd);
+  if (word_is(word, len, "DATA"))
+    return connection_data(thd, word + len, end);
   if (word_is(word, len, "BAD") || word_is(word, len, "BAD2"))
     return send_bad(thd, word + len, end, len == 4);
   if (word_is(word, len, "BADSET"))
@@ -1125,6 +1185,7 @@ static struct st_mysql_show_var main_status[]=
     SHOW_INT },
   { "test_sql_extension_bad_init_deinits", (char *) &bad_init_deinits,
     SHOW_INT },
+  { "test_sql_extension_data_frees", (char *) &data_frees, SHOW_INT },
   { NULL, NULL, SHOW_UNDEF }
 };
 

@@ -774,6 +774,16 @@ int sql_extension_forward_sql(THD* thd, const char *query,
                               size_t length);
 }
 extern "C" {
+extern struct sql_extension_connection_data_service_st {
+  void *(*get_connection_data_func)(THD* thd);
+  int (*set_connection_data_func)(THD* thd, void *data,
+                                  void (*free_data)(void *data));
+} *sql_extension_connection_data_service;
+void *sql_extension_get_connection_data(THD* thd);
+int sql_extension_set_connection_data(THD* thd, void *data,
+                                      void (*free_data)(void *data));
+}
+extern "C" {
 struct st_mariadb_sql_extension
 {
   int interface_version;

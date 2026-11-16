@@ -3365,6 +3365,18 @@ void sql_extension_note_error_handled(THD *thd, uint sql_errno);
 void sql_extension_note_sql_done(THD *thd, query_id_t run_start,
                                  bool failed);
 
+/** The data SQL extension plugins keep on a connection (sql_extension.cc) */
+struct Sql_ext_connection_data;
+
+/**
+  Called by THD::cleanup(), at disconnect and COM_CHANGE_USER, when
+  thd->sql_extension_data is set: frees the data each SQL extension plugin
+  kept on the connection (sql_extension_set_connection_data()), with the
+  plugin's free function, and releases the plugins. Defined in
+  sql_extension.cc.
+*/
+void sql_extension_free_connection_data(THD *thd);
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -3702,6 +3714,12 @@ public:
 
   /* container for handler's private per-connection data */
   Ha_data ha_data[MAX_HA];
+
+  /**
+    What SQL extension plugins keep on the connection between statements
+    (sql_extension_set_connection_data()); NULL when none does
+  */
+  Sql_ext_connection_data *sql_extension_data= nullptr;
 
   /**
     Bit field for the state of binlog warnings.

@@ -52,7 +52,8 @@
   extension services:
   - service_sql_extension.h: privilege checks;
   - service_sql_extension_result.h: results;
-  - service_sql_extension_client.h: SQL run as the client.
+  - service_sql_extension_client.h: SQL run as the client;
+  - service_sql_extension_connection_data.h: data kept on the connection.
 
   plugin/test_sql_extension is a complete example, exercised by the
   mysql-test suite sql_extension.
@@ -70,6 +71,7 @@
 #include <mysql/service_sql_extension.h>
 #include <mysql/service_sql_extension_result.h>
 #include <mysql/service_sql_extension_client.h>
+#include <mysql/service_sql_extension_connection_data.h>
 
 #ifdef __cplusplus
 extern "C" {
