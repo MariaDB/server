@@ -5921,6 +5921,35 @@ SELECT CONV(-9223372036854775808, -10, -62);
 CONV(-9223372036854775808, -10, -62)
 -AzL8n0Y58m8
 #
+# MDEV-24702: T-SQL string function CHARINDEX alias LOCATE in sql_mode='MSSQL'
+#
+SELECT CHARINDEX('svec', 'svassvec');
+CHARINDEX('svec', 'svassvec')
+5
+SELECT CHARINDEX('svec', 'svassvec', 6);
+CHARINDEX('svec', 'svassvec', 6)
+0
+SELECT CHARINDEX('test', 'notfound');
+CHARINDEX('test', 'notfound')
+0
+SELECT CHARINDEX('a', NULL);
+CHARINDEX('a', NULL)
+NULL
+SELECT CHARINDEX(NULL, 'abc');
+CHARINDEX(NULL, 'abc')
+NULL
+SET sql_mode='MSSQL';
+SELECT CHARINDEX('svec', 'svassvec');
+CHARINDEX('svec', 'svassvec')
+5
+SELECT CHARINDEX('svec', 'svassvec', 6);
+CHARINDEX('svec', 'svassvec', 6)
+0
+SELECT CHARINDEX('test', 'notfound');
+CHARINDEX('test', 'notfound')
+0
+SET sql_mode=DEFAULT;
+#
 # End of 11.4 tests
 #
 #

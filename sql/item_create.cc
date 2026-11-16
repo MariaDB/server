@@ -6375,6 +6375,7 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("CEIL") }, BUILDER(Create_func_ceiling)},
   { { STRING_WITH_LEN("CEILING") }, BUILDER(Create_func_ceiling)},
   { { STRING_WITH_LEN("CHARACTER_LENGTH") }, BUILDER(Create_func_char_length)},
+  { { STRING_WITH_LEN("CHARINDEX") }, BUILDER(Create_func_locate)},
   { { STRING_WITH_LEN("CHAR_LENGTH") }, BUILDER(Create_func_char_length)},
   { { STRING_WITH_LEN("CHR") }, BUILDER(Create_func_chr)},
   { { STRING_WITH_LEN("COALESCE") }, BUILDER(Create_func_coalesce)},
