@@ -1,6 +1,6 @@
 --- r/galera_sst_mariabackup.result
 +++ r/galera_sst_mariabackup.reject
-@@ -516,5 +516,189 @@
+@@ -516,6 +516,190 @@
  1
  DROP TABLE t1;
  COMMIT;
@@ -188,5 +188,6 @@
 +DROP TABLE t1;
 +COMMIT;
 +SET GLOBAL debug_dbug = $debug_orig;
+ include/assert_grep.inc [SST user was not granted ALL PRIVILEGES]
  disconnect node_2;
  disconnect node_1;
