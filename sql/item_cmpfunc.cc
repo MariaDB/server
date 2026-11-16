@@ -3127,7 +3127,8 @@ Item *Item_func_case_searched::find_item()
   uint count= when_count();
   for (uint i= 0 ; i < count ; i++)
   {
-    if (args[i]->val_bool())
+    bool ret= args[i]->val_bool();
+    if (!args[i]->null_value && ret)
       return args[i + count];
   }
   Item **pos= Item_func_case_searched::else_expr_addr();
@@ -7806,10 +7807,7 @@ bool Item_func_dyncol_exists::val_bool()
   {
     String *nm= args[1]->val_str(&nmbuf);
     if (!nm || args[1]->null_value)
-    {
-      null_value= 1;
-      return 1;
-    }
+      goto null;
     if (my_charset_same(nm->charset(), DYNCOL_UTF))
     {
       buf.str= (char *) nm->ptr();

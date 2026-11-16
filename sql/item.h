@@ -1747,11 +1747,18 @@ public:
     return type_handler()->Item_val_bool(this);
   }
 
+  /*
+    Evaluate a constant condition.
+
+    RETURN
+      FALSE  the condition is false or NULL
+      TRUE   the condition is true
+  */
   bool eval_const_cond()
   {
     DBUG_ASSERT(const_item());
     DBUG_ASSERT(!is_expensive());
-    return val_bool();
+    return val_bool() && !null_value;
   }
   bool can_eval_in_optimize()
   {
