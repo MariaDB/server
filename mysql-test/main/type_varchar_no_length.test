@@ -1,0 +1,34 @@
+--echo # MDEV-31414: Implement optional lengths for string types
+--echo # Test for SQL Standard T081: "Optional string types maximum length"
+--echo # This tests the feature that allows VARCHAR, NVARCHAR and VARBINARY columns 
+--echo # to be created without specifying a length. For flexibility, we do the following conversions
+--echo # VARCHAR, NVARCHAR -> TEXT
+--echo # VARBINARY -> BLOB
+--echo #
+
+CREATE TABLE t1 (a VARCHAR);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARBINARY);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a NVARCHAR);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR COMPRESSED);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INTEGER, a VARCHAR(255));
+ALTER TABLE t1 MODIFY a VARCHAR;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (id INTEGER);
+ALTER TABLE t1 ADD a VARCHAR;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
