@@ -393,8 +393,14 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
-                ha_rows                 limit,
+		page_range*		pr,
+		ha_rows                 limit,
 		Cost_estimate*		cost) override;
+
+	/** Remember the leaf-page extent of an upcoming range
+	scan so that multi_range_read_init() can size the
+	read-ahead. */
+	void advise_page_range(const page_range *scan_range) override;
 
 	/** Initialize multi range read and get information.
 	@see DsMrr_impl::dsmrr_info
@@ -547,6 +553,172 @@ protected:
 	/** If true, disable the Rowid Filter. It is disabled when
 	the engine is intialized for making rnd_pos() calls */
 	bool                    m_disable_rowid_filter;
+
+	/** Logical read-ahead of the leaf pages of a scan: the state of the
+	scan and the functions that use it. The algorithm is described in
+	ha_innodb.cc, in the comment "Logical read-ahead". */
+	class ReadAhead
+	{
+	public:
+          /** Window of a scan at its start, and after every
+          new positioning: the number of leaves in the first batch */
+          static constexpr uint initial_window= 4;
+
+          /** limit_pages when there is no LIMIT */
+          static constexpr uint8_t no_limit= 64;
+
+          /** Forget everything, at the end of a statement */
+          void reset() noexcept;
+
+          /** Enable read-ahead for a scan whose largest window is
+          'max_pages' leaves, capped so that one scan does not
+          claim more than a small fraction of the buffer pool
+          for in-flight prefetched pages. */
+          void init(uint max_pages) noexcept;
+
+          /** Arm with the largest window, unless already armed
+          (full index scan or table scan) */
+          void init_full() noexcept
+          {
+            if (!max_window)
+              init(no_limit);
+          }
+
+          /** @return whether read-ahead is on for the current scan */
+          bool armed() const noexcept { return window != 0; }
+
+          /** Remember the leaf-page extent of an upcoming range scan,
+          so that init() can size the read-ahead. */
+          void advise(const page_range &extent) noexcept;
+
+          /** Estimate the read-ahead page count from the scan's
+          advised leaf-page extent (first_page, last_page),
+          falling back to the LIMIT (limit_pages).
+          @return leaf pages to read ahead (0 disables read-ahead) */
+          uint window_for_extent() const noexcept;
+
+          /** Set limit_pages from the LIMIT
+          @param limit estimated rows to fetch
+          @param rows_per_leaf  estimated records per leaf page */
+          void set_limit(ha_rows limit, uint rows_per_leaf) noexcept;
+
+          /** @param rev  whether the scan runs in reverse key order
+          @return the last leaf the scan is estimated to read,
+          where the read-ahead stops; 0 if unknown */
+          uint32_t stop_leaf(bool rev) const noexcept
+          { return rev ? first_page : last_page; }
+
+          /** @return the number of leaves to collect when the scan is
+          positioned: initial_window if the optimizer advised an
+          extent of several leaves, otherwise half of it, because
+          a one-row probe (MIN(), LIMIT 1) should not read many
+          leaves; the window then grows as the scan proves that it
+          consumes pages */
+          uint first_batch() const noexcept
+          {
+            const bool known= first_page && last_page &&
+                              first_page != last_page;
+            return std::min<uint>(window, known
+                                  ? initial_window : initial_window / 2);
+          }
+
+          /** Start read-ahead for a just-positioned scan:
+          prefetch the collected leaves and set up the rolling cursor,
+          so that general_fetch() can continue prefetching as the
+          scan advances.
+          @param space tablespace of the index
+          @param batch leaves collected during the positioning
+          @param rev whether the scan runs in reverse key order
+          @param rows_per_leaf  estimated records per leaf page */
+          void start(fil_space_t *space, const btr_ra_batch &batch,
+                     bool rev, uint rows_per_leaf) noexcept;
+
+          /** Called before each fetch of a scan.
+          @return whether the rolling cursor is due to prefetch the
+          next batch (about half of the previous batch was consumed) */
+          bool refill_due() noexcept
+          { return l1_page && countdown && !--countdown; }
+
+          /** Prefetch the next batch of leaves for the ongoing scan,
+          resuming from the rolling cursor.
+          @param index          the index being scanned
+          @param trx            transaction, for statistics
+          @param rows_per_leaf  estimated records per leaf page */
+          void refill(dict_index_t *index, trx_t *trx,
+                      uint rows_per_leaf) noexcept;
+private:
+          /** refill() for one scan direction
+          @tparam rev  whether the scan runs in reverse key order */
+          template<bool rev>
+          void refill_dir(dict_index_t *index, trx_t *trx,
+                          uint rows_per_leaf) noexcept;
+
+          /** Harvest child pages from one level-1 page for refill_dir()
+          @tparam rev  whether the scan runs in reverse key order
+          @param index the index being scanned
+          @param mtr   mini-transaction holding the index latch
+          @param batch child pages collected so far
+          @param l1    level-1 page to harvest from; updated to
+                       the next page, or 0 when the harvest is over
+          @param resume_child  last child already collected on l1
+          @return whether to continue with the page now in l1 */
+          template<bool rev>
+          bool refill_l1(dict_index_t *index, mtr_t &mtr, btr_ra_batch &batch,
+                         uint32_t &l1, uint32_t &resume_child) noexcept;
+
+          /** First and last leaf page that the current range scan is
+          estimated to touch, as advised by the optimizer via
+          advise_page_range(); 0 if unknown. Only the sizing and the
+          stop leaf of the rolling read-ahead use them. */
+          uint32_t first_page= 0;
+          uint32_t last_page= 0;
+
+          /** The rolling cursor. After the first positioning, only
+          initial_window leaves are prefetched; the cursor makes
+          general_fetch() keep prefetching as the scan advances.
+          PAGE_LEVEL=1 page to resume from; 0 = no cursor */
+          uint32_t l1_page= 0;
+
+          /** child page number of the last node pointer that was read
+          ahead from l1_page; 0 = resume from the page edge */
+          uint32_t l1_child= 0;
+
+          /** After this many more rows, prefetch the next batch */
+          uint32_t countdown= 0;
+
+          /** Current window: the leaves to prefetch in the next
+          batch. Starts small, and refill() moves it toward
+          max_window. 0 = read-ahead is off. */
+          uint8_t window= 0;
+
+          /** Largest window of the current scan, derived from the
+          scan's estimated extent */
+          uint8_t max_window= 0;
+
+          /** Leaves to read ahead as derived from the LIMIT, computed
+          in multi_range_read_info_const()
+          (0 = the LIMIT is too small to benefit);
+          buf_pool_t::READ_AHEAD_PAGES (64) if there is no LIMIT. */
+          uint8_t limit_pages= no_limit;
+
+          /** true if the scan runs in reverse key order */
+          bool reverse= false;
+	} readahead;
+
+	/** Position the cursor like row_search_mvcc() does, while
+	collecting the leaf pages to read ahead, then start the
+	read-ahead. Kept out of line so that index_read() and
+	general_fetch() carry no read-ahead locals when read-ahead
+	is off. The scan direction is derived from mode and direction.
+	@param buf         row buffer
+	@param mode        search mode
+	@param match_mode  0, ROW_SEL_EXACT, or ROW_SEL_EXACT_PREFIX
+	@param direction   0, ROW_SEL_NEXT or ROW_SEL_PREV
+	@return error code of row_search_mvcc() */
+	ATTRIBUTE_NOINLINE
+	dberr_t search_with_readahead(uchar *buf, page_cur_mode_t mode,
+				      uint match_mode,
+				      uint direction) noexcept;
 };
 
 

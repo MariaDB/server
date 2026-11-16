@@ -2929,3 +2929,28 @@ wsrep_rec_get_foreign_key(
 	return DB_SUCCESS;
 }
 #endif // WITH_WSREP
+
+uint32_t dict_index_t::get_child(const rec_t *rec) const noexcept
+{
+  ut_ad(is_btree());
+  ut_ad(!is_spatial());
+  ut_ad(!page_rec_is_leaf(rec));
+  ut_ad(page_rec_is_user_rec(rec));
+
+  const uint32_t child= mach_read_from_4
+    (rec + get_child_offset(rec, dict_index_get_n_unique_in_tree_nonleaf(this)));
+#ifdef UNIV_DEBUG
+  mem_heap_t *heap= nullptr;
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs_init(offsets_);
+  const rec_offs *offsets= rec_get_offsets(rec, this, offsets_, 0,
+                                           ULINT_UNDEFINED, &heap);
+  ulint len;
+  ut_ad(child == mach_read_from_4(rec_get_nth_field(
+                   rec, offsets, rec_offs_n_fields(offsets) - 1, &len)));
+  ut_ad(len == REC_NODE_PTR_SIZE);
+  if (heap)
+    mem_heap_free(heap);
+#endif
+  return child;
+}

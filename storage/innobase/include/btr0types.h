@@ -105,3 +105,5 @@ enum btr_latch_mode {
 	/** Try to delete mark a spatial index record */
 	BTR_RTREE_DELETE_MARK = 256
 };
+
+struct btr_ra_batch;

@@ -1457,6 +1457,20 @@ public:
     }
   }
 
+  /** Compute the offset of a field in a node pointer record
+  without rec_get_offsets().
+  @param rec index record
+  @param n_fields number of preceding fields
+  @return offset of the field after n_fields fields,
+  from the record origin */
+  size_t get_child_offset(const rec_t *rec, uint16_t n_fields) const noexcept;
+
+  /** Read the child page number of a node pointer record, without
+  rec_get_offsets(). Not for spatial indexes.
+  @param rec  node pointer record on a PAGE_LEVEL>0 page
+  @return the child page number */
+  uint32_t get_child(const rec_t *rec) const noexcept;
+
 	/** Determine how many fields of a given prefix can be set NULL.
 	@param[in]	n_prefix	number of fields in the prefix
 	@return	number of fields 0..n_prefix-1 that can be set NULL */

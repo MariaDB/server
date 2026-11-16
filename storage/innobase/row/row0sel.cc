@@ -4442,7 +4442,8 @@ row_search_mvcc(
 	page_cur_mode_t	mode,
 	row_prebuilt_t*	prebuilt,
 	ulint		match_mode,
-	ulint		direction)
+	ulint		direction,
+	btr_ra_batch* read_ahead)
 {
 	DBUG_ENTER("row_search_mvcc");
 	DBUG_ASSERT(prebuilt->index->table == prebuilt->table);
@@ -4915,7 +4916,7 @@ wait_table_again:
 				? BTR_SEARCH_LEAF : BTR_MODIFY_LEAF;
 			err = btr_pcur_open_with_no_init(search_tuple, mode,
 							 latch_mode,
-							 pcur, mtr);
+							 pcur, mtr, read_ahead);
 		}
 
 		if (err != DB_SUCCESS) {
@@ -4964,7 +4965,7 @@ page_corrupted:
 		btr_latch_mode latch_mode = Callback::manages_mtr
 			? BTR_SEARCH_LEAF : BTR_MODIFY_LEAF;
 		err = pcur->open_leaf(mode == PAGE_CUR_G, index,
-				      latch_mode, mtr);
+				      latch_mode, mtr, read_ahead);
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
@@ -7145,10 +7146,10 @@ next_rec:
 
 /* Explicit template instantiations for row_search_mvcc */
 template dberr_t row_search_mvcc<MySQLRowCallback>(
-  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint);
+  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint, btr_ra_batch*);
 
 template dberr_t row_search_mvcc<InnoDBReadPolicy>(
-  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint);
+  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint, btr_ra_batch*);
 
 template dberr_t row_search_mvcc<InnoDBDMLPolicy>(
-  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint);
+  byte*, page_cur_mode_t, row_prebuilt_t*, ulint, ulint, btr_ra_batch*);

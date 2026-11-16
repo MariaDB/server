@@ -47,6 +47,7 @@ Completed by Sunny Bains and Marko Makela
 #include "row0vers.h"
 #include "handler0alter.h"
 #include "btr0bulk.h"
+#include "buf0rea.h"
 #ifdef BTR_CUR_ADAPT
 # include "btr0sea.h"
 #endif /* BTR_CUR_ADAPT */
@@ -2222,6 +2223,14 @@ end_of_index:
 				}
 
 				block->page.touch();
+
+				/* This is a sequential scan of the
+				whole clustered index, so the
+				following leaf is certain to be read
+				next. */
+				buf_read_ahead_one(
+					old_table->space,
+					btr_page_get_next(block->page.frame));
 
 				const auto s = mtr.get_savepoint();
 				mtr.rollback_to_savepoint(s - 2, s - 1);

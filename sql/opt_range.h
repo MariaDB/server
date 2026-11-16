@@ -1361,6 +1361,7 @@ protected:
   QUICK_RANGE_SEQ_CTX qr_traversal_ctx;
 public:
   uint mrr_flags; /* Flags to be used with MRR interface */
+  page_range mrr_pages_range= unused_page_range;
 protected:
   uint mrr_buf_size; /* copy from thd->variables.mrr_buff_size */  
   HANDLER_BUFFER *mrr_buf_desc; /* the handler buffer */

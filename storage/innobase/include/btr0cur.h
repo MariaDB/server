@@ -739,18 +739,25 @@ struct btr_cur_t {
   @param index         B-tree
   @param latch_mode    which latches to acquire
   @param mtr           mini-transaction
+  @param read_ahead    optional context for logical read-ahead;
+                       if set, leaf page numbers are collected at
+                       PAGE_LEVEL=1
   @return error code */
   dberr_t open_leaf(bool first, dict_index_t *index, btr_latch_mode latch_mode,
-                    mtr_t *mtr);
+                    mtr_t *mtr, btr_ra_batch *read_ahead= nullptr);
 
   /** Search the leaf page record corresponding to a key.
   @param tuple      key to search for, with correct n_fields_cmp
   @param mode       search mode; PAGE_CUR_LE for unique prefix or for inserting
   @param latch_mode latch mode
   @param mtr        mini-transaction
+  @param read_ahead optional context for logical read-ahead;
+                    if set, leaf page numbers are collected at
+                    PAGE_LEVEL=1
   @return error code */
   dberr_t search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
-                      btr_latch_mode latch_mode, mtr_t *mtr);
+                      btr_latch_mode latch_mode, mtr_t *mtr,
+                      btr_ra_batch *read_ahead = nullptr);
 
   /** Search the leaf page record corresponding to a key, exclusively latching
   all sibling pages on the way.

@@ -1065,6 +1065,9 @@ public:
   }
   /** Acquire the allocation latch in shared mode */
   void s_lock() noexcept { latch.rd_lock(SRW_LOCK_CALL); }
+  /** Try to acquire the allocation latch in shared mode,
+  @return whether the latch was acquired */
+  bool s_lock_try() noexcept { return latch.rd_lock_try(); }
   /** Release the allocation latch from shared mode */
   void s_unlock() noexcept { latch.rd_unlock(); }
 
