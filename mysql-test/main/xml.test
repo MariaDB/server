@@ -931,4 +931,17 @@ SELECT UPDATEXML(NULL, REPEAT('(', 100000), 1);
 --error ER_STACK_OVERRUN_NEED_MORE
 SELECT UPDATEXML(NULL, REPEAT('-', 100000), 1);
 
+--echo #
+--echo # MDEV-39593 Server crashes in Item_func::Item_func/Item_xpath_cast_number::Item_xpath_cast_number after EXTRACTVALUE with number() function in xpath
+--echo #
+
+SELECT EXTRACTVALUE('<a/>', '/a[number()]');
+SET @xml='<r><a>1</a><a>2</a></r>';
+SELECT ExtractValue(@xml, '/r/a[number()=2]');
+SELECT ExtractValue(@xml, '/r/a[number(.)=2]');
+--error ER_UNKNOWN_ERROR
+SELECT ExtractValue('<x>1</x>', 'number()');
+--error ER_UNKNOWN_ERROR
+SELECT EXTRACTVALUE('<a/', '/a[number()');
+
 --echo # End of 10.11 test
