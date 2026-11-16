@@ -3320,6 +3320,52 @@ const char *thd_where(THD *thd);
 
 
 /**
+  Is the THD executing SQL on behalf of an SQL extension statement? True
+  for any SQL run on the client's THD while the statement executes:
+  through the as-client connection, sql_extension_forward_sql(), or the
+  plain SQL service when it runs on the client's THD. False for the
+  private THD the plain SQL service creates under LOCK TABLES. Such SQL
+  leaves the statement timer to the extension statement, as the
+  statements of a stored procedure do, so max_statement_time covers the
+  whole of it; and it leaves the kill state set, so the extension
+  statement fails with the kill error, as does any SQL the handler runs
+  after it. Defined in sql_extension.cc, from the state the nesting guard
+  keeps.
+*/
+bool sql_extension_sql_as_client(const THD *thd);
+
+/**
+  Called by trans_rollback_implicit(). When SQL run for an SQL extension
+  statement (see sql_extension_sql_as_client()) rolls back the client's
+  transaction because an engine or the MDL subsystem asked for it
+  (THD::transaction_rollback_request), remember the error that came with
+  the request, so that the extension statement fails with that error even
+  if the handler does not pass it on. Defined in sql_extension.cc.
+*/
+void sql_extension_note_implicit_rollback(THD *thd);
+
+/**
+  Called by sp_rcontext::handle_sql_condition() when a handler of a stored
+  program takes an error. If it is the error of the rollback remembered by
+  sql_extension_note_implicit_rollback(), got by the instruction the
+  handler guards or by a routine that instruction called, the program
+  handled it, as in a CALL the client sent: the extension statement does
+  not fail with it, unless the SQL fails after all (see
+  sql_extension_note_sql_done()). Defined in sql_extension.cc.
+*/
+void sql_extension_note_error_handled(THD *thd, uint sql_errno);
+
+/**
+  Called when a statement that SQL extension handler code runs on the
+  client's THD ends; run_start is get_query_id() from before it started.
+  If it failed, a rollback a stored program handler took during it counts
+  as not handled: the error escaped the program. Defined in
+  sql_extension.cc.
+*/
+void sql_extension_note_sql_done(THD *thd, query_id_t run_start,
+                                 bool failed);
+
+/**
   @class THD
   For each client connection we create a separate thread with THD serving as
   a thread/connection descriptor
@@ -5418,6 +5464,24 @@ public:
     mysql_mutex_unlock(&LOCK_thd_kill);
     return err != 0;
   }
+  /**
+    The error of the kill and its message, as send_kill_message() raises
+    them, for a caller that decides where to raise it: on the MYSQL handle
+    of SQL an SQL extension handler runs, or in the statement once what
+    the handler left in it is cleared (Sql_cmd_sql_extension::execute()).
+    @param buf  receives the message, buflen bytes at most
+    @return the error number, 0 if the kill has none
+  */
+  int killed_error(char *buf, size_t buflen)
+  {
+    DBUG_ASSERT(buflen);
+    mysql_mutex_lock(&LOCK_thd_kill);
+    int err= killed_errno();
+    if (err)
+      ::strmake(buf, killed_message(err), buflen - 1);
+    mysql_mutex_unlock(&LOCK_thd_kill);
+    return err;
+  }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
   {
@@ -6395,8 +6459,11 @@ public:
       - if we are in a stored procedure or sub statement
       - If we already have set a timeout (happens when running prepared
         statements that calls mysql_execute_command())
+      - if the statement is run for an SQL extension statement, whose
+        timer covers it
     */
-    if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0)
+    if (!timeout_val || spcont || in_sub_stmt || query_timer.expired == 0 ||
+        sql_extension_sql_as_client(this))
       return;
     set_query_timer_force(timeout_val);
 #endif
@@ -6412,7 +6479,11 @@ public:
 #ifndef EMBEDDED_LIBRARY
     if (spcont || in_sub_stmt)
       return;
-    if (!query_timer.expired)
+    /*
+      Not for SQL run for an SQL extension statement, whose timer covers
+      it; asked last, so that it costs nothing without a timer
+    */
+    if (!query_timer.expired && !sql_extension_sql_as_client(this))
       thr_timer_end(&query_timer);
 #endif
   }

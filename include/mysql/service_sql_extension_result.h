@@ -30,8 +30,9 @@
   the rules common to the SQL extension services).
 
   A statement answers with one or more results, each a result set or an OK
-  packet, sent with sql_extension_send_result_set() or
-  sql_extension_send_ok(); or with an error.
+  packet, sent with sql_extension_send_result_set(), sql_extension_send_ok()
+  or sql_extension_forward_sql() (service_sql_extension_client.h); or with
+  an error.
 
   Several results are sent as a stored procedure sends them: every result
   but the last with SERVER_MORE_RESULTS_EXISTS. Only clients that accept

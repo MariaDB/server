@@ -1,0 +1,70 @@
+--echo #
+--echo # MDEV-41962 Galera: SQL that an SQL extension handler runs as the client replicates
+--echo # as plain SQL. The extension statement itself is never replicated, and
+--echo # INSTALL PLUGIN and UNINSTALL PLUGIN replicate as the DDL they are.
+--echo #
+if (!$TEST_SQL_EXTENSION_SO) {
+  skip Needs the test_sql_extension plugin;
+}
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo # Counters are global and survive --repeat: compare with their
+--echo # value before the test
+--connection node_2
+--let $com_before= query_get_value(SHOW GLOBAL STATUS LIKE 'Com_sql_extension', Value, 1)
+
+--connection node_1
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1, 'sql');
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (2, 'forward');
+TEST SQLEXT FORWARD UPDATE t1 SET b = 'updated' WHERE a = 1;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3, 'rolled back');
+ROLLBACK;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (4, 'committed');
+COMMIT;
+--echo # A handler that changes data and then fails, in a transaction and
+--echo # in autocommit: the other node ends up with what this one kept
+--disable_ps_protocol
+DELIMITER |;
+BEGIN|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (6, "trx"); SELECT * FROM no_such_table'|
+COMMIT|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (7, "autocommit"); SELECT * FROM no_such_table'|
+DELIMITER ;|
+--enable_ps_protocol
+
+--connection node_2
+--echo # The other node has the changes, and the plugin (INSTALL PLUGIN
+--echo # replicated), but ran no extension statement
+SELECT * FROM t1 ORDER BY a;
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+  WHERE plugin_name LIKE 'test_sql_extension%';
+--let $com_after= query_get_value(SHOW GLOBAL STATUS LIKE 'Com_sql_extension', Value, 1)
+--disable_query_log
+--eval SELECT $com_after - $com_before AS extension_statements_run_here
+--enable_query_log
+--echo # Extension statements work on this node too
+TEST SQLEXT SQL INSERT INTO t1 VALUES (5, 'node 2');
+
+--connection node_1
+SELECT * FROM t1 ORDER BY a;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+
+--connection node_2
+--echo # UNINSTALL PLUGIN replicated as well. A statement that fails to parse
+--echo # does not wait for replication (wsrep_sync_wait), so wait first
+--let $wait_condition = SELECT COUNT(*) = 0 FROM information_schema.plugins WHERE plugin_name = 'test_sql_extension'
+--source include/wait_condition.inc
+--error ER_PARSE_ERROR
+TEST SQLEXT OK;
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+  WHERE plugin_name LIKE 'test_sql_extension%';
+
+--echo # End of 13.2 tests

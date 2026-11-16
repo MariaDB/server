@@ -762,6 +762,18 @@ int sql_extension_send_ok(THD* thd, unsigned long long affected_rows,
 unsigned int sql_extension_client_flags(THD* thd);
 }
 extern "C" {
+struct st_mysql;
+extern struct sql_extension_client_service_st {
+  struct st_mysql *(*connect_as_client_func)(THD* thd,
+                                             struct st_mysql *mysql);
+  int (*forward_sql_func)(THD* thd, const char *query, size_t length);
+} *sql_extension_client_service;
+struct st_mysql *sql_extension_connect_as_client(THD* thd,
+                                                 struct st_mysql *mysql);
+int sql_extension_forward_sql(THD* thd, const char *query,
+                              size_t length);
+}
+extern "C" {
 struct st_mariadb_sql_extension
 {
   int interface_version;

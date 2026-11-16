@@ -12,6 +12,20 @@ SET NAMES latin1;
 --error ER_UNKNOWN_ERROR
 TEST SQLEXT ECHO café;
 
+--echo # SQL on the as-client handle is read as utf8mb4, and its rows come
+--echo # back in utf8mb4: the plugin relays them, the client gets latin1
+TEST SQLEXT SQL SELECT 'café' AS c, HEX('café') AS h;
+--echo # The client's character set is as it was
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+
+--echo # SET NAMES on the handle has no lasting effect
+TEST SQLEXT SQL SET NAMES utf8mb4;
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+
+--echo # Forwarded SQL is read as utf8mb4, its result is in latin1
+TEST SQLEXT FORWARD SELECT 'café' AS c, HEX('café') AS h;
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+
 --echo # A prepared statement keeps the text of the character set it was
 --echo # prepared in
 PREPARE s FROM 'TEST SQLEXT ECHO café';
@@ -19,6 +33,12 @@ SET NAMES utf8mb4;
 --error ER_UNKNOWN_ERROR
 EXECUTE s;
 DEALLOCATE PREPARE s;
+
+--echo # Without conversion of the results, the client gets the utf8mb4 bytes
+SET NAMES latin1;
+SET character_set_results= NULL;
+TEST SQLEXT SQL SELECT HEX('café') AS h, 'café' AS c;
+SELECT @@character_set_results IS NULL;
 
 SET NAMES utf8mb4;
 UNINSTALL PLUGIN test_sql_extension;

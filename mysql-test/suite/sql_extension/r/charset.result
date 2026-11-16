@@ -8,6 +8,27 @@ SET NAMES latin1;
 # latin1
 TEST SQLEXT ECHO café;
 ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO café]
+# SQL on the as-client handle is read as utf8mb4, and its rows come
+# back in utf8mb4: the plugin relays them, the client gets latin1
+TEST SQLEXT SQL SELECT 'café' AS c, HEX('café') AS h;
+c	h
+café	636166C3A9
+# The client's character set is as it was
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+@@character_set_client	@@character_set_results	@@collation_connection
+latin1	latin1	latin1_swedish_ci
+# SET NAMES on the handle has no lasting effect
+TEST SQLEXT SQL SET NAMES utf8mb4;
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+@@character_set_client	@@character_set_results	@@collation_connection
+latin1	latin1	latin1_swedish_ci
+# Forwarded SQL is read as utf8mb4, its result is in latin1
+TEST SQLEXT FORWARD SELECT 'café' AS c, HEX('café') AS h;
+c	h
+café	636166C3A9
+SELECT @@character_set_client, @@character_set_results, @@collation_connection;
+@@character_set_client	@@character_set_results	@@collation_connection
+latin1	latin1	latin1_swedish_ci
 # A prepared statement keeps the text of the character set it was
 # prepared in
 PREPARE s FROM 'TEST SQLEXT ECHO café';
@@ -15,5 +36,14 @@ SET NAMES utf8mb4;
 EXECUTE s;
 ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO cafÃ©]
 DEALLOCATE PREPARE s;
+# Without conversion of the results, the client gets the utf8mb4 bytes
+SET NAMES latin1;
+SET character_set_results= NULL;
+TEST SQLEXT SQL SELECT HEX('café') AS h, 'café' AS c;
+h	c
+636166C3A9	cafÃ©
+SELECT @@character_set_results IS NULL;
+@@character_set_results IS NULL
+1
 SET NAMES utf8mb4;
 UNINSTALL PLUGIN test_sql_extension;

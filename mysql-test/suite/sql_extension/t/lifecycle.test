@@ -1,5 +1,6 @@
 --echo #
---echo # MDEV-41962 UNINSTALL while a recognize() call is in progress
+--echo # MDEV-41962 UNINSTALL while a plugin is in use: by a running extension statement,
+--echo # and by a recognize() call in progress
 --echo #
 --source include/not_embedded.inc
 --source include/have_debug.inc
@@ -10,10 +11,34 @@ INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
 INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
 
 --echo #
+--echo # A running extension statement keeps the plugin until it ends;
+--echo # statements that start after the UNINSTALL are not claimed, and
+--echo # prepared ones no longer run
+--echo #
+PREPARE s FROM 'TEST SQLEXT OK';
+connect (con1, localhost, root,,);
+SET DEBUG_SYNC= 'test_sql_extension_sql2 SIGNAL running WAIT_FOR go';
+send TEST SQLEXT SQL2 SELECT 1 AS a;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR running';
+UNINSTALL PLUGIN test_sql_extension;
+--error ER_PARSE_ERROR
+TEST SQLEXT OK;
+--error ER_PLUGIN_IS_NOT_LOADED
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+reap;
+connection default;
+SELECT COUNT(*) AS loaded FROM information_schema.plugins
+  WHERE plugin_name = 'test_sql_extension';
+
+--echo #
 --echo # UNINSTALL while recognize() runs: it waits for the call to return,
 --echo # and the statement is not claimed, since the plugin is being removed
 --echo #
-connect (con1, localhost, root,,);
+connection con1;
 SET DEBUG_SYNC= 'test_sql_extension_recognize SIGNAL recognizing WAIT_FOR go';
 send TEST RECOGNIZE WAIT;
 connection default;
@@ -39,7 +64,6 @@ connection con1;
 TEST RECOGNIZE x;
 disconnect con1;
 connection default;
-UNINSTALL PLUGIN test_sql_extension;
 SELECT COUNT(*) AS loaded FROM information_schema.plugins
   WHERE plugin_name LIKE 'test_sql_extension%';
 

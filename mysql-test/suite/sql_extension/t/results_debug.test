@@ -4,6 +4,8 @@
 --echo #
 --source include/not_embedded.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
 
 INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
 
@@ -36,6 +38,60 @@ TEST SQLEXT MULTI;
 SET debug_dbug= '';
 TEST SQLEXT OK;
 
+--echo # As for CALL, a forwarded CALL that returns result sets needs a
+--echo # client that accepts several results
+DELIMITER |;
+CREATE PROCEDURE p()
+BEGIN
+  SELECT 1 AS x;
+  SELECT 2 AS y;
+END|
+DELIMITER ;|
+SET debug_dbug= '+d,sp_no_client_multi_results';
+--error ER_SP_BADSELECT
+CALL p();
+--error ER_SP_BADSELECT
+TEST SQLEXT FORWARD CALL p();
+SET debug_dbug= '';
+DROP PROCEDURE p;
+
+--echo # Several statements of a script need a packet that allows them
+--echo # (text protocol: a prepared statement never does)
+--disable_ps_protocol
+DELIMITER |;
+SET debug_dbug= '+d,sql_extension_no_client_multi_statements'|
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT 2 AS b'|
+TEST SQLEXT SCRIPT 'SELECT 1 AS a'|
+SET debug_dbug= ''|
+DELIMITER ;|
+
+--echo # KILL QUERY between two statements of a script: the next statement
+--echo # is not run, the statement fails with the kill error after the
+--echo # results sent so far
+connect (con1, localhost, root,,);
+let $id= `SELECT CONNECTION_ID()`;
+SET DEBUG_SYNC= 'test_sql_extension_script SIGNAL first_done WAIT_FOR go';
+DELIMITER |;
+send TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT 2 AS b'|
+DELIMITER ;|
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR first_done';
+--disable_query_log
+eval KILL QUERY $id;
+--enable_query_log
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+--echo # The connection is usable afterwards
+TEST SQLEXT FORWARD SELECT 3 AS c;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC= 'RESET';
+--enable_ps_protocol
+
 UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
 
 --echo # End of 13.2 tests

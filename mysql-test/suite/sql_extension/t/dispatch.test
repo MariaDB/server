@@ -192,6 +192,34 @@ CREATE PROCEDURE p1() EXECUTE IMMEDIATE 'TEST SQLEXT OK';
 CALL p1();
 DROP PROCEDURE p1;
 
+--echo #
+--echo # SQL run by a handler: ordinary SQL works, extension SQL is refused
+--echo #
+CREATE TABLE t1 (a INT);
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SQL SELECT * FROM no_such_table;
+--error ER_PARSE_ERROR
+TEST SQLEXT SQL SELEKT 1;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST SQLEXT OK;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST RECOGNIZE x;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+--echo # Also under LOCK TABLES: as the client on its THD, and through the
+--echo # plain SQL service, which then runs it on a THD of its own
+LOCK TABLES t1 WRITE;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST SQLEXT OK;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+UNLOCK TABLES;
+--echo # The guard is released after each statement
+TEST SQLEXT OK;
+DROP TABLE t1;
+
 UNINSTALL PLUGIN test_sql_extension;
 UNINSTALL PLUGIN test_sql_extension_recognizer;
 --error ER_PARSE_ERROR

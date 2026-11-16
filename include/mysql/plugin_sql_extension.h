@@ -40,7 +40,9 @@
   performance_schema).
 
   A plugin works in utf8mb4 whatever the client's character set: the text
-  execute() gets, and the results it sends, which reach the client in its
+  execute() gets, the SQL it runs as the client
+  (service_sql_extension_client.h) and the rows and messages that SQL
+  returns, and the results it sends, which reach the client in its
   character set as any result does. Only recognize() gets the raw text,
   in the client character set.
 
@@ -49,7 +51,8 @@
   so UNINSTALL PLUGIN unloads it only afterwards. It uses the SQL
   extension services:
   - service_sql_extension.h: privilege checks;
-  - service_sql_extension_result.h: results.
+  - service_sql_extension_result.h: results;
+  - service_sql_extension_client.h: SQL run as the client.
 
   plugin/test_sql_extension is a complete example, exercised by the
   mysql-test suite sql_extension.
@@ -66,6 +69,7 @@
 #include <mysql/plugin.h>
 #include <mysql/service_sql_extension.h>
 #include <mysql/service_sql_extension_result.h>
+#include <mysql/service_sql_extension_client.h>
 
 #ifdef __cplusplus
 extern "C" {

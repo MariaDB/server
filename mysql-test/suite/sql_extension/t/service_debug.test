@@ -1,0 +1,35 @@
+--echo #
+--echo # MDEV-41962 Service failures that need a debug build to provoke
+--echo #
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo # A kill while a JSON cell is checked fails the statement with the
+--echo # kill error, not with a complaint about the plugin's result
+SET debug_dbug= '+d,sql_extension_json_killed';
+--error ER_QUERY_INTERRUPTED
+TEST SQLEXT BAD JSON {"a": 1};
+SET debug_dbug= '';
+TEST SQLEXT BAD JSON {"a": 1};
+
+--echo # max_statement_time: SQL a handler runs after the timeout fails, and
+--echo # does not run. The first run completes; the timer fires while the
+--echo # handler waits between the two runs, so the second one is refused.
+# Margins for slow builders: the first run has 2 s, ample for one SELECT,
+# and the timer 3 s more to fire. Its kill is soft and does not end a
+# debug sync wait, so the wait runs to its own 5 s timeout.
+SET @n= 0;
+SET DEBUG_SYNC= 'test_sql_extension_sql2 WAIT_FOR never TIMEOUT 5';
+SET max_statement_time= 2;
+--error ER_STATEMENT_TIMEOUT
+TEST SQLEXT SQL2 SELECT @n:= @n + 1 AS n;
+SET max_statement_time= DEFAULT;
+SET DEBUG_SYNC= 'RESET';
+SELECT @n AS runs;
+
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

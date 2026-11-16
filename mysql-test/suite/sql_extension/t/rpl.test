@@ -1,0 +1,47 @@
+--echo #
+--echo # MDEV-41962 Replication: SQL that a handler runs as the client is logged as plain
+--echo # SQL, so a replica applies it without the plugin. The extension
+--echo # statement itself is never logged.
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(20)) ENGINE=InnoDB;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1, 'sql');
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (2, 'forward');
+TEST SQLEXT FORWARD UPDATE t1 SET b = 'updated' WHERE a = 1;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3, 'rolled back');
+ROLLBACK;
+BEGIN;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (4, 'committed');
+COMMIT;
+--echo # A handler that changes data and then fails, in a transaction and
+--echo # in autocommit: the replica ends up with what the primary kept
+--disable_ps_protocol
+DELIMITER |;
+BEGIN|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (5, "trx"); SELECT * FROM no_such_table'|
+COMMIT|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t1 VALUES (6, "autocommit"); SELECT * FROM no_such_table'|
+DELIMITER ;|
+--enable_ps_protocol
+SELECT * FROM t1 ORDER BY a;
+--sync_slave_with_master
+
+--echo # The replica has the changes, and no plugin
+SELECT * FROM t1 ORDER BY a;
+SELECT COUNT(*) AS plugins FROM information_schema.plugins
+  WHERE plugin_name LIKE 'test_sql_extension%';
+SHOW GLOBAL STATUS LIKE 'Com_sql_extension';
+
+connection master;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+--source include/rpl_end.inc
+
+--echo # End of 13.2 tests

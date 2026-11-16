@@ -197,6 +197,35 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 CREATE PROCEDURE p1() EXECUTE IMMEDIATE 'TEST SQLEXT OK';
 CALL p1();
 DROP PROCEDURE p1;
+#
+# SQL run by a handler: ordinary SQL works, extension SQL is refused
+#
+CREATE TABLE t1 (a INT);
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+1
+TEST SQLEXT SQL SELECT * FROM no_such_table;
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+TEST SQLEXT SQL SELEKT 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELEKT 1' at line 1
+TEST SQLEXT SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT SQL TEST RECOGNIZE x;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension_recognizer' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+# Also under LOCK TABLES: as the client on its THD, and through the
+# plain SQL service, which then runs it on a THD of its own
+LOCK TABLES t1 WRITE;
+TEST SQLEXT SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+UNLOCK TABLES;
+# The guard is released after each statement
+TEST SQLEXT OK;
+DROP TABLE t1;
 UNINSTALL PLUGIN test_sql_extension;
 UNINSTALL PLUGIN test_sql_extension_recognizer;
 TEST SQLEXT OK;

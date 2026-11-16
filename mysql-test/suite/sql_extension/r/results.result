@@ -1,5 +1,6 @@
 #
-# MDEV-41962 Several results per statement
+# MDEV-41962 Several results per statement, and results of SQL run as the client
+# sent to the client as they are (sql_extension_forward_sql())
 #
 INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
 # Text protocol where the flags or several statements matter: a
@@ -45,5 +46,277 @@ multi_results	multi_statements
 1	0
 DEALLOCATE PREPARE s;
 # A client that does not accept several results: see results_debug.test
+#
+# Forwarded results: as the server sends them
+#
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b DECIMAL(5,2),
+c DATETIME(3), j JSON) ENGINE=InnoDB;
+TEST SQLEXT FORWARD INSERT INTO t1 (b, c, j) VALUES (1.5, '2026-11-06 10:20:30.123', '[1]'), (2.25, NULL, NULL);
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+# The client's insert id is that of the forwarded INSERT, and of an
+# INSERT a handler runs as the client
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+1
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT, b INT) AUTO_INCREMENT=10;
+TEST SQLEXT SQL INSERT INTO t2 (b) VALUES (1), (2);
+SELECT LAST_INSERT_ID();
+LAST_INSERT_ID()
+10
+DROP TABLE t2;
+# The same metadata as the SELECT itself
+SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	3	11	1	N	49667	0	63
+def	test	t1	t1	b	b	246	7	4	Y	32768	2	63
+def	test	t1	t1	c	c	12	23	23	Y	128	3	63
+def	test	t1	t1	j	j	252 (format=json)	4294967295	3	Y	144	0	8
+a	b	c	j
+1	1.50	2026-11-06 10:20:30.123	[1]
+2	2.25	NULL	NULL
+TEST SQLEXT FORWARD SELECT * FROM t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a	3	11	1	N	49667	0	63
+def	test	t1	t1	b	b	246	7	4	Y	32768	2	63
+def	test	t1	t1	c	c	12	23	23	Y	128	3	63
+def	test	t1	t1	j	j	252 (format=json)	4294967295	3	Y	144	0	8
+a	b	c	j
+1	1.50	2026-11-06 10:20:30.123	[1]
+2	2.25	NULL	NULL
+# The same rows through the binary protocol, under --ps-protocol
+TEST SQLEXT FORWARD SELECT * FROM t1;
+a	b	c	j
+1	1.50	2026-11-06 10:20:30.123	[1]
+2	2.25	NULL	NULL
+# Warnings and errors, with their SQLSTATE
+TEST SQLEXT FORWARD SELECT 1/0 AS x;
+x
+NULL
+Warnings:
+Warning	1365	Division by 0
+TEST SQLEXT FORWARD SELECT * FROM no_such_table;
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+TEST SQLEXT FORWARD SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'from forward';
+ERROR 45000: from forward
+# SQL claimed by an extension plugin is refused
+TEST SQLEXT FORWARD TEST SQLEXT OK;
+ERROR HY000: Cannot execute a statement of SQL extension plugin 'test_sql_extension' from the handler of plugin 'test_sql_extension'
+# One statement only: no text is an empty query, a trailing ';' is
+# fine, a second statement is a syntax error
+TEST SQLEXT FORWARD;
+ERROR 42000: Query was empty
+TEST SQLEXT FORWARD 'SELECT 1 AS a;';
+a
+1
+TEST SQLEXT FORWARD 'SELECT 1 AS a; SELECT 2 AS b';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT 2 AS b' at line 1
+#
+# An extension statement that stands for a CALL: the client gets what
+# the CALL itself returns
+#
+CREATE PROCEDURE p()
+BEGIN
+SELECT a, b FROM t1 ORDER BY a;
+SELECT COUNT(*) AS n FROM t1;
+UPDATE t1 SET b= b + 1 WHERE a = 1;
+END|
+CREATE PROCEDURE p_err()
+BEGIN
+SELECT 1 AS x;
+SELECT * FROM no_such_table;
+SELECT 2 AS y;
+END|
+CALL p();
+a	b
+1	1.50
+2	2.25
+affected rows: 2
+n
+2
+affected rows: 1
+affected rows: 1
+TEST SQLEXT FORWARD CALL p();
+a	b
+1	2.50
+2	2.25
+affected rows: 2
+n
+2
+affected rows: 1
+affected rows: 1
+CALL p_err();
+x
+1
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+TEST SQLEXT FORWARD CALL p_err();
+x
+1
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+# As for CALL, the client must accept several results: see
+# results_debug.test
+# Prepared
+PREPARE s FROM 'TEST SQLEXT FORWARD CALL p()';
+EXECUTE s;
+a	b
+1	3.50
+2	2.25
+n
+2
+EXECUTE s;
+a	b
+1	4.50
+2	2.25
+n
+2
+DEALLOCATE PREPARE s;
+#
+# Extension statements that send results inside a CALL: each result
+# is followed by more, and the CALL's own OK comes last
+#
+CREATE PROCEDURE p_ext()
+BEGIN
+EXECUTE IMMEDIATE 'TEST SQLEXT MULTI';
+EXECUTE IMMEDIATE 'TEST SQLEXT FORWARD SELECT 1 AS a';
+SELECT 2 AS b;
+END|
+CREATE PROCEDURE p_ext_err()
+BEGIN
+EXECUTE IMMEDIATE 'TEST SQLEXT MULTI ERROR';
+SELECT 'not run' AS c;
+END|
+CALL p_ext();
+first
+1
+affected rows: 1
+affected rows: 2
+info: test_sql_extension: second
+third
+3
+affected rows: 1
+a
+1
+affected rows: 1
+b
+2
+affected rows: 1
+affected rows: 2
+CALL p_ext_err();
+first
+1
+ERROR HY000: test_sql_extension: error after rows
+# Prepared
+PREPARE s FROM 'CALL p_ext()';
+EXECUTE s;
+first
+1
+third
+3
+a
+1
+b
+2
+EXECUTE s;
+first
+1
+third
+3
+a
+1
+b
+2
+DEALLOCATE PREPARE s;
+# The connection is still in step
+SELECT 'next' AS r;
+r
+next
+DROP PROCEDURE p_ext;
+DROP PROCEDURE p_ext_err;
+#
+# A script: the results of its statements, until one fails
+#
+TEST SQLEXT SCRIPT 'SELECT COUNT(*) AS n FROM t1; UPDATE t1 SET b= 0 WHERE a = 2; SELECT b FROM t1 WHERE a = 2'|
+n
+2
+affected rows: 1
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Warnings: 0
+b
+0.00
+affected rows: 1
+TEST SQLEXT SCRIPT 'SELECT 1 AS a; SELECT * FROM no_such_table; SELECT 2 AS b'|
+a
+1
+ERROR 42S02: Table 'test.no_such_table' doesn't exist
+# Several statements need a packet that allows them: see
+# results_debug.test
+#
+# Forwarded SQL runs as the client
+#
+CREATE USER u1@localhost;
+GRANT SELECT ON test.t1 TO u1@localhost;
+GRANT EXECUTE ON PROCEDURE test.p TO u1@localhost;
+connect  u1, localhost, u1,,;
+TEST SQLEXT FORWARD SELECT a, CURRENT_USER() AS u FROM test.t1 ORDER BY a;
+a	u
+1	u1@localhost
+2	u1@localhost
+TEST SQLEXT FORWARD DELETE FROM test.t1;
+ERROR 42000: DELETE command denied to user 'u1'@'localhost' for table `test`.`t1`
+# The procedure runs with its definer's rights, as with CALL
+TEST SQLEXT FORWARD CALL test.p();
+a	b
+1	5.50
+2	0.00
+affected rows: 2
+n
+2
+affected rows: 1
+affected rows: 1
+disconnect u1;
+connection default;
+DROP USER u1@localhost;
+# Its transaction
+BEGIN;
+affected rows: 0
+TEST SQLEXT FORWARD DELETE FROM t1;
+affected rows: 2
+ROLLBACK;
+affected rows: 0
+SELECT COUNT(*) AS n FROM t1;
+n
+2
+# The timer of the extension statement applies: the SQL fails, as
+# in a stored procedure (a plain SELECT SLEEP() would return 1)
+SET max_statement_time= 0.2;
+TEST SQLEXT FORWARD SELECT SLEEP(10) AS s;
+ERROR 70100: Query was interrupted: execution time limit 0.2 sec exceeded
+SET max_statement_time= DEFAULT;
+TEST SQLEXT FORWARD SELECT 1 AS a;
+a
+1
+# KILL QUERY while the SQL runs
+connect  con1, localhost, root,,;
+TEST SQLEXT FORWARD SELECT SLEEP(100);
+connection default;
+connection con1;
+ERROR 70100: Query execution was interrupted
+# The connection is usable afterwards
+TEST SQLEXT FORWARD SELECT 1 AS a;
+a
+1
+disconnect con1;
+connection default;
+# KILL CONNECTION while the SQL runs: the connection ends
+connect  con1, localhost, root,,;
+TEST SQLEXT FORWARD SELECT SLEEP(100);
+connection default;
+connection con1;
+Got one of the listed errors
+disconnect con1;
+connection default;
+DROP PROCEDURE p;
+DROP PROCEDURE p_err;
+DROP TABLE t1;
 UNINSTALL PLUGIN test_sql_extension;
 # End of 13.2 tests
