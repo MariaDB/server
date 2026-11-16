@@ -724,7 +724,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   DBUG_PRINT("info", ("virtual_columns_marked_for_read: %s", table->check_virtual_columns_marked_for_read() ? "TRUE" : "FALSE"));
   DBUG_PRINT("info", ("virtual_columns_marked_for_write: %s", table->check_virtual_columns_marked_for_write() ? "TRUE" : "FALSE"));
   if ((table->file->ha_table_flags() & HA_CAN_DIRECT_UPDATE_AND_DELETE) &&
-      !has_triggers && !binlog_is_row &&
+      !has_triggers && !binlog_is_row && !thd->lex->has_returning() &&
       !query_plan.using_io_buffer && !ignore &&
       !table->check_virtual_columns_marked_for_read() &&
       !table->check_virtual_columns_marked_for_write())
