@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-41942 CHECK TABLE EXTENDED ignores an incomplete active BLOB write
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+
+connect (writer,localhost,root,,);
+SET DEBUG_SYNC='blob_write_middle SIGNAL blob_unwritten WAIT_FOR blob_continue';
+--send INSERT INTO t1 VALUES (1, REPEAT('x', 20000))
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blob_unwritten TIMEOUT 60';
+CHECK TABLE t1 EXTENDED;
+SET DEBUG_SYNC='now SIGNAL blob_continue';
+
+connection writer;
+--reap
+disconnect writer;
+
+connection default;
+SET DEBUG_SYNC='RESET';
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
