@@ -1,0 +1,60 @@
+# Test toggling binlog_sequential_table_ids ON/OFF mid-session
+#
+# Verify that sequential and old-style table IDs coexist in the same
+# binlog and the slave handles the mixed binlog correctly.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100)) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+--echo #
+--echo # Insert with sequential IDs ON
+--echo #
+SET @@session.binlog_sequential_table_ids= ON;
+INSERT INTO t1 VALUES (1, 'sequential');
+INSERT INTO t2 VALUES (1);
+
+--echo #
+--echo # Insert with sequential IDs OFF (traditional)
+--echo #
+SET @@session.binlog_sequential_table_ids= OFF;
+INSERT INTO t1 VALUES (2, 'traditional');
+INSERT INTO t2 VALUES (2);
+
+--echo #
+--echo # Insert with sequential IDs ON again
+--echo #
+SET @@session.binlog_sequential_table_ids= ON;
+INSERT INTO t1 VALUES (3, 'sequential again');
+
+--echo #
+--echo # Multi-table update with toggle mid-transaction
+--echo #
+BEGIN;
+INSERT INTO t1 VALUES (4, 'in-txn-seq');
+SET @@session.binlog_sequential_table_ids= OFF;
+INSERT INTO t2 VALUES (4);
+COMMIT;
+
+--echo #
+--echo # Verify slave receives all data correctly
+--echo #
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+SET @@session.binlog_sequential_table_ids= OFF;
+DROP TABLE t1, t2;
+
+--sync_slave_with_master
+--source include/rpl_end.inc

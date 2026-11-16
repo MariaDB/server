@@ -1,0 +1,136 @@
+# Edge-case tests for binlog_sequential_table_ids
+#
+# Tests various edge cases: many tables, same table in multiple
+# statements, temporary tables, and MIXED binlog format.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+SET @@session.binlog_sequential_table_ids= ON;
+
+--echo #
+--echo # Test 1: Same table in multiple statements within one transaction
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO t1 VALUES (1, 10);
+INSERT INTO t1 VALUES (2, 20);
+UPDATE t1 SET b= 30 WHERE a= 1;
+DELETE FROM t1 WHERE a= 2;
+COMMIT;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Test 2: Transaction touching many tables
+--echo #
+--connection master
+--disable_query_log
+let $i= 1;
+while ($i <= 50)
+{
+  eval CREATE TABLE many_$i (a INT PRIMARY KEY) ENGINE=InnoDB;
+  inc $i;
+}
+--enable_query_log
+
+BEGIN;
+--disable_query_log
+let $i= 1;
+while ($i <= 50)
+{
+  eval INSERT INTO many_$i VALUES ($i);
+  inc $i;
+}
+--enable_query_log
+COMMIT;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM many_1;
+SELECT * FROM many_25;
+SELECT * FROM many_50;
+
+--echo #
+--echo # Test 3: Temporary tables mixed with regular tables
+--echo #
+--connection master
+CREATE TEMPORARY TABLE tmp1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE reg1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+
+BEGIN;
+INSERT INTO tmp1 VALUES (1);
+INSERT INTO reg1 VALUES (1);
+INSERT INTO t1 VALUES (3, 300);
+COMMIT;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM reg1 ORDER BY a;
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Test 4: DELETE with multi-table syntax
+--echo #
+--connection master
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (100, 1), (200, 2);
+INSERT INTO t1 VALUES (100, 1);
+
+DELETE t1, t2 FROM t1 INNER JOIN t2 ON t1.a= t2.a;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo #
+--echo # Test 5: REPLACE and INSERT ... ON DUPLICATE KEY UPDATE
+--echo #
+--connection master
+INSERT INTO t1 VALUES (5, 50);
+REPLACE INTO t1 VALUES (5, 55);
+INSERT INTO t1 VALUES (6, 60) ON DUPLICATE KEY UPDATE b= 66;
+INSERT INTO t1 VALUES (6, 60) ON DUPLICATE KEY UPDATE b= 66;
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Test 6: Multiple single-statement transactions (autocommit)
+--echo #
+--connection master
+SET autocommit= 1;
+INSERT INTO t1 VALUES (7, 70);
+INSERT INTO t1 VALUES (8, 80);
+INSERT INTO t1 VALUES (9, 90);
+
+--sync_slave_with_master
+--connection slave
+SELECT * FROM t1 ORDER BY a;
+
+--echo #
+--echo # Cleanup
+--echo #
+--connection master
+SET @@session.binlog_sequential_table_ids= OFF;
+DROP TABLE t1, t2, reg1;
+DROP TEMPORARY TABLE IF EXISTS tmp1;
+--disable_query_log
+let $i= 1;
+while ($i <= 50)
+{
+  eval DROP TABLE many_$i;
+  inc $i;
+}
+--enable_query_log
+
+--sync_slave_with_master
+--source include/rpl_end.inc
