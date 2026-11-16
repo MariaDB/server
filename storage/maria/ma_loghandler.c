@@ -1650,10 +1650,20 @@ static my_bool translog_create_new_file()
 
   TRANSLOG_FILE *old= get_current_logfile();
   uint32 file_no= LSN_FILE_NO(log_descriptor.horizon);
+  LSN max_lsn= log_descriptor.max_lsn;
   DBUG_ENTER("translog_create_new_file");
 
   if (file == NULL)
     goto error;
+
+  /*
+    No record was written since start (an empty log, or a file continued
+    after restart), but LSN_IMPOSSIBLE in the header would mean "file in
+    writing" and stop translog_purge() at this file forever. Every LSN of
+    the finished file is below the start of the new one.
+  */
+  if (max_lsn == LSN_IMPOSSIBLE)
+    max_lsn= MAKE_LSN(file_no, 0) - 1;
 
   /*
     Writes max_lsn to the file header before finishing it (there is no need
@@ -1661,7 +1671,7 @@ static my_bool translog_create_new_file()
     one thread can finish the file and nobody interested of LSN of current
     (unfinished) file, because no one can purge it).
   */
-  if (translog_max_lsn_to_header(old->handler.file, log_descriptor.max_lsn))
+  if (translog_max_lsn_to_header(old->handler.file, max_lsn))
     goto error;
 
   mysql_rwlock_wrlock(&log_descriptor.open_files_lock);
@@ -1677,7 +1687,11 @@ static my_bool translog_create_new_file()
     goto error_lock;
 
   if ((file->handler.file= create_logfile_by_number_no_cache(file_no)) == -1)
+  {
+    /* do not leave a pointer to the freed file in open_files */
+    pop_dynamic(&log_descriptor.open_files);
     goto error_lock;
+  }
   translog_file_init(file, file_no, 0);
 
   log_descriptor.max_file++;
@@ -1697,14 +1711,19 @@ static my_bool translog_create_new_file()
   DBUG_PRINT("info", ("file_no: %lu", (ulong)file_no));
 
   if (translog_write_file_header())
-    goto error;
+    goto error_registered;
 
   if (ma_control_file_write_and_force(last_checkpoint_lsn, file_no,
                                       max_trid_in_control_file,
                                       recovery_failures))
-    goto error;
+    goto error_registered;
 
   DBUG_RETURN(0);
+
+error_registered:
+  /* the file is in open_files now, translog_destroy() closes it */
+  translog_stop_writing();
+  DBUG_RETURN(1);
 
 error_lock:
   mysql_rwlock_unlock(&log_descriptor.open_files_lock);
@@ -4174,6 +4193,7 @@ my_bool translog_init_with_table(const char *directory,
               It is beginning of the log => there is no LSNs in the log =>
               There is no harm in leaving it "as-is".
           */
+            translog_destroy_scanner(&scanner);
             log_descriptor.previous_flush_horizon= log_descriptor.horizon;
             DBUG_PRINT("info", ("previous_flush_horizon: " LSN_FMT,
                                 LSN_IN_PARTS(log_descriptor.
@@ -7358,19 +7378,14 @@ int translog_read_next_record_header(TRANSLOG_SCANNER_DATA *scanner,
                         LSN_IN_PARTS(scanner->page_addr),
                         (ulong) scanner->page_offset,
                         (uint) scanner->page[scanner->page_offset]));
-  } while (!translog_is_LSN_chunk(scanner->page[scanner->page_offset]) &&
-           scanner->page[scanner->page_offset] != TRANSLOG_FILLER);
+    /*
+      A filler only ends its page, the log can continue after it (for
+      example after files finished by translog_rotate() before any record
+      was written), the end of the log is found by the horizon above.
+    */
+  } while (!translog_is_LSN_chunk(scanner->page[scanner->page_offset]));
 
-  if (scanner->page[scanner->page_offset] == TRANSLOG_FILLER)
-  {
-    DBUG_PRINT("info", ("End of file"));
-    /* Last record was read */
-    buff->lsn= LSN_IMPOSSIBLE;
-    /* Return 'end of log' marker */
-    res= RECHEADER_READ_EOF;
-  }
-  else
-    res= translog_read_record_header_scan(scanner, buff, 0);
+  res= translog_read_record_header_scan(scanner, buff, 0);
   DBUG_RETURN(res);
 }
 
@@ -8559,8 +8574,12 @@ LSN translog_next_LSN(TRANSLOG_ADDRESS addr, TRANSLOG_ADDRESS horizon)
     }
   }
 
-  while (!translog_is_LSN_chunk(scanner.page[scanner.page_offset]) &&
-         scanner.page[scanner.page_offset] != TRANSLOG_FILLER)
+  /*
+    A filler only ends its page (translog_get_next_chunk() goes to the
+    next one), the log can continue after it, for example after files
+    finished by translog_rotate() before any record was written
+  */
+  while (!translog_is_LSN_chunk(scanner.page[scanner.page_offset]))
   {
     if (translog_get_next_chunk(&scanner))
     {
@@ -8574,10 +8593,7 @@ LSN translog_next_LSN(TRANSLOG_ADDRESS addr, TRANSLOG_ADDRESS horizon)
     }
   }
 
-  if (scanner.page[scanner.page_offset] == TRANSLOG_FILLER)
-    result= LSN_IMPOSSIBLE; /* reached page filler */
-  else
-    result= scanner.page_addr + scanner.page_offset;
+  result= scanner.page_addr + scanner.page_offset;
 out:
   translog_destroy_scanner(&scanner);
   DBUG_RETURN(result);
@@ -8863,6 +8879,42 @@ uint32 translog_get_file_size()
 
 
 /**
+  @brief Finishes the current log file, starts the next one and writes the
+  buffer with the end of the finished file
+
+  @note the loghandler must be locked, it is unlocked on return
+
+  @retval 0 OK
+  @retval 1 Error (the log is read only after it)
+*/
+
+static my_bool translog_next_file_and_unlock()
+{
+  struct st_translog_buffer *old_buffer= log_descriptor.bc.buffer;
+  struct st_translog_buffer *new_buffer=
+    log_descriptor.buffers + ((log_descriptor.bc.buffer_no + 1) %
+                              TRANSLOG_BUFFERS_NO);
+  my_bool rc;
+  translog_lock_assert_owner();
+
+  if (translog_buffer_next(&log_descriptor.horizon, &log_descriptor.bc, 1))
+  {
+    /* both buffers are still locked, the cursor is on the old one */
+    translog_buffer_unlock(new_buffer);
+    translog_unlock();
+    return 1;
+  }
+  translog_buffer_unlock(old_buffer);
+  translog_unlock();
+
+  translog_buffer_lock(old_buffer);
+  rc= translog_buffer_flush(old_buffer);
+  translog_buffer_unlock(old_buffer);
+  return rc;
+}
+
+
+/**
   @brief Sets transaction log file size
 
   @return Returns actually set transaction log size
@@ -8870,7 +8922,6 @@ uint32 translog_get_file_size()
 
 void translog_set_file_size(uint32 size)
 {
-  struct st_translog_buffer *old_buffer= NULL;
   DBUG_ENTER("translog_set_file_size");
   translog_lock();
   DBUG_PRINT("enter", ("Size: %lu", (ulong) size));
@@ -8879,19 +8930,53 @@ void translog_set_file_size(uint32 size)
   log_descriptor.log_file_max_size= size;
   /* if current file longer then finish it*/
   if (LSN_OFFSET(log_descriptor.horizon) >=  log_descriptor.log_file_max_size)
-  {
-    old_buffer= log_descriptor.bc.buffer;
-    translog_buffer_next(&log_descriptor.horizon, &log_descriptor.bc, 1);
-    translog_buffer_unlock(old_buffer);
-  }
-  translog_unlock();
-  if (old_buffer)
-  {
-    translog_buffer_lock(old_buffer);
-    translog_buffer_flush(old_buffer);
-    translog_buffer_unlock(old_buffer);
-  }
+    translog_next_file_and_unlock();
+  else
+    translog_unlock();
   DBUG_VOID_RETURN;
+}
+
+
+/**
+  @brief Finishes the current log file and continues logging in a new one
+
+  All records written before the call are flushed to disk, so the
+  finished files are not written to anymore and can be copied (for
+  example by backup).
+
+  If the log is read only (after an earlier write error) no file is
+  written anymore, so there is nothing to do.
+
+  @note On an error the log becomes read only, as on any other error
+  writing it.
+
+  @retval 0 OK
+  @retval 1 Error
+*/
+
+my_bool translog_rotate()
+{
+  LSN last_lsn;
+  my_bool rc;
+  DBUG_ENTER("translog_rotate");
+
+  if (translog_status == TRANSLOG_READONLY)
+    DBUG_RETURN(0);
+  if (translog_status != TRANSLOG_OK)
+    DBUG_RETURN(1);
+
+  translog_lock();
+  /* translog_stop_writing() could be called after the check above */
+  if (unlikely(translog_status != TRANSLOG_OK))
+  {
+    translog_unlock();
+    DBUG_RETURN(translog_status != TRANSLOG_READONLY);
+  }
+  last_lsn= log_descriptor.max_lsn;
+  rc= translog_next_file_and_unlock();
+  if (!rc && last_lsn != LSN_IMPOSSIBLE)
+    rc= translog_flush(last_lsn);
+  DBUG_RETURN(rc);
 }
 
 

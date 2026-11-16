@@ -3721,6 +3721,25 @@ bool maria_flush_logs(handlerton *hton)
 }
 
 
+/**
+  @brief switch the log handler to a new log file
+
+  @param hton            maria handlerton (unused)
+
+  @retval FALSE OK
+  @retval TRUE  Error
+*/
+
+static bool maria_rotate_logs(handlerton *hton)
+{
+  if (!translog_rotate())
+    return false;
+  my_error(ER_GET_ERRMSG, MYF(0), my_errno ? my_errno : HA_ERR_GENERIC,
+           "Can't switch to a new log file", "Aria");
+  return true;
+}
+
+
 void maria_checkpoint_state(bool disabled)
 {
   maria_checkpoint_disabled= (my_bool) disabled;
@@ -3951,6 +3970,7 @@ static int ha_maria_init(void *p)
   maria_hton->rollback= maria_rollback;
   maria_hton->disable_internal_writes= maria_checkpoint_state;
   maria_hton->flush_logs= maria_flush_logs;
+  maria_hton->rotate_logs= maria_rotate_logs;
   maria_hton->show_status= maria_show_status;
   maria_hton->prepare_for_backup= maria_prepare_for_backup;
   maria_hton->end_backup= maria_end_backup;

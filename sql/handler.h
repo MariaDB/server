@@ -1581,6 +1581,12 @@ struct handlerton : public transaction_participant
   void (*disable_internal_writes)(bool disable);
 
   bool (*flush_logs)(handlerton *hton);
+  /*
+    Finish the current log file and continue in a new one, so that
+    the finished files are not written to anymore and can be copied
+    (used by backup).
+  */
+  bool (*rotate_logs)(handlerton *hton);
   bool (*show_status)(handlerton *hton, THD *thd, stat_print_fn *print, enum ha_stat_type stat);
   uint (*partition_flags)();
   alter_table_operations (*alter_table_flags)(alter_table_operations flags);
@@ -5859,6 +5865,7 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level);
 void ha_signal_ddl_recovery_done();
 void ha_signal_tc_log_recovery_done();
 bool ha_flush_logs();
+bool ha_rotate_logs();
 void ha_drop_database(const char* path);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path, const char *db,

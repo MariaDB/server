@@ -3579,6 +3579,21 @@ bool ha_flush_logs()
 }
 
 
+static my_bool rotate_logs_handlerton(THD *thd, plugin_ref plugin,
+                                      void *arg)
+{
+  handlerton *hton= plugin_hton(plugin);
+  return hton->rotate_logs && hton->rotate_logs(hton);
+}
+
+
+bool ha_rotate_logs()
+{
+  return plugin_foreach(NULL, rotate_logs_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, 0);
+}
+
+
 /**
   @brief make canonical filename
 
