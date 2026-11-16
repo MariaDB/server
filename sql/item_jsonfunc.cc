@@ -5624,6 +5624,7 @@ String* Item_func_json_array_intersect::val_str(String *str)
       free_root(&hash_root, MYF(0));
     root_inited= false;
     item_hash_inited= false;
+    is_array= false;
     prepare_json_and_create_hash(&je1, js1);
   }
 
