@@ -1,0 +1,41 @@
+--source include/master-slave.inc
+
+--echo # Connected master-position commands still replicate successfully.
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+--connection slave
+--sync_with_master
+SELECT * FROM t1;
+
+--connection master
+--connect (con1,localhost,root,,)
+--disconnect con1
+
+--echo # MDEV-13718: report a closed connection without switching to a slave.
+--error 2006
+--save_master_pos
+--echo $mysql_errno
+--echo connection="$CURRENT_CONNECTION"
+--error 2006
+--sync_slave_with_master
+--echo $mysql_errno
+--echo connection="$CURRENT_CONNECTION"
+--error 2006
+--sync_slave_with_master slave1
+--echo $mysql_errno
+--echo connection="$CURRENT_CONNECTION"
+
+--echo # The errors are consumed, and both sync forms still work.
+--connection master
+INSERT INTO t1 VALUES (2);
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a;
+--connection master
+INSERT INTO t1 VALUES (3);
+--sync_slave_with_master slave1
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+--source include/rpl_end.inc
