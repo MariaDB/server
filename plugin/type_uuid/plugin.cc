@@ -180,16 +180,33 @@ protected:
   virtual ~Create_func_uuid_v7() {}
 };
 
+class Create_func_uuid_timestamp : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    DBUG_ENTER("Create_func_uuid_timestamp::create_1_arg");
+    DBUG_RETURN(new (thd->mem_root) Item_func_uuid_timestamp(thd, arg1));
+  }
+  static Create_func_uuid_timestamp s_singleton;
+
+protected:
+  Create_func_uuid_timestamp() {}
+  virtual ~Create_func_uuid_timestamp() {}
+};
+
 Create_func_uuid Create_func_uuid::s_singleton;
 Create_func_sys_guid Create_func_sys_guid::s_singleton;
 Create_func_uuid_v4 Create_func_uuid_v4::s_singleton;
 Create_func_uuid_v7 Create_func_uuid_v7::s_singleton;
+Create_func_uuid_timestamp Create_func_uuid_timestamp::s_singleton;
 
 static Plugin_function
   plugin_descriptor_function_uuid(&Create_func_uuid::s_singleton),
   plugin_descriptor_function_sys_guid(&Create_func_sys_guid::s_singleton),
   plugin_descriptor_function_uuid_v4(&Create_func_uuid_v4::s_singleton),
-  plugin_descriptor_function_uuid_v7(&Create_func_uuid_v7::s_singleton);
+  plugin_descriptor_function_uuid_v7(&Create_func_uuid_v7::s_singleton),
+  plugin_descriptor_function_uuid_timestamp(&Create_func_uuid_timestamp::s_singleton);
 
 static constexpr Name type_name={STRING_WITH_LEN("uuid")};
 
@@ -300,6 +317,21 @@ maria_declare_plugin(type_uuid)
   NULL,                         // Status variables
   NULL,                         // System variables
   "1.0.1",                      // String version representation
+  MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
+},
+{
+  MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
+  &plugin_descriptor_function_uuid_timestamp, // pointer to type-specific plugin descriptor
+  "uuid_timestamp",             // plugin name
+  "Varun Deep Saini",           // plugin author
+  "Function UUID_TIMESTAMP()",  // the plugin description
+  PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
+  0,                            // Pointer to plugin initialization function
+  0,                            // Pointer to plugin deinitialization function
+  0x0100,                       // Numeric version 0xAABB means AA.BB version
+  NULL,                         // Status variables
+  NULL,                         // System variables
+  "1.0",                        // String version representation
   MariaDB_PLUGIN_MATURITY_STABLE// Maturity(see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;
