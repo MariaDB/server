@@ -179,6 +179,11 @@ public:
   {
     return Type_handler_json_common::json_type_handler(max_length);
   }
+  String *val_str(String *to) override
+  {
+    return val_json(to, false);
+  }
+
 };
 
 
@@ -225,7 +230,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *to) override
+  String *val_json(String *to, bool nice= false) override
   {
     null_value= Json_path_extractor::extract(to, args[0], args[1],
                                              collation.collation, func_name_cstring(), true);
@@ -330,7 +335,7 @@ public:
   }
   enum Functype functype() const override { return JSON_EXTRACT_FUNC; }
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   longlong val_int() override;
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
@@ -406,7 +411,7 @@ public:
     Item_json_func(thd) {}
   Item_func_json_array(THD *thd, List<Item> &list):
     Item_json_func(thd, list) {}
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override
   {
@@ -429,7 +434,7 @@ public:
   Item_func_json_array_append(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   uint get_n_paths() const override { return arg_count/2; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -448,7 +453,7 @@ class Item_func_json_array_insert: public Item_func_json_array_append
 public:
   Item_func_json_array_insert(THD *thd, List<Item> &list):
     Item_func_json_array_append(thd, list) {}
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_insert") };
@@ -468,7 +473,7 @@ public:
     Item_func_json_array(thd) {}
   Item_func_json_object(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_object") };
@@ -488,7 +493,7 @@ protected:
 public:
   Item_func_json_merge(THD *thd, List<Item> &list):
     Item_func_json_array(thd, list) {}
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_preserve") };
@@ -510,7 +515,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_patch") };
     return name;
   }
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -523,7 +528,7 @@ class Item_func_json_normalize: public Item_json_func
 public:
   Item_func_json_normalize(THD *thd, Item *a):
     Item_json_func(thd, a) {}
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_normalize") };
@@ -622,7 +627,7 @@ public:
     Item_json_str_multipath(thd, list),
       mode_insert(i_mode), mode_replace(r_mode) {}
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   uint get_n_paths() const override { return arg_count/2; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -647,7 +652,7 @@ public:
   Item_func_json_remove(THD *thd, List<Item> &list):
     Item_json_str_multipath(thd, list) {}
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   uint get_n_paths() const override { return arg_count - 1; }
   LEX_CSTRING func_name_cstring() const override
   {
@@ -706,7 +711,7 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref) override;
   bool fix_length_and_dec(THD *thd) override;
-  String *val_str(String *) override;
+  String *val_json(String *, bool nice= false) override;
   uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
 
 protected:
@@ -737,7 +742,7 @@ public:
   LEX_CSTRING func_name_cstring() const override;
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *str) override;
-  String *val_json(String *str) override;
+  String *val_json(String *str, bool nice= false) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override

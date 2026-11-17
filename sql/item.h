@@ -1710,7 +1710,15 @@ public:
   */
   String *val_str(String *str, String *converter, CHARSET_INFO *to);
 
-  virtual String *val_json(String *str) { return val_str(str); }
+  /*
+    Returns the JSON value as a string.
+    @param nice  if true, the result is expected to be formatted
+                 (as JSON_DETAILED/JSON_LOOSE would do); otherwise
+                 the formatting can be skipped as an optimization.
+    @return NULL (and null_value is set) if the value is NULL or
+            is not a valid JSON.
+  */
+  virtual String *val_json(String *str, bool nice= false);
   /*
     Return decimal representation of item with fixed point.
 

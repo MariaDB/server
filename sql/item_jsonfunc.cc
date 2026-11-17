@@ -1299,7 +1299,7 @@ return_null:
 }
 
 
-String *Item_func_json_extract::val_str(String *str)
+String *Item_func_json_extract::val_json(String *str, bool)
 {
   json_value_types type;
   char *value;
@@ -1961,18 +1961,24 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
     return str->append(t_f, t_f_len);
   }
   {
-    String *sv= item->val_json(tmp_val);
-    if (item->null_value)
-      goto append_null;
     if (is_json_type(item))
+    {
+      String *sv= item->val_json(tmp_val, true);
+      if (!sv)
+        goto append_null;
       return str->append(sv->ptr(), sv->length());
+    }
 
+    String *sv= item->val_str(tmp_val);
+    if (!sv)
+      goto append_null;
     if (item->result_type() == STRING_RESULT)
     {
       return str->append('"') ||
              st_append_escaped(str, sv) ||
              str->append('"');
     }
+
     return st_append_escaped(str, sv);
   }
 
@@ -2087,7 +2093,7 @@ bool Item_func_json_array::fix_length_and_dec(THD *thd)
 }
 
 
-String *Item_func_json_array::val_str(String *str)
+String *Item_func_json_array::val_json(String *str, bool)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
@@ -2150,10 +2156,10 @@ bool Item_func_json_array_append::fix_length_and_dec(THD *thd)
 }
 
 
-String *Item_func_json_array_append::val_str(String *str)
+String *Item_func_json_array_append::val_json(String *str, bool)
 {
   json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= args[0]->val_json(&tmp_js, true);
   uint n_arg, n_path;
   size_t str_rest_len;
   const uchar *ar_end;
@@ -2270,13 +2276,14 @@ String *Item_func_json_array_append::val_str(String *str)
     }
   }
 
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                  (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
-    goto js_error;
 
-  return str;
+//  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
+//                  (const uchar *) js->ptr() + js->length());
+//  je.killed_ptr= (uint32_t *) &thd->killed;
+//  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+//    goto js_error;
+
+  return js;
 
 js_error:
   report_json_error(js, &je, 0);
@@ -2287,10 +2294,10 @@ return_null:
 }
 
 
-String *Item_func_json_array_insert::val_str(String *str)
+String *Item_func_json_array_insert::val_json(String *str, bool)
 {
   json_engine_t je;
-  String *js= args[0]->val_json(&tmp_js);
+  String *js= args[0]->val_json(&tmp_js, true);
   uint n_arg, n_path;
   THD *thd;
 
@@ -2472,14 +2479,14 @@ path_err:
       }
     }
   }
+//
+//  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
+//                  (const uchar *) js->ptr() + js->length());
+//  je.killed_ptr= (uint32_t *) &thd->killed;
+//  if (json_nice(&je, str, Item_func_json_format::LOOSE))
+//    goto js_error;
 
-  json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
-                  (const uchar *) js->ptr() + js->length());
-  je.killed_ptr= (uint32_t *) &thd->killed;
-  if (json_nice(&je, str, Item_func_json_format::LOOSE))
-    goto js_error;
-
-  return str;
+  return js;
 
 js_error:
   report_json_error(js, &je, 0);
@@ -2490,7 +2497,7 @@ return_null:
 }
 
 
-String *Item_func_json_object::val_str(String *str)
+String *Item_func_json_object::val_json(String *str, bool)
 {
   DBUG_ASSERT(fixed());
   uint n_arg;
@@ -2742,7 +2749,7 @@ continue_j2:
 }
 
 
-String *Item_func_json_merge::val_str(String *str)
+String *Item_func_json_merge::val_json(String *str, bool)
 {
   DBUG_ASSERT(fixed());
   json_engine_t je1, je2;
@@ -3054,7 +3061,7 @@ continue_j2:
 }
 
 
-String *Item_func_json_merge_patch::val_str(String *str)
+String *Item_func_json_merge_patch::val_json(String *str, bool)
 {
   DBUG_ASSERT(fixed());
   json_engine_t je1, je2;
@@ -3397,7 +3404,7 @@ bool Item_func_json_insert::fix_length_and_dec(THD *thd)
 }
 
 
-String *Item_func_json_insert::val_str(String *str)
+String *Item_func_json_insert::val_json(String *str, bool)
 {
   json_engine_t je;
   String *js= args[0]->val_json(&tmp_js);
@@ -3666,7 +3673,7 @@ bool Item_func_json_remove::fix_length_and_dec(THD *thd)
 }
 
 
-String *Item_func_json_remove::val_str(String *str)
+String *Item_func_json_remove::val_json(String *str, bool)
 {
   json_engine_t je;
   String *js= args[0]->val_json(&tmp_js);
@@ -4141,7 +4148,7 @@ static int append_json_path(String *str, const json_path_t *p)
 }
 
 
-String *Item_func_json_search::val_str(String *str)
+String *Item_func_json_search::val_json(String *str, bool)
 {
   String *js= args[0]->val_json(&tmp_js);
   String *s_str= args[2]->val_str(&tmp_path);
@@ -4337,8 +4344,51 @@ String *Item_func_json_format::val_str(String *str)
 }
 
 
-String *Item_func_json_format::val_json(String *str)
+String *Item::val_json(String *str, bool nice)
 {
+  String *js= val_str(str);
+  json_engine_t je;
+  THD *thd;
+
+  if (!js || null_value)
+    return 0;
+
+  thd= current_thd;
+  json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                  (const uchar *) js->ptr() + js->length());
+  je.killed_ptr= (uint32_t *) &thd->killed;
+
+  if (!nice)
+  {
+    if (json_valid_engine(&je, js->ptr(), js->length(), js->charset()))
+      return js;
+    null_value= 1;
+    return 0;
+  }
+
+  {
+    String nice_js;
+    if (json_nice(&je, &nice_js, Item_func_json_format::LOOSE))
+    {
+      null_value= 1;
+      return 0;
+    }
+    str->length(0);
+    str->set_charset(js->charset());
+    if (str->append(nice_js))
+    {
+      null_value= 1;
+      return 0;
+    }
+  }
+  return str;
+}
+
+
+String *Item_func_json_format::val_json(String *str, bool nice)
+{
+  if (nice)
+    return val_str(str);
   String *js= args[0]->val_json(&tmp_js);
   if ((null_value= args[0]->null_value))
     return 0;
@@ -4638,7 +4688,7 @@ String* Item_func_json_objectagg::val_str(String* str)
 }
 
 
-String *Item_func_json_normalize::val_str(String *buf)
+String *Item_func_json_normalize::val_json(String *buf, bool)
 {
   String tmp;
   json_engine_t je;
