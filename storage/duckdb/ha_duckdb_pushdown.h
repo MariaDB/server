@@ -88,4 +88,16 @@ select_handler *create_duckdb_select_handler(THD *thd, SELECT_LEX *sel_lex,
 select_handler *create_duckdb_unit_handler(THD *thd,
                                            SELECT_LEX_UNIT *sel_unit);
 
+/**
+  Check whether a whole UPDATE/DELETE can be run inside DuckDB although the
+  statement is binlogged in ROW format (MDEV-40831).
+*/
+bool duckdb_can_run_dml_in_engine(THD *thd, TABLE *table);
+
+/** Id of the statement being executed. */
+longlong duckdb_query_id(THD *thd);
+
+/** Write the original statement to the binary log after it ran in DuckDB. */
+int duckdb_binlog_dml(THD *thd);
+
 #endif /* HA_DUCKDB_PUSHDOWN_H */

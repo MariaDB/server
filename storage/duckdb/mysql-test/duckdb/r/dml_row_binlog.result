@@ -1,0 +1,206 @@
+#
+# MDEV-40831 UPDATE/DELETE on ENGINE=DuckDB fail with binlog_format=ROW
+#
+# The whole statement runs in DuckDB and the statement itself is written
+# to the binary log.
+#
+create database mytest;
+use mytest;
+create table t1 (id int primary key, v varchar(40)) engine=DuckDB;
+insert into t1 values (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e');
+select @@binlog_format;
+@@binlog_format
+ROW
+update t1 set v='x' where id=1;
+update t1 set v='y' where id<=2;
+update t1 set v='z' where v='c';
+delete from t1 where id=4;
+select * from t1 order by id;
+id	v
+1	y
+2	y
+3	z
+5	e
+# A non-deterministic statement is not run as a statement, it is logged
+# as row events
+update t1 set v=uuid() where id=5;
+select id, length(v) from t1 where id=5;
+id	length(v)
+5	36
+# Statements that cannot be forwarded as they are take the row by row path
+create table t2 (id int primary key, v varchar(40)) engine=DuckDB;
+insert into t2 values (1,'a'),(2,'b'),(3,'c');
+create trigger trg before update on t2 for each row set @n= @n + 1;
+set @n= 0;
+update t2 set v='t' where id=1;
+select @n;
+@n
+1
+drop trigger trg;
+select id, length(v) from t1 order by id;
+id	length(v)
+1	1
+2	1
+3	1
+5	36
+select * from t2 order by id;
+id	v
+1	t
+2	b
+3	c
+# User variables cannot be evaluated by DuckDB, so the statement is not forwarded
+set @v= 'uv', @i= 2;
+update t2 set v=@v where id=2;
+update t2 set v='w' where id=@i;
+delete from t2 where id=@i;
+select * from t2 order by id;
+id	v
+1	t
+3	c
+# Expressions DuckDB reads differently are not forwarded: a double quoted
+# string is a column name for DuckDB, now() is its own clock
+create table t3 (id int primary key, v varchar(40), a varchar(40), d datetime) engine=DuckDB;
+insert into t3 values (1,'o','colA',null);
+update t3 set v="a" where id=1;
+update t3 set d=now() where id=1;
+update t3 set v=concat(v,'z'), id=id+10 where id=1;
+select id, v, d is not null as has_d from t3;
+id	v	has_d
+11	az	1
+# A statement run by a trigger on another table is not forwarded
+create table i1 (id int primary key, x int) engine=InnoDB;
+insert into i1 values (1,0);
+create trigger tr after update on i1 for each row update t3 set v='trg' where id=11;
+update i1 set x=1 where id=1;
+select id, v from t3;
+id	v
+11	trg
+drop trigger tr;
+# Rollback and a prepared statement
+begin;
+update t3 set v='rb' where id=11;
+rollback;
+prepare s from 'update t3 set a=? where id=11';
+set @p= 'p1';
+execute s using @p;
+set @p= 'p2';
+execute s using @p;
+select id, v, a from t3;
+id	v	a
+11	trg	p2
+delete from t1;
+select * from t1;
+id	v
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	create database mytest
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; create table t1 (id int primary key, v varchar(40)) engine=DuckDB
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	insert into t1 values (1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e')
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t1)
+mysqld-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; update t1 set v='x' where id=1
+mysqld-bin.000001	#	Query	#	#	COMMIT
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; update t1 set v='y' where id<=2
+mysqld-bin.000001	#	Query	#	#	COMMIT
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; update t1 set v='z' where v='c'
+mysqld-bin.000001	#	Query	#	#	COMMIT
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; delete from t1 where id=4
+mysqld-bin.000001	#	Query	#	#	COMMIT
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t1 set v=uuid() where id=5
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t1)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; create table t2 (id int primary key, v varchar(40)) engine=DuckDB
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	insert into t2 values (1,'a'),(2,'b'),(3,'c')
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t2)
+mysqld-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; CREATE DEFINER=`root`@`localhost` trigger trg before update on t2 for each row set @n= @n + 1
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t2 set v='t' where id=1
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t2)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; drop trigger trg
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t2 set v=@v where id=2
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t2)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t2 set v='w' where id=@i
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t2)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	delete from t2 where id=@i
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t2)
+mysqld-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; create table t3 (id int primary key, v varchar(40), a varchar(40), d datetime) engine=DuckDB
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	insert into t3 values (1,'o','colA',null)
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t3 set v="a" where id=1
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t3 set d=now() where id=1
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t3 set v=concat(v,'z'), id=id+10 where id=1
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; create table i1 (id int primary key, x int) engine=InnoDB
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	insert into i1 values (1,0)
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.i1)
+mysqld-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; CREATE DEFINER=`root`@`localhost` trigger tr after update on i1 for each row update t3 set v='trg' where id=11
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update i1 set x=1 where id=1
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.i1)
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: #
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; drop trigger tr
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t3 set a='p1' where id=11
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Annotate_rows	#	#	update t3 set a='p2' where id=11
+mysqld-bin.000001	#	Table_map	#	#	table_id: # (mytest.t3)
+mysqld-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
+mysqld-bin.000001	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+mysqld-bin.000001	#	Query	#	#	use `mytest`; delete from t1
+mysqld-bin.000001	#	Query	#	#	COMMIT
+drop database mytest;
