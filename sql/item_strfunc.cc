@@ -468,6 +468,7 @@ bool Item_aes_crypt::fix_fields(THD *thd, Item **ref)
 bool Item_func_aes_encrypt::fix_length_and_dec(THD *thd)
 {
   max_length=my_aes_get_size(MY_AES_ECB, args[0]->max_length);
+  set_maybe_null();
   return FALSE;
 }
 
