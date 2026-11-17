@@ -1,0 +1,19 @@
+#
+# MDEV-41962 SQL extension plugins work in utf8mb4, whatever the
+# client's character set (this file is latin1)
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+SET NAMES latin1;
+# execute() gets the text in utf8mb4; its error reaches the client in
+# latin1
+TEST SQLEXT ECHO café;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO café]
+# A prepared statement keeps the text of the character set it was
+# prepared in
+PREPARE s FROM 'TEST SQLEXT ECHO café';
+SET NAMES utf8mb4;
+EXECUTE s;
+ERROR HY000: test_sql_extension: [TEST SQLEXT ECHO cafÃ©]
+DEALLOCATE PREPARE s;
+SET NAMES utf8mb4;
+UNINSTALL PLUGIN test_sql_extension;

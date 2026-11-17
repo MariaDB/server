@@ -1,0 +1,36 @@
+#
+# MDEV-41962 UNINSTALL while a recognize() call is in progress
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+#
+# UNINSTALL while recognize() runs: it waits for the call to return,
+# and the statement is not claimed, since the plugin is being removed
+#
+connect  con1, localhost, root,,;
+SET DEBUG_SYNC= 'test_sql_extension_recognize SIGNAL recognizing WAIT_FOR go';
+TEST RECOGNIZE WAIT;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR recognizing';
+connect  con2, localhost, root,,;
+SET DEBUG_SYNC= 'sql_extension_finalize SIGNAL finalizing';
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR finalizing';
+SET DEBUG_SYNC= 'now SIGNAL go';
+connection con1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST RECOGNIZE WAIT' at line 1
+connection con2;
+disconnect con2;
+connection con1;
+TEST RECOGNIZE x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST RECOGNIZE x' at line 1
+disconnect con1;
+connection default;
+UNINSTALL PLUGIN test_sql_extension;
+SELECT COUNT(*) AS loaded FROM information_schema.plugins
+WHERE plugin_name LIKE 'test_sql_extension%';
+loaded
+0
+SET DEBUG_SYNC= 'RESET';
+# End of 13.2 tests

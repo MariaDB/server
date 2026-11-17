@@ -18,6 +18,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_parse.h"        // sql_kill, *_precheck, *_prepare
+#include "sql_extension.h"
 #include "lock.h"             // try_transactional_lock,
                               // check_transactional_lock,
                               // set_handler_table_locks,
@@ -5897,6 +5898,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
+  case SQLCOM_SQL_EXTENSION:
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
@@ -7898,6 +7900,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     LEX *lex= thd->lex;
 
     bool err= parse_sql(thd, parser_state, NULL, true);
+
+    /* A statement the parser rejected may belong to an extension plugin */
+    if (unlikely(err) && sql_extension_dispatch(thd, parser_state))
+      err= false;
 
     if (likely(!err))
     {

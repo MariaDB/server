@@ -1,0 +1,49 @@
+#
+# MDEV-41962 Several results per statement
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# Text protocol where the flags or several statements matter: a
+# prepared statement never allows several statements
+TEST SQLEXT FLAGS;
+multi_results	multi_statements
+1	1
+#
+# Results made by the plugin: each but the last is followed by more
+#
+TEST SQLEXT TWICE;
+affected rows: 0
+affected rows: 0
+TEST SQLEXT MULTI;
+first
+1
+affected rows: 1
+affected rows: 2
+info: test_sql_extension: second
+third
+3
+affected rows: 1
+# An error after a result: the result, then the error
+TEST SQLEXT MULTI ERROR;
+first
+1
+ERROR HY000: test_sql_extension: error after rows
+# Prepared: the same results, and never several statements
+PREPARE s FROM 'TEST SQLEXT MULTI';
+EXECUTE s;
+first
+1
+third
+3
+EXECUTE s;
+first
+1
+third
+3
+PREPARE s FROM 'TEST SQLEXT FLAGS';
+EXECUTE s;
+multi_results	multi_statements
+1	0
+DEALLOCATE PREPARE s;
+# A client that does not accept several results: see results_debug.test
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

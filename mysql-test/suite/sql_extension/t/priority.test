@@ -1,0 +1,49 @@
+--echo #
+--echo # MDEV-41962 Recognizers are asked by priority, not by installation order
+--echo #
+--source include/not_embedded.inc
+
+--echo # The lower-priority recognizer first, the higher one second
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_extension_priority SONAME 'test_sql_extension';
+--enable_info
+--echo # Both claim this: priority 10 wins over priority 0
+TEST RECOGNIZE x;
+--echo # The higher one declines, so the lower one gets it
+TEST RECOGNIZE LOW x;
+--disable_info
+--error ER_UNKNOWN_ERROR
+TEST RECOGNIZE LOW ECHO lower;
+--echo # A claim past the end by the higher one fails, naming it: the
+--echo # lower one is not asked
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST RECOGNIZE PAST;
+
+--echo # The same the other way round
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+UNINSTALL PLUGIN test_sql_extension_priority;
+INSTALL PLUGIN test_sql_extension_priority SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+--enable_info
+TEST RECOGNIZE x;
+TEST RECOGNIZE LOW x;
+--disable_info
+
+--echo # A claimed prefix comes before any recognizer: test_sql_extension
+--echo # owns TEST SQLEXT, which test_sql_extension_priority would claim too
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT PRIORITY;
+UNINSTALL PLUGIN test_sql_extension;
+--enable_info
+TEST SQLEXT PRIORITY;
+--disable_info
+
+--echo # Without the higher one, the lower one takes everything
+UNINSTALL PLUGIN test_sql_extension_priority;
+--enable_info
+TEST RECOGNIZE x;
+--disable_info
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+
+--echo # End of 13.2 tests

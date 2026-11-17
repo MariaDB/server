@@ -1,0 +1,235 @@
+--echo #
+--echo # MDEV-41962 SQL extension service: results, warnings and access checks
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo #
+--echo # Results
+--echo #
+SET NAMES utf8mb4;
+--enable_metadata
+TEST SQLEXT ROWS;
+--disable_metadata
+--echo # Also as a prepared statement, which has no columns at PREPARE
+PREPARE s FROM 'TEST SQLEXT ROWS';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--enable_info
+TEST SQLEXT INFO;
+--echo # An OK message of 511 bytes is sent whole; a longer or ill-formed
+--echo # one is refused, not cut or sent as '?'
+TEST SQLEXT INFO MAX;
+--disable_info
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT INFO LONG;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT INFO ILL_FORMED;
+SET NAMES DEFAULT;
+TEST SQLEXT WARN;
+SHOW WARNINGS;
+--echo # Several results per statement: see results.test
+
+--echo #
+--echo # Column types: the metadata follows the cells (DECIMAL scale,
+--echo # fractional seconds, nullability)
+--echo #
+--echo # Text protocol only: with --ps-protocol the client computes other
+--echo # "Max length" values and, as for CALL, does not show the JSON format
+--echo # of columns first sent at EXECUTE
+--disable_ps_protocol
+--enable_metadata
+TEST SQLEXT TYPES;
+--echo # With no rows, and with only NULLs, the metadata still describes
+--echo # each column (strings at least 1 character wide; nullable only if
+--echo # a NULL was sent)
+TEST SQLEXT EMPTY;
+TEST SQLEXT NULLS;
+--disable_metadata
+--enable_ps_protocol
+PREPARE s FROM 'TEST SQLEXT TYPES';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--echo # Values at the limits of each type are accepted
+TEST SQLEXT BAD INTEGER -9223372036854775808;
+TEST SQLEXT BAD UNSIGNED 18446744073709551615;
+TEST SQLEXT BAD DOUBLE 1.7976931348623157e308;
+TEST SQLEXT BAD DECIMAL 123456789012345678901234567.12345678901234567890123456789012345678;
+TEST SQLEXT BAD DECIMAL 0.00000000000000000000000000000000000001;
+TEST SQLEXT BAD TIME 838:59:59;
+TEST SQLEXT BAD TIME -34 22:59:59.999999;
+TEST SQLEXT BAD DATETIME 9999-12-31 23:59:59.999999;
+TEST SQLEXT BAD JSON [1, "two", {"three": null}];
+TEST SQLEXT BAD STRING café;
+--echo # Other values are refused before anything is sent
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD STRING ILL_FORMED;
+--echo # Malformed result sets are refused as well
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NOCOLS;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NONAME;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET BADTYPE;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BADSET NOCELLS;
+--echo # A call with a thd other than execute()'s is an invalid argument
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT BADTHD;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD INTEGER 12x;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD INTEGER 9223372036854775808;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD UNSIGNED -1;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE abc;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE 1e400;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DOUBLE;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 1.2.3;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 1234567890123456789012345678901234567890123456789012345678901234567;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DECIMAL 0.000000000000000000000000000000000000001;
+--echo # Two cells that fit on their own, but not in one DECIMAL column:
+--echo # 60 digits before the point and 11 after
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD2 DECIMAL 123456789012345678901234567890123456789012345678901234567890 0.12345678901;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATE 2026-13-01;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATE 2026-11-06 10:20:30;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATETIME 2026-11-06;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD DATETIME 2026-11-06 10:20:30.1234567;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD TIME 839:00:00;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD TIME 10:61:00;
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST SQLEXT BAD JSON {"a": ;
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT BAD NOSUCHTYPE x;
+
+--echo #
+--echo # Access checks
+--echo #
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE db1.t2 (a INT);
+INSERT INTO db1.t1 VALUES (1);
+CREATE USER u1@localhost;
+GRANT SELECT ON db1.t1 TO u1@localhost;
+
+connect (u1, localhost, u1,,);
+TEST SQLEXT ACCESS db1 t1;
+--echo # An invalid call names the argument
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS;
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS db1 '';
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS NOPRIV db1;
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS BADBIT db1;
+--echo # Names are checked as a statement's would be
+--error ER_WRONG_DB_NAME
+TEST SQLEXT ACCESS SELECT a2345678901234567890123456789012345678901234567890123456789012345;
+--error ER_WRONG_TABLE_NAME
+TEST SQLEXT ACCESS SELECT db1 b2345678901234567890123456789012345678901234567890123456789012345;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS db1 t2;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS db1;
+--echo # Every privilege GRANT accepts on a database can be checked
+connection default;
+GRANT LOCK TABLES, EVENT ON db1.* TO u1@localhost;
+GRANT REFERENCES ON db1.t1 TO u1@localhost;
+connection u1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS EVENT db1;
+TEST SQLEXT ACCESS REFERENCES db1 t1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SHOW_CREATE_ROUTINE db1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS DELETE_HISTORY db1 t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS GRANT_OPTION db1 t1;
+--echo # A database name is checked as a name, not as a GRANT pattern
+connection default;
+CREATE DATABASE my_db;
+GRANT SELECT ON `my\_db`.* TO u1@localhost WITH GRANT OPTION;
+connection u1;
+TEST SQLEXT ACCESS SELECT my_db;
+TEST SQLEXT ACCESS GRANT_OPTION my_db;
+--echo # Databases with built-in access rules
+TEST SQLEXT ACCESS SELECT information_schema;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT information_schema;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT performance_schema;
+--echo # The current database is checked through the privileges cached for it
+USE db1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+--echo # Global grants count
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON *.* TO u2@localhost;
+connect (u2, localhost, u2,,);
+TEST SQLEXT ACCESS SELECT db1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT db1;
+disconnect u2;
+--echo # Grants of the active role and of PUBLIC count
+connection default;
+CREATE ROLE r1;
+GRANT SELECT ON db1.t2 TO r1;
+GRANT r1 TO u1@localhost;
+GRANT INSERT ON db1.* TO PUBLIC;
+connection u1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE r1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE NONE;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT db1 t2;
+TEST SQLEXT ACCESS INSERT db1;
+TEST SQLEXT ACCESS INSERT db1 t2;
+connection default;
+REVOKE INSERT ON db1.* FROM PUBLIC;
+# The GRANT made a row for PUBLIC that the REVOKE leaves
+DELETE FROM mysql.global_priv WHERE user = 'PUBLIC';
+FLUSH PRIVILEGES;
+DROP ROLE r1;
+connection u1;
+--echo # The current database's grants are cached until the next USE, as
+--echo # for any statement
+TEST SQLEXT ACCESS INSERT db1;
+USE db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT db1;
+disconnect u1;
+connection default;
+
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP DATABASE my_db;
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 13.2 tests
