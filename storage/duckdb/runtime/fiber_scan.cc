@@ -102,29 +102,43 @@ select_to_duckdb::select_to_duckdb(THD *thd_arg,
 
 int select_to_duckdb::send_data(List<Item> &items)
 {
-  List_iterator_fast<Item> it(items);
-  Item *item;
-  duckdb::idx_t col= 0;
-
-  while ((item= it++))
+  try
   {
-    if (col < types_->size())
+    List_iterator_fast<Item> it(items);
+    Item *item;
+    duckdb::idx_t col= 0;
+
+    while ((item= it++))
     {
-      duckdb::Value val= item_to_duckdb_value(item, (*types_)[col]);
-      buffer_->data[col].SetValue(row_count_, val);
+      if (col < types_->size())
+      {
+        duckdb::Value val= item_to_duckdb_value(item, (*types_)[col]);
+        buffer_->data[col].SetValue(row_count_, val);
+      }
+      col++;
     }
-    col++;
-  }
-  row_count_++;
+    row_count_++;
 
-  if (row_count_ >= STANDARD_VECTOR_SIZE)
+    if (row_count_ >= STANDARD_VECTOR_SIZE)
+    {
+      buffer_->SetCardinality(row_count_);
+      row_count_= 0;
+      fiber_context_yield(ctx_);
+    }
+
+    return thd->killed ? -1 : 0;
+  }
+  catch (const std::exception &ex)
   {
-    buffer_->SetCardinality(row_count_);
-    row_count_= 0;
-    fiber_context_yield(ctx_);
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC, ex.what(), "DuckDB");
+    return -1;
   }
-
-  return thd->killed ? -1 : 0;
+  catch (...)
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_GENERIC,
+             "Unknown error converting row to DuckDB", "DuckDB");
+    return -1;
+  }
 }
 
 bool select_to_duckdb::send_eof()
