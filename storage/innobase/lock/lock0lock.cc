@@ -1271,6 +1271,53 @@ lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
   return {nullptr, const_cast<lock_t *>(insert_after), ut_d(bypassed)};
 }
 
+/** Find the transaction that holds an implicit exclusive
+lock on a record of a secondary index that has_trx_id()
+
+A secondary index record of this format carries the identifier
+of the transaction that last inserted, delete-marked or
+un-delete-marked it.
+
+That transaction holds an implicit lock on the record if and only
+if it is still registered in trx_sys, that is,
+active or in XA PREPARE state. Neither the clustered index nor the
+undo log is accessed, and PAGE_MAX_TRX_ID is not consulted.
+
+The caller must hold a latch on the page of rec, which keeps the
+DB_TRX_ID and the delete-mark flag of the record stable.
+
+@param caller_trx trx of current thread
+@param rec        user record on a latched leaf page
+@param index      secondary index, has_trx_id()
+@param offsets    rec_get_offsets(rec, index)
+@return a referenced transaction or nullptr if there is
+no implicit lock. The state of the transaction must
+be rechecked after acquiring trx->mutex. */
+static trx_t *lock_sec_rec_some_has_impl_trx_id(trx_t *caller_trx,
+                                                const rec_t *rec,
+                                                dict_index_t *index,
+                                                const rec_offs *offsets)
+{
+  ut_ad(index->has_trx_id());
+  const trx_id_t id= rec_get_sec_trx_id(rec, index, offsets);
+
+  if (!id || id <= caller_trx->max_inactive_id)
+    return nullptr;
+
+  if (id == caller_trx->id)
+  {
+    /* Own modification. */
+    caller_trx->reference();
+    return caller_trx;
+  }
+
+  if (!lock_check_trx_id_sanity(id, rec, index, offsets))
+    return nullptr;
+
+  return trx_sys.find(caller_trx, id);
+}
+
+
 /*********************************************************************//**
 Checks if some transaction has an implicit x-lock on a record in a secondary
 index.
@@ -1294,6 +1341,10 @@ lock_sec_rec_some_has_impl(
   ut_ad(page_rec_is_user_rec(rec));
   ut_ad(rec_offs_validate(rec, index, offsets));
   ut_ad(!rec_is_metadata(rec, *index));
+
+  if (index->has_trx_id())
+    return lock_sec_rec_some_has_impl_trx_id(caller_trx, rec, index,
+                                             offsets);
 
   const trx_id_t max_trx_id= page_get_max_trx_id(page_align(rec));
 
@@ -4875,6 +4926,17 @@ bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *&cell,
       unlock_rec:
         lock_rec_unlock(*cell, lock, i);
       }
+      else if (index->has_trx_id())
+      {
+        mem_heap_t *heap= nullptr;
+	std::ignore= rec_get_offsets(rec, index, offsets,
+                                     index->n_core_fields,
+                                     ULINT_UNDEFINED, &heap);
+	ut_ad(!heap);
+	if (rec_get_sec_trx_id(rec, index, offsets) == lock->trx->id)
+          continue;
+	goto unlock_rec;
+      }
       else
       {
         /* lock_sec_rec_some_has_impl() must be invoked with released lock_sys
@@ -5132,8 +5194,9 @@ skip_try:
 #endif
 
   mtr_t mtr{trx};
-  /* Reserve enough offsets for the key and PRIMARY KEY. */
-  rec_offs offsets_[REC_OFFS_HEADER_SIZE + 2 * MAX_REF_PARTS + 1];
+  /* Reserve enough offsets for the key and PRIMARY KEY and
+  DB_TRX_ID of an index */
+  rec_offs offsets_[REC_OFFS_HEADER_SIZE + 2 * MAX_REF_PARTS + 2];
   rec_offs *offsets= offsets_;
 
   rec_offs_init(offsets_);

@@ -1,0 +1,170 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-17598: implicit locks, consistent reads and purge on a secondary
+--echo # index whose records end with DB_TRX_ID, on an "orders" table.
+--echo #
+
+SET GLOBAL innodb_sec_index_trx_id_debug=ON;
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  customer INT NOT NULL,
+  status VARCHAR(10) NOT NULL,
+  amount INT NOT NULL,
+  KEY(customer)
+) ENGINE=InnoDB;
+CREATE TABLE events (
+  id INT PRIMARY KEY,
+  a INT NOT NULL,
+  b INT NOT NULL,
+  total INT AS (a+b) VIRTUAL,
+  KEY(total)
+) ENGINE=InnoDB;
+SET GLOBAL innodb_sec_index_trx_id_debug=OFF;
+
+--echo # Both secondary indexes have the new format (TYPE bit 4)
+SELECT t.NAME, i.NAME, (i.TYPE & 4) AS new_format
+FROM information_schema.INNODB_SYS_INDEXES i
+JOIN information_schema.INNODB_SYS_TABLES t USING (TABLE_ID)
+WHERE t.NAME IN ('test/orders','test/events') AND i.NAME IN ('customer','total')
+ORDER BY t.NAME;
+
+# 100 orders, 20 for each of the customers 0..4
+INSERT INTO orders SELECT seq, seq%5, 'new', seq FROM seq_1_to_100;
+
+connect (con1,localhost,root,,);
+connect (con2,localhost,root,,);
+
+--echo #
+--echo # 1. Locks: a transaction moves order 7 from customer 2 to customer 9
+--echo #
+connection con1;
+BEGIN;
+UPDATE orders SET customer=9 WHERE id=7;
+
+connection con2;
+SET SESSION innodb_lock_wait_timeout=1;
+--echo # (9,7) was inserted by con1 and is locked only implicitly
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT id FROM orders WHERE customer=9 FOR UPDATE;
+--echo # (2,7) was delete-marked by con1
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT id FROM orders WHERE customer=2 FOR UPDATE;
+--echo # Other orders are not locked
+SELECT id FROM orders WHERE customer=3 AND id<=8 FOR UPDATE;
+SET SESSION innodb_lock_wait_timeout=50;
+
+--echo # The waiter gets the lock when the holder commits
+--send SELECT id FROM orders WHERE customer=9 FOR UPDATE
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.INNODB_TRX
+  WHERE trx_state = 'LOCK WAIT';
+--source include/wait_condition.inc
+connection con1;
+COMMIT;
+connection con2;
+reap;
+
+--echo # ... and when the holder rolls back
+connection con1;
+BEGIN;
+UPDATE orders SET customer=8 WHERE id=12;
+connection con2;
+--send SELECT id FROM orders WHERE customer=8 FOR UPDATE
+connection default;
+--source include/wait_condition.inc
+connection con1;
+ROLLBACK;
+connection con2;
+reap;
+SELECT COUNT(*) AS customer2_orders FROM orders FORCE INDEX(customer)
+WHERE customer=2;
+
+--echo #
+--echo # 2. Consistent reads: a report runs while orders change
+--echo #
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SELECT customer, COUNT(*) FROM orders FORCE INDEX(customer)
+GROUP BY customer ORDER BY customer;
+
+connection default;
+--echo # customer 4 -> 0 (10 orders), customer 1 loses 10 orders, 2 new orders
+--echo # for customer 5, and a change of a column that is not in the index
+UPDATE orders SET customer=0 WHERE customer=4 AND id<=50;
+DELETE FROM orders WHERE customer=1 AND id>50;
+INSERT INTO orders VALUES (101,5,'new',101), (102,5,'new',102);
+UPDATE orders SET status='paid' WHERE customer=3;
+
+connection con1;
+--echo # The report still sees the old orders
+SELECT customer, COUNT(*) FROM orders FORCE INDEX(customer)
+GROUP BY customer ORDER BY customer;
+SELECT SUM(amount) FROM orders FORCE INDEX(customer) WHERE customer=4;
+SELECT COUNT(*) FROM orders FORCE INDEX(customer)
+WHERE customer=3 AND status='new';
+COMMIT;
+
+--echo # A new transaction sees the changes
+SELECT customer, COUNT(*) FROM orders FORCE INDEX(customer)
+GROUP BY customer ORDER BY customer;
+SELECT COUNT(*) FROM orders FORCE INDEX(customer)
+WHERE customer=3 AND status='paid';
+
+--echo #
+--echo # 3. Purge
+--echo #
+DELETE FROM orders WHERE customer IN (1,5);
+--source include/wait_all_purged.inc
+CHECK TABLE orders EXTENDED;
+SELECT COUNT(*) FROM orders;
+
+--echo # An old read view keeps the deleted orders of customer 4 alive
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM orders WHERE customer=4;
+connection con1;
+SELECT COUNT(*) AS customer4_in_old_view FROM orders FORCE INDEX(customer)
+WHERE customer=4;
+COMMIT;
+connection default;
+--source include/wait_all_purged.inc
+SELECT COUNT(*) AS customer4_now FROM orders FORCE INDEX(customer)
+WHERE customer=4;
+
+--echo # An order that is deleted and re-created before purge must survive
+connection con1;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM orders WHERE id=3;
+INSERT INTO orders VALUES (3,3,'new',3);
+connection con1;
+COMMIT;
+connection default;
+--source include/wait_all_purged.inc
+SELECT id, status FROM orders FORCE INDEX(customer) WHERE customer=3 AND id=3;
+SELECT customer, COUNT(*) FROM orders FORCE INDEX(customer)
+GROUP BY customer ORDER BY customer;
+CHECK TABLE orders EXTENDED;
+
+--echo #
+--echo # 4. Purge of an index on a virtual column
+--echo #
+INSERT INTO events (id,a,b) SELECT seq, seq, 0 FROM seq_1_to_50;
+UPDATE events SET b=b+100 WHERE id<=20;
+DELETE FROM events WHERE id>40;
+--source include/wait_all_purged.inc
+CHECK TABLE events EXTENDED;
+--echo # 20 events with total = id+100, 40 events in all
+SELECT COUNT(*), SUM(total) FROM events FORCE INDEX(total) WHERE total>=100;
+SELECT COUNT(*) FROM events FORCE INDEX(total);
+
+connection con1;
+disconnect con1;
+connection con2;
+disconnect con2;
+connection default;
+DROP TABLE orders, events;
