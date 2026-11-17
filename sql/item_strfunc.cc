@@ -1669,8 +1669,7 @@ String *Item_func_sformat::val_str(String *res)
                     fmt_arg->c_ptr_safe(), arg_store);
     if (!((null_value= text.size() > max_length)))
     {
-      res->length(0);
-      res->set_charset(collation.collation);
+      make_empty_result(res);
       res->append(text.data(), text.size(), fmt_arg->charset());
     }
   }
@@ -1920,8 +1919,7 @@ String *Item_func_regexp_substr::val_str(String *str)
   if (!(source= re.convert_if_needed(source, &re.subject_converter)))
     goto err;
 
-  str->length(0);
-  str->set_charset(collation.collation);
+  make_empty_result(str);
 
   if (re.exec(source->ptr(), source->length(), 0))
     goto err;
@@ -2029,15 +2027,8 @@ String *Item_str_conv::val_str(String *str)
     return nullptr;
   }
 
-  /*
-    REGEXP_SUBSTR() and SFORMAT() can return an empty String with a NULL buffer.
-    The case converters still need a valid pointer when the string is empty.
-  */
-  if (!res->length())
-  {
-    null_value= false;
-    return make_empty_result(str);
-  }
+  // A non-NULL result must have a valid buffer, even for an empty string.
+  DBUG_ASSERT(res->ptr());
 
   size_t alloced_length= res->length() * multiply, len;
 

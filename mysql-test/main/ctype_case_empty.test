@@ -3,6 +3,7 @@
 --echo #
 
 SET NAMES utf8mb4;
+SELECT HEX(LOWER(REGEXP_SUBSTR('abc', '^'))) AS empty_match;
 SELECT HEX(LOWER(REGEXP_SUBSTR('1', '[a-z]+'))) AS lower_empty,
        HEX(UPPER(REGEXP_SUBSTR('1', '[a-z]+'))) AS upper_empty;
 SELECT HEX(LCASE(SFORMAT(''))) AS lower_empty,

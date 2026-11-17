@@ -2,6 +2,9 @@
 # MDEV-42240 Case conversion of unallocated empty strings
 #
 SET NAMES utf8mb4;
+SELECT HEX(LOWER(REGEXP_SUBSTR('abc', '^'))) AS empty_match;
+empty_match
+
 SELECT HEX(LOWER(REGEXP_SUBSTR('1', '[a-z]+'))) AS lower_empty,
 HEX(UPPER(REGEXP_SUBSTR('1', '[a-z]+'))) AS upper_empty;
 lower_empty	upper_empty
