@@ -15671,6 +15671,21 @@ ha_innobase::check(
 					index->name());
 				continue;
 			}
+		} else if (check_opt->flags & T_EXTEND) {
+			/* Validate every physical record, including variable-length
+			field encodings, before the logical index scan below. */
+			if (btr_validate_index(index, m_prebuilt->trx)
+			    != DB_SUCCESS) {
+				is_ok = false;
+				push_warning_printf(
+					thd,
+					Sql_condition::WARN_LEVEL_WARN,
+					ER_NOT_KEYFILE,
+					"InnoDB: The B-tree of"
+					" index %s is corrupted.",
+					index->name());
+				continue;
+			}
 		}
 
 		/* Instead of invoking change_active_index(), set up

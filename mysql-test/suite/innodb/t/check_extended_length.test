@@ -1,0 +1,160 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-41942 CHECK TABLE ... EXTENDED validates field lengths
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Apparent corruption in space .* page .* of index `PRIMARY` of table `test`\\.`t1`");
+call mtr.add_suppression("InnoDB: In page .* of index `PRIMARY` of table `test`\\.`t1`");
+call mtr.add_suppression("InnoDB: Field 3 len is 900, should be 800; COMPACT RECORD.*");
+call mtr.add_suppression("InnoDB: External field 3 reference is invalid.*");
+--enable_query_log
+
+let $datadir= `SELECT @@datadir`;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(800) NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1, REPEAT('x', 200));
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $datadir/test/t1.ibd $MYSQL_TMP_DIR/t1.ibd
+--copy_file $datadir/test/t1.cfg $MYSQL_TMP_DIR/t1.cfg
+UNLOCK TABLES;
+DROP TABLE t1;
+
+perl;
+use strict;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+
+my $file= "$ENV{MYSQL_TMP_DIR}/t1.ibd";
+sysopen(FILE, $file, O_RDWR) or die "Cannot open $file: $!";
+my $page_size= 16384;
+my $full_crc32= get_full_crc32(\*FILE);
+my $page_no= 3;
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+my $page;
+sysread(FILE, $page, $page_size) == $page_size or die;
+
+# The one-row clustered record is at offset 127. Its VARCHAR length is
+# encoded in the variable-length header immediately before the record data.
+my $near_off= 121;
+my $len= ((ord(substr($page, $near_off, 1)) << 8)
+          | ord(substr($page, $near_off - 1, 1))) & 0x3fff;
+die "unexpected VARCHAR length $len" unless $len == 200;
+
+my $bogus= 900;
+substr($page, $near_off, 1)= chr(0x80 | (($bogus >> 8) & 0x3f));
+substr($page, $near_off - 1, 1)= chr($bogus & 0xff);
+# page_get_data_size() is derived from PAGE_HEAP_TOP (page offset 40).
+# Keep it consistent so that page_validate() reaches btr_index_rec_validate().
+my $heap_top_off= 38 + 2;
+my $heap_top= unpack('n', substr($page, $heap_top_off, 2));
+substr($page, $heap_top_off, 2)= pack('n', $heap_top + $bogus - $len);
+$page= fix_page_crc($page, $full_crc32);
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+syswrite(FILE, $page, $page_size) == $page_size or die;
+close(FILE) or die;
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(800) NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--copy_file $MYSQL_TMP_DIR/t1.ibd $datadir/test/t1.ibd
+--copy_file $MYSQL_TMP_DIR/t1.cfg $datadir/test/t1.cfg
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/t1.ibd
+--remove_file $MYSQL_TMP_DIR/t1.cfg
+
+# A short compressible value fits in one ZBLOB page. The UUID data remains
+# large after compression and spans multiple ZBLOB pages.
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+INSERT INTO t1 VALUES (1, REPEAT('x', 20000));
+--disable_query_log
+SET SESSION group_concat_max_len=1048576;
+INSERT INTO t1
+SELECT 2, GROUP_CONCAT(UUID() SEPARATOR '') FROM seq_1500_to_1;
+--enable_query_log
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1, REPEAT('x', 20000));
+--disable_query_log
+INSERT INTO t1 SELECT a + 1, b FROM t1;
+INSERT INTO t1 SELECT a + 2, b FROM t1;
+INSERT INTO t1 SELECT a + 4, b FROM t1;
+INSERT INTO t1 SELECT a + 8, b FROM t1;
+INSERT INTO t1 SELECT a + 16, b FROM t1;
+INSERT INTO t1 SELECT a + 32, b FROM t1;
+INSERT INTO t1 SELECT a + 64, b FROM t1;
+INSERT INTO t1 SELECT a + 128, b FROM t1;
+INSERT INTO t1 SELECT a + 256, b FROM t1;
+--enable_query_log
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $datadir/test/t1.ibd $MYSQL_TMP_DIR/t1.ibd
+--copy_file $datadir/test/t1.cfg $MYSQL_TMP_DIR/t1.cfg
+UNLOCK TABLES;
+DROP TABLE t1;
+
+perl;
+use strict;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+
+my $file= "$ENV{MYSQL_TMP_DIR}/t1.ibd";
+sysopen(FILE, $file, O_RDWR) or die "Cannot open $file: $!";
+my $page_size= 16384;
+my $full_crc32= get_full_crc32(\*FILE);
+my $n_pages= (-s FILE) / $page_size;
+my ($page_no, $field_ref, $page);
+
+# Corrupt a BLOB reference on a clustered-index leaf page that has a right
+# sibling. This verifies that an error on a non-final leaf is not overwritten
+# while the physical validator fetches the next page.
+PAGE: for my $n (3 .. $n_pages - 1) {
+  sysseek(FILE, $n * $page_size, SEEK_SET) or die;
+  sysread(FILE, $page, $page_size) == $page_size or die;
+  next unless unpack('n', substr($page, 24, 2)) == 17855; # FIL_PAGE_INDEX
+  next unless unpack('n', substr($page, 64, 2)) == 0;     # PAGE_LEVEL
+  next if unpack('N', substr($page, 12, 4)) == 0xffffffff; # FIL_PAGE_NEXT
+
+  my $space_id= unpack('N', substr($page, 34, 4));
+  for my $off (38 .. $page_size - 8 - 20) {
+    next unless substr($page, $off, 4) eq pack('N', $space_id);
+    next unless unpack('N', substr($page, $off + 4, 4)) < $n_pages;
+    next unless unpack('N', substr($page, $off + 8, 4)) == 38;
+    next unless unpack('N', substr($page, $off + 12, 4)) == 0;
+    next unless unpack('N', substr($page, $off + 16, 4)) == 20000;
+    ($page_no, $field_ref)= ($n, $off);
+    last PAGE;
+  }
+}
+die "no external BLOB reference on a non-final leaf" unless defined $field_ref;
+
+# Claim one byte fewer than the bytes stored in the BLOB pages.
+substr($page, $field_ref + 16, 4)= pack('N', 19999);
+$page= fix_page_crc($page, $full_crc32);
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+syswrite(FILE, $page, $page_size) == $page_size or die;
+close(FILE) or die;
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b BLOB NOT NULL)
+ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--copy_file $MYSQL_TMP_DIR/t1.ibd $datadir/test/t1.ibd
+--copy_file $MYSQL_TMP_DIR/t1.cfg $datadir/test/t1.cfg
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/t1.ibd
+--remove_file $MYSQL_TMP_DIR/t1.cfg
