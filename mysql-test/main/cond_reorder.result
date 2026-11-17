@@ -1,0 +1,276 @@
+#
+# MDEV-40439 Evaluate cheap subconditions before expensive ones
+#            in WHERE and ON conditions
+#
+CREATE FUNCTION f(x INT) RETURNS INT DETERMINISTIC
+BEGIN
+SET @calls= @calls + 1;
+RETURN x;
+END|
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 SELECT seq, seq % 5 FROM seq_1_to_10;
+CREATE TABLE t2 (k INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_10;
+CREATE TABLE t3 (k INT, m INT, c INT);
+INSERT INTO t3 SELECT seq, seq % 2, seq FROM seq_1_to_10;
+CREATE TABLE t_one (a INT);
+INSERT INTO t_one VALUES (1);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+# AND: f() is called only for the 2 rows with b > 3
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3;
+COUNT(*)
+2
+SELECT @calls;
+@calls
+2
+# OR: f() is called only for the 2 rows where b <> 1 is false
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) = 0 OR b <> 1;
+COUNT(*)
+8
+SELECT @calls;
+@calls
+2
+# Correlated subquery: executed only for the 2 rows with b > 3
+SET @cnt= 0;
+SELECT COUNT(*) FROM t1
+WHERE (SELECT MAX(t2.k) + 0 * (@cnt:= @cnt + 1) FROM t2 WHERE t2.k = t1.a) > 0
+AND t1.b > 3;
+COUNT(*)
+2
+SELECT @cnt;
+@cnt
+2
+# Outer join, nested loops: ON condition inside trigger conditions.
+# f() is called only for the 5 matches with m > 0, twice each: the
+# condition is checked again when the first match is found
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 0;
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 LEFT JOIN t3 ON t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+COUNT(*)
+10
+SELECT @calls;
+@calls
+10
+SET join_cache_level= @save_join_cache_level;
+# BNL scan filter, built in make_join_select():
+# f() is called only for the 5 rows of t3 with m > 0
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 STRAIGHT_JOIN t3
+WHERE t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+COUNT(*)
+5
+SELECT @calls;
+@calls
+5
+# BNL scan filter of an inner table, built in check_join_cache_usage().
+# f() is called for the 5 rows of t3 with m > 0, and twice for each
+# of the 5 matches in the join condition, which keeps the whole ON
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 LEFT JOIN t3 ON t3.k = t1.a AND f(t3.c) > 0 AND t3.m > 0;
+COUNT(*)
+10
+SELECT @calls;
+@calls
+15
+# outer_ref_cond: f() is called only for the 2 outer rows with b = 1
+SET @calls= 0;
+SELECT a, (SELECT MAX(t3.k) FROM t3
+WHERE f(t1.a) > 0 AND t1.b = 1 AND t3.k <= t1.a) AS m
+FROM t1;
+a	m
+1	1
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+6	6
+7	NULL
+8	NULL
+9	NULL
+10	NULL
+SELECT @calls;
+@calls
+2
+# outer_ref_cond with only const tables in the subquery: the same
+SET @calls= 0;
+SELECT a, (SELECT MAX(t_one.a) FROM t_one
+WHERE f(t1.a) > 0 AND t1.b = 1) AS m
+FROM t1;
+a	m
+1	1
+2	NULL
+3	NULL
+4	NULL
+5	NULL
+6	1
+7	NULL
+8	NULL
+9	NULL
+10	NULL
+SELECT @calls;
+@calls
+2
+# Non-deterministic RAND(): the AND keeps its order, f() is called
+# for all 10 rows
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND RAND(1) < a AND b > 3;
+COUNT(*)
+2
+SELECT @calls;
+@calls
+10
+# Nested lists are still processed: f() is called only for
+# the 8 rows where b > 3 is false
+SET @calls= 0;
+SELECT COUNT(*) FROM t1 WHERE (f(a) > 0 OR b > 3) AND RAND(1) < a;
+COUNT(*)
+10
+SELECT @calls;
+@calls
+8
+# A user variable assigned by the statement: the order is kept,
+# f() is called and @v is updated for all 10 rows
+SET @calls= 0, @v= 0;
+SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND (@v:= @v + a) > 0 AND b > 3;
+COUNT(*)
+2
+SELECT @calls, @v;
+@calls	@v
+10	55
+# Prepared statement: the same order in every execution
+PREPARE st FROM 'SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3';
+SET @calls= 0;
+EXECUTE st;
+COUNT(*)
+2
+SELECT @calls;
+@calls
+2
+SET @calls= 0;
+EXECUTE st;
+COUNT(*)
+2
+SELECT @calls;
+@calls
+2
+DEALLOCATE PREPARE st;
+# EXPLAIN shows the final order
+EXPLAIN FORMAT=JSON SELECT COUNT(*) FROM t1 WHERE f(a) > 0 AND b > 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.b > 3 and f(t1.a) > 0"
+        }
+      }
+    ]
+  }
+}
+EXPLAIN FORMAT=JSON
+SELECT a, (SELECT MAX(t3.k) FROM t3
+WHERE f(t1.a) > 0 AND t1.b = 1 AND t3.k <= t1.a) AS m
+FROM t1;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "COST_REPLACED",
+          "outer_ref_condition": "t1.b = 1 and f(t1.a) > 0",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 10,
+                "cost": "COST_REPLACED",
+                "filtered": 100,
+                "attached_condition": "t3.k <= t1.a"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+# RAND() stays after the subquery
+EXPLAIN FORMAT=JSON
+SELECT * FROM t1
+WHERE t1.a >= (SELECT MAX(t2.k) FROM t2 WHERE t2.k = t1.b) AND RAND() < 0.5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.a >= (subquery#2) and rand() < 0.5"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "cost": "COST_REPLACED",
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t2",
+                "access_type": "ALL",
+                "loops": 1,
+                "rows": 10,
+                "cost": "COST_REPLACED",
+                "filtered": 100,
+                "attached_condition": "t2.k = t1.b"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+SET optimizer_switch= @save_optimizer_switch;
+DROP FUNCTION f;
+DROP TABLE t1, t2, t3, t_one;
+# End of 13.2 tests

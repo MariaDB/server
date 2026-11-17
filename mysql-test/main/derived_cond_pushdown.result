@@ -9397,7 +9397,7 @@ EXPLAIN
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "<in_optimizer>(t1.b,<exists>(subquery#2)) or t1.b = 100"
+          "attached_condition": "t1.b = 100 or <in_optimizer>(t1.b,<exists>(subquery#2))"
         }
       }
     ],
@@ -9468,7 +9468,7 @@ EXPLAIN
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "<in_optimizer>(t1.b,<exists>(subquery#3)) or t1.b = 100"
+          "attached_condition": "t1.b = 100 or <in_optimizer>(t1.b,<exists>(subquery#3))"
         }
       }
     ],
@@ -10550,7 +10550,7 @@ EXPLAIN
           "rows": 2,
           "cost": "COST_REPLACED",
           "filtered": 100,
-          "attached_condition": "<cache>(<in_optimizer>(1,<exists>(subquery#2))) or v1.c = 'foo'",
+          "attached_condition": "v1.c = 'foo' or <cache>(<in_optimizer>(1,<exists>(subquery#2)))",
           "materialized": {
             "query_block": {
               "select_id": 3,
