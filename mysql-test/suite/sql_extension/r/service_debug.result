@@ -1,0 +1,28 @@
+#
+# MDEV-41962 Service failures that need a debug build to provoke
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# A kill while a JSON cell is checked fails the statement with the
+# kill error, not with a complaint about the plugin's result
+SET debug_dbug= '+d,sql_extension_json_killed';
+TEST SQLEXT BAD JSON {"a": 1};
+ERROR 70100: Query execution was interrupted
+SET debug_dbug= '';
+TEST SQLEXT BAD JSON {"a": 1};
+c
+{"a": 1}
+# max_statement_time: SQL a handler runs after the timeout fails, and
+# does not run. The first run completes; the timer fires while the
+# handler waits between the two runs, so the second one is refused.
+SET @n= 0;
+SET DEBUG_SYNC= 'test_sql_extension_sql2 WAIT_FOR never TIMEOUT 5';
+SET max_statement_time= 2;
+TEST SQLEXT SQL2 SELECT @n:= @n + 1 AS n;
+ERROR 70100: Query was interrupted: execution time limit 2.0 sec exceeded
+SET max_statement_time= DEFAULT;
+SET DEBUG_SYNC= 'RESET';
+SELECT @n AS runs;
+runs
+1
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

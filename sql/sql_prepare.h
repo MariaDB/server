@@ -370,4 +370,29 @@ private:
 
 extern Atomic_counter<uint32_t> local_connection_thread_count;
 
+/**
+  Like mysql_real_connect_local() of the SQL service, but the SQL runs on
+  current_thd as its user: with its security context and sql_log_bin, under
+  its LOCK TABLES, and failing once the statement is killed. Used by SQL
+  extension handlers (sql_extension_connect_as_client()). Only while an
+  SQL extension statement executes on current_thd; otherwise returns NULL
+  with an error on the handle.
+*/
+struct st_mysql *mysql_real_connect_local_as_client(struct st_mysql *mysql);
+
+/**
+  Run one statement on thd (current_thd) as its user, as
+  mysql_real_connect_local_as_client() does, but with the client's
+  protocol: its result sets go to the client. The final OK, end of rows or
+  error is left in `da` instead of being sent, so the caller decides how
+  the statement ends. Used by sql_extension_forward_sql().
+  @return true on failure, with the error in `da`, unless the statement
+          was killed while it ran, which may leave none. If thd is being
+          killed already, the kill error goes to `da` and the statement
+          does not run; a kill that reports no error (LIMIT ROWS
+          EXAMINED) does not keep it from running.
+*/
+bool execute_sql_as_client(THD *thd, LEX_CSTRING sql_text,
+                           Diagnostics_area *da);
+
 #endif // SQL_PREPARE_H

@@ -1,0 +1,38 @@
+--echo #
+--echo # MDEV-41962 The SQL of a handler is logged in the format the session's
+--echo # binlog_format gives it, as the statements of a CALL are: an unsafe
+--echo # statement is logged as rows under MIXED
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a VARCHAR(40)) ENGINE=InnoDB;
+
+SELECT @@session.binlog_format;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+--echo # Unsafe (UUID()): rows, from the client, as the client, forwarded
+INSERT INTO t1 VALUES (UUID());
+TEST SQLEXT SQL INSERT INTO t1 VALUES (UUID());
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (UUID());
+--echo # Safe: a statement
+TEST SQLEXT SQL INSERT INTO t1 VALUES ('safe');
+--source include/show_binlog_events.inc
+--echo # The session's binlog_format is as it was
+SELECT @@session.binlog_format;
+
+--echo # STATEMENT: a statement
+SET SESSION binlog_format= STATEMENT;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+TEST SQLEXT SQL INSERT INTO t1 VALUES ('stmt');
+--source include/show_binlog_events.inc
+--echo # ROW: rows
+SET SESSION binlog_format= ROW;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+TEST SQLEXT SQL INSERT INTO t1 VALUES ('row');
+--source include/show_binlog_events.inc
+SET SESSION binlog_format= DEFAULT;
+
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;

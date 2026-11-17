@@ -1,0 +1,1 @@
+--innodb-rollback-on-timeout=1

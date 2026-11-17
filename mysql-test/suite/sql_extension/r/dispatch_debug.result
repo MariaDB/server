@@ -1,0 +1,27 @@
+#
+# MDEV-41962 Dispatch failures that need a debug build to provoke
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# Out of memory while a claimed statement is set up: the statement
+# fails for that reason, not with a syntax error nor with a bogus OK
+SET debug_dbug= '+d,sql_extension_dispatch_oom';
+TEST SQLEXT OK;
+ERROR HY000: Out of memory.
+PREPARE s FROM 'TEST SQLEXT OK';
+ERROR HY000: Out of memory.
+SET debug_dbug= '';
+# Out of memory while the plugin that claims the statement is pinned:
+# the same
+SET debug_dbug= '+d,sql_extension_lock_oom';
+TEST SQLEXT OK;
+ERROR HY000: Out of memory.
+PREPARE s FROM 'TEST SQLEXT OK';
+ERROR HY000: Out of memory.
+SET debug_dbug= '';
+# The connection is usable afterwards
+TEST SQLEXT OK;
+PREPARE s FROM 'TEST SQLEXT OK';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

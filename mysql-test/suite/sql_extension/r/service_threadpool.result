@@ -1,0 +1,25 @@
+#
+# MDEV-41962 Under the thread pool, a connection opened as the client
+# for one statement is still refused to the next one
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+TEST SQLEXT KEEP SELECT 1 AS a;
+a
+1
+TEST SQLEXT REUSE SELECT 2 AS b;
+ERROR HY000: This connection can only be used by the execute() of the SQL extension statement it was opened for
+connect  con1, localhost, root,,;
+TEST SQLEXT REUSE SELECT 2 AS b;
+ERROR HY000: This connection can only be used by the execute() of the SQL extension statement it was opened for
+TEST SQLEXT SQL SELECT 3 AS c;
+c
+3
+disconnect con1;
+connection default;
+TEST SQLEXT KEEP CLOSE;
+# A handle left kept is closed at UNINSTALL
+TEST SQLEXT KEEP SELECT 4 AS d;
+d
+4
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

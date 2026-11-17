@@ -636,6 +636,13 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
   if (end_partial_result_set)
     thd->protocol->end_partial_result_set(thd);
 
+  /*
+    An SQL extension statement does not fail with the error of a rollback
+    that a handler takes (see sql_extension_note_error_handled())
+  */
+  if (thd->is_error())
+    sql_extension_note_error_handled(thd, found_condition->get_sql_errno());
+
   /* Reset error state. */
   thd->clear_error();
   thd->reset_killed();      // Some errors set thd->killed, (e.g. "bad data").

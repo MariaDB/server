@@ -1,0 +1,46 @@
+--echo #
+--echo # MDEV-41962 SQL run by a handler as the client is binary-logged as plain SQL,
+--echo # according to the client's sql_log_bin; the extension statement is not
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_binlog_format_statement.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE TABLE t1 (a INT);
+
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+TEST SQLEXT LOCAL SQL INSERT INTO t1 VALUES (2);
+SET sql_log_bin= 0;
+TEST SQLEXT SQL INSERT INTO t1 VALUES (3);
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (5);
+SET sql_log_bin= 1;
+TEST SQLEXT FORWARD INSERT INTO t1 VALUES (4);
+--echo # Only the first and the last INSERT are logged
+--source include/show_binlog_events.inc
+SELECT * FROM t1 ORDER BY a;
+
+--echo # A handler that changes data and then fails: the binary log has
+--echo # what the table kept, in a transaction and in autocommit
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+--disable_ps_protocol
+DELIMITER |;
+BEGIN|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t2 VALUES (1); SELECT * FROM no_such_table'|
+COMMIT|
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SCRIPT 'INSERT INTO t2 VALUES (2); SELECT * FROM no_such_table'|
+DELIMITER ;|
+--enable_ps_protocol
+--source include/show_binlog_events.inc
+SELECT * FROM t2 ORDER BY a;
+DROP TABLE t2;
+
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests
