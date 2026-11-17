@@ -2005,6 +2005,6 @@ maria_declare_plugin(mhnsw)
   NULL,
   0x0100,
   NULL, NULL, "1.0",
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
