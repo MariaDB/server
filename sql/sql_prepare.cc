@@ -91,6 +91,7 @@ When one supplies long data for a placeholder:
 #include "set_var.h"
 #include "sql_admin.h" // fill_check_table_metadata_fields
 #include "sql_prepare.h"
+#include "sql_extension.h"
 #include "sql_parse.h" // insert_precheck, update_precheck, delete_precheck
 #include "sql_base.h"  // open_normal_and_derived_tables
 #include "sql_cache.h"                          // query_cache_*
@@ -4074,6 +4075,9 @@ static bool execute_server_code(THD *thd,
   lex_start(thd);
 
   error= parse_sql(thd, &parser_state, NULL) || thd->is_error();
+  /* SQL run by a plugin: extension statements, or the nesting error */
+  if (unlikely(error) && sql_extension_dispatch(thd, &parser_state))
+    error= false;
 
   if (unlikely(error))
     goto end;
@@ -4388,9 +4392,11 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_PREPARE;
 
 
-  error= (parse_sql(thd, & parser_state, NULL) ||
-          thd->is_error() ||
-          init_param_array(this));
+  error= parse_sql(thd, & parser_state, NULL) || thd->is_error();
+  /* A statement the parser rejected may belong to an extension plugin */
+  if (unlikely(error) && sql_extension_dispatch(thd, &parser_state))
+    error= false;
+  error= error || init_param_array(this);
   if (likely(!error) && param_count)
     lex->subquery_with_placeholder= lex->subquery_has_placeholder();
 

@@ -1,0 +1,24 @@
+--echo #
+--echo # MDEV-41962 SQL extension plugins work in utf8mb4, whatever the
+--echo # client's character set (this file is latin1)
+--echo #
+--source include/not_embedded.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+SET NAMES latin1;
+--echo # execute() gets the text in utf8mb4; its error reaches the client in
+--echo # latin1
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO café;
+
+--echo # A prepared statement keeps the text of the character set it was
+--echo # prepared in
+PREPARE s FROM 'TEST SQLEXT ECHO café';
+SET NAMES utf8mb4;
+--error ER_UNKNOWN_ERROR
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+SET NAMES utf8mb4;
+UNINSTALL PLUGIN test_sql_extension;
