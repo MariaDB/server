@@ -1838,7 +1838,8 @@ public:
   bool rollup_make_fields(List<Item> &all_fields, List<Item> &fields,
 			  Item_sum ***func);
   int rollup_send_data(uint idx);
-  int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param, TABLE *table);
+  int rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param,
+                        TABLE *table, Item *having);
   void join_free();
   /** Cleanup this JOIN, possibly for reuse */
   void cleanup(bool full);

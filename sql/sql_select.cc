@@ -26516,7 +26516,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	{
           if (unlikely(join->rollup_write_data((uint) (idx+1),
                                                join_tab->tmp_table_param,
-                                               table)))
+                                               table, join_tab->having)))
           {
 	    DBUG_RETURN(NESTED_LOOP_ERROR);
           }
@@ -30841,6 +30841,7 @@ int JOIN::rollup_send_data(uint idx)
                                - 1 = First group changed  (a)
                                - 2 = Second group changed (a,b)
   @param table               reference to temp table
+  @param having_arg          JOIN_TAB::having
 
   @retval
     0   ok
@@ -30849,19 +30850,28 @@ int JOIN::rollup_send_data(uint idx)
 */
 
 int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
-                            TABLE *table_arg)
+                            TABLE *table_arg, Item *having_arg)
 {
   uint i;
+  /*
+    When the optimizer moves HAVING onto the JOIN_TAB, JOIN::having
+    becomes NULL.  ROLLUP rows must then pass the JOIN_TAB condition.
+  */
+  Item *rollup_having= having_arg ? having_arg : having;
   for (i= send_group_parts ; i-- > idx ; )
   {
     /* Get reference pointers to sum functions in place */
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
-    if ((!having || having->val_bool()))
+    if ((!rollup_having || rollup_having->val_bool()))
     {
       int write_error;
-      Item *item;
-      List_iterator_fast<Item> it(rollup.fields[i]);
-      while ((item= it++))
+      /*
+        Store NULL in the temp table columns of the group columns
+        rolled up at this level.  Expressions over a group column are
+        computed this table is read.  The ref array holds the NULL
+        items of hidden group columns, too.
+      */
+      for (Item *item : rollup.ref_pointer_arrays[i])
       {
         if (item->type() == Item::NULL_ITEM && item->is_result_field())
           item->save_in_result_field(1);
@@ -30870,11 +30880,11 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
       if (unlikely((write_error=
                     table_arg->file->ha_write_tmp_row(table_arg->record[0]))))
       {
-	if (create_internal_tmp_table_from_heap(thd, table_arg, 
+	if (create_internal_tmp_table_from_heap(thd, table_arg,
                                                 tmp_table_param_arg->start_recinfo,
                                                 &tmp_table_param_arg->recinfo,
                                                 write_error, 0, NULL))
-	  return 1;		     
+	  return 1;
       }
     }
   }
