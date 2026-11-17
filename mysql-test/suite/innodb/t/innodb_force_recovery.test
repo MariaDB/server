@@ -165,3 +165,20 @@ insert into t2 values(9,10);
 select * from t2;
 drop table t2;
 show tables;
+
+--echo #
+--echo # MDEV-41719 : SIGSEGV in dict_load_virtual_col() with innodb_force_recovery=6
+--echo #
+CREATE TABLE t1 (a INT, b INT AS (a) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT, FOREIGN KEY (a) REFERENCES t2(a)) ENGINE=InnoDB;
+--source include/restart_mysqld.inc
+# The rename will only be in the redo log, which will be ignored
+ALTER TABLE t1 RENAME COLUMN b TO c;
+--source include/kill_mysqld.inc
+--let $restart_parameters= --innodb-force-recovery=6
+--source include/start_mysqld.inc
+CHECK TABLE t1;
+SHOW CREATE TABLE t2;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP TABLE t1, t2;

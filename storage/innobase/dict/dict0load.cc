@@ -1438,6 +1438,12 @@ dict_load_virtual_col(mtr_t &mtr, dict_table_t *table, bool uncommitted,
 		return DB_SUCCESS;
 	}
 
+	if (!dict_sys.sys_virtual) {
+		ib::error() << "SYS_VIRTUAL is not available for table "
+			    << table->name;
+		return DB_CORRUPTION;
+	}
+
 	dict_index_t*	sys_virtual_index;
 	btr_pcur_t	pcur;
 
