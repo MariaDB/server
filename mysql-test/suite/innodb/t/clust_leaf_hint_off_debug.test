@@ -1,0 +1,13 @@
+#
+# MDEV-32286 ANALYZE displays a huge number of InnoDB secondary index pages_accessed
+#
+# The same shapes with the clustered leaf hints turned off, which only a debug
+# build can do. The .result is a line for line counterpart of the one of
+# clust_leaf_hint, so a diff of the two files is what the hints save.
+#
+--source include/have_debug.inc
+--echo # clustered leaf hints disabled
+# The file below sets the DBUG flag itself, past its own skips, and restores
+# it at its end.
+--let $clust_leaf_hint_off= 1
+--source suite/innodb/t/clust_leaf_hint.test
