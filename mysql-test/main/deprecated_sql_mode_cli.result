@@ -1,0 +1,6 @@
+#
+# MDEV-39164: Deprecate the MYSQL323 and MYSQL40 sql modes
+#
+FOUND 1 /'MYSQL323' is deprecated and will be removed in a future release/ in mysqld.1.err
+FOUND 1 /'MYSQL40' is deprecated and will be removed in a future release/ in mysqld.1.err
+# End of 13.3 tests

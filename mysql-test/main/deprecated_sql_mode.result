@@ -1,0 +1,34 @@
+#
+# MDEV-39164: Deprecate the MYSQL323 and MYSQL40 sql modes
+#
+set @saved_sql_mode = @@sql_mode;
+# TEST: Should get a deprecation warning
+SET GLOBAL SQL_MODE = 'MYSQL323';
+Warnings:
+Warning	1287	'MYSQL323' is deprecated and will be removed in a future release
+# TEST: Should get a deprecation warning
+SET GLOBAL SQL_MODE = 'MYSQL40';
+Warnings:
+Warning	1287	'MYSQL40' is deprecated and will be removed in a future release
+# TEST: Should get 2 deprecation warnings
+SET GLOBAL SQL_MODE = 'MYSQL323,MYSQL40';
+Warnings:
+Warning	1287	'MYSQL323' is deprecated and will be removed in a future release
+Warning	1287	'MYSQL40' is deprecated and will be removed in a future release
+SET GLOBAL SQL_MODE = @saved_sql_mode;
+set @saved_sql_mode = @@local.sql_mode;
+# TEST: Should get a deprecation warning
+SET LOCAL SQL_MODE = 'MYSQL323';
+Warnings:
+Warning	1287	'MYSQL323' is deprecated and will be removed in a future release
+# TEST: Should get a deprecation warning
+SET LOCAL SQL_MODE = 'MYSQL40';
+Warnings:
+Warning	1287	'MYSQL40' is deprecated and will be removed in a future release
+# TEST: Should get 2 deprecation warnings
+SET LOCAL SQL_MODE = 'MYSQL323,MYSQL40';
+Warnings:
+Warning	1287	'MYSQL323' is deprecated and will be removed in a future release
+Warning	1287	'MYSQL40' is deprecated and will be removed in a future release
+SET LOCAL SQL_MODE = @saved_sql_mode;
+# End of 13.3 tests
