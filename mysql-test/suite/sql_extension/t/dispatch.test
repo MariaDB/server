@@ -1,0 +1,228 @@
+--echo #
+--echo # MDEV-41962 SQL extension framework: dispatch after a parse failure, execution,
+--echo # prepared statements, multi-statements, nesting
+--echo #
+--source include/not_embedded.inc
+
+--echo # Without the plugin, the statement is an ordinary parse error
+--error ER_PARSE_ERROR
+TEST SQLEXT OK;
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+
+--echo #
+--echo # Claimed statements
+--echo #
+--enable_info
+TEST SQLEXT OK;
+TEST SQLEXT;
+test   sqlext
+  ok;
+/* c */ TEST -- c
+# c
+ SQLEXT;
+--disable_info
+SHOW WARNINGS;
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ERROR;
+--error ER_SQL_EXTENSION_FAILED
+TEST SQLEXT FAIL;
+--echo # The handler gets the statement text exactly as sent
+--error ER_UNKNOWN_ERROR
+/* lead */ Test SqlExt   ECHO  'a;b' ;
+
+--echo #
+--echo # Not claimed: the parse error is unchanged, byte for byte
+--echo #
+--error ER_PARSE_ERROR
+TEST SQLEXTRA OK;
+--error ER_PARSE_ERROR
+TEST;
+--error ER_PARSE_ERROR
+SELEKT 1;
+--error ER_PARSE_ERROR
+SELECT 1 TEST SQLEXT OK;
+--echo # Only syntax errors are offered to plugins. "WITH SQLEXT" is a
+--echo # claimed prefix that also starts a CTE, so the parser can reject such
+--echo # a statement with another error, which it keeps
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+WITH SQLEXT AS (SELECT @@no_such_variable) SELECT 1;
+--echo # A statement that parses is never offered
+--error ER_NO_SUCH_TABLE
+SELECT * FROM no_such_table;
+
+let $com= query_get_value(SHOW SESSION STATUS LIKE 'Com_sql_extension', Value, 1);
+--echo Com_sql_extension: $com
+
+--echo #
+--echo # Prepared statements: the plugin is locked again for each EXECUTE
+--echo #
+PREPARE s FROM 'TEST SQLEXT OK';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+PREPARE s FROM 'TEST SQLEXT ECHO prepared';
+--error ER_UNKNOWN_ERROR
+EXECUTE s;
+UNINSTALL PLUGIN test_sql_extension;
+--error ER_PLUGIN_IS_NOT_LOADED
+EXECUTE s;
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+--error ER_UNKNOWN_ERROR
+EXECUTE s;
+DEALLOCATE PREPARE s;
+EXECUTE IMMEDIATE 'TEST SQLEXT OK';
+--error ER_SQL_EXTENSION_FAILED
+EXECUTE IMMEDIATE 'TEST SQLEXT FAIL';
+--echo # A ? in an extension statement is text for the handler, not a
+--echo # parameter marker: the statement has no parameters
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO a ? b;
+PREPARE s FROM 'TEST SQLEXT ECHO a ? b';
+--error ER_UNKNOWN_ERROR
+EXECUTE s;
+--error ER_WRONG_ARGUMENTS
+EXECUTE s USING 1;
+DEALLOCATE PREPARE s;
+--error ER_WRONG_ARGUMENTS
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO a ? b' USING 1;
+--echo # Neither a recognizer nor a prefix plugin can split a prepared
+--echo # statement (no multi-statements); a ';' that ends it is fine. The
+--echo # error points at what cannot follow, as for an ordinary statement
+--error ER_PARSE_ERROR
+PREPARE s FROM 'TEST RECOGNIZE x; SELECT 1';
+--error ER_PARSE_ERROR
+PREPARE s FROM 'TEST SQLEXT OK; SELECT 1';
+--error ER_PARSE_ERROR
+PREPARE s FROM 'TEST SQLEXT OK;
+SELECT 1';
+PREPARE s FROM 'TEST SQLEXT ECHO x ; ';
+--error ER_UNKNOWN_ERROR
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+--echo # A claim shorter than the statement stands if only whitespace or ';'
+--echo # follows it; anything else keeps the parse error
+--enable_info
+TEST RECOGNIZE SHORT;
+TEST RECOGNIZE SHORT   ;
+--disable_info
+--error ER_PARSE_ERROR
+TEST RECOGNIZE SHORT tail;
+--echo # A claim past the end of the statement is a plugin bug: refused,
+--echo # with an error that names the plugin
+--error ER_SQL_EXTENSION_INVALID_RESULT
+TEST RECOGNIZE PAST;
+
+--echo #
+--echo # Multi-statement packets (text protocol only)
+--echo #
+--disable_ps_protocol
+delimiter |;
+--echo # A recognizer claims its statement; the rest runs normally
+TEST RECOGNIZE first ; SELECT 'second' AS r|
+--error ER_UNKNOWN_ERROR
+TEST RECOGNIZE ECHO only this ; SELECT 'not run' AS r|
+--echo # A prefix plugin's statement ends at the first ';', as an ordinary
+--echo # one does; the rest runs normally
+TEST SQLEXT OK; SELECT 'second' AS r|
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO only this; SELECT 'not run' AS r|
+--echo # ... a ';' in a string, a quoted identifier or a comment does not
+--echo # end it
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO 'a;b' "c;d" `e;f` /* g;h */ /*!100000 i;j */ -- k;l
+# m;n
+; SELECT 'not run' AS r|
+--echo # ... nor does one after a backslash in a string, unless the
+--echo # sql_mode says so: with NO_BACKSLASH_ESCAPES a backslash is plain,
+--echo # with ANSI_QUOTES "..." is an identifier, with no escapes. (mysqltest
+--echo # reads quotes by these modes too: each statement is written to be
+--echo # balanced in the mode it runs in.)
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO 'a\';b'; SELECT 'not run' AS r|
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO "a\";b"; SELECT 'not run' AS r|
+SET sql_mode= CONCAT(@@sql_mode, ',NO_BACKSLASH_ESCAPES')|
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO 'a\';b''; SELECT 'not run' AS r|
+SET sql_mode= DEFAULT|
+SET sql_mode= CONCAT(@@sql_mode, ',ANSI_QUOTES')|
+--error ER_UNKNOWN_ERROR
+TEST SQLEXT ECHO "a\";b""; SELECT 'not run' AS r|
+SET sql_mode= DEFAULT|
+--echo # ... and in the client's character set: in sjis, 0x955C is one
+--echo # character, whose second byte is not a backslash, so the string
+--echo # ends at the quote after it and 'second' runs
+--character_set sjis
+SET NAMES sjis|
+TEST SQLEXT OK '•\'; SELECT 'second' AS r|
+SET NAMES latin1|
+--character_set latin1
+--echo # An unterminated comment or string: the statement runs to the end
+--echo # of the text (sent in a string, which mysqltest can read)
+--error ER_UNKNOWN_ERROR
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO /* a; SELECT 1'|
+--error ER_UNKNOWN_ERROR
+EXECUTE IMMEDIATE 'TEST SQLEXT ECHO "a; SELECT 1'|
+--echo # Extension statements that are not first in the packet: the claim
+--echo # starts where the statement starts, and the rest goes on normally
+SELECT 'first' AS r; TEST RECOGNIZE second; SELECT 'third' AS r|
+--echo # Two claims in one packet, each with its own text
+TEST RECOGNIZE a; TEST RECOGNIZE b; SELECT 'after both' AS r|
+--error ER_UNKNOWN_ERROR
+TEST RECOGNIZE a; TEST RECOGNIZE ECHO b; SELECT 'not run' AS r|
+--echo # A prefix plugin's statement after an ordinary one, and before
+--echo # another
+SELECT 'first' AS r; TEST SQLEXT OK; SELECT 'third' AS r|
+--error ER_UNKNOWN_ERROR
+SELECT 'first' AS r; TEST SQLEXT ECHO second; SELECT 'not run' AS r|
+delimiter ;|
+--enable_ps_protocol
+
+--echo #
+--echo # Stored programs: static bodies never see extensions, dynamic SQL does
+--echo #
+--echo # "CREATE PROCEDURE SQLEXT" is a claimed prefix, but the statement is a
+--echo # stored program whose body failed to parse: never offered
+--error ER_PARSE_ERROR
+CREATE PROCEDURE SQLEXT() TEST SQLEXT OK;
+CREATE PROCEDURE p1() EXECUTE IMMEDIATE 'TEST SQLEXT OK';
+CALL p1();
+DROP PROCEDURE p1;
+
+--echo #
+--echo # SQL run by a handler: ordinary SQL works, extension SQL is refused
+--echo #
+CREATE TABLE t1 (a INT);
+TEST SQLEXT SQL INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+--error ER_NO_SUCH_TABLE
+TEST SQLEXT SQL SELECT * FROM no_such_table;
+--error ER_PARSE_ERROR
+TEST SQLEXT SQL SELEKT 1;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST SQLEXT OK;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST RECOGNIZE x;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+--echo # Also under LOCK TABLES: as the client on its THD, and through the
+--echo # plain SQL service, which then runs it on a THD of its own
+LOCK TABLES t1 WRITE;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT SQL TEST SQLEXT OK;
+--error ER_SQL_EXTENSION_NESTED
+TEST SQLEXT LOCAL SQL TEST SQLEXT OK;
+UNLOCK TABLES;
+--echo # The guard is released after each statement
+TEST SQLEXT OK;
+DROP TABLE t1;
+
+UNINSTALL PLUGIN test_sql_extension;
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+--error ER_PARSE_ERROR
+TEST SQLEXT OK;
+
+--echo # End of 13.2 tests

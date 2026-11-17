@@ -1,0 +1,89 @@
+#
+# MDEV-41962 With innodb_rollback_on_timeout, a lock wait timeout of SQL
+# an SQL extension handler runs rolls back the client's transaction:
+# the statement fails with that error, even if the handler drops it,
+# unless a stored procedure handled it. (Without the option, only the
+# statement that timed out is rolled back: see service.test.)
+#
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+CREATE DATABASE db1;
+CREATE TABLE db1.t5 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO db1.t5 VALUES (1, 0), (2, 0);
+CREATE TABLE db1.t6 (a INT) ENGINE=InnoDB;
+# In a transaction
+connect  con_lw, localhost, root,,;
+BEGIN;
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+TEST SQLEXT SWALLOW UPDATE db1.t5 SET v= 1 WHERE id= 2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET innodb_lock_wait_timeout= DEFAULT;
+# Whether the client's transaction, with its INSERT, is still there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+ROLLBACK;
+connection con_lw;
+ROLLBACK;
+disconnect con_lw;
+connection default;
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# In autocommit
+connect  con_lw, localhost, root,,;
+BEGIN;
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+TEST SQLEXT SWALLOW UPDATE db1.t5 SET v= 1 WHERE id= 2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET innodb_lock_wait_timeout= DEFAULT;
+connection con_lw;
+ROLLBACK;
+disconnect con_lw;
+connection default;
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+# A stored procedure that handles the timeout succeeds, as when the
+# client calls it; the transaction is gone all the same
+CREATE PROCEDURE db1.p_lw()
+BEGIN
+DECLARE CONTINUE HANDLER FOR 1205 SET @lw= 'timeout handled';
+UPDATE db1.t5 SET v= 1 WHERE id= 2;
+END|
+SET @lw= NULL;
+connect  con_lw, localhost, root,,;
+BEGIN;
+UPDATE db1.t5 SET v= 2 WHERE id= 2;
+connection default;
+SET innodb_lock_wait_timeout= 1;
+BEGIN;
+INSERT INTO db1.t6 VALUES (100);
+TEST SQLEXT SQL CALL db1.p_lw();
+SET innodb_lock_wait_timeout= DEFAULT;
+# Whether the client's transaction, with its INSERT, is still there
+SELECT @@in_transaction;
+@@in_transaction
+0
+SELECT COUNT(*) AS n FROM db1.t6 WHERE a = 100;
+n
+0
+ROLLBACK;
+connection con_lw;
+ROLLBACK;
+disconnect con_lw;
+connection default;
+UPDATE db1.t5 SET v= 0;
+DELETE FROM db1.t6;
+SELECT @lw;
+@lw
+timeout handled
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+# End of 13.2 tests

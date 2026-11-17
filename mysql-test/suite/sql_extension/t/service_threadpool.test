@@ -1,0 +1,28 @@
+--echo #
+--echo # MDEV-41962 Under the thread pool, a connection opened as the client
+--echo # for one statement is still refused to the next one
+--echo #
+# The statements of one connection may run on different pool threads, so
+# the serial that refuses it is one counter for the whole server. Nothing
+# here forces a statement onto another thread: this does not prove that
+# serials never repeat across threads, only that the refusal works under
+# the pool.
+--source include/not_embedded.inc
+--source include/have_pool_of_threads.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+TEST SQLEXT KEEP SELECT 1 AS a;
+--error 2000
+TEST SQLEXT REUSE SELECT 2 AS b;
+connect (con1, localhost, root,,);
+--error 2000
+TEST SQLEXT REUSE SELECT 2 AS b;
+TEST SQLEXT SQL SELECT 3 AS c;
+disconnect con1;
+connection default;
+TEST SQLEXT KEEP CLOSE;
+--echo # A handle left kept is closed at UNINSTALL
+TEST SQLEXT KEEP SELECT 4 AS d;
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

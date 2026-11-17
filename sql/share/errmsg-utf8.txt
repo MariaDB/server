@@ -12390,3 +12390,13 @@ ER_UNSUPPORTED_DATA_TYPE_ATTRIBUTE
         eng "Data type '%-.64s' doesn't support %s attribute."
 ER_CANT_CREATE_TMP_ALTER_TABLE
         eng "Can't create temporary table for ALTER TABLE %sQ.%sQ (errno: %iE)"
+ER_SQL_EXTENSION_PREFIX_OVERLAP
+        eng "SQL extension prefix '%-.100sT' of plugin '%-.192s' overlaps prefix '%-.100sT' of plugin '%-.192s'"
+ER_SQL_EXTENSION_BAD_DESCRIPTOR
+        eng "Invalid SQL extension descriptor in plugin '%-.192s': %s"
+ER_SQL_EXTENSION_FAILED
+        eng "SQL extension plugin '%-.192s' failed without reporting an error"
+ER_SQL_EXTENSION_INVALID_RESULT
+        eng "SQL extension plugin '%-.192s' sent an invalid result: %s"
+ER_SQL_EXTENSION_NESTED
+        eng "Cannot execute a statement of SQL extension plugin '%-.192s' from the handler of plugin '%-.192s'"

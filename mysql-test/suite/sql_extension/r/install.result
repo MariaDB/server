@@ -1,0 +1,83 @@
+#
+# MDEV-41962 SQL extension plugins: INSTALL / UNINSTALL and prefix overlap rules
+#
+call mtr.add_suppression("Plugin 'test_sql_extension.*' registration as a SQL EXTENSION failed");
+call mtr.add_suppression("Plugin 'test_sql_extension_bad_init' init function returned error");
+# A plugin that claims a prefix
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+SELECT plugin_name, plugin_type, plugin_status
+FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+plugin_name	plugin_type	plugin_status
+test_sql_extension	SQL EXTENSION	ACTIVE
+# A longer prefix of another plugin is refused, naming both prefixes
+INSTALL PLUGIN test_sql_extension_overlap SONAME 'test_sql_extension';
+ERROR HY000: SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps prefix 'TEST SQLEXT' of plugin 'test_sql_extension'
+SHOW WARNINGS;
+Level	Code	Message
+Error	#	SQL extension prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap' overlaps prefix 'TEST SQLEXT' of plugin 'test_sql_extension'
+Error	#	Can't initialize function 'test_sql_extension_overlap'; Plugin initialization function failed.
+# Its prefixes are added all or none: the free one is not claimed
+TEST OVERLAP FREE x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST OVERLAP FREE x' at line 1
+# Its init() ran, so its deinit() did too
+inits	deinits
+1	1
+# An invalid descriptor is refused, saying why
+INSTALL PLUGIN test_sql_extension_bad SONAME 'test_sql_extension';
+ERROR HY000: Invalid SQL extension descriptor in plugin 'test_sql_extension_bad': execute() is not set
+INSTALL PLUGIN test_sql_extension_empty SONAME 'test_sql_extension';
+ERROR HY000: Invalid SQL extension descriptor in plugin 'test_sql_extension_empty': neither prefixes nor recognize() is set
+INSTALL PLUGIN test_sql_extension_bad_prefix SONAME 'test_sql_extension';
+ERROR HY000: Invalid SQL extension descriptor in plugin 'test_sql_extension_bad_prefix': a keyword must start with a letter or '_'
+INSTALL PLUGIN test_sql_extension_mixed SONAME 'test_sql_extension';
+ERROR HY000: Invalid SQL extension descriptor in plugin 'test_sql_extension_mixed': both prefixes and recognize() are set
+INSTALL PLUGIN test_sql_extension_bad_priority SONAME 'test_sql_extension';
+ERROR HY000: Invalid SQL extension descriptor in plugin 'test_sql_extension_bad_priority': priority is set with prefixes
+# A plugin whose init() fails is refused: nothing claims its prefix,
+# and its deinit() does not run
+INSTALL PLUGIN test_sql_extension_bad_init SONAME 'test_sql_extension';
+ERROR HY000: Can't initialize function 'test_sql_extension_bad_init'; Plugin initialization function failed.
+TEST BADINIT x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEST BADINIT x' at line 1
+inits	deinits
+1	0
+# A recognizer installs next to prefix plugins
+INSTALL PLUGIN test_sql_extension_recognizer SONAME 'test_sql_extension';
+SELECT plugin_name, plugin_type, plugin_status
+FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+plugin_name	plugin_type	plugin_status
+test_sql_extension	SQL EXTENSION	ACTIVE
+test_sql_extension_recognizer	SQL EXTENSION	ACTIVE
+# Refused plugins leave no row in mysql.plugin
+SELECT name FROM mysql.plugin ORDER BY name;
+name
+test_sql_extension
+test_sql_extension_recognizer
+# Once the claimer is gone, the longer prefix installs ...
+UNINSTALL PLUGIN test_sql_extension;
+INSTALL PLUGIN test_sql_extension_overlap SONAME 'test_sql_extension';
+# ... and now the shorter one is refused
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+ERROR HY000: SQL extension prefix 'TEST SQLEXT' of plugin 'test_sql_extension' overlaps prefix 'TEST SQLEXT OVERLAP' of plugin 'test_sql_extension_overlap'
+# Reinstall after uninstall
+UNINSTALL PLUGIN test_sql_extension_overlap;
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+# The uninstall ran its deinit(), which found the state its init()
+# kept in the plugin's data
+inits	deinits
+2	2
+SELECT plugin_name, plugin_type, plugin_status
+FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+plugin_name	plugin_type	plugin_status
+test_sql_extension	SQL EXTENSION	ACTIVE
+test_sql_extension_recognizer	SQL EXTENSION	ACTIVE
+UNINSTALL PLUGIN test_sql_extension;
+UNINSTALL PLUGIN test_sql_extension_recognizer;
+SELECT plugin_name, plugin_type, plugin_status
+FROM information_schema.plugins WHERE plugin_type = 'SQL EXTENSION'
+  ORDER BY plugin_name;
+plugin_name	plugin_type	plugin_status
+# End of 13.2 tests

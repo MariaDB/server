@@ -1,0 +1,49 @@
+--echo #
+--echo # MDEV-41962 KILL QUERY between two statements a handler runs as the client: the
+--echo # second one fails, the kill is not reset under the handler. The same
+--echo # through the plain SQL service, which runs on the client's THD.
+--echo #
+--source include/not_embedded.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+connect (con1, localhost, root,,);
+let $id= `SELECT CONNECTION_ID()`;
+let $i= 2;
+while ($i)
+{
+  if ($i == 2)
+  {
+    let $verb= SQL2;
+  }
+  if ($i == 1)
+  {
+    let $verb= LOCAL SQL2;
+  }
+  connection con1;
+  SET DEBUG_SYNC= 'test_sql_extension_sql2 SIGNAL between WAIT_FOR go';
+  send_eval TEST SQLEXT $verb SELECT 1 AS a;
+  connection default;
+  SET DEBUG_SYNC= 'now WAIT_FOR between';
+  --disable_query_log
+  eval KILL QUERY $id;
+  --enable_query_log
+  SET DEBUG_SYNC= 'now SIGNAL go';
+  connection con1;
+  --error ER_QUERY_INTERRUPTED
+  reap;
+  --echo # The next statement is not affected
+  eval TEST SQLEXT $verb SELECT 1 AS a;
+  SET DEBUG_SYNC= 'RESET';
+  dec $i;
+}
+disconnect con1;
+connection default;
+
+UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 13.2 tests

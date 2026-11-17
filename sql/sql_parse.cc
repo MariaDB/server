@@ -18,6 +18,7 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_parse.h"        // sql_kill, *_precheck, *_prepare
+#include "sql_extension.h"
 #include "lock.h"             // try_transactional_lock,
                               // check_transactional_lock,
                               // set_handler_table_locks,
@@ -728,6 +729,13 @@ void init_update_queries(void)
                                        CF_CAN_GENERATE_ROW_EVENTS |
                                        CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+  /*
+    An SQL extension statement runs the SQL of its handler, each statement
+    of which decides its own binlog format, as the statements of a CALL do:
+    without this flag the extension statement would be logged like DDL and
+    force STATEMENT format on all of them
+  */
+  sql_command_flags[SQLCOM_SQL_EXTENSION]= CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_EXECUTE_IMMEDIATE]= CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_COMPOUND]=  CF_CAN_GENERATE_ROW_EVENTS;
 
@@ -3047,7 +3055,9 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
   ulonglong affected_rows;
   if (sp->m_flags & sp_head::MULTI_RESULTS)
   {
-    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
+    bool multi_results= (thd->client_capabilities & CLIENT_MULTI_RESULTS) != 0;
+    DBUG_EXECUTE_IF("sp_no_client_multi_results", multi_results= false;);
+    if (!multi_results)
     {
       /* The client does not support multiple result sets being sent back */
       my_error(ER_SP_BADSELECT, MYF(0), ErrConvDQName(sp).ptr());
@@ -5897,6 +5907,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_CALL:
   case SQLCOM_REVOKE:
   case SQLCOM_GRANT:
+  case SQLCOM_SQL_EXTENSION:
     if (thd->variables.option_bits & OPTION_IF_EXISTS)
       lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
     DBUG_ASSERT(lex->m_sql_cmd != NULL);
@@ -5949,7 +5960,13 @@ finish:
         if (! thd->get_stmt_da()->is_set())
           thd->send_kill_message();
       }
-      thd->reset_kill_query();
+      /*
+        SQL run for an extension statement leaves the kill state to that
+        statement, so that a kill also fails the SQL its handler runs next;
+        the extension statement resets it when it ends, here
+      */
+      if (!sql_extension_sql_as_client(thd))
+        thd->reset_kill_query();
     }
 
     /*
@@ -7898,6 +7915,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     LEX *lex= thd->lex;
 
     bool err= parse_sql(thd, parser_state, NULL, true);
+
+    /* A statement the parser rejected may belong to an extension plugin */
+    if (unlikely(err) && sql_extension_dispatch(thd, parser_state))
+      err= false;
 
     if (likely(!err))
     {

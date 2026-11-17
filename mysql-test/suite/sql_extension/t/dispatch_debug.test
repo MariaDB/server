@@ -1,0 +1,33 @@
+--echo #
+--echo # MDEV-41962 Dispatch failures that need a debug build to provoke
+--echo #
+--source include/not_embedded.inc
+--source include/have_debug.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo # Out of memory while a claimed statement is set up: the statement
+--echo # fails for that reason, not with a syntax error nor with a bogus OK
+SET debug_dbug= '+d,sql_extension_dispatch_oom';
+--error ER_OUT_OF_RESOURCES
+TEST SQLEXT OK;
+--error ER_OUT_OF_RESOURCES
+PREPARE s FROM 'TEST SQLEXT OK';
+SET debug_dbug= '';
+--echo # Out of memory while the plugin that claims the statement is pinned:
+--echo # the same
+SET debug_dbug= '+d,sql_extension_lock_oom';
+--error ER_OUT_OF_RESOURCES
+TEST SQLEXT OK;
+--error ER_OUT_OF_RESOURCES
+PREPARE s FROM 'TEST SQLEXT OK';
+SET debug_dbug= '';
+--echo # The connection is usable afterwards
+TEST SQLEXT OK;
+PREPARE s FROM 'TEST SQLEXT OK';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+
+UNINSTALL PLUGIN test_sql_extension;
+
+--echo # End of 13.2 tests

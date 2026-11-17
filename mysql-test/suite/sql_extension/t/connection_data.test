@@ -1,0 +1,85 @@
+--echo #
+--echo # MDEV-41962 SQL extension service: data a plugin keeps on the connection
+--echo #
+--source include/not_embedded.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+let $frees= SELECT variable_value FROM information_schema.global_status
+            WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+
+--echo # Nothing kept yet
+--enable_info
+TEST SQLEXT DATA GET;
+--echo # Kept for the later statements of the connection
+TEST SQLEXT DATA SET first;
+TEST SQLEXT DATA GET;
+SELECT 1;
+TEST SQLEXT DATA GET;
+--echo # Also for prepared statements
+PREPARE s FROM 'TEST SQLEXT DATA GET';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+--echo # Replacing it frees the old data
+TEST SQLEXT DATA SET second;
+TEST SQLEXT DATA GET;
+--disable_info
+eval $frees;
+
+--echo # Another connection has its own
+connect (con1,localhost,root,,);
+--enable_info
+TEST SQLEXT DATA GET;
+TEST SQLEXT DATA SET con1_data;
+TEST SQLEXT DATA GET;
+--disable_info
+connection default;
+--enable_info
+TEST SQLEXT DATA GET;
+--disable_info
+
+--echo # Freed when the connection ends
+disconnect con1;
+let $wait_condition= SELECT variable_value = 2 FROM information_schema.global_status
+                     WHERE variable_name = 'TEST_SQL_EXTENSION_DATA_FREES';
+--source include/wait_condition.inc
+eval $frees;
+
+--echo # Dropping it frees it
+TEST SQLEXT DATA DROP;
+eval $frees;
+--enable_info
+TEST SQLEXT DATA GET;
+--disable_info
+--echo # Dropping nothing is fine
+TEST SQLEXT DATA DROP;
+eval $frees;
+
+--echo # COM_CHANGE_USER frees it, as it resets the session
+TEST SQLEXT DATA SET before_change_user;
+change_user root,,test;
+eval $frees;
+--enable_info
+TEST SQLEXT DATA GET;
+--disable_info
+
+--echo # UNINSTALL while a connection keeps data: the plugin gets no more
+--echo # statements, and its library stays loaded until the data is freed
+connect (con2,localhost,root,,);
+TEST SQLEXT DATA SET kept;
+connection default;
+UNINSTALL PLUGIN test_sql_extension;
+connection con2;
+--error ER_PARSE_ERROR
+TEST SQLEXT DATA GET;
+disconnect con2;
+connection default;
+--source include/wait_until_count_sessions.inc
+
+--echo # Installed again, it has nothing of the earlier installation
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+--enable_info
+TEST SQLEXT DATA GET;
+--disable_info
+UNINSTALL PLUGIN test_sql_extension;

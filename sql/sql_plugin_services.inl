@@ -19,6 +19,10 @@
 #include <mysql/service_wsrep.h>
 #include <mysql/service_thd_mdl.h>
 #include <mysql/service_print_check_msg.h>
+#include <mysql/service_sql_extension.h>
+#include <mysql/service_sql_extension_result.h>
+#include <mysql/service_sql_extension_client.h>
+#include <mysql/service_sql_extension_connection_data.h>
 
 struct st_service_ref {
   const char *name;
@@ -266,6 +270,31 @@ struct sql_service_st sql_service_handler=
   mysql_ssl_set
 };
 
+static struct sql_extension_service_st sql_extension_handler=
+{
+  sql_extension_check_access
+};
+
+static struct sql_extension_result_service_st sql_extension_result_handler=
+{
+  sql_extension_send_result_set,
+  sql_extension_send_ok,
+  sql_extension_client_flags
+};
+
+static struct sql_extension_client_service_st sql_extension_client_handler=
+{
+  sql_extension_connect_as_client,
+  sql_extension_forward_sql
+};
+
+static struct sql_extension_connection_data_service_st
+  sql_extension_connection_data_handler=
+{
+  sql_extension_get_connection_data,
+  sql_extension_set_connection_data
+};
+
 static struct thd_mdl_service_st thd_mdl_handler=
 {
   thd_mdl_context
@@ -368,6 +397,10 @@ static struct st_service_ref list_of_services[]=
   { "json_service",                VERSION_json,                &json_handler },
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
   { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "sql_extension_service",       VERSION_sql_extension,       &sql_extension_handler },
+  { "sql_extension_result_service", VERSION_sql_extension_result, &sql_extension_result_handler },
+  { "sql_extension_client_service", VERSION_sql_extension_client, &sql_extension_client_handler },
+  { "sql_extension_connection_data_service", VERSION_sql_extension_connection_data, &sql_extension_connection_data_handler },
   { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
   { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
   { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
