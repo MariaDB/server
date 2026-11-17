@@ -65,3 +65,90 @@ ALTER TABLE t2 DISCARD TABLESPACE;
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2;
+
+--echo #
+--echo #  MDEV-41856 Forged column length during IMPORT TABLESPACE
+--echo #	causes heap overflow on SELECT
+--echo #
+
+call mtr.add_suppression(" InnoDB: Truncating a corrupted VARCHAR field");
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(800) NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 VALUES (1, REPEAT('x',200));
+
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQL_TMP_DIR/t1.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQL_TMP_DIR/t1.cfg
+UNLOCK TABLES;
+DROP TABLE t1;
+
+perl;
+use strict;
+$| = 1;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+
+my $file = "$ENV{MYSQL_TMP_DIR}/t1.ibd";
+sysopen(FILE, $file, O_RDWR) or die "Cannot open $file: $!";
+my $page_size = 16384;
+my $full_crc32 = get_full_crc32(\*FILE);
+my $page_no = 3;
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+my $page;
+sysread(FILE, $page, $page_size) == $page_size or die;
+
+sub decode_len {
+  my ($hi, $lo) = @_;
+  return undef unless $hi & 0x80;
+  my $len = (($hi << 8) | $lo);
+  return $len & 0x3fff; # DATA_MASK
+}
+
+# For this exact, fixed table (single row, PK a INT, DB_TRX_ID(6) +
+# DB_ROLL_PTR(7), then one NOT NULL VARCHAR(800) column, 16k pages,
+# ROW_FORMAT=DYNAMIC) the on-page layout is deterministic:
+#  - Sole user record sits at page offset 127;
+#  - Column b's 2-byte length-prefix (no NULL bitmap, since NOT NULL)
+#  is the two bytes immediately before the record, at offsets 121
+
+my $near_off = 121;
+my $hi = ord(substr($page, $near_off, 1));
+my $lo = ord(substr($page, $near_off - 1, 1));
+my $decoded = decode_len($hi, $lo);
+die "page layout does not match the hardcoded offset; decoded $decoded"
+  unless defined $decoded && $decoded == 200;
+
+# Re-encode to claim 16000 bytes, instead of
+# the real 200, without changing the actual reserved on-page space
+# for this field's data
+my $bogus = 16000;
+my $x = ($bogus >> 8) & 0x3f;   # 6 bits -> near byte's low bits
+my $y = $bogus & 0xff;          # low 8 bits -> far byte
+my $near_byte = 0x80 | $x;
+my $far_byte = $y;
+die "sanity check failed"
+  unless decode_len($near_byte, $far_byte) == $bogus;
+
+substr($page, $near_off, 1) = chr($near_byte);
+substr($page, $near_off - 1, 1) = chr($far_byte);
+
+$page = fix_page_crc($page, $full_crc32);
+
+sysseek(FILE, $page_no * $page_size, SEEK_SET) or die;
+syswrite(FILE, $page, $page_size) == $page_size or die;
+close(FILE) or die;
+EOF
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(800) NOT NULL) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+--copy_file $MYSQL_TMP_DIR/t1.ibd $MYSQLD_DATADIR/test/t1.ibd
+--copy_file $MYSQL_TMP_DIR/t1.cfg $MYSQLD_DATADIR/test/t1.cfg
+
+ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT a, LENGTH(b) FROM t1;
+CHECK TABLE t1;
+
+DROP TABLE t1;
+--remove_file $MYSQL_TMP_DIR/t1.ibd
+--remove_file $MYSQL_TMP_DIR/t1.cfg
