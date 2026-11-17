@@ -4500,6 +4500,7 @@ static int init_common_variables()
                  OLD_MODE_UTF8_IS_UTF8MB3 ? MY_UTF8_IS_UTF8MB3 : 0;
 
   old_mode_deprecated_warnings(global_system_variables.old_behavior);
+  sql_mode_deprecated_warnings(NULL, (ulonglong)global_system_variables.sql_mode);
 
   if (character_set_collations_str[0])
   {

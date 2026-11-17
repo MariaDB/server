@@ -4104,10 +4104,40 @@ export sql_mode_t expand_sql_mode(sql_mode_t sql_mode)
                 MODE_NO_ENGINE_SUBSTITUTION);
   return sql_mode;
 }
+
+#define SQL_MODE_DEFAULT_VALUE (MODE_STRICT_TRANS_TABLES | \
+               MODE_ERROR_FOR_DIVISION_BY_ZERO | \
+               MODE_NO_ENGINE_SUBSTITUTION | \
+               MODE_NO_AUTO_CREATE_USER)
+
+void sql_mode_deprecated_warnings(THD *thd, ulonglong v)
+{
+  static struct {
+    const char *name;
+    uint bit;
+  } sql_mode_deprecated[]=
+  {
+    { "MYSQL323", MODE_MYSQL323 }, // deprecated since 13.3
+    { "MYSQL40",  MODE_MYSQL40 }, // deprecated since 13.3
+    { 0, 0 }
+  };
+  
+
+  v &= ~SQL_MODE_DEFAULT_VALUE;
+  for (uint i=0; sql_mode_deprecated[i].name; i++)
+    if (sql_mode_deprecated[i].bit & v) {
+      if (thd != NULL)
+        warn_deprecated<1302>(thd, sql_mode_deprecated[i].name);
+      else
+        warn_deprecated<1302>(sql_mode_deprecated[i].name);
+    }
+}
+
 static bool check_sql_mode(sys_var *self, THD *thd, set_var *var)
 {
   var->save_result.ulonglong_value=
     (ulonglong) expand_sql_mode(var->save_result.ulonglong_value);
+  sql_mode_deprecated_warnings(thd, var->save_result.ulonglong_value);
   return false;
 }
 static bool fix_sql_mode(sys_var *self, THD *thd, enum_var_type type)
@@ -4170,10 +4200,7 @@ static Sys_var_set Sys_sql_mode(
        "Sets the sql mode",
        SESSION_VAR(sql_mode), CMD_LINE(REQUIRED_ARG),
        sql_mode_names,
-       DEFAULT(MODE_STRICT_TRANS_TABLES |
-               MODE_ERROR_FOR_DIVISION_BY_ZERO |
-               MODE_NO_ENGINE_SUBSTITUTION |
-               MODE_NO_AUTO_CREATE_USER),
+       DEFAULT(SQL_MODE_DEFAULT_VALUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_sql_mode), ON_UPDATE(fix_sql_mode));
 

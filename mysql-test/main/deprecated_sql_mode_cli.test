@@ -1,8 +1,14 @@
---let  = $MYSQLTEST_VARDIR/log/master.err
---let  = SQL mode MYSQL323 is deprecated and will be removed in future versions
+--echo #
+--echo # MDEV-39164: Deprecate the MYSQL323 and MYSQL40 sql modes
+--echo #
+
+# Check the command line warnings
+
+--let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN = 'MYSQL323' is deprecated and will be removed in a future release
 --source include/search_pattern_in_file.inc
 
---let  = SQL mode MYSQL40 is deprecated and will be removed in future versions
+--let SEARCH_PATTERN = 'MYSQL40' is deprecated and will be removed in a future release
 --source include/search_pattern_in_file.inc
 
-SELECT @@sql_mode;
+--echo # End of 13.3 tests
