@@ -161,3 +161,40 @@ show create table t;
 drop table t;
 
 --echo # End of 11.8 tests
+
+--echo #
+--echo # MDEV-42032 Alias MySQL's STRING_TO_VECTOR to Vec_FromText (and vice-versa)
+--echo #
+select hex(string_to_vector('[1,2,3]'));
+select hex(string_to_vector('[1,2,3]')) = hex(vec_fromtext('[1,2,3]')) as same;
+select vector_to_string(x'0000803f0000004000004040');
+select vector_to_string(x'0000803f0000004000004040') =
+       vec_totext(x'0000803f0000004000004040') as same;
+select vector_to_string(string_to_vector('[1.5,-2.25,0]'));
+select vector_to_string(string_to_vector('[1.5,-2.25,0]')) =
+       vec_totext(vec_fromtext('[1.5,-2.25,0]')) as same;
+select STRING_TO_VECTOR(NULL), VECTOR_TO_STRING(NULL);
+select STRING_TO_VECTOR(NULL) <=> VEC_FROMTEXT(NULL) as same,
+       VECTOR_TO_STRING(NULL) <=> VEC_TOTEXT(NULL) as same2;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select string_to_vector();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select vector_to_string(x'0000803f', 1);
+select string_to_vector('[1,2');
+select vector_to_string(x'aabbcc');
+
+create table t (v vector(3) not null, vector index (v));
+insert t values (string_to_vector('[1,2,3]')), (string_to_vector('[4,5,6]'));
+select vector_to_string(v) from t
+  order by vec_distance_euclidean(v, string_to_vector('[4,5,5]')) limit 1;
+create table t2 as select string_to_vector('[1,2,3]') as v;
+show create table t2;
+drop table t, t2;
+
+create view v1 as select vector_to_string(string_to_vector('[1,2,3]')) as s;
+show create view v1;
+select * from v1;
+drop view v1;
+
+--echo # End of 13.2 tests
