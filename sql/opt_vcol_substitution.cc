@@ -120,7 +120,8 @@ static
 void subst_vcol_if_compatible(Vcol_subst_context *ctx,
                               Item_bool_func *cond,
                               Item **vcol_expr_ref,
-                              Field *vcol_field);
+                              Field *vcol_field,
+                              Item **rhs = NULL, uint rhs_count = 0);
 
 static
 bool collect_indexed_vcols_for_table(TABLE *table, List<Field> *vcol_fields)
@@ -375,6 +376,57 @@ static Field *is_vcol_expr(Vcol_subst_context *ctx, const Item *item)
 
 /*
   @brief
+    Check that comparing each of the constants rhs[0..rhs_count-1] with
+    the vcol field gives the same result as comparing it with the vcol
+    expression. Called when the field was not found to be a supertype to
+    the expression, that is, when storing the expression into the field
+    cannot be assumed lossless.
+
+  @detail
+    A lossy conversion can only produce an extreme value of the field's
+    domain: numbers are clamped, strings are truncated. So nothing can
+    be mapped onto a constant that lies strictly inside the domain, and
+    Field::is_const_strictly_inside_domain() is what establishes that.
+
+    We also need to check that the comparison between vcol_expr (or
+    vcol_field) and rhs does not require the conversion of vcol_expr
+    or const to a different type family. For example, consider a table
+    with
+
+      a varchar(10) and vc varchar(3) as (a)
+
+    For an integer rhs = 12, if a row has a = '012345', vc = '012'.
+    Even though 12 is strictly inside the domain of varchar(3), vc
+    would be converted when comparing with rhs and deemed equal.
+*/
+
+static bool vcol_subst_preserves_cmp_with_consts(Field *vcol_field,
+                                                 Item *vcol_expr, Item **rhs,
+                                                 uint rhs_count)
+{
+  uint i= 0;
+  const Type_handler *expr_th_cmp= vcol_expr->type_handler_for_comparison();
+  if (vcol_field->type_handler_for_comparison() != expr_th_cmp)
+    return false;
+  for (; i < rhs_count; i++)
+  {
+    /*
+      A NULL constant: the comparison depends only on whether the operand
+      is NULL, and the vcol field is NULL exactly when the vcol expression
+      is, as no conversion turns a value into NULL. So the substitution
+      preserves the comparison whatever the data types are.
+    */
+    if (rhs[i]->can_eval_in_optimize() && rhs[i]->is_null())
+      continue;
+    if (!vcol_field->is_const_strictly_inside_domain(rhs[i]) ||
+        expr_th_cmp != rhs[i]->type_handler_for_comparison())
+      return false;
+  }
+  return true;
+}
+
+/*
+  @brief
     Produce a warning similar to raise_note_cannot_use_key_part().
 */
 
@@ -440,41 +492,36 @@ static
 void subst_vcol_if_compatible(Vcol_subst_context *ctx,
                               Item_bool_func *cond,
                               Item **vcol_expr_ref,
-                              Field *vcol_field)
+                              Field *vcol_field,
+                              Item **rhs, uint rhs_count)
 {
   Item *vcol_expr= *vcol_expr_ref;
   THD *thd= ctx->thd;
-
   const char *fail_cause= NULL;
-  if (cond)                     /* WHERE substitution (MDEV-39525) */
+  /* Skip supertype check for Item_func_null_predicate */
+  const bool skip_supertype_and_rhs_const_check= (cond != NULL &&
+    (cond->bitmap_bit() &
+     (Item_func::BITMAP_ISNULL | Item_func::BITMAP_ISNOTNULL)));
+
+  /* If rhs is not NULL, then we are dealing with a WHERE substitution */
+  DBUG_ASSERT(!rhs || cond);
+  if (vcol_expr->collation.collation != vcol_field->charset() &&
+      (!cond || cond->compare_collation() != vcol_field->charset()))
+    fail_cause= "collation mismatch";
+  if (!fail_cause && vcol_expr->maybe_null() && !vcol_field->maybe_null())
   {
-    if (vcol_expr->type_handler_for_comparison() !=
-        vcol_field->type_handler_for_comparison() ||
-        (vcol_expr->maybe_null() && !vcol_field->maybe_null()))
-      fail_cause="type mismatch";
-    else
-    {
-      CHARSET_INFO *cs= cond ? cond->compare_collation() : NULL;
-      if (vcol_expr->collation.collation != vcol_field->charset() &&
-          cs != vcol_field->charset())
-        fail_cause= "collation mismatch";
-    }
+    /* NOT NULL is not allowed for vcol definition */
+    DBUG_ASSERT(0);
+    fail_cause= "nullability mismatch";
   }
-  else                          /* ORDER/GROUP BY substitution */
+  if (!fail_cause && !skip_supertype_and_rhs_const_check &&
+      !vcol_field->is_supertype(vcol_expr))
   {
-    if (!vcol_field->type_handler()->is_supertype(
-        vcol_field->type_std_attributes(),
-        vcol_field->type_extra_attributes(),
-        vcol_expr->type_handler(),
-        *vcol_expr /*Type_std_attributes*/,
-        vcol_expr->type_extra_attributes()))
-      fail_cause="failed supertype check";
-    else if (vcol_expr->maybe_null() && !vcol_field->maybe_null())
-    {
-      /* NOT NULL is not allowed for vcol definition */
-      DBUG_ASSERT(0);
-      fail_cause= "nullability mismatch";
-    }
+    if (!rhs)
+      fail_cause= "failed supertype check";
+    else if (!vcol_subst_preserves_cmp_with_consts(vcol_field, vcol_expr, rhs,
+                                                   rhs_count))
+      fail_cause= "unsafe const comparison";
   }
 
   if (fail_cause)
@@ -537,18 +584,28 @@ Item* Item_bool_rowready_func2::vcol_subst_transformer(THD *thd, uchar *arg)
   Vcol_subst_context *ctx= (Vcol_subst_context*)arg;
   Field *vcol_field;
   Item **vcol_expr;
+  Item **other= NULL;
+  uint lhi;
 
   if (!args[0]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[1])))
-    vcol_expr= &args[1];
+    lhi= 1;
   else if (!args[1]->used_tables() && (vcol_field= is_vcol_expr(ctx, args[0])))
-    vcol_expr= &args[0];
+    lhi= 0;
   else
     return this; /* No substitution */
+  vcol_expr= &args[lhi];
+  const Functype ftype= functype();
+  if (ftype == EQ_FUNC || ftype == LE_FUNC || ftype == GE_FUNC ||
+      ftype == LT_FUNC || ftype == GT_FUNC || ftype == EQUAL_FUNC)
+    other= &args[1 - lhi];
 
   DBUG_EXECUTE_IF("vcol_subst_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field);
+  if (other)
+    subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field, other, 1);
+  else
+    subst_vcol_if_compatible(ctx, this, vcol_expr, vcol_field);
 
   DBUG_EXECUTE_IF("vcol_subst_simulate_oom",
                   DBUG_SET("-d,vcol_subst_simulate_oom"););
@@ -564,7 +621,7 @@ Item* Item_func_between::vcol_subst_transformer(THD *thd, uchar *arg)
       !args[2]->used_tables() &&
       (vcol_field= is_vcol_expr(ctx, args[0])))
   {
-    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+    subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, &args[1], 2);
   }
   return this;
 }
@@ -593,7 +650,8 @@ Item* Item_func_in::vcol_subst_transformer(THD *thd, uchar *arg)
       !compatible_types_scalar_bisection_possible())
     return this;
 
-  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field);
+  subst_vcol_if_compatible(ctx, this, &args[0], vcol_field, &args[1],
+                           arg_count - 1);
   return this;
 }
 
