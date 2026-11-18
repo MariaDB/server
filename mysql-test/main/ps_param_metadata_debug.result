@@ -1,0 +1,178 @@
+#
+# MDEV-42316 A binary string parameter is read byte by byte on every execution to compute its repertoire, and since MDEV-41246 this read takes about 1.2 ms per MB of ASCII data
+#
+# A string parameter that is the whole value assigned to a column,
+# to a user variable, to a variable of a stored program, or to a
+# procedure parameter by CALL is stored as is, and nothing reads it
+# as text. Its value is not read to find its repertoire and its
+# length in characters, in any character set. A parameter inside
+# an expression, in a WHERE condition or in a SELECT list is still
+# read. Each read gives a DBUG note. Every statement also has a
+# parameter that is read: CONCAT(?, '') assigned to the column r or
+# to a variable, or a parameter in a WHERE condition, in an
+# expression or in a SELECT list.
+#
+SET NAMES latin1;
+CREATE TABLE t1 (id INT PRIMARY KEY, b LONGBLOB,
+c VARCHAR(10) CHARACTER SET latin1,
+u VARCHAR(10) CHARACTER SET utf8mb4,
+r VARCHAR(10) CHARACTER SET latin1);
+CREATE TABLE t2 (id INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2);
+CREATE PROCEDURE p1(a LONGBLOB, b VARCHAR(10))
+INSERT INTO t1 (id, b, r) VALUES (7, a, b);
+SET @i1= 1, @i2= 2, @i3= 3, @i4= 4, @i8= 8;
+SET @n1= _latin1'1', @n2= _latin1'2';
+SET @b1= CAST('b1' AS BINARY), @b2= x'FF42', @b3= CAST('b3' AS BINARY);
+SET @c1= _latin1'c1', @c2= _latin1'c2', @c3= _latin1'c3';
+SET @u1= _utf8mb4 x'C3A931';
+SET @r1= _latin1'r1', @r2= _latin1'r2', @r3= _latin1'r3',
+@r4= _latin1'r4', @r5= _latin1'r5';
+SET @saved_dbug= @@debug_dbug;
+SET SESSION debug_dbug="+d,Item_param_metadata";
+# INSERT ... VALUES, two rows
+PREPARE s FROM 'INSERT INTO t1 (id, b, c, r) VALUES (?, ?, ?, CONCAT(?, '''')), (?, ?, ?, NULL)';
+EXECUTE s USING @i1, @b1, @c1, @r1, @i2, @b2, @c2;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r1'
+DEALLOCATE PREPARE s;
+# A utf8mb4 connection: neither the binary nor the utf8mb4
+# parameter is read
+SET NAMES utf8mb4;
+PREPARE s FROM 'INSERT INTO t1 (id, b, u, r) VALUES (?, ?, ?, CONCAT(?, ''''))';
+EXECUTE s USING @i4, @b2, @u1, @r1;
+Warnings:
+Note	1105	DBUG: metadata read from the value of utf8mb4 'r1'
+DEALLOCATE PREPARE s;
+SET NAMES latin1;
+# INSERT ... SET
+PREPARE s FROM 'INSERT INTO t1 SET id= ?, b= ?, c= ?, r= CONCAT(?, '''')';
+EXECUTE s USING @i3, @b3, @c3, @r2;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r2'
+DEALLOCATE PREPARE s;
+# REPLACE ... VALUES
+PREPARE s FROM 'REPLACE INTO t1 (id, b, c, r) VALUES (?, ?, ?, CONCAT(?, ''''))';
+EXECUTE s USING @i3, @b2, @c2, @r3;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r3'
+DEALLOCATE PREPARE s;
+# INSERT ... ON DUPLICATE KEY UPDATE
+PREPARE s FROM 'INSERT INTO t1 (id, b) VALUES (?, ?) ON DUPLICATE KEY UPDATE b= ?, r= CONCAT(?, '''')';
+EXECUTE s USING @i3, @b1, @b3, @r4;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r4'
+DEALLOCATE PREPARE s;
+# INSERT ... SELECT: the SELECT list parameter is read,
+# the ON DUPLICATE KEY UPDATE parameter is not
+PREPARE s FROM 'INSERT INTO t1 (id, c) SELECT id, ? FROM t2 ON DUPLICATE KEY UPDATE c= ?';
+EXECUTE s USING @c3, @c1;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'c3'
+DEALLOCATE PREPARE s;
+# UPDATE: the SET parameters are not read, the WHERE parameter is
+PREPARE s FROM 'UPDATE t1 SET b= ?, c= ? WHERE c= ?';
+EXECUTE s USING @b2, @c2, @c1;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'c1'
+DEALLOCATE PREPARE s;
+# Multi-table UPDATE
+PREPARE s FROM 'UPDATE t1, t2 SET t1.b= ?, t1.r= CONCAT(?, '''') WHERE t1.id= t2.id';
+EXECUTE s USING @b1, @r5;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r5'
+DEALLOCATE PREPARE s;
+# LOAD DATA ... SET
+PREPARE s FROM 'LOAD DATA INFILE ''MYSQLTEST_VARDIR/tmp/ps_param_metadata_debug.txt'' INTO TABLE t1 (id) SET b= ?, r= CONCAT(?, '''')';
+EXECUTE s USING @b3, @r1;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r1'
+DEALLOCATE PREPARE s;
+# User variables
+PREPARE s FROM 'SET @v1= ?, @v2= CONCAT(?, '''')';
+EXECUTE s USING @b2, @r2;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r2'
+DEALLOCATE PREPARE s;
+SELECT HEX(@v1), @v2;
+HEX(@v1)	@v2
+FF42	r2
+# CALL
+PREPARE s FROM 'CALL p1(?, CONCAT(?, ''''))';
+EXECUTE s USING @b1, @r3;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r3'
+DEALLOCATE PREPARE s;
+# A compound statement: a variable default, a ROW field,
+# a variable and the columns of an INSERT
+PREPARE s FROM 'BEGIN NOT ATOMIC DECLARE v LONGBLOB DEFAULT ?; DECLARE w ROW (x LONGBLOB); SET w.x= ?; INSERT INTO t1 (id, b, c, r) VALUES (?, v, ?, CONCAT(?, '''')); SET v= ?; UPDATE t1 SET b= CONCAT(v, w.x) WHERE id= 8; END';
+EXECUTE s USING @b1, @b2, @i8, @c1, @r4, @b3;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r4'
+DEALLOCATE PREPARE s;
+# The bounds of a FOR loop
+PREPARE s FROM 'BEGIN NOT ATOMIC DECLARE n INT DEFAULT 0; FOR i IN ? .. ? DO SET n= n + i; END FOR; INSERT INTO t1 (id, r) VALUES (n + 10, CONCAT(?, '''')); END';
+EXECUTE s USING @n1, @n2, @r1;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r1'
+DEALLOCATE PREPARE s;
+# A field of a ROW TYPE OF variable
+PREPARE s FROM 'BEGIN NOT ATOMIC DECLARE w ROW TYPE OF t1; SET w.b= ?; INSERT INTO t1 (id, b, r) VALUES (14, w.b, CONCAT(?, '''')); END';
+EXECUTE s USING @b1, @r2;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r2'
+DEALLOCATE PREPARE s;
+# Cursor parameters, given by OPEN and by a FOR loop
+PREPARE s FROM 'BEGIN NOT ATOMIC DECLARE v LONGBLOB; DECLARE c CURSOR (pa LONGBLOB) FOR SELECT pa; OPEN c(?); FETCH c INTO v; CLOSE c; FOR rec IN c(?) DO INSERT INTO t1 (id, b, r) VALUES (15, CONCAT(v, rec.pa), CONCAT(?, '''')); END FOR; END';
+EXECUTE s USING @b1, @b3, @r3;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r3'
+DEALLOCATE PREPARE s;
+# Several variables with one DEFAULT
+PREPARE s FROM 'BEGIN NOT ATOMIC DECLARE x, y LONGBLOB DEFAULT ?; INSERT INTO t1 (id, b, r) VALUES (16, CONCAT(x, y), CONCAT(?, '''')); END';
+EXECUTE s USING @b2, @r4;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r4'
+DEALLOCATE PREPARE s;
+# The binary protocol
+PS_prepare INSERT INTO t1 (id, c, r) VALUES (9, ?, CONCAT(?, ''));
+PS_bind c9 r9;
+PS_execute;
+Warnings:
+Note	1105	DBUG: metadata read from the value of latin1 'r9'
+PS_close;
+# A parameter inside an expression
+PREPARE s FROM 'UPDATE t1 SET b= CONCAT(?, ''x'') WHERE id= 3';
+EXECUTE s USING @b3;
+Warnings:
+Note	1105	DBUG: metadata read from the value of binary 'b3'
+DEALLOCATE PREPARE s;
+# A parameter in a SELECT list
+PREPARE s FROM 'SELECT HEX(?) AS h';
+EXECUTE s USING @b2;
+h
+FF42
+Warnings:
+Note	1105	DBUG: metadata read from the value of binary '\xFFB'
+DEALLOCATE PREPARE s;
+SET SESSION debug_dbug= @saved_dbug;
+SELECT id, HEX(b), HEX(c), HEX(u), r FROM t1 ORDER BY id;
+id	HEX(b)	HEX(c)	HEX(u)	r
+1	6231	6332	NULL	r5
+2	6231	6332	NULL	r5
+3	623378	6332	NULL	r4
+4	FF42	NULL	C3A931	r1
+5	6233	NULL	NULL	r1
+6	6233	NULL	NULL	r1
+7	6231	NULL	NULL	r3
+8	6233FF42	6331	NULL	r4
+9	NULL	6339	NULL	r9
+13	NULL	NULL	NULL	r1
+14	6231	NULL	NULL	r2
+15	62316233	NULL	NULL	r3
+16	FF42FF42	NULL	NULL	r4
+DROP PROCEDURE p1;
+DROP TABLE t1, t2;
+#
+# End of 10.11 tests
+#

@@ -24487,6 +24487,83 @@ static void test_mdev35953()
 }
 
 
+/*
+  MDEV-42316 A binary string parameter is read byte by byte on every
+  execution to compute its repertoire
+
+  A parameter sent with mysql_stmt_send_long_data() that is the whole
+  value assigned to a column is not read to find its repertoire and its
+  length in characters. A parameter inside an expression is still read.
+  Each read gives a DBUG note.
+*/
+static void test_mdev_42316()
+{
+#ifndef DBUG_OFF
+  MYSQL_STMT *stmt;
+  MYSQL_BIND my_bind[2];
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  int rc;
+
+  myheader("test_mdev_42316");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id INT PRIMARY KEY, b LONGBLOB, "
+                         "r VARCHAR(10) CHARACTER SET latin1)");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @saved_dbug= @@debug_dbug");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET SESSION debug_dbug= '+d,Item_param_metadata'");
+  myquery(rc);
+
+  /*
+    Not CONCAT(?, ''): an earlier test leaves sql_mode=EMPTY_STRING_IS_NULL
+    on this connection, which makes it NULL
+  */
+  stmt= mysql_simple_prepare(mysql, "INSERT INTO t1 (id, b, r) "
+                                    "VALUES (1, ?, CONCAT(?, 'x'))");
+  check_stmt(stmt);
+  verify_param_count(stmt, 2);
+
+  bzero((char*) my_bind, sizeof(my_bind));
+  my_bind[0].buffer_type= MYSQL_TYPE_LONG_BLOB;
+  my_bind[1].buffer_type= MYSQL_TYPE_STRING;
+  my_bind[1].buffer= (void *) "r1";
+  my_bind[1].buffer_length= 2;
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* The stored value in two pieces */
+  rc= mysql_stmt_send_long_data(stmt, 0, "b", 1);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_send_long_data(stmt, 0, "1", 1);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  /* Only the parameter inside CONCAT() is read */
+  rc= mysql_query(mysql, "SHOW WARNINGS");
+  myquery(rc);
+  result= mysql_store_result(mysql);
+  mytest(result);
+  DIE_UNLESS(mysql_num_rows(result) == 1);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row && row[2] && strstr(row[2], "'r1'"));
+  mysql_free_result(result);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SET SESSION debug_dbug= @saved_dbug");
+  myquery(rc);
+
+  verify_col_data("t1", "b", "b1");
+  verify_col_data("t1", "r", "r1x");
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+#endif
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "test_mdev_20516", test_mdev_20516 },
   { "test_mdev24827", test_mdev24827 },
@@ -24812,6 +24889,7 @@ static struct my_tests_st my_tests[]= {
 #endif
   { "test_mdev_10075", test_mdev_10075},
   { "test_mdev35953", test_mdev35953 },
+  { "test_mdev_42316", test_mdev_42316 },
   { 0, 0 }
 };
 

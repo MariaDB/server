@@ -6722,6 +6722,7 @@ bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
   if (!has_default_clause &&
       unlikely(!(dflt_value_item= new (thd->mem_root) Item_null(thd))))
     return true;
+  dflt_value_item->set_needs_no_metadata();
 
   sp_variable *first_spvar = NULL;
 
@@ -7046,6 +7047,7 @@ sp_variable *LEX::sp_add_for_loop_variable(THD *thd, const LEX_CSTRING *name,
                                                           NULL, HA_CAN_GEOMETRY);
   if (!value && unlikely(!(value= new (thd->mem_root) Item_null(thd))))
     return NULL;
+  value->set_needs_no_metadata();
 
   spvar->default_value= value;
   sp_instr_set *is= new (thd->mem_root)
@@ -8726,6 +8728,7 @@ bool LEX::set_user_variable(THD *thd, const LEX_CSTRING *name, Item *val)
 {
   Item_func_set_user_var *item;
   set_var_user *var;
+  val->set_needs_no_metadata();
   if (unlikely(!(item= new (thd->mem_root) Item_func_set_user_var(thd, name,
                                                                   val))) ||
       unlikely(!(var= new (thd->mem_root) set_var_user(item))))
@@ -11101,6 +11104,48 @@ bool SELECT_LEX::make_unique_derived_name(THD *thd, LEX_CSTRING *alias)
 }
 
 
+static void set_list_need_no_metadata(List<Item> &values)
+{
+  List_iterator_fast<Item> it(values);
+  while (Item *item= it++)
+    item->set_needs_no_metadata();
+}
+
+
+/**
+  Mark the items that are the whole value assigned to a column or to
+  a procedure parameter: their value is stored as is, see
+  Item::set_needs_no_metadata().
+*/
+
+void LEX::set_values_need_no_metadata()
+{
+  switch (sql_command) {
+  case SQLCOM_INSERT:
+  case SQLCOM_REPLACE:
+  {
+    List_iterator_fast<List_item> it(many_values);
+    while (List_item *values= it++)
+      set_list_need_no_metadata(*values);
+  }
+  /* fall through */
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_LOAD:
+  case SQLCOM_CALL:
+    /*
+      ON DUPLICATE KEY UPDATE values, UPDATE or LOAD DATA SET values,
+      or CALL arguments
+    */
+    set_list_need_no_metadata(value_list);
+    break;
+  default:
+    break;
+  }
+}
+
+
 /*
   Make a new sp_instr_stmt and set its m_query to a concatenation
   of two strings.
@@ -11112,6 +11157,7 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   LEX_STRING qbuff;
   sp_instr_stmt *i;
 
+  set_values_need_no_metadata();
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
                                              spcont, this)))
     return true;

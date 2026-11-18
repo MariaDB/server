@@ -2529,6 +2529,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   if (wsrep_sync_wait(thd, sql_command))
     goto error;
 #endif
+  if (stmt->param_count)
+    lex->set_values_need_no_metadata();
   switch (sql_command) {
   case SQLCOM_REPLACE:
   case SQLCOM_INSERT:

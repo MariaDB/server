@@ -4946,6 +4946,28 @@ bool Item_param::convert_str_value(THD *thd)
     value.m_string_ptr.set(value.m_string.ptr(), value.m_string.length(),
                            value.m_string.charset());
     /* Synchronize item charset and length with value charset */
+    if (needs_no_metadata())
+    {
+      /*
+        Neither the repertoire nor the length in characters is used:
+        do not read the value. The value can have any character, so its
+        repertoire is the widest one, and it has at most as many
+        characters as its length in bytes divided by the length of the
+        shortest character, which in an 8-bit character set is exact.
+      */
+      CHARSET_INFO *cs= value.m_string.charset();
+      fix_charset_and_length(cs, DERIVATION_COERCIBLE,
+                             Metadata(MY_REPERTOIRE_UNICODE30,
+                                      value.m_string.length() /
+                                      cs->mbminlen));
+      return rc;
+    }
+    DBUG_EXECUTE_IF("Item_param_metadata",
+                    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                    ER_UNKNOWN_ERROR,
+                    "DBUG: metadata read from the value of %s '%s'",
+                    value.m_string.charset()->cs_name.str,
+                    ErrConvString(&value.m_string).ptr()););
     fix_charset_and_length_from_str_value(value.m_string, DERIVATION_COERCIBLE);
   }
   return rc;
