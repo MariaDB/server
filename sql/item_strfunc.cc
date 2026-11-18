@@ -3192,23 +3192,22 @@ bool Item_func_format::fix_length_and_dec(THD *thd)
 String *Item_func_format::val_str_ascii(String *str)
 {
   uint32 str_length;
-  /* Number of decimal digits */
-  int dec;
   /* Number of characters used to represent the decimals, including '.' */
   uint32 dec_length;
   const MY_LOCALE *lc;
   DBUG_ASSERT(fixed());
 
-  dec= (int) args[1]->val_int();
+  Longlong_hybrid dec_arg= args[1]->to_longlong_hybrid();
   if (args[1]->null_value)
   {
     null_value=1;
     return NULL;
   }
+  /* Number of decimal digits, clamped without narrowing to int first */
+  int dec= (int) dec_arg.to_uint(FORMAT_MAX_DECIMALS);
 
   lc= locale ? locale : args[2]->locale_from_val_str();
 
-  dec= set_zone(dec, 0, FORMAT_MAX_DECIMALS);
   dec_length= dec ? dec+1 : 0;
   null_value=0;
 
