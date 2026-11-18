@@ -2408,7 +2408,7 @@ json_object( 'a', 1, 'b', 'foo' )
 {"a": 1, "b": "foo"}
 select json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') );
 json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') )
-{"a": 1, "b": "foo", "c": { "d": "wibble" }}
+{"a": 1, "b": "foo", "c": {"d":"wibble"}}
 select json_object( 'a', true, 'b', false, 'c', json_compact( 'null') );
 json_object( 'a', true, 'b', false, 'c', json_compact( 'null') )
 {"a": true, "b": false, "c": null}
