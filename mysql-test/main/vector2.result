@@ -728,4 +728,43 @@ flush tables;
 select * from t1 order by vec_distance_euclidean(v, vec_fromtext('[1]')) limit 1;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
 drop table t1, t2;
+#
+# MDEV-41356 Window functions lose the VECTOR type through CTAS
+#
+create table t (id int primary key, g int, v vector(2));
+insert into t values (1,1,vec_fromtext('[1,2]')), (2,1,vec_fromtext('[3,4]')),
+(3,2,vec_fromtext('[1,2]')), (4,2,NULL),
+(5,3,vec_fromtext('[5,6]'));
+create table c_copy as select v from t;
+create table c_min as select min(v) as v from t;
+create table c_max as select max(v) as v from t;
+create table c_sub as select (select v from t where id=1) as v;
+create table c_first as select first_value(v) over (order by id) as v from t;
+create table c_last as select last_value(v) over (order by id) as v from t;
+create table c_nth as select nth_value(v,1) over (order by id) as v from t;
+create table c_lag as select lag(v) over (order by id) as v from t;
+create table c_lead as select lead(v) over (order by id) as v from t;
+create table c_minw as select min(v) over (order by id) as v from t;
+select table_name, column_type from information_schema.columns
+where table_schema=database() and table_name like 'c\_%' order by table_name;
+table_name	column_type
+c_copy	vector(2)
+c_first	vector(2)
+c_lag	vector(2)
+c_last	vector(2)
+c_lead	vector(2)
+c_max	vector(2)
+c_min	vector(2)
+c_minw	vector(2)
+c_nth	vector(2)
+c_sub	vector(2)
+select vec_totext(v) from c_lag;
+vec_totext(v)
+NULL
+[1,2]
+[3,4]
+[1,2]
+NULL
+drop table t, c_copy, c_min, c_max, c_sub, c_first, c_last, c_nth,
+c_lag, c_lead, c_minw;
 # End of 11.8 tests

@@ -42,6 +42,10 @@ public:
                                charset_nr, false);
   }
 
+  const Type_handler *type_handler_for_tmp_table(const Item *) const override
+  {
+    return this;
+  }
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Key_part_spec_init_vector(Key_part_spec *part,
                                  const Column_definition &def) const override;
