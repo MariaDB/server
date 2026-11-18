@@ -1558,7 +1558,7 @@ int main(
 	/* number of pages in file */
 	uint32_t	pages;
 
-	off_t		offset			= 0;
+	my_off_t	offset			= 0;
 	/* count the no. of page corrupted. */
 	unsigned long long   mismatch_count		= 0;
 
@@ -1750,7 +1750,7 @@ int main(
 			}
 		}
 
-		off_t cur_offset = 0;
+		my_off_t cur_offset = 0;
 		/* Find the first non all-zero page and fetch the
 		space id from there. */
 		while (is_page_all_zeroes(buf, physical_page_size)) {
@@ -1788,10 +1788,15 @@ int main(
 				the desired page. */
 				partial_page_read = false;
 
-				offset = off_t(ulonglong(start_page)
-					       * physical_page_size);
-				if (IF_WIN(_fseeki64,fseeko)(fil_in, offset,
-							     SEEK_SET)) {
+				offset = my_off_t(start_page)
+					 * physical_page_size;
+				if (
+#ifdef _WIN32
+                                    _fseeki64(fil_in, (__int64)offset,
+#else
+                                    fseeko(fil_in, (off_t)offset,
+#endif
+					   SEEK_SET)) {
 					perror("Error: Unable to seek to "
 						"necessary offset");
 

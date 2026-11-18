@@ -714,7 +714,7 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
       In this case, we will use the same IO_CACHE pointer to
       read data as the IO thread is using to write data.
     */
-    my_b_seek((rli->cur_log=rli->relay_log.get_log_file()), (off_t)0);
+    my_b_seek((rli->cur_log=rli->relay_log.get_log_file()), 0);
     if (check_binlog_magic(rli->cur_log,errmsg))
       goto err;
     rli->cur_log_old_open_count=rli->relay_log.get_open_count();

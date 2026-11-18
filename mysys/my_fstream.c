@@ -165,7 +165,7 @@ my_off_t my_fseek(FILE *stream, my_off_t pos, int whence,
   DBUG_ENTER("my_fseek");
   DBUG_PRINT("my",("stream:%p  pos: %llu  whence: %d  MyFlags: %lu",
                    stream, (ulonglong) pos, whence, MyFlags));
-  DBUG_RETURN(fseek(stream, (off_t) pos, whence) ?
+  DBUG_RETURN(fseek(stream, (long) pos, whence) ?
 	      MY_FILEPOS_ERROR : (my_off_t) ftell(stream));
 } /* my_seek */
 

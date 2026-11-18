@@ -6594,7 +6594,7 @@ struct NODE_STATE
                             this error code
 */
 static int traverse_role_graph_impl(ACL_USER_BASE *user, void *context,
-       off_t offset,
+       my_ptrdiff_t offset,
        int (*on_node) (ACL_USER_BASE *role, void *context),
        int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
