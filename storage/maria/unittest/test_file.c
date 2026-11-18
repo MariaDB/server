@@ -36,10 +36,10 @@
 */
 
 int test_file(PAGECACHE_FILE file, char *file_name,
-              off_t size, size_t buff_size, struct file_desc *desc)
+              my_off_t size, size_t buff_size, struct file_desc *desc)
 {
   unsigned char *buffr= my_malloc(PSI_NOT_INSTRUMENTED, buff_size, MYF(0));
-  off_t pos= 0;
+  my_off_t pos= 0;
   size_t byte;
   int step= 0;
   int res= 1;                                   /* ok */
@@ -61,7 +61,7 @@ int test_file(PAGECACHE_FILE file, char *file_name,
   }
   li.HighPart= file_attr.nFileSizeHigh;
   li.LowPart=  file_attr.nFileSizeLow;
-  if(li.QuadPart !=  size)
+  if((my_off_t)li.QuadPart !=  size)
   {
     diag("file %s size is %llu (should be %llu)\n",
       file_name, (ulonglong)size, (ulonglong)li.QuadPart);
@@ -76,7 +76,7 @@ int test_file(PAGECACHE_FILE file, char *file_name,
     res= 0;
     goto err;
   }
-  if (stat->st_size != size)
+  if ((my_off_t)stat->st_size != size)
   {
     diag("file %s size is %lu (should be %lu)\n",
          file_name, (ulong) stat->st_size, (ulong) size);

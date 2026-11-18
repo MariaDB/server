@@ -640,7 +640,7 @@ int ha_tina::chain_append()
   else
   {
     /* We set up for the next position */
-    if ((off_t)(chain_ptr - chain) == (chain_size -1))
+    if ((uint32)(chain_ptr - chain) == (chain_size -1))
     {
       my_off_t location= chain_ptr - chain;
       chain_size += DEFAULT_CHAIN_LENGTH;

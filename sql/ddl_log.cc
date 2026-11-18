@@ -1642,7 +1642,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   case DDL_LOG_DROP_TRIGGER_ACTION:
   {
     MY_STAT stat_info;
-    off_t frm_length= 1;                        // Impossible length
+    ulonglong frm_length= 1;                    // Impossible length
     LEX_CSTRING thd_db= thd->db;
 
     /* Delete trigger temporary file if it still exists */
@@ -1662,8 +1662,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       and the file was removed.
      */
     if (my_stat(to_path, &stat_info, MYF(0)))
-      frm_length= (off_t) stat_info.st_size;
-    if (frm_length != (off_t) ddl_log_entry->unique_id &&
+      frm_length= (ulonglong) stat_info.st_size;
+    if (frm_length != ddl_log_entry->unique_id &&
         mysql_bin_log.is_open())
     {
       /*
@@ -3263,7 +3263,7 @@ bool ddl_log_drop_trigger(DDL_LOG_STATE *ddl_state,
   DDL_LOG_ENTRY ddl_log_entry;
   MY_STAT stat_info;
   char path[FN_REFLEN+1];
-  off_t frm_length= 0;
+  ulonglong frm_length= 0;
   size_t max_query_length;
   DBUG_ENTER("ddl_log_drop_trigger");
 
@@ -3271,12 +3271,12 @@ bool ddl_log_drop_trigger(DDL_LOG_STATE *ddl_state,
 
   /* We can use length of frm file as an indication if trigger was removed */
   if (my_stat(path, &stat_info, MYF(MY_WME | ME_WARNING)))
-    frm_length= (off_t) stat_info.st_size;
+    frm_length= (ulonglong) stat_info.st_size;
 
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
 
   ddl_log_entry.action_type=  DDL_LOG_DROP_TRIGGER_ACTION;
-  ddl_log_entry.unique_id=    (ulonglong) frm_length;
+  ddl_log_entry.unique_id=    frm_length;
   ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(table);
   ddl_log_entry.from_name=    *const_cast<LEX_CSTRING*>(trigger_name);

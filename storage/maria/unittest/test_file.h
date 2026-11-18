@@ -28,4 +28,4 @@ struct file_desc
 };
 
 int test_file(PAGECACHE_FILE file, char *file_name,
-              off_t size, size_t buff_size, struct file_desc *desc);
+              my_off_t size, size_t buff_size, struct file_desc *desc);

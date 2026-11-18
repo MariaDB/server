@@ -20,13 +20,6 @@
 #include <errno.h>
 #include <stdio.h>
 
-#ifdef HAVE_FSEEKO
-#undef ftell
-#undef fseek
-#define ftell(A) ftello(A)
-#define fseek(A,B,C) fseeko((A),(B),(C))
-#endif
-
 /*
   Read a chunk of bytes from a FILE
 
@@ -100,7 +93,7 @@ size_t my_fwrite(FILE *stream, const uchar *Buffer, size_t Count, myf MyFlags)
 #if !defined(NO_BACKGROUND) && defined(USE_MY_STREAM)
   errors=0;
 #endif
-  seekptr= ftell(stream);
+  seekptr= my_ftell(stream, MYF(0));
   for (;;)
   {
     size_t written;
@@ -159,14 +152,21 @@ size_t my_fwrite(FILE *stream, const uchar *Buffer, size_t Count, myf MyFlags)
 
 /* Seek to position in file */
 
-my_off_t my_fseek(FILE *stream, my_off_t pos, int whence,
-		  myf MyFlags __attribute__((unused)))
+my_off_t my_fseek(FILE *stream, my_off_t pos, int whence, myf MyFlags)
 {
   DBUG_ENTER("my_fseek");
   DBUG_PRINT("my",("stream:%p  pos: %llu  whence: %d  MyFlags: %lu",
                    stream, (ulonglong) pos, whence, MyFlags));
-  DBUG_RETURN(fseek(stream, (off_t) pos, whence) ?
-	      MY_FILEPOS_ERROR : (my_off_t) ftell(stream));
+#ifdef HAVE_FSEEKO
+  if (fseeko(stream, (off_t) pos, whence))
+#elif defined(_WIN32)
+  if (_fseeki64(stream, (__int64) pos, whence))
+#else
+  if (fseek(stream, (long) pos, whence))
+#endif
+    DBUG_RETURN(MY_FILEPOS_ERROR);
+
+  DBUG_RETURN(my_ftell(stream, MyFlags));
 } /* my_seek */
 
 
@@ -177,7 +177,14 @@ my_off_t my_ftell(FILE *stream, myf MyFlags __attribute__((unused)))
   long long pos;
   DBUG_ENTER("my_ftell");
   DBUG_PRINT("my",("stream:%p  MyFlags: %lu", stream, MyFlags));
-  pos=IF_WIN(_ftelli64(stream),ftell(stream));
+  pos=
+#ifdef HAVE_FSEEKO
+    ftello(stream);
+#elif defined(_WIN32)
+    _ftelli64(stream);
+#else
+    ftell(stream);
+#endif
   DBUG_PRINT("exit",("ftell: %lld",pos));
   DBUG_RETURN((my_off_t) pos);
 } /* my_ftell */

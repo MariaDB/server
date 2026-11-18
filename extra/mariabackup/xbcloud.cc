@@ -1478,7 +1478,7 @@ int swift_upload_parts(swift_auth_info *auth, const char *container,
 }
 
 struct download_buffer_info {
-	off_t offset;
+	ptrdiff_t offset;
 	size_t size;
 	size_t result_len;
 	char *buf;
