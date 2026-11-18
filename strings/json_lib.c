@@ -1686,6 +1686,26 @@ int json_unescape(CHARSET_INFO *json_cs,
   return s.error==JE_EOS ? (int)(res - res_b) : JSON_ERROR_OUT_OF_SPACE;
 }
 
+/*
+  Count the characters of a JSON string constant after unescaping,
+  without copying the result anywhere.
+  Returns 0 on success, 1 if the string is malformed.
+*/
+int json_count_unescaped_chars(CHARSET_INFO *json_cs,
+                               const uchar *json_str, const uchar *json_end,
+                               size_t *count)
+{
+  json_string_t s;
+  size_t n= 0;
+
+  json_string_setup(&s, json_cs, json_str, json_end);
+  while (json_read_string_const_chr(&s) == 0)
+    n++;
+
+  *count= n;
+  return s.error == JE_EOS ? 0 : 1;
+}
+
 
 /* When we need to replace a character with the escaping. */
 enum json_esc_char_classes {
