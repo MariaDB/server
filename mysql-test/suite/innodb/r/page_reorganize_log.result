@@ -1,0 +1,66 @@
+#
+# MDEV-21725 Log page reorganization as the ranges by which records moved
+#
+# A record with no data bytes: its origin is PAGE_HEAP_TOP.
+CREATE TABLE t1(a VARCHAR(10) PRIMARY KEY, b VARCHAR(10), KEY(b))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES('','');
+# The keys are in the reverse order of the heap. add_up() evicts runs.
+CREATE TABLE t2(a INT PRIMARY KEY, b VARCHAR(255)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES
+(12,REPEAT('l',70)),(11,REPEAT('k',10)),(10,REPEAT('j',90)),
+(9,REPEAT('i',30)),(8,REPEAT('h',50)),(7,REPEAT('g',1)),
+(6,REPEAT('f',40)),(5,REPEAT('e',2)),(4,REPEAT('d',60)),
+(3,REPEAT('c',20)),(2,REPEAT('b',80)),(1,REPEAT('a',3));
+# The records of KEY(b) are shorter than MIN_MOVE.
+CREATE TABLE t3(a TINYINT PRIMARY KEY, b TINYINT NOT NULL, KEY(b))
+ENGINE=InnoDB;
+INSERT INTO t3 VALUES(5,5),(6,6),(7,7),(1,1),(2,2),(3,3),(4,4),(9,9),(8,8),
+(10,10);
+SET @save_dbug=@@debug_dbug;
+SET debug_dbug='+d,do_page_reorganize,page_reorganize_log_max_up_2';
+INSERT INTO t1 VALUES('x','x');
+INSERT INTO t2 VALUES(13,'m');
+INSERT INTO t3 VALUES(11,11);
+SET debug_dbug=@save_dbug;
+# Kill the server
+# restart
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+SELECT * FROM t1;
+a	b
+	
+x	x
+SELECT a, LENGTH(b), LEFT(b,1) FROM t2;
+a	LENGTH(b)	LEFT(b,1)
+1	3	a
+2	80	b
+3	20	c
+4	60	d
+5	2	e
+6	40	f
+7	1	g
+8	50	h
+9	30	i
+10	90	j
+11	10	k
+12	70	l
+13	1	m
+SELECT b, a FROM t3 FORCE INDEX(b);
+b	a
+1	1
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+10	10
+11	11
+DROP TABLE t1,t2,t3;
+# End of 12.3 tests

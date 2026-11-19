@@ -158,6 +158,9 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, ulint len, byte val)
   *l++= val;
   m_log.close(l);
   m_last_offset= static_cast<uint16_t>(ofs + len);
+  /* The recovery parser increases its offset by the length of the fill
+  pattern (1 byte), not by len. See mtr_t::memmove(). */
+  m_last_lag= static_cast<uint16_t>(m_last_lag + len - 1);
 }
 
 /** Initialize a string of bytes.
@@ -196,6 +199,9 @@ inline void mtr_t::memset(const buf_block_t &b, ulint ofs, size_t len,
   l+= size;
   m_log.close(l);
   m_last_offset= static_cast<uint16_t>(ofs + len);
+  /* The recovery parser increases its offset by the length of the fill
+  pattern (size bytes), not by len. See mtr_t::memmove(). */
+  m_last_lag= static_cast<uint16_t>(m_last_lag + len - size);
 }
 
 /** Initialize a repeating string of bytes.
@@ -280,6 +286,20 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   set_modified(b);
   if (!is_logged())
     return;
+  /* TODO: Remove this code, the assertion below and mtr_t::m_last_lag
+  when all supported versions parse the offset after a MEMSET or MEMMOVE
+  record correctly.
+  After a MEMSET or MEMMOVE record, the recovery parser continues from the
+  end of the fill pattern or of the source offset. It does not continue
+  from the end of the range that the record writes. Thus the parser
+  calculates the offset of a later same_page record as m_last_lag bytes
+  too low. If the source offset that the parser calculates is then below
+  8, the parser rejects the record. Write this record with its page
+  identifier, because the parser then reads the offset as an absolute
+  value. Older servers and backup tools must recover the log that this
+  server writes. */
+  if (m_last == &b.page && m_last_offset <= d && s < 8U + m_last_lag)
+    m_last= nullptr;
   static_assert(MIN_4BYTE > UNIV_PAGE_SIZE_MAX, "consistency");
   size_t lenlen= (len < MIN_2BYTE ? 1 : len < MIN_3BYTE ? 2 : 3);
   /* The source offset is encoded relative to the destination offset,
@@ -291,11 +311,16 @@ inline void mtr_t::memmove(const buf_block_t &b, ulint d, ulint s, ulint len)
   /* The source offset 0 is not possible. */
   s-= 1 << 1;
   size_t slen= (s < MIN_2BYTE ? 1 : s < MIN_3BYTE ? 2 : 3);
+  /* m_last_lag must not become negative: the offset that the parser
+  calculates must not be above m_last_offset. See the TODO comment
+  above. */
+  ut_ad(len >= slen);
   byte *l= log_write<MEMMOVE>(b.page.id(), &b.page, lenlen + slen, true, d);
   l= mlog_encode_varint(l, len);
   l= mlog_encode_varint(l, s);
   m_log.close(l);
   m_last_offset= static_cast<uint16_t>(d + len);
+  m_last_lag= static_cast<uint16_t>(m_last_lag + len - slen);
 }
 
 /**
@@ -357,6 +382,11 @@ inline byte *mtr_t::log_write(const page_id_t id, const buf_page_t *bpage,
     end= mlog_encode_varint(end, id.page_no());
     m_last= bpage;
   }
+  /* The recovery parser reads the correct offset of a record that has
+  its page identifier. After a record of a type that has no offset, such
+  as EXTENDED or INIT_PAGE, the offset of the parser is also correct. */
+  if (!same_page || !have_offset)
+    m_last_lag= 0;
   if (have_offset)
   {
     byte* oend= mlog_encode_varint(end, offset);

@@ -1286,6 +1286,449 @@ void btr_write_autoinc(trx_t *trx, dict_index_t *index, uint64_t autoinc,
   mtr.commit();
 }
 
+namespace {
+/** A run of adjacent records that moved by the same distance */
+struct btr_reorg_run
+{
+  /** offset of the run in the reorganized page */
+  uint16_t dest;
+  /** offset of the run in the old page */
+  uint16_t src;
+  /** length of the run in bytes */
+  uint16_t len;
+};
+
+static_assert(UNIV_PAGE_SIZE_MAX - 1 <= UINT16_MAX, "compatibility");
+
+/** Logs the payload area of a reorganized index page. It uses MEMMOVE
+for the runs of records that moved, and WRITE for the bytes that still
+differ.
+
+The records of the reorganized page are contiguous and in key order.
+Thus the adjacent records that moved by the same distance form one run,
+and one MEMMOVE can copy this run from the old page. A copied record
+differs from its old bytes only in the fixed header bytes, which
+page_cur_insert_rec_low() changes. These are the REC_N_NEW_EXTRA_BYTES
+or REC_N_OLD_EXTRA_BYTES bytes before the record origin.
+
+Recovery applies the log records in the order in which they are
+written. Thus a MEMMOVE must not change the source of a later
+MEMMOVE. log_moves() writes the MEMMOVE records in an order that
+prevents this.
+@tparam comp  whether the page is not in ROW_FORMAT=REDUNDANT */
+template<bool comp>
+struct btr_reorg_log
+{
+  /** the size of the fixed header of a record */
+  static constexpr ulint HDR=
+    comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES;
+  /** the offset of the "supremum" record */
+  static constexpr ulint SUPREMUM=
+    comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM;
+  /** the start of the payload area, after the "supremum" record */
+  static constexpr ulint START=
+    comp ? PAGE_NEW_SUPREMUM_END : PAGE_OLD_SUPREMUM_END;
+  /** the minimum length of a copy that is logged as MEMMOVE. A same_page
+  MEMMOVE record uses 4 to 9 bytes. For a shorter copy, a MEMMOVE does not
+  use much less log space than a WRITE of its bytes. */
+  static constexpr ulint MIN_MOVE= 8;
+
+private:
+  /** reorganized page */
+  const buf_block_t &m_block;
+  /** frame of the reorganized page */
+  const byte *const m_new_frame;
+  /** frame of the page as it was before the reorganization */
+  const byte *const m_old_frame;
+  /** rec_offs_extra_size() of each record of the page, in key order */
+  const uint16_t *const m_extra;
+  /** the number of records of the page */
+  const ulint m_n_recs;
+  /** PAGE_HEAP_TOP of the reorganized page: the end of the payload area */
+  const ulint m_new_top;
+  /** PAGE_HEAP_TOP of the old page */
+  const ulint m_old_top;
+  /** mini-transaction */
+  mtr_t *const m_mtr;
+
+  /* Bitmaps of the page bytes. This class uses only the words that
+  cover the payload area. */
+  /** the bytes that log_writes() writes */
+  uint64_t *const m_write;
+  /** the bytes of the moved records that no copy writes */
+  uint64_t *const m_not_copied;
+  /** the header bytes of the records that differ from the old record */
+  uint64_t *const m_hdrdiff;
+
+  /** the runs of at least MIN_MOVE bytes that moved up (towards
+  the end of the page), in the rest of the working memory after m_extra */
+  btr_reorg_run *const m_up;
+  /** the maximum number of runs in m_up */
+  const ulint m_max_up;
+  /** the number of runs in m_up */
+  ulint m_n_up= 0;
+  /** whether m_up is a min-heap */
+  bool m_up_is_heap= false;
+#ifdef UNIV_DEBUG
+  /** a copy of the old page. This class applies the log records to it
+  in the same way as recovery does. */
+  byte *const m_replay;
+#endif
+
+public:
+  /** Constructor.
+  @param block  reorganized page
+  @param old    frame of the page as it was before the reorganization
+  @param extra  rec_offs_extra_size() of each record of the page, at
+                srv_page_size * 3 / 8 bytes from work
+  @param work   srv_page_size bytes of working memory
+  @param top    end of the payload area (PAGE_HEAP_TOP)
+  @param mtr    mini-transaction */
+  btr_reorg_log(const buf_block_t &block, const page_t *old,
+                const uint16_t *extra, uint64_t *work, ulint top,
+                mtr_t *mtr) noexcept :
+    m_block(block), m_new_frame(block.page.frame), m_old_frame(old),
+    m_extra(extra), m_n_recs(page_get_n_recs(block.page.frame)),
+    m_new_top(top), m_old_top(page_header_get_offs(old, PAGE_HEAP_TOP)),
+    m_mtr(mtr),
+    m_write(work), m_not_copied(m_write + srv_page_size / 64),
+    m_hdrdiff(m_not_copied + srv_page_size / 64),
+    m_up(reinterpret_cast<btr_reorg_run*>(reinterpret_cast<byte*>(work) +
+                                          srv_page_size / 8 * 3 +
+                                          m_n_recs * sizeof *m_extra)),
+    m_max_up(DBUG_IF("page_reorganize_log_max_up_2")
+             ? 2
+             : (reinterpret_cast<byte*>(work) + srv_page_size -
+                reinterpret_cast<byte*>(m_up)) / sizeof *m_up)
+#ifdef UNIV_DEBUG
+    , m_replay(static_cast<byte*>(ut_malloc_nokey(srv_page_size)))
+#endif
+  {
+    ut_ad(reinterpret_cast<const byte*>(extra) ==
+          reinterpret_cast<byte*>(work) + srv_page_size / 8 * 3);
+    ut_ad(m_max_up);
+    const ulint w_start= START / 64, w_end= (m_new_top + 63) / 64;
+    for (uint64_t *bm : {m_write, m_not_copied, m_hdrdiff})
+      memset(bm + w_start, 0, (w_end - w_start) * sizeof *bm);
+    ut_ad(m_replay);
+    ut_d(memcpy(m_replay, m_old_frame, srv_page_size));
+  }
+
+  ~btr_reorg_log() { ut_d(ut_free(m_replay)); }
+
+#ifdef UNIV_DEBUG
+  /** @return whether the log records reproduce the reorganized page */
+  bool replayed() const noexcept
+  { return !memcmp(m_replay + START, m_new_frame + START, m_new_top - START); }
+#endif
+
+private:
+  /** @return whether bit i of a bitmap is set */
+  static bool bit(const uint64_t *b, ulint i) noexcept
+  { return b[i / 64] >> (i % 64) & 1; }
+  /** Set bit i of a bitmap. */
+  static void set_bit(uint64_t *b, ulint i) noexcept
+  { b[i / 64]|= uint64_t{1} << (i % 64); }
+
+  /** @return the index of the first set bit of a bitmap in [i, n), or n
+  if there is none */
+  static ulint next_set_bit(const uint64_t *b, ulint i, ulint n) noexcept
+  {
+    if (i >= n)
+      return n;
+    ulint w= i / 64;
+    uint64_t x= b[w] & (~uint64_t{0} << (i % 64));
+    for (const ulint last= (n - 1) / 64; !x; x= b[w])
+      if (++w > last)
+        return n;
+    const ulint r= w * 64 + my_find_first_bit(x);
+    ut_ad(r < n);
+    return r;
+  }
+
+  /** Mark the bytes in [dest, dest + len) as not copied, and mark in
+  m_write those that differ from the old page. */
+  void mark_not_copied(ulint dest, ulint len) noexcept
+  {
+    for (ulint p= dest, e= dest + len; p < e; p++)
+    {
+      set_bit(m_not_copied, p);
+      if (m_new_frame[p] != m_old_frame[p])
+        set_bit(m_write, p);
+    }
+  }
+
+  /** Log a MEMMOVE of len bytes from src to dest, or mark the bytes as
+  not copied if len is shorter than MIN_MOVE. */
+  void copy(ulint dest, ulint src, ulint len) noexcept
+  {
+    if (len < MIN_MOVE)
+      mark_not_copied(dest, len);
+    else
+    {
+      m_mtr->memmove(m_block, dest, src, len);
+      ut_d(memmove(m_replay + dest, m_replay + src, len));
+    }
+  }
+
+  /** Add to m_up a run that moved up. When m_up is full, it becomes a
+  min-heap by length. Then this function marks as not copied the shorter
+  of the new run and the shortest run in the heap. */
+  void add_up(ulint dest, ulint src, ulint len) noexcept
+  {
+    /* The order of the min-heap: whether a is evicted after b. The front
+    is the run that is evicted first. This is the shortest run, and of
+    the runs with equal length, the run with the largest dest. */
+    const auto evicted_later= [](const btr_reorg_run &a,
+                                 const btr_reorg_run &b) {
+      return a.len > b.len || (a.len == b.len && a.dest < b.dest);
+    };
+    const btr_reorg_run x{uint16_t(dest), uint16_t(src), uint16_t(len)};
+    if (m_n_up < m_max_up)
+    {
+      m_up[m_n_up++]= x;
+      return;
+    }
+    if (!m_up_is_heap)
+    {
+      std::make_heap(m_up, m_up + m_n_up, evicted_later);
+      m_up_is_heap= true;
+    }
+    /* x.dest is above the dest of every run in the heap. Thus if x.len
+    is equal to the shortest length, x is evicted. */
+    if (x.len <= m_up[0].len)
+      mark_not_copied(x.dest, x.len);
+    else
+    {
+      std::pop_heap(m_up, m_up + m_n_up, evicted_later);
+      mark_not_copied(m_up[m_n_up - 1].dest, m_up[m_n_up - 1].len);
+      m_up[m_n_up - 1]= x;
+      std::push_heap(m_up, m_up + m_n_up, evicted_later);
+    }
+  }
+
+  /** Copy a run that moved down (towards the start of the page). Do not
+  copy the parts of its source that the copy of a run of m_up wrote. Mark
+  these parts as not copied. */
+  void copy_down(ulint dest, ulint src, ulint len) noexcept
+  {
+    /* the number of bytes by which the run moved down */
+    const ulint shift= src - dest, src_end= src + len;
+    btr_reorg_run *const up_end= m_up + m_n_up;
+    /* the first run of m_up whose end is above src */
+    const btr_reorg_run *up= std::upper_bound(
+      m_up, up_end, src, [](ulint offset, const btr_reorg_run &run)
+      { return offset < ulint{run.dest} + run.len; });
+    /* the first source byte that is not copied or marked */
+    ulint next= src;
+    while (up != up_end && up->dest < src_end)
+    {
+      /* [cut_start, cut_end) is the part of the source that the copy of
+      *up wrote */
+      const ulint cut_start= std::max<ulint>(up->dest, next);
+      const ulint cut_end= std::min<ulint>(ulint{up->dest} + up->len, src_end);
+      copy(next - shift, next, cut_start - next);
+      mark_not_copied(cut_start - shift, cut_end - cut_start);
+      next= cut_end;
+      up++;
+    }
+    copy(next - shift, next, src_end - next);
+  }
+
+  /** Handle a run that walk<first>() found. The first walk checks the
+  source. A run that is shorter than MIN_MOVE is marked as not copied.
+  Of the longer runs, the first walk adds to m_up a run that moved
+  towards the end of the page, and the second walk copies a run that
+  moved towards the start of the page.
+  @return false on a corrupted page */
+  template<bool first>
+  bool found_run(ulint dest, ulint src, ulint len) noexcept
+  {
+    if (first)
+    {
+      if (src < START || src + len > m_old_top)
+        return false;
+      if (src < dest)
+      {
+        if (len < MIN_MOVE)
+          mark_not_copied(dest, len);
+        else
+          add_up(dest, src, len);
+      }
+    }
+    else if (src > dest)
+    {
+      if (len < MIN_MOVE)
+        mark_not_copied(dest, len);
+      else
+        copy_down(dest, src, len);
+    }
+    return true;
+  }
+
+  /** Walk the old and new record lists in ascending order of dest. Call
+  found_run<first>() for each run of adjacent records that moved by the
+  same distance.
+  @tparam first  whether this is the first walk, which also marks the
+  header bytes that differ from the old record
+  @return false on a corrupted page */
+  template<bool first>
+  bool walk() noexcept
+  {
+    const rec_t *new_rec=
+      page_rec_next_get<comp>(m_new_frame, page_get_infimum_rec(m_new_frame));
+    const rec_t *old_rec=
+      page_rec_next_get<comp>(m_old_frame, page_get_infimum_rec(m_old_frame));
+    /* the current run: run_dest, and shift = old offset - new offset;
+    shift == 0 while the records did not move */
+    ulint run_dest= 0;
+    ptrdiff_t shift= 0;
+    for (ulint i= 0, prev_ofs= 0;; i++)
+    {
+      if (!new_rec || !old_rec)
+        return false;
+      const ulint new_ofs= ulint(new_rec - m_new_frame);
+      const ulint old_ofs= ulint(old_rec - m_old_frame);
+      /* Both lists must end at the same record. */
+      if (new_ofs == SUPREMUM || old_ofs == SUPREMUM)
+      {
+        if (new_ofs != old_ofs)
+          return false;
+        break;
+      }
+      if (i >= m_n_recs)
+        return false;
+      const ulint extra_size= m_extra[i];
+      const ulint dest= new_ofs - extra_size;
+      /* The first record must start at START. Each record must start at
+      or above the origin of the previous record. Each origin must be
+      at or below m_new_top: a record can have no data bytes. The old
+      record must start at or above START. */
+      if (old_ofs < START + extra_size || new_ofs > m_new_top ||
+          (i ? dest < prev_ofs : dest != START))
+        return false;
+      prev_ofs= new_ofs;
+      if (first)
+        for (ulint p= new_ofs - HDR; p < new_ofs; p++)
+          if (m_new_frame[p] != m_old_frame[p - new_ofs + old_ofs])
+            set_bit(m_hdrdiff, p);
+      const ptrdiff_t rec_shift= ptrdiff_t(old_ofs) - ptrdiff_t(new_ofs);
+      if (rec_shift != shift)
+      {
+        if (shift &&
+            !found_run<first>(run_dest, run_dest + shift, dest - run_dest))
+          return false;
+        run_dest= dest;
+        shift= rec_shift;
+      }
+      new_rec= page_rec_next_get<comp>(m_new_frame, new_rec);
+      old_rec= page_rec_next_get<comp>(m_old_frame, old_rec);
+    }
+    return !shift ||
+      found_run<first>(run_dest, run_dest + shift, m_new_top - run_dest);
+  }
+
+public:
+  /** Log a WRITE of the bytes in [p, p + len). */
+  void write(ulint p, ulint len) noexcept
+  {
+    m_mtr->memcpy(m_block, p, len);
+    ut_d(memcpy(m_replay + p, m_new_frame + p, len));
+  }
+
+  /** Log the MEMMOVE records, and mark in the bitmaps the bytes for
+  log_writes(). The records that did not move are not copied and not
+  marked. Only their header bytes can differ, and m_hdrdiff contains
+  these bytes.
+  @return false on a corrupted page */
+  bool log_moves() noexcept
+  {
+    /* The first walk logs nothing. It marks in m_hdrdiff the header
+    bytes that differ from the old record. It keeps in m_up the runs that
+    moved towards the end of the page. It marks as not copied the runs
+    that are shorter than MIN_MOVE, and the runs that add_up() evicts.
+    To mark a byte as not copied, it sets the bit of the byte in
+    m_not_copied, and in m_write if the byte differs from the old page. */
+    if (!walk<true>())
+      return false;
+    /* If m_up is a heap, sort it in ascending order of dest. Otherwise
+    m_up is already in this order, which is the order of the walk. */
+    if (m_up_is_heap)
+      std::sort(m_up, m_up + m_n_up,
+                [](const btr_reorg_run &a, const btr_reorg_run &b)
+                { return a.dest < b.dest; });
+    /* Log a MEMMOVE for each run of m_up, in descending order of dest. The
+    source of a run is below its dest. Thus it is below the dest of every
+    run copied before it. */
+    for (ulint i= m_n_up; i--; )
+      copy(m_up[i].dest, m_up[i].src, m_up[i].len);
+    /* The second walk logs a MEMMOVE for each run that moved towards the
+    start of the page, in ascending order of dest. The source of a run is
+    above its dest. Thus it is above the dest of every such run copied
+    before it. It marks as not copied the parts of a source that the copy
+    of a run of m_up wrote, and the parts that are shorter than MIN_MOVE. */
+    return walk<false>();
+  }
+
+  /** Log the WRITE records in ascending order of offset. They contain:
+  - the header bytes that differ from the old record, of the records
+  that were copied or did not move
+  - the bytes of the moved records that no copy wrote and that differ
+  from the old page */
+  void log_writes() noexcept
+  {
+    /* Add the changed header bytes of the records that were copied or
+    did not move. A byte that is not copied is already in m_write if it
+    differs from the old page. */
+    for (ulint w= START / 64, w_end= (m_new_top + 63) / 64; w < w_end; w++)
+      m_write[w]|= m_hdrdiff[w] & ~m_not_copied[w];
+    /* Log one WRITE for each range of m_write. Join two ranges if the
+    gap between them is 1 byte or less. A separate WRITE uses at least
+    2 bytes more than its data, for the type and length and the offset. */
+    for (ulint p= next_set_bit(m_write, START, m_new_top);
+         p < m_new_top; )
+    {
+      ulint e= p + 1;
+      while (e < m_new_top &&
+             (bit(m_write, e) ||
+              (e + 1 < m_new_top && bit(m_write, e + 1))))
+        e++;
+      write(p, e - p);
+      p= next_set_bit(m_write, e, m_new_top);
+    }
+  }
+};
+} // anonymous namespace
+
+/** Log the payload area of a reorganized index page; see btr_reorg_log.
+@tparam comp  whether the page is not in ROW_FORMAT=REDUNDANT
+@param block  reorganized page
+@param old    frame of the page as it was before the reorganization
+@param extra  rec_offs_extra_size() of each record of the page, at
+              srv_page_size * 3 / 8 bytes from work
+@param work   srv_page_size bytes of working memory
+@param top    end of the payload area (PAGE_HEAP_TOP)
+@param mtr    mini-transaction */
+template<bool comp>
+static void btr_page_reorganize_log_payload(const buf_block_t &block,
+                                            const page_t *old,
+                                            const uint16_t *extra,
+                                            uint64_t *work,
+                                            ulint top,
+                                            mtr_t *mtr) noexcept
+{
+  btr_reorg_log<comp> payload(block, old, extra, work, top, mtr);
+  if (UNIV_LIKELY(payload.log_moves()))
+    payload.log_writes();
+  else
+  {
+    /* This occurs only for a corrupted page. */
+    ut_ad("corrupted page" == 0);
+    payload.write(payload.START, top - payload.START);
+  }
+  ut_ad(payload.replayed());
+}
+
 /** Reorganize an index page.
 @param cursor      index page cursor
 @param mtr         mini-transaction */
@@ -1318,6 +1761,20 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
 
   const mtr_log_t log_mode= mtr->set_log_mode(MTR_LOG_NO_REDO);
 
+  /* The working memory of btr_page_reorganize_log_payload(): 3 bitmaps
+  of srv_page_size / 8 bytes, then rec_offs_extra_size() of each copied
+  record, then the runs of btr_reorg_log::m_up. A record uses at least
+  REC_N_NEW_EXTRA_BYTES of the page. Thus the rest of the frame has space
+  for the sizes of all records and for at least one run. */
+  buf_tmp_buffer_t *const work_buf=
+    log_mode == MTR_LOG_ALL ? buf_pool.scratch_buf_reserve() : nullptr;
+  uint16_t *const extra= work_buf
+    ? reinterpret_cast<uint16_t*>(work_buf->frame() + srv_page_size / 8 * 3)
+    : nullptr;
+  static_assert(UNIV_PAGE_SIZE_MIN / 8 * 5 >=
+                UNIV_PAGE_SIZE_MIN / REC_N_NEW_EXTRA_BYTES * sizeof *extra +
+                sizeof(btr_reorg_run), "working memory");
+
   page_create(block, mtr, cursor->index->table->not_redundant());
   if (cursor->index->is_spatial())
     block->page.frame[FIL_PAGE_TYPE + 1]= byte(FIL_PAGE_RTREE);
@@ -1330,7 +1787,7 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
 
   dberr_t err=
     page_copy_rec_list_end_no_locks(block, page_get_infimum_rec(opage),
-                                    cursor->index, mtr);
+                                    cursor->index, mtr, extra);
   mtr->set_log_mode(log_mode);
 
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
@@ -1340,6 +1797,8 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
     memcpy_aligned<UNIV_PAGE_SIZE_MIN>(block->page.frame, opage,
                                        srv_page_size);
   func_exit:
+    if (work_buf)
+      work_buf->release();
     tmp_buf->release();
     return err;
   }
@@ -1487,17 +1946,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
                     REC_N_NEW_EXTRA_BYTES - 1));
 
       /* Log the differences in the payload. */
-      for (a= PAGE_NEW_SUPREMUM_END, e= top; a < e; a++)
-      {
-        if (opage[a] == block->page.frame[a])
-          continue;
-        while (--e, opage[e] == block->page.frame[e]);
-        e++;
-        ut_ad(a < e);
-        /* TODO: write MEMMOVE records to minimize this further! */
-        mtr->memcpy(*block, a, e - a);
-        break;
-      }
+      btr_page_reorganize_log_payload<true>
+        (*block, opage, extra,
+         reinterpret_cast<uint64_t*>(work_buf->frame()),
+         top, mtr);
     }
     else
     {
@@ -1527,17 +1979,10 @@ static dberr_t btr_page_reorganize_low(page_cur_t *cursor, mtr_t *mtr)
                     REC_N_OLD_EXTRA_BYTES - 1));
 
       /* Log the differences in the payload. */
-      for (a= PAGE_OLD_SUPREMUM_END, e= top; a < e; a++)
-      {
-        if (opage[a] == block->page.frame[a])
-          continue;
-        while (--e, opage[e] == block->page.frame[e]);
-        e++;
-        ut_ad(a < e);
-        /* TODO: write MEMMOVE records to minimize this further! */
-        mtr->memcpy(*block, a, e - a);
-        break;
-      }
+      btr_page_reorganize_log_payload<false>
+        (*block, opage, extra,
+         reinterpret_cast<uint64_t*>(work_buf->frame()),
+         top, mtr);
     }
 
     e= srv_page_size - PAGE_DIR;

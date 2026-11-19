@@ -936,7 +936,7 @@ page_create_empty(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull(1,2)));
 
-MY_ATTRIBUTE((nonnull, warn_unused_result))
+MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result))
 /*************************************************************//**
 Differs from page_copy_rec_list_end, because this function does not
 touch the lock table and max trx id on page or compress the page.
@@ -948,7 +948,9 @@ page_copy_rec_list_end_no_locks(
 	buf_block_t*	new_block,	/*!< in: index page to copy to */
 	const rec_t*	rec,		/*!< in: record to copy from onward */
 	dict_index_t*	index,		/*!< in: record descriptor */
-	mtr_t*		mtr);		/*!< in: mtr */
+	mtr_t*		mtr,		/*!< in: mtr */
+	uint16_t*	extra = nullptr);/*!< out: rec_offs_extra_size() of
+					each copied record, or nullptr */
 /*************************************************************//**
 Copies records from page to new_page, from the given record onward,
 including that record. Infimum and supremum records are not copied.
