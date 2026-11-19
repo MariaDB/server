@@ -10768,11 +10768,12 @@ commit_try_norebuild(
 			"PROCEDURE DROP_INDEX_PROC () IS\n"
 			"BEGIN\n"
 			"DELETE FROM SYS_FIELDS WHERE INDEX_ID=:indexid;\n"
-			"DELETE FROM SYS_INDEXES WHERE ID=:indexid;\n"
+			"DELETE FROM SYS_INDEXES WHERE ID=:indexid AND TABLE_ID=:tableid;\n"
 			"END;\n";
 
 		pars_info_t* info = pars_info_create();
 		pars_info_add_ull_literal(info, "indexid", index->id);
+		pars_info_add_ull_literal(info, "tableid", index->table->id);
 		error = que_eval_sql(info, drop_index, trx);
 
 		if (error == DB_SUCCESS && index->type & DICT_FTS) {
