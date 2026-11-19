@@ -23,3 +23,13 @@ DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Columns CONNECTION='Not important';
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-42324 CONNECTION of a MULTIPLE table is used as a format string
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=ODBC MULTIPLE=1
+  CONNECTION='DSN=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s;DBQ=t1.frm;PWD=%s%s%s%s';
+--disable_result_log ONCE
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+DROP TABLE t1;
