@@ -443,3 +443,63 @@ SELECT c1 FROM t1 WHERE c1 LIKE c1;
 c1
 1
 DROP TABLE t1;
+#
+# MDEV-42279 Wrong result: col LIKE '%literal%' misses matches
+# on single-byte charsets
+#
+SET NAMES latin1;
+SELECT 'abcbadccdccacdcc' LIKE '%dccacdcc%';
+'abcbadccdccacdcc' LIKE '%dccacdcc%'
+1
+SELECT 'abcbadccdccacdcc' LIKE '%DCCACDCC%';
+'abcbadccdccacdcc' LIKE '%DCCACDCC%'
+1
+SELECT 'abcbadccdccacdcc' NOT LIKE '%dccacdcc%';
+'abcbadccdccacdcc' NOT LIKE '%dccacdcc%'
+0
+SELECT 'aaaacceeceebecee' LIKE '%ceebecee%';
+'aaaacceeceebecee' LIKE '%ceebecee%'
+1
+SELECT 'bcabaccaccacadccacbaacc' LIKE '%cacadccac%';
+'bcabaccaccacadccacbaacc' LIKE '%cacadccac%'
+1
+SELECT 'abcbadccdccacdcc' COLLATE latin1_bin LIKE '%dccacdcc%';
+'abcbadccdccacdcc' COLLATE latin1_bin LIKE '%dccacdcc%'
+1
+SELECT _binary'abcbadccdccacdcc' LIKE _binary'%dccacdcc%';
+_binary'abcbadccdccacdcc' LIKE _binary'%dccacdcc%'
+1
+SELECT 'CAAAACCACTATGAGATATCATCTCACACCAGTTAGAATGGCAATCATTAAAAAGTCAGGAAACAACAGGTGCTGGAGAGGATGCGGAGAAATAGGAACAC'
+       LIKE '%ACAGGTGCTGGAGAGGATGCGGAGAAATAGGAACA%' AS mysql_bug_59973;
+mysql_bug_59973
+1
+CREATE TABLE t1 (txt VARCHAR(100)) CHARACTER SET latin1;
+INSERT INTO t1 VALUES ('abcbadccdccacdcc'), ('xxdccacdccxx'),
+('abcbadccdccacdccacdcc'), ('dccacdc');
+SELECT txt FROM t1 WHERE txt LIKE '%dccacdcc%' ORDER BY txt;
+txt
+abcbadccdccacdcc
+abcbadccdccacdccacdcc
+xxdccacdccxx
+SELECT txt FROM t1 WHERE txt LIKE '%DCCACDCC%' ORDER BY txt;
+txt
+abcbadccdccacdcc
+abcbadccdccacdccacdcc
+xxdccacdccxx
+SELECT txt FROM t1 WHERE txt COLLATE latin1_bin LIKE '%dccacdcc%' ORDER BY txt;
+txt
+abcbadccdccacdcc
+abcbadccdccacdccacdcc
+xxdccacdccxx
+SELECT txt FROM t1 WHERE txt NOT LIKE '%dccacdcc%' ORDER BY txt;
+txt
+dccacdc
+DROP TABLE t1;
+SET @s= CONCAT('abcbadccdc', _latin1 0xE7, 'acdcc');
+SELECT @s LIKE '%dccacdcc%' AS swedish_ci,
+@s LIKE '%DCCACDCC%' AS swedish_ci_upper,
+@s COLLATE latin1_bin LIKE '%dccacdcc%' AS bin;
+swedish_ci	swedish_ci_upper	bin
+1	1	0
+SET NAMES DEFAULT;
+# End of 10.11 tests
