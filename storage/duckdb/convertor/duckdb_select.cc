@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <exception>
 
 #include <my_global.h>
 #include "my_time.h"
@@ -29,6 +30,33 @@
 #include "tztime.h"
 
 #include "ddl_convertor.h"
+
+static void store_integer_field(Field *field, duckdb::Value &value)
+{
+  const bool is_unsigned= field->is_unsigned();
+  try
+  {
+    if (is_unsigned)
+    {
+      uint64_t v= value.GetValue<uint64_t>();
+      field->store((longlong) v, true);
+    }
+    else
+    {
+      int64_t v= value.GetValue<int64_t>();
+      field->store(v, false);
+    }
+    return;
+  }
+  catch (const duckdb::Exception &)
+  {
+  }
+  catch (const std::exception &)
+  {
+  }
+  auto str= value.ToString();
+  field->store(str.c_str(), str.size(), system_charset_info);
+}
 
 /**
   Store a temporal value, used for temporal type field like DATE, DATETIME,
@@ -57,9 +85,11 @@ static duckdb::string duckdb_value_as_string(const duckdb::Value &value)
   @param value            the value to be stored
   @param thd              the thread handle
 */
-void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
+bool store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
                                         THD *thd)
 {
+  try
+  {
   if (value.IsNull())
   {
     field->set_default();
@@ -121,36 +151,14 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
       field->store(varchar, varchar_len, system_charset_info);
       break;
     }
-    case MYSQL_TYPE_TINY: {
-      int64_t v= value.GetValue<int64_t>();
-      field->store(v, field->is_unsigned());
-      break;
-    }
+    case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_YEAR:
-    case MYSQL_TYPE_SHORT: {
-      int64_t v= value.GetValue<int64_t>();
-      field->store(v, field->is_unsigned());
-      break;
-    }
+    case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_INT24:
-    case MYSQL_TYPE_LONG: {
-      int64_t v= value.GetValue<int64_t>();
-      field->store(v, field->is_unsigned());
+    case MYSQL_TYPE_LONG:
+    case MYSQL_TYPE_LONGLONG:
+      store_integer_field(field, value);
       break;
-    }
-    case MYSQL_TYPE_LONGLONG: {
-      int64_t v;
-      if (field->is_unsigned())
-      {
-        v= value.GetValue<uint64_t>();
-      }
-      else
-      {
-        v= value.GetValue<int64_t>();
-      }
-      field->store(v, field->is_unsigned());
-      break;
-    }
     case MYSQL_TYPE_FLOAT: {
       float v= value.GetValue<float>();
       field->store(v);
@@ -210,5 +218,19 @@ void store_duckdb_field_in_mysql_format(Field *field, duckdb::Value &value,
       DBUG_ASSERT(0);
       break;
     }
+  }
+  return true;
+  }
+  catch (const duckdb::Exception &e)
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR, e.what(),
+             "DuckDB");
+    return false;
+  }
+  catch (const std::exception &e)
+  {
+    my_error(ER_GET_ERRMSG, MYF(0), HA_ERR_INTERNAL_ERROR, e.what(),
+             "DuckDB");
+    return false;
   }
 }
