@@ -8,6 +8,7 @@ SET SESSION wsrep_trx_fragment_unit = 'statements';
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COUNT(*) = 0
 1
+SET SESSION wsrep_sync_wait = 0;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 connection node_1a;

@@ -785,6 +785,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_apply_format(0),
    wsrep_rbr_buf(NULL),
    wsrep_sync_wait_gtid(WSREP_GTID_UNDEFINED),
+   wsrep_trx_locking_read_done(false),
    wsrep_last_written_gtid_seqno(0),
    wsrep_current_gtid_seqno(0),
    wsrep_affected_rows(0),
