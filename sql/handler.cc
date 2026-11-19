@@ -7486,9 +7486,10 @@ static bool long_unique_fields_differ(KEY *keyinfo, const uchar *other)
     Field *field= keypart->field;
     if (field->is_null() || field->is_null(off))
       return true;
-    else if (f_is_blob(keypart->key_type) && keypart->length)
+    else if (keypart->key_part_flag & HA_PART_KEY_SEG)
     {
-      if (field->cmp_prefix(field->ptr, field->ptr + off, keypart->length))
+      if (field->cmp_prefix(field->ptr, field->ptr + off,
+                            keypart->length / field->charset()->mbmaxlen))
         return true;
     }
     else if (field->cmp_offset(off))
