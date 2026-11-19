@@ -419,6 +419,14 @@ public:
   virtual bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                            TABLE_LIST *table_list, bool *need_prelocking)= 0;
   virtual bool handle_end(THD *thd) { return 0; };
+  /*
+    Whether this strategy wants a table's own DEFAULT-sequence
+    dependencies (see add_internal_tables() in sql_base.cc) relinked.
+    True for DML_prelocking_strategy and its LOCK TABLES/multi-UPDATE
+    subclasses; false for ALTER and INSERT DELAYED, whose own
+    Prelocking_strategy subclasses never included this.
+  */
+  virtual bool relinks_internal_tables() const { return false; }
 };
 
 
@@ -440,6 +448,7 @@ public:
                     TABLE_LIST *table_list, bool *need_prelocking) override;
   bool handle_view(THD *thd, Query_tables_list *prelocking_ctx,
                    TABLE_LIST *table_list, bool *need_prelocking) override;
+  bool relinks_internal_tables() const override { return true; }
 };
 
 
