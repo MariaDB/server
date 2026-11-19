@@ -67,7 +67,7 @@ ANALYZE
           "used_key_parts": ["pk"],
           "loops": 1,
           "r_loops": 1,
-          "rows": 16162,
+          "rows": 8081,
           "r_rows": 8001,
           "r_rows_per_worker": REPLACED,
           "r_engine_time_per_worker_ms": REPLACED,
