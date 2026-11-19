@@ -1,0 +1,42 @@
+#
+# MDEV-42352: A waiting predicate lock must not be freed when its SPATIAL INDEX
+# page is merged or discarded
+#
+CREATE TABLE t1(id INT PRIMARY KEY, g GEOMETRY NOT NULL, SPATIAL INDEX(g))
+ENGINE=InnoDB;
+connect  con_c,localhost,root,,;
+BEGIN;
+INSERT INTO t1 SELECT seq,
+ST_GeomFromText(CONCAT('LINESTRING(', CAST(seq % 19 AS SIGNED) - 9, ' -50,',
+CAST(seq % 19 AS SIGNED) - 9, ' 50)'))
+FROM seq_1_to_2000;
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((-10 -10,-10 10,10 10,10 -10,-10 -10))');
+BEGIN;
+SELECT COUNT(*) FROM t1 FORCE INDEX(g) WHERE MBRWithin(g, @w)
+LOCK IN SHARE MODE;
+COUNT(*)
+0
+connect  con_w,localhost,root,,;
+SET innodb_lock_wait_timeout=10;
+BEGIN;
+INSERT INTO t1 VALUES(0, POINT(0, 0));
+connection default;
+connection con_c;
+ROLLBACK;
+disconnect con_c;
+connection con_r;
+COMMIT;
+disconnect con_r;
+connection con_w;
+COMMIT;
+disconnect con_w;
+connection default;
+SELECT id, ST_AsText(g) FROM t1;
+id	ST_AsText(g)
+0	POINT(0 0)
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests
