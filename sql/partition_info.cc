@@ -867,6 +867,7 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
         my_tz_OFFSET0->gmt_sec_to_TIME(&q0, thd->query_start());
         longlong q= pack_time(&q0);
         longlong h= pack_time(&h0);
+        const uint subparts= is_sub_partitioned() ? num_subparts : 1;
         while (h <= q)
         {
           if (date_add_interval(thd, &h0, vers_info->interval.type,
@@ -874,7 +875,12 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
             return true;
           h= pack_time(&h0);
           ++*create_count;
-          if (*create_count == MAX_PARTITIONS - 2)
+          /*
+            The table will have num_parts + *create_count partitions of
+            subparts subpartitions each, which must not exceed
+            MAX_PARTITIONS.
+          */
+          if ((num_parts + *create_count) * subparts > MAX_PARTITIONS)
           {
             my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(ME_WARNING));
             my_error(ER_VERS_HIST_PART_FAILED, MYF(0),
