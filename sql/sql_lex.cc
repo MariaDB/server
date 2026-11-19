@@ -1309,6 +1309,7 @@ void LEX::start(THD *thd_arg)
 
   create_info.lex_start();
   name= null_clex_str;
+  m_pending_charset_anchor= null_clex_str;
   event_parse_data= NULL;
   profile_options= PROFILE_NONE;
   nest_level= 0;
@@ -1342,6 +1343,8 @@ void LEX::start(THD *thd_arg)
 
   table_count_update= 0;
   needs_reprepare= false;
+  m_any_cs_allowed= false;
+  m_sp_cursor_params= false;
 
   has_returning_list= false;
 
@@ -2020,6 +2023,21 @@ int Lex_input_stream::lex_token(YYSTYPE *yylval, THD *thd)
     else
       return left_paren;
     break;
+  case CHARSET:
+    /*
+      Merge "CHARSET OF" into the single token CHARSET_OF_SYM.
+      OF is a non-reserved keyword and can also be a charset name in the
+      grammar, which makes "charset OF ident" ambiguous (LALR(2)).
+    */
+    lookahead_yylval= (YYSTYPE *) thd->alloc(sizeof(YYSTYPE));
+    if (!lookahead_yylval)
+      return CHARSET;
+    token= lex_one_token(lookahead_yylval, thd);
+    add_digest_token(token, lookahead_yylval);
+    if (token == OF_SYM)
+      return CHARSET_OF_SYM;
+    lookahead_token= token;
+    return CHARSET;
   default:
     break;
   }
@@ -5974,6 +5992,10 @@ bool LEX::save_prep_leaf_tables()
   return FALSE;
 }
 
+void LEX::set_pending_charset_anchor(const LEX_CSTRING *name)
+{
+  m_pending_charset_anchor= *name;
+}
 
 bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
@@ -6681,9 +6703,18 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
 bool LEX::sp_param_fill_definition(sp_variable *spvar,
                                    const Lex_field_type_st &def)
 {
-  return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
-    sphead->fill_spvar_definition(thd, last_field, &spvar->name);
+  if (last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM))
+    return true;
+  if (last_field->any_cs && !last_field->type_handler()->can_have_any_cs())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "this data type");
+    return true;
+  }
+  if (sphead->fill_spvar_definition(thd, last_field, &spvar->name))
+    return true;
+  bool rc= sp_apply_charset_anchor(&spvar->field_def);
+  m_pending_charset_anchor= null_clex_str;
+  return rc;
 }
 
 
@@ -6703,6 +6734,7 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
     }
 
     spvar->default_value= default_value;
+    spvar->field_def.default_item_value= default_value;
 
     sp_instr_set_default_param *is= new (thd->mem_root)
                       sp_instr_set_default_param(sphead->instructions(),
@@ -6741,9 +6773,12 @@ bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
 
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
-  return
-    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
-    sphead->fill_field_definition(thd, last_field);
+  if (last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
+     sphead->fill_field_definition(thd, last_field))
+    return true;
+  bool rc= sp_apply_charset_anchor(&sphead->m_return_field_def);
+  m_pending_charset_anchor= null_clex_str;
+  return rc;
 }
 
 
@@ -6786,6 +6821,49 @@ bool LEX::sf_return_fill_definition_type_of(const Qualified_column_ident &ref)
   return false;
 }
 
+/*
+  Apply a pending "CHARACTER SET OF var" / "var%CHARSET" to a definition.
+  Parse-time part only: validate and remember the source variable.
+  The charset itself is copied at call time.
+*/
+bool LEX::sp_apply_charset_anchor(Spvar_definition *def)
+{
+  if (!m_pending_charset_anchor.str)
+    return false;
+
+  const LEX_CSTRING name= m_pending_charset_anchor;
+  sp_variable *src;
+
+  if (!spcont || !(src= spcont->find_variable(&name, false)))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return true;
+  }
+  if (&src->field_def == def)                  // v CHARACTER SET OF v
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name.str);
+    return true;
+  }
+  if (!src->field_def.type_handler()->is_general_purpose_string_type())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET OF", "a non-string variable");
+    return true;
+  }
+
+  const Spvar_definition &src_def= src->field_def;
+  if (src_def.any_cs || src_def.has_charset_anchor())
+  {
+    /*
+      The charset of the source is chosen from the actual argument at call
+      time (ANY_CS, directly or through other anchors). Resolve this one at
+      call time too, see Row_definition_list::resolve_charset_refs().
+     */
+    def->set_charset_anchor(src->offset);
+    sphead->m_flags|= sp_head::HAS_CHARSET_REFS;
+    return false;
+  }
+  return def->type_handler()->adjust_spparam_charset_to(def, src_def.charset);
+}
 
 void LEX::set_stmt_init()
 {
@@ -6944,6 +7022,8 @@ LEX::sp_variable_declarations_copy_type_finalize(THD *thd, int nvars,
       spvar->field_def.set_row_field_definitions(fields);
     }
     spvar->field_def.field_name= spvar->name;
+    if (sp_apply_charset_anchor(&spvar->field_def))
+      return true;
   }
   if (unlikely(sp_variable_declarations_set_default(thd, nvars,
                                                     default_value, expr_str)))

@@ -4137,6 +4137,16 @@ public:
   {
     return false;
   }
+  virtual bool adjust_spparam_charset(Spvar_definition *def, Item *from) const
+  {
+    return false;
+  }
+  virtual bool adjust_spparam_charset_to(Spvar_definition *def,
+                                         CHARSET_INFO *cs) const
+  {
+    return false;
+  }
+  virtual bool can_have_any_cs() const { return false; }
   Type_handler() : m_name(0,0) {}
   virtual ~Type_handler() = default;
   /**
@@ -7282,6 +7292,10 @@ public:
   {
     return true;
   }
+  bool can_have_any_cs() const override { return true; }
+  bool adjust_spparam_charset(Spvar_definition *def, Item *from) const override;
+  bool adjust_spparam_charset_to(Spvar_definition *def,
+                                 CHARSET_INFO *cs) const override;
 };
 
 
@@ -7437,6 +7451,8 @@ public:
                                    const Column_definition_attributes *attr,
                                    uint32 flags) const override;
   bool adjust_spparam_type(Spvar_definition *def, Item *from) const override;
+  bool adjust_spparam_charset_to(Spvar_definition *def,
+                                 CHARSET_INFO *cs) const override;
 };
 
 

@@ -182,7 +182,12 @@ public:
     HAS_COLUMN_TYPE_REFS= 8192,
     /* Set if has FETCH GROUP NEXT ROW instr. Used to ensure that only
        functions with AGGREGATE keyword use the instr. */
-    HAS_AGGREGATE_INSTR= 16384
+    HAS_AGGREGATE_INSTR= 16384,
+    /*
+      Marks routines that have character set references:
+      CHARACTER SET OF var / var%CHARSET. Resolved at call time.
+    */
+    HAS_CHARSET_REFS= 32768
   };
 
   sp_package *m_parent;
