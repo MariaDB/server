@@ -1,0 +1,44 @@
+--source include/have_rocksdb.inc
+
+CREATE TABLE tr(a INT PRIMARY KEY, b CHAR(200)) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1,'r-one'),(2,'r-two'),(3,'r-three');
+SET GLOBAL rocksdb_force_flush_memtable_now=1;
+
+if ($MARIADB_UPGRADE_EXE)
+{
+--exec echo "@cat > %MARIADB_DATADIR%\%1.tar" > $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+
+BACKUP SERVER WITH 2 CONCURRENT 'cat';
+
+INSERT INTO tr VALUES (4,'r-four');
+
+--let $target_directory=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_stream
+--error 0,1
+--rmdir $target_directory
+--mkdir $target_directory
+--exec cat $MARIADB_DATADIR/2.tar >> $MARIADB_DATADIR/1.tar
+
+--exec tar xf $MARIADB_DATADIR/1.tar -C $target_directory
+--file_exists $target_directory/#rocksdb
+
+--let $restart_parameters=--datadir=$target_directory
+--let $restart_noprint=1
+--source include/restart_mysqld.inc
+SELECT * FROM tr;
+DROP TABLE tr;
+
+--remove_file $MARIADB_DATADIR/1.tar
+--remove_file $MARIADB_DATADIR/2.tar
+if ($MARIADB_UPGRADE_EXE)
+{
+--remove_file $MARIADB_DATADIR/mariadb-backup-cat.bat
+}
+
+--echo # restart on the original datadir
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SELECT * FROM tr;
+
+DROP TABLE tr;
+--rmdir $target_directory
