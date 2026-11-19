@@ -13,8 +13,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-${SSL_INCLUDE_DIRS})
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
+INCLUDE_DIRECTORIES(SYSTEM ${SSL_INCLUDE_DIRS})
 ADD_DEFINITIONS(${SSL_DEFINES})
 
 SET(VIO_SOURCES vio.c viosocket.c viossl.c viopipe.c viosslfactories.c)

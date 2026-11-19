@@ -43,10 +43,10 @@ MACRO(MYSQL_ADD_PLUGIN)
 
   # Add common include directories
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-                    ${CMAKE_SOURCE_DIR}/sql
-                    ${PCRE_INCLUDE_DIRS}
-                    ${SSL_INCLUDE_DIRS}
-                    ${ZLIB_INCLUDE_DIRS})
+                    ${CMAKE_SOURCE_DIR}/sql)
+  INCLUDE_DIRECTORIES(SYSTEM ${PCRE_INCLUDE_DIRS}
+                             ${SSL_INCLUDE_DIRS}
+                             ${ZLIB_INCLUDE_DIRS})
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})
