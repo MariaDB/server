@@ -355,38 +355,41 @@ int my_win_close(File fd)
 }
 
 
-size_t my_win_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset)
+ssize_t my_win_pread_low(HANDLE hFile, uchar *buffer, size_t count,
+                         my_off_t offset)
 {
   DWORD         nBytesRead;
-  HANDLE        hFile;
   OVERLAPPED    ov= {0};
   LARGE_INTEGER li;
 
-  if(!Count)
-    return(0);
+  if (!count)
+    return 0;
 #ifdef _WIN64
-  if(Count > UINT_MAX)
-    Count= UINT_MAX;
+  if (count > UINT_MAX)
+    count= UINT_MAX;
 #endif
 
-  hFile=         (HANDLE)my_get_osfhandle(Filedes);
   li.QuadPart=   offset;
   ov.Offset=     li.LowPart;
   ov.OffsetHigh= li.HighPart;
 
-  if(!ReadFile(hFile, Buffer, (DWORD)Count, &nBytesRead, &ov))
+  if (!ReadFile(hFile, buffer, (DWORD) count, &nBytesRead, &ov))
   {
     DWORD lastError= GetLastError();
-    /*
-      ERROR_BROKEN_PIPE is returned when no more data coming
-      through e.g. a command pipe in windows : see MSDN on ReadFile.
-    */
-    if(lastError == ERROR_HANDLE_EOF || lastError == ERROR_BROKEN_PIPE)
-      return(0); /*return 0 at EOF*/
+    if (lastError == ERROR_HANDLE_EOF)
+      return 0;
     my_osmaperr(lastError);
-    return((size_t)-1);
+    return -1;
   }
-  return(nBytesRead);
+
+  return nBytesRead;
+}
+
+
+size_t my_win_pread(File fd, uchar *buffer, size_t count, my_off_t offset)
+{
+  return (size_t)
+    my_win_pread_low(my_get_osfhandle(fd), buffer, count, offset);
 }
 
 
@@ -420,34 +423,39 @@ size_t my_win_read(File Filedes, uchar *Buffer, size_t Count)
 }
 
 
-size_t my_win_pwrite(File Filedes, const uchar *Buffer, size_t Count, 
-                     my_off_t offset)
+ssize_t my_win_pwrite_low(HANDLE hFile, const uchar *buffer,
+                          size_t count, my_off_t offset)
 {
   DWORD         nBytesWritten;
-  HANDLE        hFile;
   OVERLAPPED    ov= {0};
   LARGE_INTEGER li;
 
-  if(!Count)
-    return(0);
+  if (!count)
+    return 0;
 
 #ifdef _WIN64
-  if(Count > UINT_MAX)
-    Count= UINT_MAX;
+  if (count > UINT_MAX)
+    count= UINT_MAX;
 #endif
 
-  hFile=         (HANDLE)my_get_osfhandle(Filedes);
   li.QuadPart=   offset;
   ov.Offset=     li.LowPart;
   ov.OffsetHigh= li.HighPart;
 
-  if(!WriteFile(hFile, Buffer, (DWORD)Count, &nBytesWritten, &ov))
+  if (!WriteFile(hFile, buffer, (DWORD) count, &nBytesWritten, &ov))
   {
     my_osmaperr(GetLastError());
-    return((size_t)-1);
+    return -1;
   }
-  else
-    return(nBytesWritten);
+
+  return nBytesWritten;
+}
+
+size_t my_win_pwrite(File fd, const uchar *buffer, size_t count,
+                     my_off_t offset)
+{
+  return (size_t)
+    my_win_pwrite_low(my_get_osfhandle(fd), buffer, count, offset);
 }
 
 

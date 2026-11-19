@@ -1,0 +1,30 @@
+SET @save_threads= @@GLOBAL.innodb_encryption_threads;
+SET @save_key_age= @@GLOBAL.innodb_encryption_rotate_key_age;
+SET GLOBAL innodb_encryption_threads= 16;
+CREATE PROCEDURE ddl()
+BEGIN
+WHILE TRUE DO
+CREATE OR REPLACE TABLE t1 (a INT) ENGINE=InnoDB ENCRYPTED=NO;
+END WHILE;
+END|
+CREATE PROCEDURE rotate()
+BEGIN
+WHILE TRUE DO
+SET GLOBAL innodb_encryption_rotate_key_age= 2;
+SET GLOBAL innodb_encryption_rotate_key_age= 1;
+END WHILE;
+END|
+connect  con1,localhost,root,,;
+CALL ddl();
+connect  con2,localhost,root,,;
+CALL rotate();
+connection default;
+KILL CONNECTION $con1;
+KILL CONNECTION $con2;
+disconnect con1;
+disconnect con2;
+SET GLOBAL innodb_encryption_rotate_key_age= @save_key_age;
+SET GLOBAL innodb_encryption_threads= @save_threads;
+DROP PROCEDURE ddl;
+DROP PROCEDURE rotate;
+DROP TABLE t1;

@@ -186,10 +186,14 @@ extern File     my_win_open(const char *path, int oflag);
 extern int      my_win_close(File fd);
 extern size_t   my_win_read(File fd, uchar *buffer, size_t  count);
 extern size_t   my_win_write(File fd, const uchar *buffer, size_t count);
-extern size_t   my_win_pread(File fd, uchar *buffer, size_t count, 
+extern size_t   my_win_pread(File fd, uchar *buffer, size_t count,
                              my_off_t offset);
-extern size_t   my_win_pwrite(File fd, const uchar *buffer, size_t count, 
+extern size_t   my_win_pwrite(File fd, const uchar *buffer, size_t count,
                               my_off_t offset);
+extern ssize_t  my_win_pread_low(HANDLE hFile, uchar *buffer, size_t count,
+                                 my_off_t offset);
+extern ssize_t  my_win_pwrite_low(HANDLE hFile, const uchar *buffer,
+                                  size_t count, my_off_t offset);
 extern my_off_t my_win_lseek(File fd, my_off_t pos, int whence);
 extern int      my_win_chsize(File fd,  my_off_t newlength);
 extern FILE*    my_win_fopen(const char *filename, const char *type);

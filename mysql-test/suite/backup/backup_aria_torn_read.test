@@ -1,0 +1,49 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+call mtr.add_suppression("Error 176 reading (data|index) file");
+
+# BACKUP SERVER copies the Aria tables with page checksums before
+# BACKUP_LOCK_COMMIT, while the page cache can write the files.
+# A torn read must be detected by the page checksum and read again.
+CREATE TABLE t1 (a INT PRIMARY KEY, c VARCHAR(255))
+ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO t1 SELECT seq, REPEAT('a', 200) FROM seq_1_to_1000;
+
+# Clean up after a previous failed test, in case we are retrying.
+--error 0,1
+--rmdir $MYSQLTEST_VARDIR/bk
+
+# The table files are copied in worker threads, which do not see
+# SET SESSION debug_dbug.
+SET @save_dbug= @@GLOBAL.debug_dbug;
+
+--echo # A page that is torn once is read again.
+SET GLOBAL debug_dbug='+d,aria_backup_torn_read';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk' 2 CONCURRENT
+SET GLOBAL debug_dbug= @save_dbug;
+
+--echo # A page that is torn on every read makes BACKUP SERVER fail.
+SET GLOBAL debug_dbug='+d,aria_backup_torn_read_always';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /(reading (data|index) file) .* block [0-9]+/\1 FILE/
+--error 176
+--eval BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk2'
+SET GLOBAL debug_dbug= @save_dbug;
+--rmdir $MYSQLTEST_VARDIR/bk2
+
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+CHECK TABLE t1 EXTENDED;
+SELECT COUNT(*), SUM(LENGTH(c)) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+DROP TABLE t1;
+--rmdir $MYSQLTEST_VARDIR/bk

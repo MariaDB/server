@@ -929,8 +929,7 @@ continue_loop:
   @retval FALSE not found
 */
 
-static inline bool
-is_in_ignore_db_dirs_list(const char *directory)
+bool is_in_ignore_db_dirs_list(const char *directory) noexcept
 {
   return ignore_db_dirs_hash.records &&
     NULL != my_hash_search(&ignore_db_dirs_hash, (const uchar *) directory, 
@@ -946,8 +945,7 @@ is_in_ignore_db_dirs_list(const char *directory)
   @retval FALSE not found
 */
 
-bool
-db_name_is_in_ignore_db_dirs_list(const char *directory)
+bool db_name_is_in_ignore_db_dirs_list(const char *directory)
 {
   char buff[FN_REFLEN];
   size_t buff_len;

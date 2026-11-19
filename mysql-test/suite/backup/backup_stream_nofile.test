@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+--source include/linux.inc
+
+--let PIDFILE= query_get_value(SELECT @@pid_file AS p, p, 1)
+--let NOFILE_SAVE= $MYSQLTEST_VARDIR/tmp/mdev14992_a4_nofile.txt
+
+# Reduce the soft RLIMIT_NOFILE to 20 above the current usage
+--perl
+open(F, $ENV{PIDFILE}) or die "pid file: $!";
+my $pid= <F>;
+chomp $pid;
+close F;
+opendir(D, "/proc/$pid/fd") or die "proc: $!";
+my $n= scalar(grep { !/^\./ } readdir(D)) + 20;
+closedir D;
+my $old= qx(prlimit --pid="$pid" --nofile --noheadings --output=SOFT);
+chomp $old;
+open(R, ">$ENV{MYSQLTEST_VARDIR}/tmp/restore_nofile") or die "restore: $!";
+print R "exec prlimit --pid=$pid --nofile=$old:;\n";
+close R;
+system("prlimit", "--pid=$pid", "--nofile=$n:") == 0 or die "prlimit";
+EOF
+
+--error ER_DATA_OUT_OF_RANGE
+BACKUP SERVER WITH 257 CONCURRENT 'cat';
+--error ER_OUT_OF_RESOURCES
+BACKUP SERVER WITH 256 CONCURRENT 'cat';
+
+--source $MYSQLTEST_VARDIR/tmp/restore_nofile
+--remove_file $MYSQLTEST_VARDIR/tmp/restore_nofile
