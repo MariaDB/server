@@ -36,7 +36,7 @@ LAST_VALUE(@last_a:=1,@last_b:=1.0)
 1.0
 select @last_b;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					@last_b	246	83	3	Y	32896	38	63
+def					@last_b	246	83	3	Y	32896	1	63
 @last_b
 1.0
 SELECT LAST_VALUE(@last_a:=1,@last_b:="hello");

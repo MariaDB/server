@@ -708,7 +708,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` bigint(20) DEFAULT NULL,
-  `c2` decimal(65,38) DEFAULT NULL,
+  `c2` decimal(65,1) DEFAULT NULL,
   `c3` longtext DEFAULT NULL,
   `c4` double DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
