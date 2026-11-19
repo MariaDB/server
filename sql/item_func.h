@@ -645,7 +645,8 @@ public:
     }
     String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
-      return Temporal_hybrid(item).to_string(to, item->decimals);
+      return item->check_str(Temporal_hybrid(item).to_string(to,
+                                                             item->decimals));
     }
   };
 
@@ -676,7 +677,7 @@ public:
     }
     String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
-      return Date(item).to_string(to);
+      return item->check_str(Date(item).to_string(to));
     }
   };
 
@@ -702,7 +703,7 @@ public:
     }
     String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
-      return Time(item).to_string(to, item->decimals);
+      return item->check_str(Time(item).to_string(to, item->decimals));
     }
     bool val_native(THD *thd, Item_handled_func *item, Native *to) const override
     {
@@ -732,7 +733,7 @@ public:
     }
     String *val_str_ascii(Item_handled_func *item, String *to) const override
     {
-      return Datetime(item).to_string(to, item->decimals);
+      return item->check_str(Datetime(item).to_string(to, item->decimals));
     }
   };
 
