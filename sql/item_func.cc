@@ -2234,10 +2234,201 @@ public:
 };
 
 
+const Type_handler *
+Func_handler_bit_bin_to_bin::return_type_handler(const Item_handled_func *item)
+                                                 const
+{
+  if (item->max_length > MAX_FIELD_VARCHARLENGTH)
+    return Type_handler::blob_type_handler(item->max_length, nullptr);
+  if (item->max_length > 255)
+    return &type_handler_varchar;
+  return &type_handler_string;
+}
+
+
+/*
+  The result collation is aggregated from the binary string argument.
+  For the shift operators the second argument is the shift count and
+  does not take part in it.
+*/
+
+bool Func_handler_bit_bin_to_bin::fix_length_and_dec(Item_handled_func *item)
+                                                     const
+{
+  item->max_length= item->arguments()[0]->max_length;
+  return item->Type_std_attributes::agg_arg_charsets_for_string_result(
+           item->collation, item->func_name_cstring(),
+           item->arguments(), 1, 1);
+}
+
+
+/*
+  Prepare the string to receive a result of the given length.
+
+  @return the buffer for the result, or NULL on EOM. In the latter case
+          the error is set and the item is set to NULL.
+*/
+
+uchar *Func_handler_bit_bin_to_bin::alloc_result(Item_handled_func *item,
+                                                 String *to, size_t length)
+{
+  DBUG_EXECUTE_IF("bit_func_alloc_fail",
+                  DBUG_SET("+d,simulate_out_of_memory"););
+  if ((item->null_value= to->alloc(length)))
+    return nullptr;
+  to->length(length);
+  to->set_charset(&my_charset_bin);
+  return (uchar *) to->ptr();
+}
+
+
+bool
+Func_handler_bit_op2_bin_to_bin::fix_length_and_dec(Item_handled_func *item)
+                                                    const
+{
+  item->max_length= MY_MAX(item->arguments()[0]->max_length,
+                           item->arguments()[1]->max_length);
+  return item->Type_std_attributes::agg_arg_charsets_for_string_result(
+           item->collation, item->func_name_cstring(),
+           item->arguments(), 2, 1);
+}
+
+
+String *Func_handler_bit_op2_bin_to_bin::val_str(Item_handled_func *item,
+                                                 String *to) const
+{
+  DBUG_ASSERT(item->fixed());
+  DBUG_ASSERT(item->argument_count() == 2);
+  StringBuffer<128> a_buf;
+  String *a= item->arguments()[0]->val_str(&a_buf);
+  if (item->arguments()[0]->null_value)
+  {
+    item->null_value= true;
+    return nullptr;
+  }
+
+  StringBuffer<128> b_buf;
+  String *b= item->arguments()[1]->val_str(&b_buf);
+  if (item->arguments()[1]->null_value)
+  {
+    item->null_value= true;
+    return nullptr;
+  }
+
+  if (a->length() != b->length())
+  {
+    THD *thd= current_thd;
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_INVALID_BITWISE_OPERANDS_SIZE,
+                        ER_THD(thd, ER_INVALID_BITWISE_OPERANDS_SIZE),
+                        (int) a->length(), (int) b->length());
+    item->null_value= true;
+    return nullptr;
+  }
+
+  size_t len= a->length();
+  uchar *out_ptr= alloc_result(item, to, len);
+  if (!out_ptr)
+    return nullptr;
+  combine(out_ptr, (const uchar *) a->ptr(), (const uchar *) b->ptr(), len);
+  return to;
+}
+
+
+class Func_handler_shift_bin_to_bin: public Func_handler_bit_bin_to_bin
+{
+protected:
+  virtual void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                        size_t byte_shift, uint bit_shift) const = 0;
+
+public:
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    Longlong_null shift_count_null= item->arguments()[1]->to_longlong_null();
+    if (shift_count_null.is_null())
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    longlong shift_count_signed= shift_count_null.value();
+    size_t len= a->length();
+    uchar *out_ptr= alloc_result(item, to, len);
+    if (!out_ptr)
+      return nullptr;
+    const uchar *a_ptr= (const uchar *) a->ptr();
+
+    /*
+      Compare in ulonglong before narrowing anything to size_t: on 32-bit
+      systems size_t can not hold every shift count. After this check
+      shift_count < len * 8, so byte_shift < len fits in size_t.
+    */
+    if (shift_count_signed < 0 ||
+        (ulonglong) shift_count_signed >= (ulonglong) len * 8)
+    {
+      memset(out_ptr, 0, len);
+    }
+    else
+    {
+      ulonglong shift_count= (ulonglong) shift_count_signed;
+      size_t byte_shift= (size_t) (shift_count / 8);
+      uint bit_shift= (uint) (shift_count % 8);
+
+      do_shift(out_ptr, a_ptr, len, byte_shift, bit_shift);
+    }
+    return to;
+  }
+};
+
+
+class Func_handler_shift_left_bin_to_bin: public Func_handler_shift_bin_to_bin
+{
+protected:
+  /*
+    out[i]= in[i + byte_shift] << bit_shift |
+            in[i + byte_shift + 1] >> (8 - bit_shift)
+    The last byte_shift bytes become 0.
+  */
+  void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                size_t byte_shift, uint bit_shift) const override
+  {
+    DBUG_ASSERT(byte_shift < len);
+    DBUG_ASSERT(bit_shift < 8);
+    const size_t keep= len - byte_shift;   /* No overflow: byte_shift < len */
+    for (size_t i= 0; i < keep; i++)
+    {
+      const size_t src= i + byte_shift;    /* src < len */
+      uchar val= (uchar) (a_ptr[src] << bit_shift);
+      if (bit_shift && src + 1 < len)
+        val|= (uchar) (a_ptr[src + 1] >> (8 - bit_shift));
+      out_ptr[i]= val;
+    }
+    memset(out_ptr + keep, 0, byte_shift);
+  }
+};
+
+
 bool Item_func_shift_left::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_shift_left_bin_to_bin ha_bin_to_bin;
   static Func_handler_shift_left_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_left_decimal_to_ulonglong ha_dec_to_ull;
+
+  if (is_binary_string_bitwise_arg(args[0]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -2268,10 +2459,44 @@ public:
 };
 
 
+class Func_handler_shift_right_bin_to_bin: public Func_handler_shift_bin_to_bin
+{
+protected:
+  /*
+    out[i]= in[i - byte_shift] >> bit_shift |
+            in[i - byte_shift - 1] << (8 - bit_shift)
+    The first byte_shift bytes become 0.
+  */
+  void do_shift(uchar *out_ptr, const uchar *a_ptr, size_t len,
+                size_t byte_shift, uint bit_shift) const override
+  {
+    DBUG_ASSERT(byte_shift < len);
+    DBUG_ASSERT(bit_shift < 8);
+    memset(out_ptr, 0, byte_shift);
+    for (size_t i= byte_shift; i < len; i++)
+    {
+      const size_t src= i - byte_shift;    /* No underflow: i >= byte_shift */
+      uchar val= (uchar) (a_ptr[src] >> bit_shift);
+      if (bit_shift && src > 0)
+        val|= (uchar) (a_ptr[src - 1] << (8 - bit_shift));
+      out_ptr[i]= val;
+    }
+  }
+};
+
+
 bool Item_func_shift_right::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_shift_right_bin_to_bin ha_bin_to_bin;
   static Func_handler_shift_right_int_to_ulonglong ha_int_to_ull;
   static Func_handler_shift_right_decimal_to_ulonglong ha_dec_to_ull;
+
+  if (is_binary_string_bitwise_arg(args[0]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -2300,10 +2525,45 @@ public:
 };
 
 
+class Func_handler_bit_neg_bin_to_bin: public Func_handler_bit_bin_to_bin
+{
+public:
+  String *val_str(Item_handled_func *item, String *to) const override
+  {
+    DBUG_ASSERT(item->fixed());
+    StringBuffer<128> a_buf;
+    String *a= item->arguments()[0]->val_str(&a_buf);
+    if (item->arguments()[0]->null_value)
+    {
+      item->null_value= true;
+      return nullptr;
+    }
+
+    size_t len= a->length();
+    uchar *out_ptr= alloc_result(item, to, len);
+    if (!out_ptr)
+      return nullptr;
+    const uchar *a_ptr= (const uchar *) a->ptr();
+    for (size_t i= 0; i < len; ++i)
+      out_ptr[i]= ~a_ptr[i];
+    return to;
+  }
+};
+
+
 bool Item_func_bit_neg::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_neg_bin_to_bin ha_bin_to_bin;
   static Func_handler_bit_neg_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_neg_decimal_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 1);
+  if (is_binary_string_bitwise_arg(args[0]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op1_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -6633,10 +6893,32 @@ public:
 };
 
 
+class Func_handler_bit_xor_bin_to_bin: public Func_handler_bit_op2_bin_to_bin
+{
+protected:
+  void combine(uchar *out, const uchar *a, const uchar *b,
+               size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      out[i]= a[i] ^ b[i];
+  }
+};
+
+
 bool Item_func_bit_xor::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_xor_bin_to_bin ha_bin_to_bin;
   static const Func_handler_bit_xor_int_to_ulonglong ha_int_to_ull;
   static const Func_handler_bit_xor_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  if (is_binary_string_bitwise_arg(args[0]) &&
+      is_binary_string_bitwise_arg(args[1]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 

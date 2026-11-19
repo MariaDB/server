@@ -1,0 +1,34 @@
+#
+# MDEV-10526: Binary string support for bitwise operators & aggregate functions
+#
+# Out of memory when allocating the result of an operator
+CREATE TABLE t1 (a VARBINARY(1000), b VARBINARY(1000));
+INSERT INTO t1 VALUES (REPEAT('a', 1000), REPEAT('b', 1000));
+SET STATEMENT debug_dbug= '+d,bit_func_alloc_fail' FOR
+SELECT LENGTH(a & b) FROM t1;
+ERROR HY000: Out of memory (Needed 1008 bytes)
+SET STATEMENT debug_dbug= '+d,bit_func_alloc_fail' FOR
+SELECT LENGTH(a << 1) FROM t1;
+ERROR HY000: Out of memory (Needed 1008 bytes)
+SET STATEMENT debug_dbug= '+d,bit_func_alloc_fail' FOR
+SELECT LENGTH(~a) FROM t1;
+ERROR HY000: Out of memory (Needed 1008 bytes)
+SELECT LENGTH(a | b), LENGTH(a >> 1), LENGTH(~a) FROM t1;
+LENGTH(a | b)	LENGTH(a >> 1)	LENGTH(~a)
+1000	1000	1000
+DROP TABLE t1;
+# Out of memory when allocating the bit counters of a window function
+CREATE TABLE t1 (a VARBINARY(4));
+INSERT INTO t1 VALUES (x'FF00'), (x'00FF');
+SET STATEMENT debug_dbug= '+d,bit_sum_window_alloc_fail' FOR
+SELECT HEX(BIT_OR(a) OVER (ORDER BY a ROWS BETWEEN 1 PRECEDING
+AND CURRENT ROW)) FROM t1;
+ERROR HY000: Out of memory.
+SELECT HEX(BIT_OR(a) OVER ()) FROM t1;
+HEX(BIT_OR(a) OVER ())
+FFFF
+FFFF
+DROP TABLE t1;
+#
+# End of 13.2 tests
+#
