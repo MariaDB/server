@@ -3109,5 +3109,19 @@ from t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-29483 Heap-use-after-free (Binary_string::copy()) with window functions
+--echo #
+create table t1 (c0 text, c1 int);
+insert into t1 values ('a', 1), ('b', 2);
+create table t2 (c0 text);
+insert into t2 values ('b');
+
+--echo # Expected: one row 'b'
+select coalesce(c0, last_value(c0) over (order by c1)) from (select c0, c1 from t1) dt
+where c1 = 0 or c0 in (select c0 from t2);
+
+drop table t1, t2;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #

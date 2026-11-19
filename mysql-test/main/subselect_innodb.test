@@ -715,4 +715,25 @@ drop table t1;
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # MDEV-29483 Heap-use-after-free (Binary_string::copy()) with window functions
+--echo #
+create table t1 (c0 text, c1 int, c2 double) engine innodb;
+insert into t1 values ('8qgjf', 77, null), ('olzb8', null, 71.88);
+
+select
+  coalesce(subq_0.c0,
+    last_value(subq_0.c0) over
+    (partition by subq_0.c1 order by subq_0.c2,subq_0.c0))
+from (select c0, c1, c2 from t1) as subq_0
+where (subq_0.c1 = subq_0.c1) or subq_0.c0 in (
+  select distinct ref_3.c0
+  from (t1 as ref_2 cross join t1 as ref_3));
+
+drop table t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
 SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
