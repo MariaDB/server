@@ -1288,8 +1288,9 @@ static Item *create_func_bool(MY_XPATH *xpath, Item **args, uint nargs)
 
 static Item *create_func_number(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return new (xpath->thd->mem_root)
-    Item_xpath_cast_number(xpath->thd, args[0]);
+  Item *arg= nargs ? args[0] : xpath->context;
+  return arg ? new (xpath->thd->mem_root)
+    Item_xpath_cast_number(xpath->thd, arg) : 0;
 }
 
 
