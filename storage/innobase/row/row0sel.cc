@@ -1226,8 +1226,17 @@ re_scan:
 			cur_block = buf_page_get_gen(
 				btr_pcur_get_block(pcur)->page.id(),
 				btr_pcur_get_block(pcur)->zip_size(),
-				RW_X_LATCH, NULL, BUF_GET, mtr, &err);
+				RW_X_LATCH, NULL, BUF_GET_POSSIBLY_FREED,
+				mtr, &err);
 			if (!cur_block) {
+				/* The page may have been freed after we
+				checked match->valid. rtr_check_discard_page()
+				resets match->valid before the page is freed. */
+				mysql_mutex_lock(&match->rtr_match_mutex);
+				if (!match->valid) {
+					err = DB_RECORD_NOT_FOUND;
+				}
+				mysql_mutex_unlock(&match->rtr_match_mutex);
 				goto func_end;
 			}
 			buf_page_make_young_if_needed(&cur_block->page);
