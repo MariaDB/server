@@ -46,6 +46,10 @@ C_MODE_END
 #include "mysql/service_print_check_msg.h"
 #include "debug.h"
 
+#include <sql_acl.h>
+#include <sql_show.h>
+#include <sql_table.h>
+
 /*
   Note that in future versions, only *transactional* Maria tables can
   rollback, so this flag should be up or down conditionally.
@@ -4433,6 +4437,134 @@ void aria_reset_pagecache_counters()
   struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+static struct st_mysql_information_schema maria_i_s_info =
+{
+  MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION
+};
+
+static int aria_i_s_common_deinit(void*)
+{
+	DBUG_ENTER("aria_i_s_common_deinit");
+
+	/* Do nothing */
+
+	DBUG_RETURN(0);
+}
+
+namespace Show {
+static ST_FIELD_INFO aria_tables_encryption_fields_info[] =
+{
+  Column("TABLE_SCHEMA", Varchar(NAME_CHAR_LEN), NOT_NULL),
+  Column("TABLE_NAME", Varchar(NAME_CHAR_LEN), NOT_NULL),
+  Column("ENCRYPTED", Varchar(3), NOT_NULL),
+  CEnd()
+};
+}
+
+/*****************************************************************//**
+Populate the dynamic INFORMATION_SCHEMA table with encryption status
+for Aria tables. 
+
+This function iterates through the MySQL data directory, locates all
+Aria index files (.MAI), and opens them in read-only mode to inspect
+the table's share structure. It checks the MA_EXTRA_OPTIONS_ENCRYPTED
+flag to determine and report whether each Aria table is encrypted.
+
+@param[in]  thd     Thread handle
+@param[in]  tables  Tables to fill
+@param[in]  cond    Condition item (ignored)
+
+@return 0 on success
+*/
+static int aria_tables_encryption_fill(THD *thd, TABLE_LIST *tables, Item *)
+{
+  TABLE *table = tables->table;
+  Field **fields = table->field;
+  
+  // Require PROCESS privilege to view encryption metadata
+  if (check_global_access(thd, PROCESS_ACL))
+    return 0;
+
+  // Scan the main data directory for database folders
+  MY_DIR *datadir = my_dir(mysql_real_data_home, MYF(MY_WME | MY_WANT_STAT));
+  if (!datadir)
+    return 0;
+
+  for (uint i = 0; i < datadir->number_of_files; i++) {
+    FILEINFO *db_info = datadir->dir_entry + i;
+    
+    // Process only directories (databases), skip "." and ".."
+    if (db_info->mystat && (db_info->mystat->st_mode & S_IFDIR) &&
+        strcmp(db_info->name, ".") != 0 && 
+        strcmp(db_info->name, "..") != 0) {
+      
+      char db_path[FN_REFLEN];
+      char db_name_buf[FN_REFLEN];
+      
+      fn_format(db_path, db_info->name, mysql_real_data_home, "", MYF(MY_UNPACK_FILENAME));
+      filename_to_tablename(db_info->name, db_name_buf, sizeof(db_name_buf));
+      
+      // Scan the database directory for tables
+      MY_DIR *db_dir = my_dir(db_path, MYF(MY_WME | MY_WANT_STAT));
+      if (!db_dir) continue;
+      
+      for (uint j = 0; j < db_dir->number_of_files; j++) {
+        FILEINFO *file_info = db_dir->dir_entry + j;
+        
+        if (file_info->mystat && !(file_info->mystat->st_mode & S_IFDIR)) {
+          const char *name = file_info->name;
+          size_t len = strlen(name);
+          
+          // Check specifically for Aria Index files (.MAI)
+          if (len > 4 && strcasecmp(name + len - 4, ".MAI") == 0) {
+            char full_path[FN_REFLEN];
+            char table_name_buf[FN_REFLEN];
+            char ext_name[FN_REFLEN];
+            
+            // Strip .MAI extension to get the base table name
+            strmake(ext_name, name, len - 4);
+            filename_to_tablename(ext_name, table_name_buf, sizeof(table_name_buf));
+            
+            fn_format(full_path, ext_name, db_path, "", MYF(MY_UNPACK_FILENAME));
+            
+            // Safely open the Aria table to inspect its share structure
+            MARIA_HA *file = maria_open(full_path, O_RDONLY, HA_OPEN_FROM_SQL_LAYER | HA_OPEN_IGNORE_IF_LOCKED, NULL);
+            if (file) {
+              bool encrypted = (file->s->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED) != 0;
+              
+              fields[0]->store(db_name_buf, strlen(db_name_buf), system_charset_info);
+              fields[1]->store(table_name_buf, strlen(table_name_buf), system_charset_info);
+              
+              const char *enc_str = encrypted ? "YES" : "NO";
+              fields[2]->store(enc_str, strlen(enc_str), system_charset_info);
+              
+              schema_table_store_record(thd, table);
+              
+              maria_close(file);
+            }
+          }
+        }
+      }
+      my_dirend(db_dir);
+    }
+  }
+  my_dirend(datadir);
+  return 0;
+}
+
+/*******************************************************************//**
+Bind the dynamic table INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION
+@return 0 on success */
+static int aria_tables_encryption_init(void *p)
+{
+  ST_SCHEMA_TABLE*	schema;
+	DBUG_ENTER("aria_tables_encryption_init");
+	schema = (ST_SCHEMA_TABLE*) p;
+  schema->fields_info = Show::aria_tables_encryption_fields_info;
+  schema->fill_table = aria_tables_encryption_fill;
+  DBUG_RETURN(0);
+}
+
 maria_declare_plugin(aria)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -4448,5 +4580,41 @@ maria_declare_plugin(aria)
   system_variables,             /* system variables */
   "1.6",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
+},
+{
+  /* the plugin type (a MYSQL_XXX_PLUGIN value) */
+	/* int */
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+
+  /* pointer to type-specific plugin descriptor */
+	/* void* */
+  &maria_i_s_info,
+
+  /* plugin name */
+	/* const char* */
+  "ARIA_TABLES_ENCRYPTION",
+
+  /* plugin author (for SHOW PLUGINS) */
+	/* const char* */
+  "MariaDB Corporation",
+
+  /* general descriptive text (for SHOW PLUGINS) */
+	/* const char* */
+  "Aria tables encryption status",
+
+  /* the plugin license (PLUGIN_LICENSE_XXX) */
+	/* int */
+  PLUGIN_LICENSE_GPL,
+
+  /* the function to invoke when plugin is loaded */
+	/* int (*)(void*); */
+  aria_tables_encryption_init,
+
+  /* the function to invoke when plugin is unloaded */
+	/* int (*)(void*); */
+  aria_i_s_common_deinit,
+
+  0x0100, NULL, NULL, PACKAGE_VERSION,
+  MariaDB_PLUGIN_MATURITY_ALPHA
 }
 maria_declare_plugin_end;
