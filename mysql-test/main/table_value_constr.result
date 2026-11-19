@@ -3277,3 +3277,219 @@ drop table t1,t2;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-35747 Prepared statement with WITH ... AS (VALUES ... ) returns
+#            wrong result
+#
+# The simplest form: a bare VALUES TVC as the prepared statement, no
+# CTE.  The column takes its type from the bound value, so a later
+# EXECUTE with a different type must report that new type.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+?
+1
+execute stmt using @v;
+?
+1
+set @v= 'abc';
+execute stmt using @v;
+?
+abc
+deallocate prepare stmt;
+# CTE whose body is a TVC with a parameter marker and an explicit column.
+prepare stmt from 'with t(id) as (values (?)) select t.id from t';
+set @v= 1;
+execute stmt using @v;
+id
+1
+execute stmt using @v;
+id
+1
+set @v= 'abc';
+execute stmt using @v;
+id
+abc
+deallocate prepare stmt;
+# Multi row VALUES with several parameter markers.
+prepare stmt from 'with t(id) as (values (?), (?)) select t.id from t order by id';
+set @v1= 10, @v2= 20;
+execute stmt using @v1, @v2;
+id
+10
+20
+execute stmt using @v1, @v2;
+id
+10
+20
+set @v1= 'aa', @v2= 'bb';
+execute stmt using @v1, @v2;
+id
+aa
+bb
+deallocate prepare stmt;
+# One row of several columns, so that each column has its own type
+# holder.  The two columns swap types between the executions.
+prepare stmt from 'with t(a,b) as (values (?,?)) select t.a, t.b from t';
+set @v1= 1, @v2= 'abc';
+execute stmt using @v1, @v2;
+a	b
+1	abc
+set @v1= 'xyz', @v2= 2;
+execute stmt using @v1, @v2;
+a	b
+xyz	2
+deallocate prepare stmt;
+# The column type below is computed again on each execution and
+# follows the value bound by that execution, so it reads as an
+# integer, then as NULL, then as an integer again.  Nullability
+# follows the same rule.  The execution that binds NULL reports the
+# column as nullable and the one after it, binding an integer again,
+# does not, so Is_null goes N, Y, N.
+prepare stmt from 'values (?)';
+set @v= 1;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	8	20	1	N	32897	0	63
+?
+1
+set @v= NULL;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	254	0	0	Y	0	0	8
+?
+NULL
+set @v= 2;
+execute stmt using @v;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					?	8	20	1	N	32897	0	63
+?
+2
+deallocate prepare stmt;
+# A failure while collecting the types leaves the SELECT list of
+# Item_type_holder instances unbuilt.  The next call has to build it
+# rather than treat it as already there.
+set @a= _latin1 'a';
+set @b= _latin2 'b';
+create procedure p() values (@a),(@b);
+call p;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (latin2_general_ci,IMPLICIT) for operation 'UNION'
+set @b= _latin1 'b';
+call p;
+@a
+a
+b
+drop procedure p;
+# Values of two collations in a prepared statement.  Every execution
+# produces the same rows.
+prepare stmt from "values (_latin1'x'),(_utf8mb3'y')";
+execute stmt;
+x
+x
+y
+execute stmt;
+x
+x
+y
+execute stmt;
+x
+x
+y
+deallocate prepare stmt;
+# The reported column type does not change between executions.
+prepare stmt from "values (_latin1'x'),(_utf8mb3'y')";
+execute stmt;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					x	253	1	1	N	1	39	8
+x
+x
+y
+execute stmt;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					x	253	1	1	N	1	39	8
+x
+x
+y
+deallocate prepare stmt;
+# The same constructor in a stored procedure.
+create procedure p() values (_latin1'x'),(_utf8mb3'y');
+call p;
+x
+x
+y
+call p;
+x
+x
+y
+call p;
+x
+x
+y
+drop procedure p;
+# A column value and a parameter marker that carries its own
+# collation.  The marker has no type until EXECUTE binds one.
+create table t1 (e varchar(10));
+insert into t1 values ('a');
+prepare stmt from 'with cte as (values ((select e from t1)),(?)) select * from cte';
+set @v= NULL;
+execute stmt using @v;
+(select e from t1)
+a
+NULL
+set @v= _utf8mb3'b';
+execute stmt using @v;
+(select e from t1)
+a
+b
+execute stmt using @v;
+(select e from t1)
+a
+b
+deallocate prepare stmt;
+drop table t1;
+# An IN list that the IN predicate conversion turns into a TVC on the
+# first execution.  The conversion refuses an IN list holding a
+# parameter marker at PREPARE, so the values are user variables, whose
+# types can also change between executions.  The executions bind
+# integers, then a NULL, then decimals, which match no row unless the
+# TVC column keeps the INT type of the first execution.
+set @save_in_predicate_conversion_threshold= @@in_predicate_conversion_threshold;
+set in_predicate_conversion_threshold= 2;
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(4);
+set @v1= 1, @v2= 2, @v3= 3;
+prepare stmt from 'explain extended select a from t1 where a in (@v1,@v2,@v3)';
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	PRIMARY	<derived3>	eq_ref	distinct_key	distinct_key	9	test.t1.a	1	100.00	Using where
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from (values (@`v1`),(@`v2`),(@`v3`)) `tvc_0` join `test`.`t1` where `test`.`t1`.`a` = `tvc_0`.`_col_1`
+deallocate prepare stmt;
+prepare stmt from 'select a from t1 where a in (@v1,@v2,@v3)';
+execute stmt;
+a
+1
+2
+3
+set @v3= NULL;
+execute stmt;
+a
+1
+2
+set @v1= 2.5, @v2= 3.5, @v3= 4.5;
+execute stmt;
+a
+set @v1= 1, @v2= 2, @v3= 3;
+execute stmt;
+a
+1
+2
+3
+deallocate prepare stmt;
+drop table t1;
+set in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
+#
+# End of 10.11 tests
+#
