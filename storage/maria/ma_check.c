@@ -6684,11 +6684,14 @@ static my_bool create_new_data_handle(MARIA_SORT_PARAM *param, File new_file)
   MARIA_SORT_INFO *sort_info= param->sort_info;
   MARIA_HA *info= sort_info->info;
   MARIA_HA *new_info;
+  uint open_flags= HA_OPEN_COPY | HA_OPEN_FOR_REPAIR | HA_OPEN_INTERNAL_TABLE;
   DBUG_ENTER("create_new_data_handle");
 
+  /* Keys are rebuilt using info, which already has the fulltext parsers. */
+  if (info->s->options & HA_OPTION_RELIES_ON_SQL_LAYER)
+    open_flags|= HA_OPEN_FROM_SQL_LAYER;
   if (!(sort_info->new_info= maria_open(info->s->open_file_name.str, O_RDWR,
-                                        HA_OPEN_COPY | HA_OPEN_FOR_REPAIR |
-                                        HA_OPEN_INTERNAL_TABLE, 0)))
+                                        open_flags, 0)))
     DBUG_RETURN(1);
 
   new_info= sort_info->new_info;
@@ -7009,7 +7012,17 @@ my_bool write_log_record_for_repair(const HA_CHECK *param, MARIA_HA *info)
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str=    log_data;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= sizeof(log_data);
 
+    /*
+      Repair has flushed pages and state, including for a quick index rebuild.
+      Recovery cannot replay this repair without the SQL layer, so sync the
+      file contents before logging it. MY_SYNC_DIR only made renames durable.
+    */
+    if ((share->options & HA_OPTION_RELIES_ON_SQL_LAYER) &&
+        _ma_sync_table_files(info))
+      return TRUE;
+
     share->now_transactional= 1;
+    DEBUG_SYNC_C("maria_before_repair_log");
     if (unlikely(translog_write_record(&lsn, LOGREC_REDO_REPAIR_TABLE,
                                        &dummy_transaction_object, info,
                                        (translog_size_t) sizeof(log_data),
@@ -7017,6 +7030,11 @@ my_bool write_log_record_for_repair(const HA_CHECK *param, MARIA_HA *info)
                                        log_array, log_data, NULL) ||
                  translog_flush(lsn)))
       return TRUE;
+    DBUG_EXECUTE_IF("maria_crash_after_repair_log",
+                    {
+                      DBUG_PRINT("maria_crash_after_repair_log", ("now"));
+                      DBUG_SUICIDE();
+                    });
     /*
       The table's existence was made durable earlier (MY_SYNC_DIR passed to
       maria_change_to_newfile()). All pages have been flushed, state too, we
@@ -7029,6 +7047,7 @@ my_bool write_log_record_for_repair(const HA_CHECK *param, MARIA_HA *info)
       The fully correct order would be: sync data and index file, remove crash
       mark and update LSNs then write state and sync index file. But at this
       point state (without crash mark) is already written.
+      SQL-layer tables were synced above; sync again for the updated LSNs.
     */
     if ((!(param->testflag & T_NO_CREATE_RENAME_LSN) &&
          _ma_update_state_lsns(share, lsn, share->state.create_trid, FALSE,

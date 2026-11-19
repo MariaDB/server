@@ -390,9 +390,12 @@ row_merge_fts_doc_add_word_for_parser(
 	fts_token->text->f_n_char = str.f_n_char;
 	memcpy(fts_token->text->f_str, str.f_str, str.f_len);
 
-	/* JAN: TODO: MySQL 5.7 FTS
-	fts_token->position = boolean_info->position;
-	*/
+	/* The plugin API has no token position: use the byte offset
+	of the word, as fts_tokenize_add_word_for_parser() does.
+	row_merge_fts_doc_tokenize() keeps the positions increasing. */
+	fts_token->position = word >= param->doc
+		&& word < param->doc + param->length
+		? ulint(word - param->doc) : 0;
 
 	/* Add token to list */
 	UT_LIST_ADD_LAST(t_ctx->fts_token_list, fts_token);
@@ -509,10 +512,16 @@ row_merge_fts_doc_tokenize(
 		}
 
 		/* Ignore string whose character number is less than
-		"fts_min_token_size" or more than "fts_max_token_size" */
-		if (!fts_check_token(&str, NULL, NULL)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
+		"fts_min_token_size" or more than "fts_max_token_size",
+		and words in the stopword list. The tokens of a parser
+		plugin only have to fit into the index. */
+		if (parser
+		    ? !fts_token_fits(&str)
+		    : !fts_check_token(&str, t_ctx->cached_stopword,
+				       doc->charset)) {
+			if (parser) {
+				UT_LIST_REMOVE(t_ctx->fts_token_list,
+					       fts_token);
 				ut_free(fts_token);
 			} else {
 				t_ctx->processed_len += inc;
@@ -523,20 +532,6 @@ row_merge_fts_doc_tokenize(
 
 		str_buf.copy_casedn(doc->charset,
 			LEX_CSTRING{(const char *) str.f_str, str.f_len});
-
-		/* if "cached_stopword" is defined, ignore words in the
-		stopword list */
-		if (!fts_check_token(&str, t_ctx->cached_stopword,
-				     doc->charset)) {
-			if (parser != NULL) {
-				UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
-				ut_free(fts_token);
-			} else {
-				t_ctx->processed_len += inc;
-			}
-
-			continue;
-		}
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
@@ -623,11 +618,19 @@ row_merge_fts_doc_tokenize(
 		/* The third field is the position.
 		MySQL 5.7 changed the fulltext parser plugin interface
 		by adding MYSQL_FTPARSER_BOOLEAN_INFO::position.
-		Below we assume that the field is always 0. */
+		Without it, row_merge_fts_doc_add_word_for_parser()
+		stores the byte offset of a parser token. */
 		ulint	pos = t_ctx->init_pos;
 		byte		position[4];
 		if (parser == NULL) {
 			pos += t_ctx->processed_len + inc - str.f_len;
+		} else {
+			/* The positions of a document must keep
+			increasing, also across its fields: a token that
+			the parser built elsewhere, or that does not come
+			after the previous one, gets the next position. */
+			pos = std::max(pos + fts_token->position,
+				       t_ctx->next_pos);
 		}
 		len = 4;
 		mach_write_to_4(position, pos);
@@ -652,6 +655,7 @@ row_merge_fts_doc_tokenize(
 		/* Increment the number of tuples */
 		n_tuple[idx]++;
 		if (parser != NULL) {
+			t_ctx->next_pos = pos + 1;
 			UT_LIST_REMOVE(t_ctx->fts_token_list, fts_token);
 			ut_free(fts_token);
 		} else {
@@ -675,8 +679,10 @@ row_merge_fts_doc_tokenize(
 		t_ctx->rows_added[i] += n_tuple[i];
 	}
 
-	if (!buf_full) {
-		/* we pad one byte between text accross two fields */
+	if (!buf_full && doc->text.f_len) {
+		/* We pad one byte between the text of two fields. An empty
+		field adds nothing, as in fts_fetch_doc_from_rec() and
+		fts_query_fetch_document(). */
 		t_ctx->init_pos += doc->text.f_len + 1;
 	}
 
@@ -831,6 +837,7 @@ loop:
 
 		if (doc_item && last_doc_id != doc_item->doc_id) {
 			t_ctx.init_pos = 0;
+			t_ctx.next_pos = 0;
 		}
 	}
 
@@ -891,6 +898,7 @@ loop:
 	if (doc_item != NULL) {
 		if (last_doc_id != doc_item->doc_id) {
 			t_ctx.init_pos = 0;
+			t_ctx.next_pos = 0;
 		}
 
 		retried = 0;
