@@ -1,0 +1,150 @@
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+# Fulltext parser with ROW_FORMAT=PAGE
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+RENAME TABLE t1 TO t2;
+SELECT a FROM t2 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t2;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=COPY;
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+REPAIR TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT)
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+ALTER TABLE t1 ADD FULLTEXT(a) WITH PARSER simple_parser, ALGORITHM=COPY;
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+# Fulltext parser with ROW_FORMAT=DYNAMIC
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+RENAME TABLE t1 TO t2;
+SELECT a FROM t2 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t2;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+ALTER TABLE t1 ADD COLUMN b INT, ALGORITHM=COPY;
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+REPAIR TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT)
+ENGINE=Aria ROW_FORMAT=DYNAMIC TRANSACTIONAL=0;
+INSERT INTO t1 VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+ALTER TABLE t1 ADD FULLTEXT(a) WITH PARSER simple_parser, ALGORITHM=COPY;
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+DROP TABLE t1;
+# Recover committed rows written after the last checkpoint
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES ('abc-def'), ('baseline-two'), ('baseline-three');
+CREATE TABLE t_flush (a INT) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t_flush VALUES (0);
+# restart
+INSERT INTO t1 VALUES ('commit-one'), ('commit-two');
+# restart
+SELECT a FROM t1 ORDER BY a;
+a
+abc-def
+baseline-three
+baseline-two
+commit-one
+commit-two
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('commit-one commit-two') ORDER BY a;
+a
+commit-one
+commit-two
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Roll back row and fulltext key changes without loading the parser
+connect  writer,localhost,root,,test;
+LOCK TABLES t1 WRITE;
+INSERT INTO t1 VALUES ('undo-insert');
+UPDATE t1 SET a = 'undo-update' WHERE a = 'abc-def';
+DELETE FROM t1 WHERE a = 'baseline-two';
+connection default;
+INSERT INTO t_flush VALUES (1);
+# restart
+disconnect writer;
+include/assert_grep.inc [Recovery rolled back the writer transaction]
+include/assert_grep.inc [Recovery did not skip UNDO records]
+SELECT a FROM t1 ORDER BY a;
+a
+abc-def
+baseline-three
+baseline-two
+commit-one
+commit-two
+SELECT a FROM t1
+WHERE MATCH(a) AGAINST('abc-def baseline-two undo-insert undo-update')
+ORDER BY a;
+a
+abc-def
+baseline-two
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+# Recover a completed bulk-insert repair with a parser plugin
+CREATE TABLE t_src (a TEXT) ENGINE=Aria;
+INSERT INTO t_src VALUES ('abc-def'), ('abcd-efgh'), ('other text');
+CREATE TABLE t2 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t2 SELECT a FROM t_src;
+# restart
+SELECT a FROM t2 WHERE MATCH(a) AGAINST('abc-def abcd');
+a
+abc-def
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2, t_src;
+DROP TABLE t1, t_flush;
+UNINSTALL PLUGIN simple_parser;
