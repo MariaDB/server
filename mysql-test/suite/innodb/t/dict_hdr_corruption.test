@@ -1,0 +1,145 @@
+#
+# MDEV-38285, MDEV-38352: In the current implementation corruption
+# of the dictionary header (system tablespace page 7) is irrecoverable.
+# The existing and desired way to handle this is to terminate the server.
+# The test covers two problems related to this:
+#
+# 1) page_intermittent_checksum_mismatch could hit that page by accident
+#    and crash the server. The flag now skips this page. The test creates
+#    scenarios where the checksum would otherwise show a mismatch for it,
+#    and expects the server not to crash.
+#
+# 2) When the page is corrupted or unreadable, the server used to crash
+#    with a segmentation fault (null pointer dereference). It now logs a
+#    meaningful message and terminates. The test simulates this with
+#    dict_hdr_checksum_mismatch, and expects the server to terminate and
+#    the message to be logged.
+#
+# MDEV-41671 will change how the dictionary header works. When that is
+# implemented the page will no longer be read outside of startup, and
+# this test should be removed from the affected branches.
+#
+
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: Failed to read page");
+call mtr.add_suppression("InnoDB: File '.*' is corrupted");
+call mtr.add_suppression("InnoDB: We detected index corruption");
+call mtr.add_suppression("Index for table '(t2|x)' is corrupt");
+call mtr.add_suppression("InnoDB: Unable to read the dictionary header page");
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table");
+call mtr.add_suppression("mariadbd(.exe)? got (signal 6|exception 0x80000003)");
+call mtr.add_suppression("Attempting backtrace");
+--enable_query_log
+
+# The test is run with a small buffer pool (see the .opt file), so that
+# the DICT_HDR page can be evicted. innodb_old_blocks_time=0 makes the scans
+# below promote pages immediately, so that eviction of the DICT_HDR page
+# does not depend on how fast the scans run.
+
+CREATE TABLE big (id INT AUTO_INCREMENT PRIMARY KEY, v VARCHAR(200))
+ENGINE=InnoDB;
+INSERT INTO big (v) SELECT REPEAT('x',200) FROM seq_1_to_60000;
+CREATE TABLE s1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE s2 LIKE s1;
+CREATE TABLE s3 LIKE s1;
+INSERT INTO s1 VALUES (1);
+INSERT INTO s2 VALUES (1);
+INSERT INTO s3 VALUES (1);
+
+--echo #
+--echo # page_intermittent_checksum_mismatch fails the 4th read of a page
+--echo # whose number is nonzero. It must skip the DICT_HDR page (page 7)
+--echo # of the system tablespace, and fail some other page instead.
+--echo #
+
+--echo # Keep s1,s2,s3 in the dictionary cache and warm the DICT_HDR page.
+SELECT * FROM s1;
+SELECT * FROM s2;
+SELECT * FROM s3;
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+DROP TABLE x;
+
+--echo # Evict the DICT_HDR page and other pages from the small buffer pool.
+--disable_result_log
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+--enable_result_log
+
+SET GLOBAL debug_dbug='+d,page_intermittent_checksum_mismatch';
+
+--echo # Reads 1..3 of nonzero pages: the roots of s1, s2, s3.
+SELECT * FROM s1;
+SELECT * FROM s2;
+SELECT * FROM s3;
+
+--echo # The 4th read would be the DICT_HDR page (dict_hdr_get_new_id()).
+--error 0,ER_CANT_CREATE_TABLE
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+SET GLOBAL debug_dbug=DEFAULT;
+--disable_warnings
+DROP TABLE IF EXISTS x;
+--enable_warnings
+
+--echo #
+--echo # dict_hdr_checksum_mismatch simulates corruption of the DICT_HDR
+--echo # page (page 7) of the system tablespace when it is read from disk.
+--echo # The server must terminate with an explanatory message in the error
+--echo # log, instead of crashing on a null pointer dereference.
+--echo #
+
+--echo # Evict the DICT_HDR page from the small buffer pool.
+--disable_result_log
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+SELECT COUNT(*) FROM big;
+--enable_result_log
+
+SET GLOBAL debug_dbug='+d,dict_hdr_checksum_mismatch';
+
+--echo # dict_hdr_get_new_id() must read the DICT_HDR page from disk.
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--error 2013
+CREATE TABLE x (a INT) ENGINE=InnoDB;
+--source include/wait_until_disconnected.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= \[FATAL\] InnoDB: Unable to read the dictionary header page \[page id: space=0, page number=7\] of the system tablespace; the system tablespace is corrupted or unreadable
+--source include/search_pattern_in_file.inc
+
+--echo # Restart with a larger buffer pool, which the flushing scenario below
+--echo # needs for the DICT_HDR page to be evicted and re-read. This also
+--echo # resets the counter of page_intermittent_checksum_mismatch.
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--let $restart_parameters= --innodb-buffer-pool-size=128M
+--source include/start_mysqld.inc
+
+--echo #
+--echo # page_intermittent_checksum_mismatch while pages are being flushed.
+--echo # The tables created above are dropped only at the end: dropping them
+--echo # here would read pages and consume the 4th-read fault injection
+--echo # before the DICT_HDR page is reached.
+--echo #
+
+SET @sd= @@GLOBAL.innodb_lru_scan_depth;
+
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+SET debug_dbug='+d,page_intermittent_checksum_mismatch';
+SET GLOBAL innodb_lru_scan_depth=86400;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+--error 0,ER_NOT_KEYFILE
+INSERT INTO t2 VALUES (1);
+SET debug_dbug='';
+
+--error 0,ER_NOT_KEYFILE
+DROP TABLE t2;
+DROP TABLE t1;
+SET GLOBAL innodb_lru_scan_depth= @sd;
+
+DROP TABLE big, s1, s2, s3;
