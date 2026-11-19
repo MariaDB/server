@@ -35,6 +35,7 @@
 #include "sql_handler.h"                        // mysql_ha_cleanup_no_free
 #include <my_sys.h>
 #include <strfunc.h>                           // strconvert()
+#include "sql_acl.h"                            // Check_global_access
 #include "debug_sync.h"
 #ifdef WITH_WSREP
 #include "wsrep_server_state.h"
@@ -50,7 +51,9 @@ TYPELIB backup_stage_names= CREATE_TYPELIB_FOR(stage_names);
 static MDL_ticket *backup_flush_ticket;
 static File volatile backup_log= -1;
 static int backup_log_error= 0;
+#ifndef DBUG_OFF
 static backup_stages backup_stage;
+#endif
 
 static bool backup_start(THD *thd);
 static bool backup_flush(THD *thd);
@@ -68,13 +71,19 @@ void backup_init()
   backup_flush_ticket= 0;
   backup_log= -1;
   backup_log_error= 0;
+#ifndef DBUG_OFF
   backup_stage= BACKUP_FINISHED;
+#endif
 }
 
 bool run_backup_stage(THD *thd, backup_stages stage)
 {
   backup_stages next_stage;
   DBUG_ENTER("run_backup_stage");
+
+  if (check_global_access(thd, RELOAD_ACL) ||
+      check_global_access(thd, SELECT_ACL))
+    DBUG_RETURN(1);
 
   if (thd->current_backup_stage == BACKUP_FINISHED)
   {
@@ -132,7 +141,9 @@ bool run_backup_stage(THD *thd, backup_stages stage)
     case BACKUP_END:
       res= backup_end(thd);
       break;
+    case BACKUP_PREPARE:
     case BACKUP_FINISHED:
+    case BACKUP_ABORTED:
       DBUG_ASSERT(0);
     }
     if (res)
@@ -141,7 +152,9 @@ bool run_backup_stage(THD *thd, backup_stages stage)
       my_error(ER_BACKUP_STAGE_FAILED, MYF(0), stage_names[(uint) stage]);
       DBUG_RETURN(1);
     }
+#ifndef DBUG_OFF
     backup_stage= next_stage;
+#endif
     next_stage= (backup_stages) ((uint) next_stage + 1);
   } while ((uint) next_stage <= (uint) stage);
 
@@ -175,7 +188,9 @@ static bool backup_start(THD *thd)
 
   /* this will be reset if this stage fails */
   thd->current_backup_stage= BACKUP_START;
+#ifndef DBUG_OFF
   backup_stage= BACKUP_START;
+#endif
 
   /*
     Wait for old backup to finish and block ddl's so that we can start the
@@ -241,6 +256,30 @@ static bool backup_flush(THD *thd)
   DBUG_RETURN(0);
 }
 
+class MDL_ignore_deadlock_handler : public Internal_error_handler
+{
+public:
+  int handled_errors;
+  MDL_ignore_deadlock_handler(): handled_errors(0) {}
+  ~MDL_ignore_deadlock_handler() override = default;
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_LOCK_DEADLOCK)
+    {
+      handled_errors++;
+      return  1;
+    }
+    return 0;
+  }
+};
+
 /**
   backup_block_ddl()
 
@@ -266,6 +305,7 @@ static bool backup_flush(THD *thd)
 
 /* Retry to get inital lock for 0.1 + 0.5 + 2.25 + 11.25 + 56.25 = 70.35 sec */
 #define MAX_RETRY_COUNT 5
+
 
 static bool backup_block_ddl(THD *thd)
 {
@@ -342,23 +382,31 @@ static bool backup_block_ddl(THD *thd)
     ddl statements like
     RENAME TABLE t1 TO t2, t3 TO t3
     and the MDL happens in the middle of it.
- */
+  */
   THD_STAGE_INFO(thd, stage_waiting_for_ddl);
   sleep_time= 100;                              // Start with 0.1 seconds
   for (uint i= 0 ; i <= MAX_RETRY_COUNT ; i++)
   {
-    if (!thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
-                                              MDL_BACKUP_WAIT_DDL,
-                                              thd->variables.lock_wait_timeout))
+    int error;
+    MDL_ignore_deadlock_handler error_handler;
+    thd->push_internal_handler(&error_handler);
+    error= thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
+                                                MDL_BACKUP_WAIT_DDL,
+                                                thd->variables.
+                                                lock_wait_timeout);
+    thd->pop_internal_handler();
+    if (!error)
       break;
-    if (thd->get_stmt_da()->sql_errno() != ER_LOCK_DEADLOCK || thd->killed ||
-        i == MAX_RETRY_COUNT)
+
+    if (thd->is_error() || thd->killed || i == MAX_RETRY_COUNT)
     {
       /*
         Could be a timeout. Downgrade lock to what is was before this function
         was called so that this function can be called again
       */
       backup_flush_ticket->downgrade_lock(MDL_BACKUP_FLUSH);
+      if (!thd->is_error() && ! thd->killed && error_handler.handled_errors)
+        my_error(ER_LOCK_DEADLOCK, MYF(0));
       goto err;
     }
     thd->clear_error();                         // Forget the DEADLOCK error
@@ -458,7 +506,9 @@ bool backup_end(THD *thd)
     // This is needed as we may call backup_end without backup_block_commit
     stop_ddl_logging();
     backup_flush_ticket= 0;
+#ifndef DBUG_OFF
     backup_stage= BACKUP_FINISHED;
+#endif
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP

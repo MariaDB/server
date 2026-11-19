@@ -18,7 +18,7 @@
 # include <malloc.h>
 #endif
 
-inline void *aligned_malloc(size_t size, size_t alignment)
+static inline void *aligned_malloc(size_t size, size_t alignment)
 {
 #ifdef _WIN32
   return _aligned_malloc(size, alignment);
@@ -32,7 +32,7 @@ inline void *aligned_malloc(size_t size, size_t alignment)
 #endif
 }
 
-inline void aligned_free(void *ptr)
+static inline void aligned_free(void *ptr)
 {
   IF_WIN(_aligned_free,free)(ptr);
 }

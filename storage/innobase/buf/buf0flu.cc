@@ -35,6 +35,7 @@ Created 11/11/1995 Heikki Tuuri
 #include "buf0buf.h"
 #include "buf0checksum.h"
 #include "buf0dblwr.h"
+#include "backup_innodb.h"
 #include "srv0start.h"
 #include "page0zip.h"
 #include "fil0fil.h"
@@ -244,7 +245,7 @@ void buf_flush_remove_pages(uint32_t id) noexcept
     {
       const auto s= bpage->state();
       ut_ad(s >= buf_page_t::REMOVE_HASH);
-      ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
+      ut_ad(!buf_page_t::is_read_fixed(s));
       buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
       const page_id_t bpage_id(bpage->id());
@@ -787,7 +788,7 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
   ut_ad((space->is_temporary()) == (space == fil_system.temp_space));
   ut_ad(space->referenced());
 
-  const auto s= state();
+  uint32_t s{state()};
 
   const lsn_t lsn=
     mach_read_from_8(my_assume_aligned<8>
@@ -813,16 +814,40 @@ bool buf_page_t::flush(fil_space_t *space) noexcept
     return false;
   }
 
-  if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+  if (UNIV_UNLIKELY(lsn < space->create_lsn))
   {
     ut_ad(!space->is_temporary());
     ut_ad(!space->is_being_imported());
     goto freed;
   }
 
-  ut_d(const auto f=) zip.fix.fetch_add(WRITE_FIX - UNFIXED);
-  ut_ad(f >= UNFIXED);
-  ut_ad(f < READ_FIX);
+  do
+  {
+    ut_ad(s >= UNFIXED);
+    if (UNIV_UNLIKELY(s >= READ_FIX))
+    {
+      /*
+        A thread must have successfully executed write_fix_try() after
+        fix(), executing between InnoDB_backup::backup_batch_start()
+        and InnoDB_backup::backup_batch_stop().
+      */
+      ut_ad(s > WRITE_FIX);
+      /* Backup skips the temporary tablespace */
+      ut_ad(oldest_modification() > 2);
+      lock.u_unlock(true);
+      return false;
+    }
+  }
+  /*
+    compare_exchange_strong() ensures that the write-fix was set by us
+    and not a concurrent write_fix_try().
+  */
+  while (!zip.fix.compare_exchange_strong(s, s + (WRITE_FIX - UNFIXED),
+                                          std::memory_order_acquire,
+                                          std::memory_order_relaxed));
+
+  ut_ad(s >= UNFIXED);
+  ut_ad(s < READ_FIX);
   ut_ad((space == fil_system.temp_space)
         ? oldest_modification() == 2
         : oldest_modification() > 2);
@@ -1003,6 +1028,14 @@ uint32_t fil_space_t::flush_freed(bool writable) noexcept
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
 
+  /* Note: There is no need to check if another thread is executing
+  between InnoDB_backup::backup_batch_start() and
+  InnoDB_backup::backup_batch_end(), because we are only overwriting
+  freed (garbage) pages. If backup reads a torn page, it will also
+  have copied a corresponding FREE_PAGE record, which would be applied
+  on recovery.  Besides, the freed page should never be reachable from
+  other pages that are part of the snapshot. */
+
   const bool punch_hole= chain.start->punch_hole == 1;
   if (!punch_hole && !srv_immediate_scrub_data_uncompressed)
     return 0;
@@ -1085,7 +1118,7 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
                        (FIL_PAGE_LSN +
                         (bpage->zip.data ? bpage->zip.data : bpage->frame)));
     ut_ad(lsn >= bpage->oldest_modification());
-    if (UNIV_UNLIKELY(lsn < space->get_create_lsn()))
+    if (UNIV_UNLIKELY(lsn < space->create_lsn))
     {
       ut_a(!bpage->flush(space));
       mysql_mutex_unlock(&buf_pool.mutex);
@@ -1104,7 +1137,8 @@ static ulint buf_flush_try_neighbors(fil_space_t *space,
 
   for (ulint id_fold= id.fold(); id < high; ++id, ++id_fold)
   {
-    if (UNIV_UNLIKELY(space->is_stopping_writes()))
+    if (UNIV_UNLIKELY(space->is_stopping_writes() ||
+                      space->backup_page_end()))
     {
       if (bpage)
         bpage->lock.u_unlock(true);
@@ -1216,10 +1250,20 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
 {
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
-  const uint32_t n= space ? space->acquire_low(STOPPING_WRITES) : 0;
+  const uint32_t n= space ? space->acquire_low(0) : 0;
 
   if (n & STOPPING_WRITES)
-    space= nullptr;
+  {
+    mysql_mutex_unlock(&fil_system.mutex);
+    /*
+      Wait for a BACKUP SERVER batch to end, so that we can safely
+      invoke buf_flush_discard_page().
+    */
+    while (space->backup_page_end())
+      std::this_thread::yield();
+    space->release();
+    return nullptr;
+  }
   else if ((n & CLOSING) && !space->prepare_acquired())
     space= nullptr;
 
@@ -1227,15 +1271,18 @@ fil_space_t *fil_space_t::get_for_write(uint32_t id) noexcept
   return space;
 }
 
-/** Start writing out pages for a tablespace.
-@param id   tablespace identifier
-@return tablespace and number of pages written */
-static std::pair<fil_space_t*, uint32_t> buf_flush_space(const uint32_t id)
-  noexcept
+/**
+   Start writing out pages for a tablespace.
+   @param id   tablespace identifier
+   @return tablespace and number of pages written at this point
+*/
+static std::pair<fil_space_t*, uint32_t>
+buf_flush_space(const uint32_t id) noexcept
 {
-  if (fil_space_t *space= fil_space_t::get_for_write(id))
-    return {space, space->flush_freed(true)};
-  return {nullptr, 0};
+  fil_space_t *space= fil_space_t::get_for_write(id);
+  if (!space)
+    return {nullptr, 0};
+  return {space, space->flush_freed(true)};
 }
 
 struct flush_counters_t
@@ -1309,6 +1356,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   page less than 5% of BP. */
   const size_t buf_lru_min_len=
     std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
@@ -1355,11 +1403,12 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
 
     if (state < buf_page_t::READ_FIX && bpage->lock.u_lock_try(true))
     {
-      ut_ad(!bpage->is_io_fixed());
+      ut_ad(!bpage->is_read_fixed()); /* tolerate write_fix_try() */
       switch (bpage->oldest_modification()) {
       case 2:
         /* LRU flushing will always evict pages of the temporary tablespace,
         in buf_page_write_complete(). */
+        ut_ad(!bpage->is_io_fixed());
         ++n->evicted;
         break;
       case 1:
@@ -1373,6 +1422,8 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         /* fall through */
       case 0:
         bpage->lock.u_unlock(true);
+        /* Reload in case write_fix_try() had been undone meanwhile. */
+        state= bpage->state();
         goto evict;
       }
       /* Block is ready for flush. Dispatch an IO request. */
@@ -1386,9 +1437,9 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
           mysql_mutex_unlock(&buf_pool.mutex);
           if (space)
             space->release();
+          last_space_id= space_id;
           auto p= buf_flush_space(space_id);
           space= p.first;
-          last_space_id= space_id;
           if (!space)
           {
             mysql_mutex_lock(&buf_pool.mutex);
@@ -1435,10 +1486,23 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       flush:
         if (UNIV_UNLIKELY(to_withdraw != 0))
           to_withdraw= buf_flush_LRU_to_withdraw(to_withdraw, *bpage);
-        if (bpage->flush(space))
+        const uint32_t page{bpage->id().page_no()};
+        const uint32_t backup_page_end{space->backup_page_end()};
+        if (page < backup_page_end &&
+            page >= backup_page_end - BACKUP_BATCH_SIZE)
+          bpage->lock.u_unlock(true);
+        else if (bpage->flush(space))
+        {
+          /*
+            In case our load of backup_page_end just missed a store in
+            backup_batch_start(), innodb_backup_batch_wait() will wait
+            for bpage->lock.u_unlock() in buf_page_t::write_complete().
+          */
           ++n->flushed;
-        else
-          continue;
+          goto reacquire_mutex;
+        }
+
+        continue;
       }
 
       goto reacquire_mutex;
@@ -1500,6 +1564,7 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
   uint32_t last_space_id= FIL_NULL;
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
 
   /* Start from the end of the list looking for a suitable block to be
   flushed. */
@@ -1544,7 +1609,9 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
       if (!bpage->lock.u_lock_try(true))
         goto skip;
 
-      ut_ad(!bpage->is_io_fixed());
+      /* A fake "write fix" of InnoDB_backup may exist;
+      we will check it in buf_page_t::flush() */
+      ut_ad(!bpage->is_read_fixed());
 
       if (bpage->oldest_modification() == 1)
       {
@@ -1575,9 +1642,9 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
           mysql_mutex_unlock(&buf_pool.mutex);
           if (space)
             space->release();
+          last_space_id= space_id;
           auto p= buf_flush_space(space_id);
           space= p.first;
-          last_space_id= space_id;
           mysql_mutex_lock(&buf_pool.mutex);
           buf_pool.stat.n_pages_written+= p.second;
           mysql_mutex_lock(&buf_pool.flush_list_mutex);
@@ -1601,10 +1668,25 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
           if (neighbors && space->is_rotational())
             count+= buf_flush_try_neighbors(space, page_id, bpage,
                                             neighbors == 1, count, max_n);
-          else if (bpage->flush(space))
-            ++count;
           else
-            continue;
+          {
+            const uint32_t backup_page_end{space->backup_page_end()};
+            if (page_id.page_no() < backup_page_end &&
+                page_id.page_no() >= backup_page_end - BACKUP_BATCH_SIZE)
+            {
+              bpage->lock.u_unlock(true);
+              continue;
+            }
+            else if (bpage->flush(space))
+              /*
+                In case our load of backup_page_end just missed a store in
+                backup_batch_start(), innodb_backup_batch_wait() will wait
+                for bpage->lock.u_unlock() in buf_page_t::write_complete().
+              */
+              ++count;
+            else
+              continue;
+          }
           mysql_mutex_lock(&buf_pool.mutex);
         }
         while (0);
@@ -1696,6 +1778,7 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 @return whether the flush for some pages might not have been initiated */
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
 {
+  const uint32_t BACKUP_BATCH_SIZE{fil_space_t::backup_batch_size()};
   const auto space_id= space->id;
   ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
 
@@ -1753,8 +1836,22 @@ bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed) noexcept
           goto was_freed;
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (bpage->flush(space))
+        const uint32_t page{bpage->id().page_no()};
+        const uint32_t backup_page_end{space->backup_page_end()};
+        if (UNIV_UNLIKELY(page < backup_page_end) &&
+            page >= backup_page_end - BACKUP_BATCH_SIZE)
         {
+          bpage->lock.u_unlock(true);
+          may_have_skipped= true;
+        }
+        else if (bpage->flush(space))
+        {
+          /*
+            In case our load of backup_page_end just missed a store in
+            backup_batch_start(), innodb_backup_batch_wait() will wait
+            until our bpage->lock.u_unlock() will be released in
+            buf_page_t::write_complete().
+          */
           ++n_flush;
           if (!--max_n_flush)
           {
@@ -1880,7 +1977,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
   lsn_t resizing{resize_lsn.load(std::memory_order_relaxed)};
   byte *c= checkpoint_buf;
-  lsn_t archive_header_was_reset{0};
+  lsn_t archive_header_was_reset{0}, old_first_lsn{first_lsn};
 
   if (archive)
   {
@@ -1889,6 +1986,12 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
 #ifdef HAVE_PMEM
     ut_ad(!resize_buf || !checkpoint_buf);
     ut_ad(!resize_buf || resize_log.is_opened());
+    if (c && is_mmap())
+      /*
+        archived_mmap_switch_complete() had been invoked;
+        subtract the capacity() as of the start of that invocation
+      */
+      old_first_lsn-= lseek(resize_log.m_file, 0, SEEK_END) - START_OFFSET;
 #else
     ut_ad(!resize_buf);
 #endif
@@ -1915,8 +2018,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
       else if (c && is_mmap())
       {
       unmap_old_checkpoint:
-        checkpoint_buf= nullptr;
-        my_munmap(c, lseek(resize_log.m_file, 0, SEEK_END));
+        innodb_backup_checkpoint_pmem();
         goto first_checkpoint_in_new_archive;
       }
       else
@@ -1948,8 +2050,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
             checkpoint quickly enough. Automatically adjust
             innodb_log_file_size to a larger size. */
             resize_target= (offset + 4095) & ~off_t{4095};
-            sql_print_warning("InnoDB: Adjusting innodb_log_file_size="
-                              LSN_PF "k", resize_target >> 10);
+            innodb_backup_archive_extend(first_lsn);
             ut_a(os_file_set_size(get_archive_path().c_str(), log.m_file,
                                   resize_target, false));
           }
@@ -2088,6 +2189,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   this->end_lsn= end_lsn;
   if (!archive)
   {
+    archived_checkpoint= checkpoint;
     archived_lsn= end_lsn;
   checkpoint_completed:
     if (resize_log.m_file == log.m_file)
@@ -2102,22 +2204,7 @@ inline lsn_t log_t::write_checkpoint(lsn_t checkpoint, lsn_t end_lsn) noexcept
   else if (archive_header_was_reset)
   {
     ut_ad(resize_log.m_file != log.m_file);
-    /* Make the previous archived log file read-only */
-#ifdef _WIN32
-    resize_log.close();
-    SetFileAttributesA(get_archive_path().c_str(),
-                       FILE_ATTRIBUTE_READONLY | FILE_ATTRIBUTE_ARCHIVE);
-#else
-    struct stat st;
-    if (!fstat(resize_log.m_file, &st))
-      st.st_mode&= 0444;
-    else
-      st.st_mode= 0444;
-    if (fchmod(resize_log.m_file, st.st_mode))
-      my_error(ER_ERROR_ON_CLOSE, MYF(ME_ERROR_LOG),
-               get_archive_path().c_str(), errno);
-    resize_log.close();
-#endif
+    innodb_backup_checkpoint(old_first_lsn);
   }
   else
     goto checkpoint_completed;

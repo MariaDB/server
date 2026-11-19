@@ -7,6 +7,7 @@ binlog_in_engine,^
 versioning,^
 plugins,^
 mariabackup,^
+backup,^
 roles,^
 auth_gssapi,^
 mysql_sha2,^

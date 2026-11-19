@@ -1,0 +1,2 @@
+--aria-pagecache-buffer-size=128k
+--aria-log-file-size=8M
