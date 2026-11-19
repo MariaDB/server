@@ -4457,10 +4457,8 @@ ER_NEW_ABORTING_CONNECTION 08S01
         spa "Abortada conexión %lld a la base de datos: '%-.192s' usuario: '%-.48s' equipo: '%-.64s'%-.64s (%-.64s)"
         swe "Avbröt länken för tråd %lld till db '%-.192s', användare '%-.48s', host '%-.64s'%-.64s (%-.64s)"
         ukr "Перервано з'єднання %lld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s'%-.64s (%-.64s)"
-ER_UNUSED_10
-        eng "You should never see it"
-        geo "ეს ვერასდროს უნდა დაინახოთ"
-        spa "Nunca lo debería vd de ver"
+ER_NONEXISTING_GRANT_ROLE 42000
+        eng "There is no such grant defined for role '%s'"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         chi "Binlog 已关闭, 不能 RESET MASTER"
         eng "Binlog closed, cannot RESET MASTER"
@@ -7391,14 +7389,10 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         ger "Kein DATETIME-Ausdruck angegeben"
         geo "დრო/თარიღის გამოსახულება მითითებული არაა"
         spa "No se ha suministrado expresión datetime"
-ER_UNUSED_2
-        eng "You should never see it"
-        geo "ამას წესით ვერ უნდა ხედავდეთ"
-        spa "No lo debería vd de ver nunca"
-ER_UNUSED_3
-        eng "You should never see it"
-        geo "ამას წესით ვერასდროს უნდა ხედავდეთ"
-        spa "No lo debería vd  de ver nunca"
+ER_NONEXISTING_TABLE_GRANT_ROLE 42000
+        eng "There is no such grant defined for role '%s' on table '%-.192s'"
+ER_NONEXISTING_PROC_GRANT_ROLE 42000
+        eng "There is no such grant defined for role '%s' on routine '%-.192s'"
 ER_EVENT_CANNOT_DELETE
         chi "无法从mysql.event删除该事件"
         eng "Failed to delete the event from mysql.event"
