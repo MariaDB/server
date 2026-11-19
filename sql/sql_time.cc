@@ -1013,6 +1013,9 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     break;
   }
   case INTERVAL_YEAR:
+    /* A larger interval is out of range: check before the signed arithmetic */
+    if (interval.year >= 10000L)
+      goto invalid_date;
     ltime->year+= sign * (long) interval.year;
     if ((ulong) ltime->year >= 10000L)
       goto invalid_date;
@@ -1024,6 +1027,9 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
   case INTERVAL_QUARTER:
   case INTERVAL_MONTH:
   {
+    /* A larger interval is out of range: check before the signed arithmetic */
+    if (interval.year >= 10000L || interval.month >= 120000L)
+      goto invalid_date;
     long period= (ltime->year*12 + sign * (long) interval.year*12 +
 	         ltime->month-1 + sign * (long) interval.month);
     if ((ulong) period >= 120000L)

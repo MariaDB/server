@@ -6457,4 +6457,30 @@ drop table t1;
 DO STR_TO_DATE(1, '%#');
 DO STR_TO_DATE(LOWER('q'), '%@');
 DO STR_TO_DATE(LOWER('.'), '%.');
+#
+# MDEV-41644 date_add_interval(): signed overflow on huge YEAR/MONTH
+#            interval values
+#
+select date_add('2000-01-01', interval 4294967301 year);
+date_add('2000-01-01', interval 4294967301 year)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 18446744073709551615 year);
+date_add('2000-01-01', interval 18446744073709551615 year)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 18446744073709551604 month);
+date_add('2000-01-01', interval 18446744073709551604 month)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 9223372036854775808 month),
+date_add('2000-01-01', interval 768614336404564651 year);
+date_add('2000-01-01', interval 9223372036854775808 month)	date_add('2000-01-01', interval 768614336404564651 year)
+NULL	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+Warning	1441	Datetime function: datetime field overflow
 # End of 10.11 tests
