@@ -143,6 +143,9 @@ override_dh_auto_install:
 	@echo "Running $(MAKE) install DESTDIR=$(TMP) ..."
 	cd $(BUILDDIR) && $(MAKE) install DESTDIR=$(TMP) > /dev/null
 
+	# Keep the historical Debian mysql account defaults.
+	install -D -m 644 debian/mariadb-server.sysusers $(TMP)/usr/lib/sysusers.d/mariadb.conf
+
 	# If mariadb-test package is removed, also remove most of it's files
 	grep --quiet "Package: mariadb-test" debian/control || rm -rf $(TMP)/usr/share/mariadb/mariadb-test
 
