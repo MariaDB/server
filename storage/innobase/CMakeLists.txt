@@ -185,6 +185,8 @@ SET(INNOBASE_SOURCES
 	handler/handler0alter.cc
 	handler/innodb_binlog.cc
 	handler/i_s.cc
+	handler/backup_innodb.h
+	handler/backup_innodb.cc
 	ibuf/ibuf0ibuf.cc
 	include/btr0btr.h
 	include/btr0btr.inl

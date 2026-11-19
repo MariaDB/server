@@ -2,7 +2,7 @@
 # Test privileges for BACKUP STAGES
 #
 set sql_mode="";
-GRANT RELOAD ON *.* TO user1@localhost;
+GRANT RELOAD, SELECT ON *.* TO user1@localhost;
 GRANT CREATE, DROP ON *.* TO user2@localhost;
 connect con1, localhost, user1;
 BACKUP STAGE START;

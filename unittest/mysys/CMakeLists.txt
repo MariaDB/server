@@ -22,6 +22,8 @@ MY_ADD_TESTS(
   dynstring
   lf
   my_atomic
+  my_copy
+  my_dir
   my_getopt
   my_malloc
   my_rdtsc

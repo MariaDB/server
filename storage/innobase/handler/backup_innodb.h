@@ -1,0 +1,84 @@
+/* Copyright (c) 2026, MariaDB plc
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
+
+#pragma once
+#include "log0types.h"
+
+/**
+   Start of a BACKUP SERVER stage,
+   when no innodb_backup_step() or innodb_backup_end() is pending.
+   @param thd     current session
+   @param target  backup target
+   @param stage   BACKUP_PREPARE, ... (not BACKUP_ABORTED)
+   @param sink    worker context
+   @return backup context object to be attached to sink, or nullptr
+   @retval -1     on failure
+*/
+void *innodb_backup_start(THD *thd, const backup_target *target,
+                          backup_stages stage, const backup_sink *sink)
+  noexcept;
+
+/**
+   Process a file that was collected in innodb_backup_start().
+   @param thd     current session
+   @param target  backup target
+   @param stage   last stage on which backup_start() was successfully invoked
+   @param sink    worker context
+   @return number of files remaining, or negative on error
+   @retval 0 on completion
+*/
+int innodb_backup_step(THD *thd, const backup_target *target,
+                       backup_stages stage, const backup_sink *sink) noexcept;
+
+/**
+   Finish a stage, once all calls for the current phase are completed.
+   @param thd     current sesssion
+   @param target  backup target
+   @param stage   last stage on which backup_start() was successfully invoked,
+   or BACKUP_ABORTED or BACKUP_FINISHED
+   @param sink    worker context
+   @return error code
+   @retval 0 on success
+*/
+int innodb_backup_end(THD *thd, const backup_target *target,
+                      backup_stages stage, const backup_sink *sink) noexcept;
+
+/**
+   Complete the first checkpoint in a new archive log file.
+   @param first_lsn  the start LSN of the old archive log file
+*/
+void innodb_backup_checkpoint(lsn_t first_lsn) noexcept;
+
+/** @return whether log-tracking backup is in progress */
+bool innodb_backup_log_tracking() noexcept;
+
+/**
+   Register the creation of log_sys.log.
+   @param lsn       first_lsn of log_sys.log
+   @param file_size size of log_sys.log
+*/
+ATTRIBUTE_COLD
+void innodb_backup_archive_create(lsn_t lsn, lsn_t file_size) noexcept;
+
+/**
+   Notify that log_sys.log was extended to log_sys.resize_target.
+   @param lsn       first_lsn of log_sys.log
+*/
+ATTRIBUTE_COLD void innodb_backup_archive_extend(lsn_t lsn) noexcept;
+
+#ifdef HAVE_PMEM
+/** Complete the first checkpoint in a new memory-mapped archive log file. */
+void innodb_backup_checkpoint_pmem() noexcept;
+#endif
