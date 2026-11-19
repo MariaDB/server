@@ -6,6 +6,7 @@
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
 /*  (C) Copyright to the author Olivier BERTRAND          2000-2018    */
+/*  Copyright (c) 2013, 2026, MariaDB plc.                             */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -228,8 +229,8 @@ PCOL TDBODBC::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 
 /***********************************************************************/
 /*  Extract the filename from connect string and return it.            */
-/*  This used for Multiple(1) tables. Also prepare a connect string    */
-/*  with a place holder to be used by SetFile.                         */
+/*  This used for Multiple(1) tables. Also save the parts of the       */
+/*  connect string around the file name to be used by SetFile.         */
 /***********************************************************************/
 PCSZ TDBODBC::GetFile(PGLOBAL g)
 {
@@ -258,11 +259,12 @@ PCSZ TDBODBC::GetFile(PGLOBAL g)
       memcpy(DBQ, p1, n);
       DBQ[n] = '\0';
 
-      // Make the Format used to re-generate Connect (3 = "%s" + 1)
+      // Save the parts of Connect around the file name as two strings,
+      // prefix and suffix, one after the other (3 = 2 * '\0' + ";")
       MulConn = (char*)PlugSubAlloc(g, NULL, strlen(Connect) - n + 3);
       memcpy(MulConn, Connect, p1 - Connect);
       MulConn[p1 - Connect] = '\0';
-      strcat(strcat(MulConn, "%s"), (p2) ? p2 : ";");
+      strcpy(MulConn + (p1 - Connect) + 1, (p2) ? p2 : ";");
     } // endif p1
 
   } // endif Connect
@@ -276,7 +278,9 @@ PCSZ TDBODBC::GetFile(PGLOBAL g)
 void TDBODBC::SetFile(PGLOBAL g, PCSZ fn)
 {
   if (MulConn) {
-    int n = strlen(MulConn) + strlen(fn) - 1;
+    int n0 = strlen(MulConn);
+    const char *suffix = MulConn + n0 + 1;
+    int n = n0 + strlen(fn) + strlen(suffix) + 1;
 
     if (n > BufSize) {
       // Allocate a buffer larger than needed so the chance
@@ -286,7 +290,7 @@ void TDBODBC::SetFile(PGLOBAL g, PCSZ fn)
     } // endif n
 
     // Make the complete connect string
-    snprintf(Connect, BufSize, MulConn, fn);
+    snprintf(Connect, BufSize, "%s%s%s", MulConn, fn, suffix);
   } // endif MultConn
 
   DBQ = PlugDup(g, fn);

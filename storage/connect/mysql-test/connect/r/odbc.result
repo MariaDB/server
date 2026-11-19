@@ -45,3 +45,10 @@ t1	CREATE TABLE `t1` (
   `Remarks` char(255) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='Not important' `TABLE_TYPE`='ODBC' `CATFUNC`='Columns'
 DROP TABLE t1;
+#
+# MDEV-42324 CONNECTION of a MULTIPLE table is used as a format string
+#
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=ODBC MULTIPLE=1
+CONNECTION='DSN=%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s;DBQ=t1.frm;PWD=%s%s%s%s';
+SELECT * FROM t1;
+DROP TABLE t1;
