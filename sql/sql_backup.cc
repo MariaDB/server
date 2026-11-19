@@ -24,6 +24,7 @@
 #include "my_atomic_wrapper.h"
 #include "tpool.h"
 #include "aligned.h"
+#include "my_dir.h"
 #include <unordered_map>
 
 static bool backup_execute(THD *thd, const char *target, const char *command,
@@ -502,81 +503,27 @@ struct backup_context
   backup_step() must use find(), never operator[], because
   operator[] is not safe for concurrent use. */
   std::unordered_map<const handlerton*,void*> ha_data;
-#ifndef _WIN32
-  /** directory stream */
-  DIR *dir{};
-  /** the readdir(dir) result for which subdir was opened */
-  const struct dirent *d{};
-  /** subdirectory stream, or NULL if iterating to next entry in dir */
-  DIR *subdir{};
-#else
-  /** directory iterator */
-  HANDLE dir{INVALID_HANDLE_VALUE};
-    /** subdirectory iterator, or INVALID_HANDLE_VALUE */
-  HANDLE subdir{INVALID_HANDLE_VALUE};
-#endif
+  /** The data directory */
+  MY_NO_CACHE_DIR *const dir;
+  /** The database directory that we are reading, or NULL */
+  MY_NO_CACHE_DIR *subdir{};
   /** whether the operation failed */
   bool fail{};
-  /** mutex protecting d, subdir, fail */
+  /** mutex protecting d, subdir, fail, db_name */
   std::mutex mutex;
-#ifdef _WIN32
-  /** FindFirstFileA()/FindNextFile() buffer for dir */
-  WIN32_FIND_DATAA d{};
-  /** FindFirstFileA()/FindNextFile() buffer for subdir */
-  WIN32_FIND_DATAA sd{};
-#endif
+  /** name that subdir was opened for */
+  char db_name[FN_REFLEN];
 
-#ifndef _WIN32
-  backup_context()
-  {
-    int dfd= open(mysql_data_home, O_DIRECTORY);
-    if (dfd >= 0)
-    {
-      if (!(dir= fdopendir(dfd)))
-        close(dfd);
-    }
-  }
+  backup_context() :
+    dir(my_dir_open(mysql_data_home, nullptr,
+                    MYF(MY_DIR_ONLY_DIRS | MY_WME | ME_WARNING))) {}
   bool invalid() const noexcept { return !dir; }
   ~backup_context()
   {
     if (dir)
-      closedir(dir);
+      my_dir_close(dir);
     if (subdir)
-      closedir(subdir);
-  }
-#else
-  backup_context() : dir(FindFirstFileA("*.*", &d)) {}
-  bool invalid() const noexcept { return dir == INVALID_HANDLE_VALUE; }
-  ~backup_context()
-  {
-    if (dir != INVALID_HANDLE_VALUE)
-      FindClose(dir);
-    if (subdir != INVALID_HANDLE_VALUE)
-      FindClose(subdir);
-  }
-#endif
-  /**
-     Rewind the directory.
-     @return whether the operation failed
-  */
-  bool rewinddir() noexcept // FIXME: not used yet
-  {
-    assert(!invalid());
-#ifndef _WIN32
-    assert(!d);
-    assert(!subdir);
-    ::rewinddir(dir);
-#else
-    assert(subdir == INVALID_HANDLE_VALUE);
-    FindClose(dir);
-    dir= FindFirstFileA("*.*", &d);
-    if (invalid())
-    {
-      dir_error(mysql_data_home);
-      return true;
-    }
-#endif
-    return false;
+      my_dir_close(subdir);
   }
 
   /**
@@ -624,19 +571,6 @@ struct backup_context
   }
 
   /**
-     Report that a directory cannot be read.
-     @param name   directory name
-  */
-  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE static void dir_error(const char *name)
-    noexcept
-  {
-#ifdef _WIN32
-    my_osmaperr(GetLastError());
-#endif
-    my_error(ER_CANT_READ_DIR, MYF(0), name, errno);
-  }
-
-  /**
      Consume a data file name and copy the file if needed.
      @param target     BACKUP SERVER target
      @param sink       per-thread context (possibly, a stream to write to)
@@ -648,13 +582,8 @@ struct backup_context
   {
     const char *filename{};
     char path[FN_REFLEN + 2];
-    int left{};
-#ifndef _WIN32
-    struct stat sb;
+    const size_t datadir_len{strlen(mysql_data_home) + 1};
     assert(dir);
-#else
-    assert(dir != INVALID_HANDLE_VALUE);
-#endif
     {
       std::lock_guard<std::mutex> _{mutex};
 
@@ -665,172 +594,98 @@ struct backup_context
         my_error(ER_UNKNOWN_ERROR, MYF(0));
         return -1;
       }
-#ifndef _WIN32
-      else if (!subdir)
+
+      for (;;)
       {
-        while (struct dirent *de= readdir(dir))
-        {
-          switch (de->d_type) {
+        if (!subdir)
+          switch (my_dir_read_next(dir, path, sizeof path, nullptr, MYF(0))) {
+          case MY_DIR_EOF:
+            goto end;
           default:
-            continue;
-          case DT_LNK:
-          case DT_UNKNOWN:
-            if (fstatat(dirfd(dir), de->d_name, &sb, 0) ||
-                (sb.st_mode & S_IFMT) != S_IFDIR)
-              continue;
-            /* fall through */
-          case DT_DIR:
-            if (de->d_name[0] == '.' &&
-                (de->d_name[1] == '\0' ||
-                 (de->d_name[1] == '.' && de->d_name[2] == '\0')))
-              continue;
-            if (is_in_ignore_db_dirs_list(de->d_name))
-              continue;
-          }
-          if (!target.mkdir(de->d_name))
-          {
-            int dfd= openat(dirfd(dir), de->d_name, O_DIRECTORY);
-            d= de;
-            if (dfd >= 0)
-            {
-              if ((subdir= fdopendir(dfd)))
-                goto consume_subdir;
-              close(dfd);
-            }
-            dir_error(de->d_name);
-          }
-          goto err_exit;
-        }
-      }
-      else
-      {
-      consume_subdir:
-        assert(d);
-        assert(d->d_type == DT_DIR || d->d_type == DT_LNK ||
-               d->d_type == DT_UNKNOWN);
-        struct dirent *sd;
-        while ((sd= readdir(subdir)))
-        {
-          const char *const name= sd->d_name;
-          switch (sd->d_type) {
-          default:
-            continue;
-          case DT_REG:
+            // FIXME: my_dir_read_next() should report the actual name
+            my_error(ER_TOO_LONG_IDENT, MYF(ME_WARNING), mysql_data_home);
             break;
-          case DT_LNK:
-          case DT_UNKNOWN:
-            if (fstatat(dirfd(subdir), name, &sb, 0) ||
-                (sb.st_mode & S_IFMT) != S_IFREG)
+          case MY_DIR_OK:
+            if (is_in_ignore_db_dirs_list(path))
               continue;
+            do
+            {
+              if (target.mkdir(path));
+              else if (int(sizeof db_name) <=
+                       snprintf(db_name, sizeof db_name, "%s/%s",
+                                mysql_data_home, path))
+                my_error(ER_TOO_LONG_IDENT, MYF(ME_WARNING), path);
+              else if ((subdir=
+                        my_dir_open(db_name, nullptr,
+                                    MYF(MY_DIR_ONLY_FILES |
+                                        MY_WME | ME_WARNING))))
+                continue;
+              goto err_exit;
+            }
+            while (false);
           }
-          /* Consume a file name */
-          if ((int) sizeof path <=
-              snprintf(path, sizeof path, "%s/%s", d->d_name, name))
-          {
-            path[(sizeof path) - 1]= '\0';
-            my_error(ER_TOO_LONG_IDENT, MYF(0), path);
+
+        assert(subdir);
+        if (subdir)
+          switch (my_dir_read_next(subdir, path, sizeof path, nullptr, MYF(0))) {
+          case MY_DIR_OK:
+            break;
+          case MY_DIR_EOF:
+            my_dir_close(subdir);
+            subdir= nullptr;
+            continue;
+          default:
+            // FIXME: my_dir_read_next() should report the actual name
+            my_error(ER_TOO_LONG_IDENT, MYF(ME_WARNING), db_name);
             goto err_exit;
           }
-          filename= path;
-          break;
-        }
 
-        left= 1;
-        if (!sd)
+        /* Consume a file name */
+        const char *dir_name{db_name + datadir_len};
+        size_t dir_len= strlen(dir_name), f_len= strlen(path);
+        if (dir_len + f_len + 2 > sizeof path)
         {
-          closedir(subdir);
-          d= nullptr;
-          subdir= nullptr;
-        }
-      }
-#else
-      else if (subdir == INVALID_HANDLE_VALUE)
-      {
-        do
-        {
-          if (!(d.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
-            continue;
-          if (d.cFileName[0] == '.' &&
-              (d.cFileName[1] == '\0' ||
-               (d.cFileName[1] == '.' && d.cFileName[2] == '\0')))
-            continue;
-          if (is_in_ignore_db_dirs_list(d.cFileName))
-            continue;
-          if ((int) sizeof path <=
-              snprintf(path, sizeof path, "%s/*.*", d.cFileName))
-          name_too_long:
-            my_error(ER_TOO_LONG_IDENT, MYF(0), path);
-          else if (target.mkdir(d.cFileName));
-          else if ((subdir= FindFirstFileA(path, &sd)) !=
-                   INVALID_HANDLE_VALUE)
-            goto consume_subdir;
-          else
-            dir_error(path);
+          my_error(ER_TOO_LONG_IDENT, MYF(0), path);
           goto err_exit;
         }
-        while (FindNextFile(dir, &d));
-      }
-      else
-      {
-      consume_subdir:
-        do
-        {
-          const char *const name= sd.cFileName;
-          if (sd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            continue;
-          /* Consume a file name */
-          if ((int) sizeof path <=
-              snprintf(path, sizeof path, "%s/%s", d.cFileName, name))
-            goto name_too_long;
-          filename= path;
-        }
-        while ((left= FindNextFile(subdir, &sd)) && !filename);
 
-        if (!left)
-        {
-          FindClose(subdir);
-          subdir= INVALID_HANDLE_VALUE;
-          left= FindNextFile(dir, &d);
-        }
+        memmove(path + dir_len + 1, path, f_len + 1);
+        memcpy(path, dir_name, dir_len);
+        path[dir_len]= '/';
+        filename= path;
+        break;
       }
-#endif
     }
 
+  end:
     if (!filename)
-      return left;
+      return 0;
 
-    assert(left >= 0);
-
-    do
-    {
-      const char *name{strrchr(filename, '/')};
-      assert(name); /* we constructed this with %s/%s */
-      size_t len= strlen(++name);
-      static_assert(tmp_file_prefix_length == 4);
-      if (len < 4 ||
-          /*
-            As noted in MDEV-25854, file names that start with #sql
-            must be excluded from the backup. For example, a call to
-            MDL_context::upgrade_shared_lock() in
-            mysql_inplace_alter_table() could time out, resulting in
-            cleanup_table_after_inplace_alter() deleting a
-            #sql-alter*.frm file before we get a chance to copy it.
-          */
-          !memcmp(name, tmp_file_prefix, tmp_file_prefix_length) ||
-          /* The storage engines copy their other files */
-          !is_db_file(name, len))
-        continue;
-
-      if (backup::copy_or_stream(target, sink,
+    const char *name{strrchr(filename, '/')};
+    assert(name); /* we constructed this with %s/%s */
+    size_t len= strlen(++name);
+    static_assert(tmp_file_prefix_length == 4);
+    if (len < 4 ||
+        /*
+          As noted in MDEV-25854, file names that start with #sql
+          must be excluded from the backup. For example, a call to
+          MDL_context::upgrade_shared_lock() in
+          mysql_inplace_alter_table() could time out, resulting in
+          cleanup_table_after_inplace_alter() deleting a
+          #sql-alter*.frm file before we get a chance to copy it.
+        */
+        !memcmp(name, tmp_file_prefix, tmp_file_prefix_length) ||
+        /* The storage engines copy their other files */
+        !is_db_file(name, len));
+    else if (backup::copy_or_stream(target, sink,
 #ifndef _WIN32
-                                 openat(dirfd(dir), filename, O_RDONLY),
+                                    openat(dirfd(static_cast<DIR*>(dir->dirp)),
+                                           filename, O_RDONLY),
 #endif
-                                 filename))
-        return -1;
-    }
-    while (false);
+                                    filename))
+      return -1;
 
-    return left;
+    return 1;
   }
 
 #ifndef _WIN32
@@ -1107,7 +962,6 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
   backup_context context{};
   if (context.invalid())
   {
-    context.dir_error(mysql_data_home);
   release_and_exit:
     run_backup_stage(thd, BACKUP_END);
     return true;
