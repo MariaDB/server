@@ -3856,6 +3856,7 @@ public:
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);
+  void set_params_stored_as_is();
   bool sp_proc_stmt_statement_finalize_buf(THD *, const LEX_CSTRING &qbuf);
   bool sp_proc_stmt_statement_finalize(THD *, bool no_lookahead);
 

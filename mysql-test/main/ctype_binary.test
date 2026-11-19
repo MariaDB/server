@@ -333,5 +333,60 @@ DROP DATABASE db1;
 CREATE DATABASE db1 CHARACTER SET latin1 COLLATE binary;
 
 --echo #
+--echo # MDEV-42316 A binary string parameter is read byte by byte on every execution to compute its repertoire, and since MDEV-41246 this read takes about 1.2 ms per MB of ASCII data
+--echo #
+--echo # The repertoire of a binary parameter is computed from its value.
+--echo # A DATE_FORMAT() result takes the repertoire of its format, and
+--echo # a latin1 result with the ASCII repertoire can be concatenated with
+--echo # a non-ASCII cp1251 string. A byte above 0x7F makes the
+--echo # concatenation an illegal mix, both when the byte is the last byte
+--echo # of a whole machine word of the format and when it is the last
+--echo # byte of the format. The byte is x'A9', the COPYRIGHT SIGN, which
+--echo # cp1251 can also store, so only the repertoire makes the mix
+--echo # illegal.
+--echo #
+
+SET NAMES latin1;
+PREPARE s FROM 'SELECT HEX(CONCAT(DATE_FORMAT(''2001-01-01'', ?), _cp1251 x''E0'')) AS h';
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 19)) AS BINARY);
+EXECUTE s USING @fmt;
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 13), x'A9', REPEAT('-', 5)) AS BINARY);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE s USING @fmt;
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 18), x'A9') AS BINARY);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE s USING @fmt;
+DEALLOCATE PREPARE s;
+SET NAMES binary;
+
+--echo #
 --echo # End of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-42316 A binary string parameter is read byte by byte on every execution to compute its repertoire, and since MDEV-41246 this read takes about 1.2 ms per MB of ASCII data
+--echo #
+--echo # The format has characters of every ASCII repertoire in its first
+--echo # 8 bytes, so the rest of it is tested a machine word at a time for
+--echo # a byte above 0x7F, and the last bytes one by one. The byte x'A9'
+--echo # makes the concatenation an illegal mix both as the last byte of
+--echo # the word that follows the first 8 bytes and as the last byte of
+--echo # the format.
+--echo #
+
+SET NAMES latin1;
+PREPARE s FROM 'SELECT HEX(CONCAT(DATE_FORMAT(''2001-01-01'', ?), _cp1251 x''E0'')) AS h';
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 13)) AS BINARY);
+EXECUTE s USING @fmt;
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 7), x'A9', REPEAT('-', 5)) AS BINARY);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE s USING @fmt;
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 12), x'A9') AS BINARY);
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE s USING @fmt;
+DEALLOCATE PREPARE s;
+SET NAMES binary;
+
+--echo #
+--echo # End of 11.8 tests
 --echo #

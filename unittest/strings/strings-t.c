@@ -1791,13 +1791,347 @@ static int test_string_repertoire()
 }
 
 
+/*
+  The repertoire of an ASCII based character, by the definitions of
+  MY_REPERTOIRE_XXX.
+*/
+static my_repertoire_t ascii_based_char_repertoire(uint ch)
+{
+  if (ch > 0x7F)
+    return MY_REPERTOIRE_EXTENDED;
+  if (ch >= '0' && ch <= '9')
+    return MY_REPERTOIRE_ASCII_DIGITS;
+  if (ch >= 'A' && ch <= 'Z')
+    return MY_REPERTOIRE_ASCII_LETTERS_UPPER;
+  if (ch >= 'a' && ch <= 'z')
+    return MY_REPERTOIRE_ASCII_LETTERS_LOWER;
+  if (ch == '_')
+    return MY_REPERTOIRE_ASCII_UNDERSCORE;
+  if (ch == '.')
+    return MY_REPERTOIRE_ASCII_DOT;
+  if (ch == '-')
+    return MY_REPERTOIRE_ASCII_MINUS;
+  return MY_REPERTOIRE_ASCII_NOT_IDENT;
+}
+
+
+/*
+  The union of the repertoires of the bytes of an ASCII based string,
+  except the byte at the position skip.
+*/
+static my_repertoire_t
+ascii_based_string_repertoire(const char *str, size_t length, size_t skip)
+{
+  my_repertoire_t res= MY_REPERTOIRE_NONE;
+  size_t i;
+  for (i= 0; i < length; i++)
+  {
+    if (i != skip)
+      res|= ascii_based_char_repertoire((uchar) str[i]);
+  }
+  return res;
+}
+
+
+/* Report only the first failures: a broken scan fails millions of checks */
+#define REPERTOIRE_FAILURES_TO_REPORT 20
+static int repertoire_failures= 0;
+
+/* Lower case letters, and a character of every ASCII repertoire */
+static const char *fills[]= {"a", "Aa0_.-;"};
+
+
+static int
+test_string_repertoire_one(CHARSET_INFO *cs, const char *str, size_t length,
+                           size_t align, size_t fill, size_t pos, uint byte,
+                           my_repertoire_t expected)
+{
+  MY_STRING_METADATA metadata;
+  my_repertoire_t rep= my_string_repertoire(cs, str, length);
+  my_string_metadata_get(&metadata, cs, str, length);
+  if (rep == expected && metadata.repertoire == expected &&
+      metadata.char_length == length)
+    return 0;
+  if (repertoire_failures++ < REPERTOIRE_FAILURES_TO_REPORT)
+    diag("%s: fill=%u align=%u length=%u pos=%u byte=0x%02X expected=%u "
+         "my_string_repertoire()=%u my_string_metadata_get()=%u,%u",
+         cs->coll_name.str, (uint) fill, (uint) align, (uint) length,
+         (uint) pos, byte, (uint) expected, (uint) rep,
+         (uint) metadata.repertoire, (uint) metadata.char_length);
+  return 1;
+}
+
+
+/*
+  my_string_repertoire() and my_string_metadata_get() on 8-bit ASCII based
+  character sets: the repertoire of a string is the union of the
+  repertoires of its bytes. The scan looks bytes up 8 at a time, and
+  once it has found every ASCII repertoire it tests a machine word at a
+  time for a byte above 0x7F. The rest is read byte by byte. So put every
+  byte value at every position of strings that are shorter than, equal to
+  and longer than a few groups of 8 bytes, at every starting alignment,
+  among lower case letters, and among characters of every ASCII
+  repertoire, which the scan finds within the first or the second group
+  of 8 bytes. The bytes around the string are above 0x7F, so a scan that
+  reads outside the string finds MY_REPERTOIRE_EXTENDED in an ASCII
+  string.
+  Then check every ASCII character in utf8mb4, for which
+  my_string_repertoire() reads the bytes as above, and
+  my_string_metadata_get() decodes the characters.
+*/
+static int
+test_string_repertoire_8bit()
+{
+  static CHARSET_INFO *charsets[]= {&my_charset_bin, &my_charset_latin1};
+  /* 64 bytes for the string and its alignment, then 8 guard bytes */
+  char buf[64 + 8];
+  int failed= 0;
+  size_t c, f, align, length, pos, i;
+  uint byte;
+
+  for (c= 0; c < array_elements(charsets); c++)
+  {
+    for (f= 0; f < array_elements(fills); f++)
+    {
+      size_t fill_length= strlen(fills[f]);
+      for (align= 0; align < 8; align++)
+      {
+        char *str= buf + align;
+        for (length= 0; length + align <= 64; length++)
+        {
+          memset(buf, 0x80, sizeof(buf));
+          for (i= 0; i < length; i++)
+            str[i]= fills[f][i % fill_length];
+          failed+= test_string_repertoire_one(charsets[c], str, length,
+                     align, f, length, 0,
+                     ascii_based_string_repertoire(str, length, length));
+          for (pos= 0; pos < length; pos++)
+          {
+            my_repertoire_t others=
+              ascii_based_string_repertoire(str, length, pos);
+            for (byte= 0; byte < 256; byte++)
+            {
+              str[pos]= (char) byte;
+              failed+= test_string_repertoire_one(charsets[c], str, length,
+                         align, f, pos, byte,
+                         others | ascii_based_char_repertoire(byte));
+            }
+            str[pos]= fills[f][pos % fill_length];
+          }
+        }
+      }
+    }
+  }
+
+  for (byte= 0; byte < 0x80; byte++)
+  {
+    char ch= (char) byte;
+    failed+= test_string_repertoire_one(&my_charset_utf8mb4_general_ci,
+                                        &ch, 1, 0, 0, 0, byte,
+                                        ascii_based_char_repertoire(byte));
+  }
+  if (failed > REPERTOIRE_FAILURES_TO_REPORT)
+    diag("%d checks failed, the first %d are reported",
+         failed, REPERTOIRE_FAILURES_TO_REPORT);
+  return failed;
+}
+
+
+/*
+  The metadata of a string by its definition: decode it character by
+  character. A bad byte sequence is a character of one byte, an
+  unassigned character is one character, and an incomplete character at
+  the end is not counted. All of them are MY_REPERTOIRE_EXTENDED.
+*/
+static void
+string_metadata_char_by_char(MY_STRING_METADATA *metadata,
+                             CHARSET_INFO *cs, const char *str, size_t length)
+{
+  const uchar *s= (const uchar *) str, *end= s + length;
+  uint repertoire= MY_REPERTOIRE_NONE;
+  size_t char_length= 0;
+  while (s < end)
+  {
+    my_wc_t wc;
+    int mblen= my_ci_mb_wc(cs, &wc, s, end);
+    if (mblen > 0)
+    {
+      repertoire|= ascii_based_char_repertoire((uint) wc);
+      s+= mblen;
+    }
+    else
+    {
+      repertoire|= MY_REPERTOIRE_EXTENDED;
+      if (mblen == MY_CS_ILSEQ)
+        s++;
+      else if (mblen > MY_CS_TOOSMALL)
+        s+= -mblen;
+      else
+        break;
+    }
+    char_length++;
+  }
+  metadata->repertoire= (my_repertoire_t) repertoire;
+  metadata->char_length= char_length;
+}
+
+
+typedef struct
+{
+  uchar str[MY_CS_MBMAXLEN];
+  size_t length;
+} STRING_METADATA_PROBE;
+
+#define STRING_METADATA_MAX_LENGTH 32
+/*
+  Every byte value, then for every length up to MY_CS_MBMAXLEN a
+  character and the incomplete characters at its start, then an
+  unassigned character
+*/
+#define STRING_METADATA_MAX_PROBES (256 + MY_CS_MBMAXLEN * MY_CS_MBMAXLEN)
+
+
+static int
+test_string_metadata_mb_one(CHARSET_INFO *cs, const char *str, size_t length,
+                            size_t fill, size_t pos,
+                            const STRING_METADATA_PROBE *probe)
+{
+  MY_STRING_METADATA metadata, expected;
+  my_string_metadata_get(&metadata, cs, str, length);
+  string_metadata_char_by_char(&expected, cs, str, length);
+  if (metadata.repertoire == expected.repertoire &&
+      metadata.char_length == expected.char_length)
+    return 0;
+  if (repertoire_failures++ < REPERTOIRE_FAILURES_TO_REPORT)
+    diag("%s: fill=%u length=%u pos=%u probe=0x%02X,%u bytes "
+         "expected=%u,%u my_string_metadata_get()=%u,%u",
+         cs->coll_name.str, (uint) fill, (uint) length, (uint) pos,
+         probe ? (uint) probe->str[0] : 0, probe ? (uint) probe->length : 0,
+         (uint) expected.repertoire, (uint) expected.char_length,
+         (uint) metadata.repertoire, (uint) metadata.char_length);
+  return 1;
+}
+
+
+/*
+  my_string_metadata_get() on the character sets other than the 8-bit
+  ASCII based ones, against decoding the string character by character.
+  In an ASCII based character set a byte below 0x80 at the start of a
+  character is an ASCII character of its own, so after an ASCII
+  character the scan takes the bytes below 0x80 that follow it 8 at a
+  time, without decoding them. The other character sets, such as ucs2
+  or sjis, must still decode every character.
+  Put a probe at every position of strings that are shorter than, equal
+  to and longer than a few groups of 8 bytes, among lower case letters,
+  and among characters of every ASCII repertoire. The probes are every
+  byte value, the first character of every length above 1 that the
+  character set has, the bytes at the start of each such character,
+  which are an incomplete character at the end of the string, and two
+  bytes above 0x7F that make an unassigned character, if any do.
+  A byte above 0x7F can also make a character with the bytes after it,
+  e.g. 0x81 with 'a' in gbk, so the next ASCII characters do not start
+  where they do in the string without it. The bytes after the string
+  are ASCII, so a scan that reads past its end finds more characters.
+*/
+static int
+test_string_metadata_mb()
+{
+  char buf[STRING_METADATA_MAX_LENGTH + 8];
+  STRING_METADATA_PROBE probes[STRING_METADATA_MAX_PROBES];
+  int failed= 0;
+  uint id;
+
+  repertoire_failures= 0;
+  /*
+    Initialize only the primary collations, rather than the hundreds of
+    collations of all ids. The first lookup fills all_charsets[].
+  */
+  (void) get_charset_name(1);
+  for (id= 1; id < MY_ALL_CHARSETS_SIZE; id++)
+  {
+    CHARSET_INFO *cs= all_charsets[id];
+    size_t probe_count, f, length, pos, p, i;
+    uint lengths= 0, all_lengths; /* Bit N: a character of N bytes */
+    uint b;
+    my_wc_t wc;
+    if (!cs || !(cs->state & MY_CS_PRIMARY) ||
+        !(cs= get_charset(id, MYF(0))) ||
+        (cs->mbmaxlen == 1 && !(cs->state & MY_CS_NONASCII)))
+      continue;
+
+    for (probe_count= 0; probe_count < 256; probe_count++)
+    {
+      probes[probe_count].str[0]= (uchar) probe_count;
+      probes[probe_count].length= 1;
+    }
+    all_lengths= ((2U << cs->mbmaxlen) - 1) & ~3U;
+    for (wc= 0x80; wc <= 0x10FFFF && lengths != all_lengths; wc++)
+    {
+      size_t first= probe_count;
+      int rc= my_ci_wc_mb(cs, wc, probes[first].str,
+                          probes[first].str + MY_CS_MBMAXLEN);
+      if (rc < 2 || (lengths & (1U << rc)))
+        continue;
+      lengths|= 1U << rc;
+      probes[probe_count++].length= (size_t) rc;
+      for (i= 2; i < (size_t) rc; i++)
+      {
+        probes[probe_count]= probes[first];
+        probes[probe_count++].length= i;
+      }
+    }
+    for (b= 0; b < 0x80 * 0x80; b++)
+    {
+      uchar *str= probes[probe_count].str;
+      int rc;
+      str[0]= (uchar) (0x80 | b >> 7);
+      str[1]= (uchar) (0x80 | (b & 0x7F));
+      rc= my_ci_mb_wc(cs, &wc, str, str + 2);
+      if (rc < 0 && rc > MY_CS_TOOSMALL)
+      {
+        probes[probe_count++].length= 2;
+        break;
+      }
+    }
+
+    for (f= 0; f < array_elements(fills); f++)
+    {
+      size_t fill_length= strlen(fills[f]);
+      for (length= 0; length <= STRING_METADATA_MAX_LENGTH; length++)
+      {
+        memset(buf, '~', sizeof(buf));
+        for (i= 0; i < length; i++)
+          buf[i]= fills[f][i % fill_length];
+        failed+= test_string_metadata_mb_one(cs, buf, length, f, length,
+                                             NULL);
+        for (p= 0; p < probe_count; p++)
+        {
+          for (pos= 0; pos + probes[p].length <= length; pos++)
+          {
+            memcpy(buf + pos, probes[p].str, probes[p].length);
+            failed+= test_string_metadata_mb_one(cs, buf, length, f, pos,
+                                                 &probes[p]);
+            for (i= pos; i < pos + probes[p].length; i++)
+              buf[i]= fills[f][i % fill_length];
+          }
+        }
+      }
+    }
+  }
+  if (failed > REPERTOIRE_FAILURES_TO_REPORT)
+    diag("%d checks failed, the first %d are reported",
+         failed, REPERTOIRE_FAILURES_TO_REPORT);
+  return failed;
+}
+
+
 int main(int ac, char **av)
 {
   size_t i, failed= 0;
 
   MY_INIT(av[0]);
 
-  plan(6);
+  plan(8);
   diag("Testing my_like_range_xxx() functions");
 
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1830,6 +2164,20 @@ int main(int ac, char **av)
   diag("Testing my_string_repertoire() for strings with bad characters");
   ok(test_string_repertoire() == 0,
      "my_string_repertoire() does not return ASCII for bad strings");
+
+  diag("MDEV-42316 A binary string parameter is read byte by byte on every "
+       "execution to compute its repertoire, and since MDEV-41246 this read "
+       "takes about 1.2 ms per MB of ASCII data");
+  diag("Testing my_string_repertoire() on 8-bit character sets");
+  ok(test_string_repertoire_8bit() == 0,
+     "8-bit repertoire scan finds every byte value at any position");
+
+  diag("MDEV-42316 A binary string parameter is read byte by byte on every "
+       "execution to compute its repertoire, and since MDEV-41246 this read "
+       "takes about 1.2 ms per MB of ASCII data");
+  diag("Testing my_string_metadata_get() on multibyte character sets");
+  ok(test_string_metadata_mb() == 0,
+     "multibyte metadata equals decoding character by character");
 
   my_end(0);
 
