@@ -900,6 +900,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
+    ut_ad(!lock->is_waiting());
     lock_rec_discard(lock, *cell);
   }
 
@@ -912,6 +913,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
     for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
     {
       next= lock_rec_get_next_on_page(lock);
+      ut_ad(!lock->is_waiting());
       lock_rec_discard(lock, *cell);
     }
   }
@@ -924,6 +926,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
+    ut_ad(!lock->is_waiting());
     lock_rec_discard(lock, *cell);
   }
 
