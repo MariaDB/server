@@ -233,7 +233,7 @@ public:
   List<LEX_CSTRING> connection_cl_names;
   List<LEX_CSTRING> db_cl_names;
 
-  /* End of character ser context. */
+  /* End of character set context. */
 
   Table_triggers_list(TABLE *table_arg)
     :record0_field(0), extra_null_bitmap(0), extra_null_bitmap_init(0),

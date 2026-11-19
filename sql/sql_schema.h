@@ -74,7 +74,7 @@ public:
 
     Note, this is different to information_schema, whose name
     is always case insensitive. This is intentional!
-    The assymetry will be gone when we'll implement SQL standard
+    The asymmetry will be gone when we'll implement SQL standard
     regular and delimited identifiers.
   */
   bool eq_name(const LEX_CSTRING &name) const

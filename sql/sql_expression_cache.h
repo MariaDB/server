@@ -145,7 +145,7 @@ private:
   TABLE *cache_table;
   /* Thread handle for the temporary table */
   THD *table_thd;
-  /* EXPALIN/ANALYZE statistics */
+  /* EXPLAIN/ANALYZE statistics */
   Expression_cache_tracker *tracker;
   /* TABLE_REF for index lookup */
   struct st_table_ref ref;

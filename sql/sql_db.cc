@@ -137,7 +137,7 @@ static mysql_rwlock_t rmdir_lock;
   The only use of it is to avoid repeated expensive
   my_access() calls.
 
-  Provided operations are lookup, insert (after successfull my_access())
+  Provided operations are lookup, insert (after successful my_access())
   and clear (this is called whenever rmdir is called).
 */
 struct dbname_cache_t
@@ -549,7 +549,7 @@ static bool write_db_opt(THD *thd, const char *path,
 
   DESCRIPTION
 
-  create->default_table_charset is guaranteed to be alway set
+  create->default_table_charset is guaranteed to be always set
   Required by some callers
 
   RETURN VALUES
@@ -826,7 +826,7 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
       DBUG_RETURN(1);
     /*
       Reset the diagnostics m_status.
-      It might be set ot DA_OK in mysql_rm_db.
+      It might be set to DA_OK in mysql_rm_db.
     */
     thd->get_stmt_da()->reset_diagnostics_area();
     affected_rows= 2;
@@ -1636,7 +1636,7 @@ static void mysql_change_db_impl(THD *thd,
   {
     /*
       Here we already have a copy of database name to be used in THD. So,
-      we just call THD::reset_db(). Since THD::reset_db() does not releases
+      we just call THD::reset_db(). Since THD::reset_db() does not release
       the previous database name, we should do it explicitly.
     */
     thd->set_db(&null_clex_str);
@@ -1927,7 +1927,7 @@ done:
   @param          force_switch    @see mysql_change_db()
   @param[out]     cur_db_changed  out-flag to indicate whether the current
                                   database has been changed (valid only if
-                                  the function suceeded)
+                                  the function succeeded)
 */
 
 bool mysql_opt_change_db(THD *thd,

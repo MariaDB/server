@@ -874,7 +874,7 @@ int mysql_update(THD *thd,
 
       /*
 	We are doing a search on a key that is updated. In this case
-	we go trough the matching rows, save a pointer to them and
+	we go through the matching rows, save a pointer to them and
 	update these in a separate loop based on the pointer.
       */
       explain->buf_tracker.on_scan_init();
@@ -1044,7 +1044,7 @@ update_begin:
   /*
     We can use compare_record() to optimize away updates if
     the table handler is returning all columns OR if
-    if all updated columns are read
+    all updated columns are read
   */
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
@@ -1272,7 +1272,7 @@ error:
   table->auto_increment_field_not_null= FALSE;
   dup_key_found= 0;
   /*
-    Caching the killed status to pass as the arg to query event constuctor;
+    Caching the killed status to pass as the arg to query event constructor;
     The cached value can not change whereas the killed status can
     (externally) since this point and change of the latter won't affect
     binlogging.
@@ -2679,7 +2679,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       /*
         We can use compare_record() to optimize away updates if
         the table handler is returning all columns OR if
-        if all updated columns are read
+        all updated columns are read
       */
       bool can_compare_record;
       can_compare_record= records_are_comparable(table);
@@ -3243,7 +3243,7 @@ bool multi_update::send_eof()
     {
       /*
         No error message was sent and query was not killed (in which case
-        mysql_execute_command() will send the error mesage).
+        mysql_execute_command() will send the error message).
       */
       my_message(ER_UNKNOWN_ERROR, "An error occurred in multi-table update",
                  MYF(0));

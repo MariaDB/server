@@ -45,7 +45,7 @@ public:
 
   /* 
     For UNBOUNDED PRECEDING / UNBOUNDED FOLLOWING window frame bounds
-    precedence type is seto to PRECEDING / FOLLOWING and
+    precedence type is set to PRECEDING / FOLLOWING and
     offset is set to NULL. 
     The offset is not meaningful with precedence type CURRENT 
   */

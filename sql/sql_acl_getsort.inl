@@ -42,7 +42,7 @@
   character there can be only one matching character in the matched string.
 
   For a wild_one character ('_') any valid utf8 character will do. Below
-  numchars would mean a total number of vaid utf8 characters. It's a huge
+  numchars would mean a total number of valid utf8 characters. It's a huge
   number. A number of matching strings for wild_one will be numchars.
 
   For a wild_many character ('%') any number of valid utf8 characters will do.
@@ -63,7 +63,7 @@
   For a more visual notation, let's write these huge numbers not as
   decimal or binary, but base numchars. Then the last number will be
   a sum of two numbers: the first is one followed by M zeros, the second
-  constists of L+1 ones:
+  consists of L+1 ones:
 
     1000{...M...}000 + 111{...L+1...}1111
 
@@ -91,7 +91,7 @@
   an R-th digit can be F(K,R). For the purpose of comparison, we only need
   to know the most significant digit, F(K, L).
   While it can be huge, we don't need the exact value, it's a
-  a monotonously increasing function of K, so if K1>K2, F(K1,L) > F(K2,L)
+  monotonously increasing function of K, so if K1>K2, F(K1,L) > F(K2,L)
   and we can simply compare values of K instead of complex F(K,L).
 
   The second complication: F(K,R) gives only an upper boundary, the
