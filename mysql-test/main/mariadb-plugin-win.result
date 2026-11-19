@@ -1,0 +1,11 @@
+#
+# Missing operands are rejected before installation detection
+#
+ERROR: 'install' requires exactly one plugin name.
+ERROR: 'uninstall' requires exactly one plugin name.
+ERROR: 'search' takes at most one search term.
+#
+# Invalid options are rejected before network or file access
+#
+ERROR: --file and --sha256 are only supported with install.
+ERROR: uninstall does not support --file, --sha256 or --base-url.
