@@ -1318,6 +1318,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %right INTO
 
 %type <lex_str>
+        NO_LF_NUL
         DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
         HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident_or_text
@@ -2236,16 +2237,33 @@ master_defs:
         | master_defs ',' master_def
         ;
 
+/* NEW STRICT STRING RULE FOR CHANGE MASTER */
+NO_LF_NUL:
+          TEXT_STRING_sys
+          {
+            {
+              const char *invalid_char = get_invalid_change_master_char(&$1);
+              if (invalid_char)
+              {
+                char err_msg[128];
+                my_snprintf(err_msg, sizeof(err_msg), 
+                            "CHANGE MASTER option value (found %s which is not allowed)", invalid_char);
+                my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), err_msg));
+              }
+            }
+          }
+        ;
+
 master_def:
-          MASTER_HOST_SYM '=' TEXT_STRING_sys
+          MASTER_HOST_SYM '=' NO_LF_NUL
           {
             Lex->mi.host = $3.str;
           }
-        | MASTER_USER_SYM '=' TEXT_STRING_sys
+        | MASTER_USER_SYM '=' NO_LF_NUL
           {
             Lex->mi.user = $3.str;
           }
-        | MASTER_PASSWORD_SYM '=' TEXT_STRING_sys
+        | MASTER_PASSWORD_SYM '=' NO_LF_NUL
           {
             Lex->mi.password = $3.str;
           }
@@ -2272,23 +2290,23 @@ master_def:
             Lex->mi.ssl= $3 ? 
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CA_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CA_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_ca= $3.str;
           }
-        | MASTER_SSL_CAPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CAPATH_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_capath= $3.str;
           }
-        | MASTER_SSL_CERT_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CERT_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_cert= $3.str;
           }
-        | MASTER_SSL_CIPHER_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CIPHER_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_cipher= $3.str;
           }
-        | MASTER_SSL_KEY_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_KEY_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_key= $3.str;
           }
@@ -2297,11 +2315,11 @@ master_def:
             Lex->mi.ssl_verify_server_cert= $3 ?
               LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
-        | MASTER_SSL_CRL_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRL_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_crl= $3.str;
           }
-        | MASTER_SSL_CRLPATH_SYM '=' TEXT_STRING_sys
+        | MASTER_SSL_CRLPATH_SYM '=' NO_LF_NUL
           {
             Lex->mi.ssl_crlpath= $3.str;
           }
