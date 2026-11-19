@@ -1,0 +1,76 @@
+#
+# MDEV-42355: A locking read of a SPATIAL INDEX must not miss records
+# after waiting for a record lock.
+#
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+# The set of matching records on the page changes during the wait.
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_20;
+connect  con1,localhost,root,,;
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100, POINT(30, 30));
+connection default;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 20 LOCK IN SHARE MODE;
+connection con1;
+ROLLBACK;
+connection default;
+COUNT(*)	SUM(id)
+20	210
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100, POINT(10.5, 10.5));
+connection default;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 20 LOCK IN SHARE MODE;
+connection con1;
+ROLLBACK;
+connection default;
+COUNT(*)	SUM(id)
+20	210
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100, POINT(0, 0));
+connection default;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 20 LOCK IN SHARE MODE;
+connection con1;
+ROLLBACK;
+connection default;
+COUNT(*)	SUM(id)
+20	210
+DROP TABLE t1;
+# The leaf page is split during the wait.
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq MOD 100, seq DIV 100)
+FROM seq_1_to_2000;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 100,50.5 100,50.5 -1,-1 -1))');
+SELECT COUNT(*), SUM(id) FROM t1 IGNORE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 2000;
+COUNT(*)	SUM(id)
+1020	996500
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100000, POINT(50, 10));
+connection default;
+SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 2000 LOCK IN SHARE MODE;
+connection con1;
+connect  con2,localhost,root,,;
+INSERT INTO t1 SELECT 200000 + seq, POINT(50.6 + seq / 2000, 10 + seq / 2000)
+FROM seq_1_to_1000;
+disconnect con2;
+connection con1;
+ROLLBACK;
+connection default;
+COUNT(*)	SUM(id)
+1020	996500
+disconnect con1;
+DROP TABLE t1;
+# End of 11.4 tests

@@ -1246,8 +1246,33 @@ re_scan:
 			goto func_end;
 		}
 
+		if (page_is_leaf(cur_block->page.frame)) {
+			/* If the page was split while we were waiting,
+			some matching records may have been moved to the
+			new right sibling page. Like
+			rtr_pcur_getnext_from_path(), search it later. */
+			const node_seq_t ssn = page_get_ssn_id(
+				match->block->page.frame);
+			const uint32_t next = btr_page_get_next(
+				cur_block->page.frame);
+			if (page_get_ssn_id(cur_block->page.frame) > ssn
+			    && next != FIL_NULL) {
+				rtr_info_t* rtr_info
+					= pcur->btr_cur.rtr_info;
+				mysql_mutex_lock(&rtr_info->rtr_path_mutex);
+				rtr_non_leaf_stack_push(
+					rtr_info->path, next, ssn, 0, 0,
+					nullptr, 0);
+				mysql_mutex_unlock(
+					&rtr_info->rtr_path_mutex);
+				lock_place_prdt_page_lock(
+					page_id_t(index->table->space_id,
+						  next),
+					index, thr);
+			}
+		}
+
 		match->matched_recs->clear();
-		// FIXME: check for !cur_block
 
 		rtr_cur_search_with_match(
 			cur_block, index,
@@ -5285,6 +5310,19 @@ no_gap_lock:
 			err = DB_SUCCESS;
 			/* fall through */
 		case DB_SUCCESS:
+			if (index->is_spatial()
+			    && rec != btr_pcur_get_rec(pcur)) {
+				/* After a lock wait, sel_set_rtr_rec_lock()
+				searched the page again and positioned the
+				cursor on a possibly different record of the
+				rebuilt rtr_info->matches. The old rec may
+				point to stale data. */
+				rec = btr_pcur_get_rec(pcur);
+				offsets = rec_get_offsets(
+					rec, index, offsets,
+					index->n_core_fields,
+					ULINT_UNDEFINED, &heap);
+			}
 			break;
 		case DB_LOCK_WAIT:
 			/* Lock wait for R-tree should already
