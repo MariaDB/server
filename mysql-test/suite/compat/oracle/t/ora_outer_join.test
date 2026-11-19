@@ -666,3 +666,26 @@ select t1.a, t2.b
 DROP TABLE t1, t2;
 
 --echo # End of 12.1 tests
+
+--echo #
+--echo # MDEV-41975 Oracle outer-join rewrite returns the wrong row for ISNULL
+--echo # on a nullable table
+--echo #
+create table t1 (a int not null);
+create table t2 (b int not null);
+create table t3 (c int not null);
+insert into t1 values (1),(2);
+insert into t2 values (2);
+insert into t3 values (0),(1);
+select t1.a, t2.b, t3.c from t1 left join t2 on t1.a=t2.b
+  left join t3 on isnull(t2.b)=t3.c order by t1.a;
+# Prepared statements do not show the problem
+--disable_ps_protocol
+select t1.a, t2.b, t3.c from t1, t2, t3
+  where t1.a=t2.b(+) and isnull(t2.b)=t3.c(+) order by t1.a;
+explain extended select t1.a, t2.b, t3.c from t1, t2, t3
+  where t1.a=t2.b(+) and isnull(t2.b)=t3.c(+) order by t1.a;
+--enable_ps_protocol
+drop table t1, t2, t3;
+
+--echo # End of 12.3 tests
