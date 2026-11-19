@@ -2058,3 +2058,98 @@ Warning	1292	Truncated incorrect INTEGER value: '2001-01-02'
 DROP TABLE t2;
 DROP TABLE t1;
 SET note_verbosity=DEFAULT;
+#
+# MDEV-35715: UBSAN runtime error in Field_bit::store on INSERT
+#
+# BIT(1) tests
+CREATE TABLE t1 (c BIT(1));
+INSERT INTO t1 VALUES (0.0), (0.1), (0.9), (1.0), (1.5);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 5
+SELECT HEX(c) FROM t1;
+HEX(c)
+0
+0
+1
+1
+1
+DROP TABLE t1;
+# BIT(8) tests
+CREATE TABLE t1 (c BIT(8));
+INSERT INTO t1 VALUES (0.0), (1.5), (255.0);
+SELECT HEX(c) FROM t1;
+HEX(c)
+0
+2
+FF
+DROP TABLE t1;
+# BIT(64) tests
+CREATE TABLE t1 (c BIT(64));
+INSERT INTO t1 VALUES (18446744073709551615.0);
+SELECT HEX(c) FROM t1;
+HEX(c)
+FFFFFFFFFFFFFFFF
+INSERT INTO t1 VALUES (2e+19);
+ERROR 22001: Data too long for column 'c' at row 1
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (2e+19);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT HEX(c) FROM t1;
+HEX(c)
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+INSERT INTO t1 VALUES (1e+40);
+ERROR 22001: Data too long for column 'c' at row 1
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (1e+40);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT HEX(c) FROM t1;
+HEX(c)
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+INSERT INTO t1 VALUES (-1.0);
+ERROR 22003: Out of range value for column 'c' at row 1
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (-1.0);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT HEX(c) FROM t1;
+HEX(c)
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+0
+INSERT INTO t1 VALUES (-1e+30);
+ERROR 22001: Data too long for column 'c' at row 1
+SET STATEMENT sql_mode='' FOR INSERT INTO t1 VALUES (-1e+30);
+Warnings:
+Warning	1264	Out of range value for column 'c' at row 1
+SELECT HEX(c) FROM t1;
+HEX(c)
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+FFFFFFFFFFFFFFFF
+0
+0
+DROP TABLE t1;
+CREATE TABLE t2 (
+c DOUBLE UNSIGNED ZEROFILL DEFAULT NULL,
+c2 bit(1) DEFAULT NULL);
+# test: Should not produce UBSAN warnings
+SET STATEMENT sql_mode='' FOR INSERT INTO t2 VALUES (+3E+38,+3.4E+38);
+Warnings:
+Warning	1264	Out of range value for column 'c2' at row 1
+Warning	1264	Out of range value for column 'c2' at row 1
+DROP TABLE t2;
+CREATE TABLE t3 (c BIT KEY,c2 INT ZEROFILL,c3 NUMERIC(0,0));
+SET STATEMENT sql_mode='' FOR INSERT INTO t3 VALUES(
+(ADDDATE('1-1-1 1:1:1',0) DIV COT(-1)) * 
+(ATAN2('uT=qiRrMC,mnssYeK(~xIxdzOIFIlSOprZ.vM+R+tF6pcB$SZ}+Po6b%=V*1olvbKG0WPr%Gk]E_Z}LQ8(XHH/Z:J[L[Ck:Ca~,l{z2dKSS}1AkF=ytn=%UM%;Hk*[bdn@@8TXmQN~Rf7T*BtFJ[(=g{wTNMfDUMMY_[C]pHhna=D6uE=;c]m9=JOued=2bhQgPBaiSA4ej}Dfn)smPBi?4iCtjp}oRmOgGCD2/]pX^1Uf4ifHYJdt9]x1Lz:OY:6Uj7QscZE)=rl[9Gb-Q1:p0ko)M+##6SGe:3qcqDtxUG]}dr1F$YtLbDlaNC=UbA=C=6Zt,vos:=I1+0aVG3ZM[w:bK3=cE*~zN6wq9kRZgR5aj*4n=(_EG)Jk,~FuKUwd/,Gsvy}V4Mb;=JIZ/CT.#cx-yDUMMYtQ/+c)sGoWs]bcki=i{O_=F=[hm=~C.s=^R^#%=jca3gK1YBRtW[=C.S$9=DiT6N;rZ@DP_2DUMMYp]{RSr,I=tBPQ:+eP[TXulDUMMYc4=5VTpL=tUZB%qZjFQ4jV2*A7RYH/l7@l7nhpqf$=Wan}e4YO=DE/_xGJzN@BhA$D,=-DX=Ux[va7@DUMMYc%.+_S)NG5Lx[FFS9QtHDl=q^WrFMwMIss~(A=bQf%],d@@T$,NUFNlDUMMY+Xl^M*Vuogpz=IUn@Vh:~.TDUMMYr[bvs@a}1xq0+yBPWU+L0r^o=8i:;{Ex3h;=T*QB~NI]AF:#?#=E,V=/QswgI/uhR2TnU1s}f=A=L2cBeO~1k=:1Ia%^Gy5XDHcFzu4+=qs/=^~Ppxt@+Q/=~V^$gM7=x((*@dw2j0OUz2;tmGl].+_$=YL{kRBgvvP#,A]UMnQ5b%6ajFTQ4xj0wRIh@MC}a1AFM@,k~d=@V9R$lx%^uyf=#.c2#1VVI3?PGzY+PtxMW%AeZTR') - LOCALTIMESTAMP),
+0,
+(MOD(0,-1) % TAN(-1)) MOD (-1 / TIME('1-1-1 1:1:1')));
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'uT=qiRrMC,mnssYeK(~xIxdzOIFIlSOprZ.vM+R+tF6pcB$SZ}+Po6b%=V*1olvbKG0WPr%Gk]E_Z}LQ8(XHH/Z:J[L[Ck:Ca~,l{z2dKSS}1AkF=ytn=%UM%;Hk*...'
+Warning	1264	Out of range value for column 'c' at row 1
+Warning	1264	Out of range value for column 'c' at row 1
+DROP TABLE t3;
+# End of 10.11 tests.
