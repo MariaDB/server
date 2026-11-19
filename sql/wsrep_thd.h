@@ -255,11 +255,15 @@ static inline void wsrep_override_error(THD* thd,
   case wsrep::e_error_during_commit:
     if (status == wsrep::provider::error_size_exceeded)
       wsrep_override_error(thd, ER_UNKNOWN_ERROR, "Maximum writeset size exceeded");
+    if (status == wsrep::provider::error_connection_failed)
+      wsrep_override_error(thd, ER_ERROR_DURING_COMMIT, "Could not replicate writeset "
+                           "(provider status: %s)",
+                           wsrep::provider::to_string(status).c_str());
     else
       /* TODO: Figure out better error number */
       if (status)
         wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
-                             "Error while appending streaming replication fragment"
+                             "Error while appending streaming replication fragment "
                              "(provider status: %s)",
                              wsrep::provider::to_string(status).c_str());
       else
@@ -289,7 +293,7 @@ static inline void wsrep_override_error(THD* thd,
     /* TODO: Figure out better error number */
     if (status)
       wsrep_override_error(thd, ER_ERROR_DURING_COMMIT,
-                           "Error while appending streaming replication fragment"
+                           "Error while appending streaming replication fragment "
                            "(provider status: %s)",
                            wsrep::provider::to_string(status).c_str());
     else
