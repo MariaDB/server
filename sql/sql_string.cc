@@ -45,7 +45,11 @@ bool Binary_string::real_alloc(size_t length)
     if (!(Ptr=(char*) my_malloc(STRING_PSI_MEMORY_KEY,
                                 arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
+    {
+      /* Ptr is NULL now: do not keep the size of the old buffer. */
+      Alloced_length= extra_alloc= 0;
       return TRUE;
+    }
     Alloced_length=(uint32) arg_length;
     alloced=1;
   }

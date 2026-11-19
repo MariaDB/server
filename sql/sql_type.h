@@ -964,6 +964,12 @@ public:
   };
 
 public:
+  /*
+    Set the numeric charset on str and allocate MAX_DATE_STRING_REP_LENGTH
+    bytes, with length 0. Return true on out of memory, which is already
+    reported.
+  */
+  static bool to_string_alloc(String *str);
   static date_conv_mode_t sql_mode_for_dates(THD *thd);
   static time_round_mode_t default_round_mode(THD *thd);
   class Options: public date_mode_t
@@ -1345,11 +1351,8 @@ public:
   }
   String *to_string(String *str, uint dec) const
   {
-    if (!is_valid_temporal())
+    if (!is_valid_temporal() || my_TIME_to_str(this, str, dec))
       return NULL;
-    str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_TIME_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   const MYSQL_TIME *get_mysql_time() const
@@ -1546,13 +1549,11 @@ public:
   }
   String *to_string(String *str, uint dec) const
   {
-    if (!is_valid_interval_DDhhmmssff())
+    if (!is_valid_interval_DDhhmmssff() || to_string_alloc(str))
       return NULL;
-    str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_interval_DDhhmmssff_to_str(this,
-                                                const_cast<char*>(str->ptr()),
-                                                dec));
+    str->length(my_interval_DDhhmmssff_to_str(this,
+                                              const_cast<char*>(str->ptr()),
+                                              dec));
     return str;
   }
 };
@@ -1984,11 +1985,8 @@ public:
   bool to_native(Native *to, uint decimals) const;
   String *to_string(String *str, uint dec) const
   {
-    if (!is_valid_time())
+    if (!is_valid_time() || my_TIME_to_str(this, str, dec))
       return NULL;
-    str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_time_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   my_decimal *to_decimal(my_decimal *to)
@@ -2343,11 +2341,8 @@ public:
   }
   String *to_string(String *str) const
   {
-    if (!is_valid_date())
+    if (!is_valid_date() || my_TIME_to_str(this, str, 0))
       return NULL;
-    str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_date_to_str(this, const_cast<char*>(str->ptr())));
     return str;
   }
   my_decimal *to_decimal(my_decimal *to)
@@ -2655,11 +2650,8 @@ public:
   }
   String *to_string(String *str, uint dec) const
   {
-    if (!is_valid_datetime())
+    if (!is_valid_datetime() || my_TIME_to_str(this, str, dec))
       return NULL;
-    str->set_charset(&my_charset_numeric);
-    if (!str->alloc(MAX_DATE_STRING_REP_LENGTH))
-      str->length(my_datetime_to_str(this, const_cast<char*>(str->ptr()), dec));
     return str;
   }
   my_decimal *to_decimal(my_decimal *to)

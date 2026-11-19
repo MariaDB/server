@@ -416,6 +416,19 @@ my_decimal *Temporal::bad_to_decimal(my_decimal *to) const
 }
 
 
+bool Temporal::to_string_alloc(String *str)
+{
+  str->set_charset(&my_charset_numeric);
+  /* Make alloc() call my_malloc() and fail in it. */
+  DBUG_EXECUTE_IF("temporal_to_string_oom",
+                  str->free(); DBUG_SET("+d,simulate_out_of_memory"););
+  bool oom= str->alloc(MAX_DATE_STRING_REP_LENGTH);
+  DBUG_EXECUTE_IF("temporal_to_string_oom",
+                  DBUG_SET("-d,simulate_out_of_memory"););
+  return oom;
+}
+
+
 void Temporal::make_from_str(THD *thd, Warn *warn,
                                    const char *str, size_t length,
                                    CHARSET_INFO *cs, date_mode_t fuzzydate)
@@ -6140,21 +6153,21 @@ String *Type_handler_string_result::
 String *Type_handler_time_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Time(func).to_string(str, func->decimals);
+  return func->check_str(Time(func).to_string(str, func->decimals));
 }
 
 
 String *Type_handler_date_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Date(func).to_string(str);
+  return func->check_str(Date(func).to_string(str));
 }
 
 
 String *Type_handler_datetime_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
-  return Datetime(func).to_string(str, func->decimals);
+  return func->check_str(Datetime(func).to_string(str, func->decimals));
 }
 
 
@@ -6162,8 +6175,8 @@ String *Type_handler_timestamp_common::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
   THD *thd= current_thd;
-  return Timestamp_or_zero_datetime_native_null(thd, func).
-           to_datetime(thd).to_string(str, func->decimals);
+  return func->check_str(Timestamp_or_zero_datetime_native_null(thd, func).
+                           to_datetime(thd).to_string(str, func->decimals));
 }
 
 

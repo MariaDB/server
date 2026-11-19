@@ -892,15 +892,15 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 
 /**
   Convert TIME/DATE/DATETIME value to String.
-  @param l_time   DATE value
+  @param ltime    TIME, DATE or DATETIME value
   @param OUT str  String to convert to
   @param dec      Number of fractional digits.
+  @return true on out of memory (already reported)
 */
 bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec)
 {
-  if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+  if (Temporal::to_string_alloc(str))
     return true;
-  str->set_charset(&my_charset_numeric);
   str->length(my_TIME_to_str(ltime, const_cast<char*>(str->ptr()), dec));
   return false;
 }

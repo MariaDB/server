@@ -1549,7 +1549,8 @@ bool Item_func_curdate::get_date(THD *thd, MYSQL_TIME *res,
     ltime.time_type= MYSQL_TIMESTAMP_DATE;
   }
   *res=ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 
@@ -1575,7 +1576,8 @@ bool Item_func_curtime::get_date(THD *thd, MYSQL_TIME *res,
     store_now_in_TIME(thd, &ltime);
   }
   *res= ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 void Item_func_curtime::print(String *str, enum_query_type query_type)
@@ -1705,7 +1707,8 @@ bool Item_func_now::get_date(THD *thd, MYSQL_TIME *res,
     store_now_in_TIME(thd, &ltime);
   }
   *res= ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 
@@ -1726,7 +1729,8 @@ bool Item_func_sysdate_local::get_date(THD *thd, MYSQL_TIME *res,
                                        date_mode_t fuzzydate __attribute__((unused)))
 {
   store_now_in_TIME(thd, res);
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)

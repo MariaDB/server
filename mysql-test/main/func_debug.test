@@ -592,3 +592,110 @@ SELECT ('0x',1) IN ((0,1),(1,1));
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";
+
+--echo #
+--echo # MDEV-41643 Temporal to_string() returns a String with unset length
+--echo #            when allocation fails
+--echo #
+--echo # NULL from to_string() does not stick to the next execution
+# Error 5 is EE_OUTOFMEMORY from my_malloc()
+set @save_dbug= @@debug_dbug;
+prepare s1 from "select trim(time'10:00:00') as t";
+prepare s2 from "select trim(date'2000-01-01') as d";
+prepare s3 from "select trim(timestamp'2000-01-01 10:00:00') as dt";
+set debug_dbug= '+d,temporal_to_string_oom';
+--error 5
+execute s1;
+--error 5
+execute s2;
+--error 5
+execute s3;
+set debug_dbug= @save_dbug;
+execute s1;
+execute s2;
+execute s3;
+deallocate prepare s1;
+deallocate prepare s2;
+deallocate prepare s3;
+
+--echo # NULL from val_str() of a subquery, a cache or a function is not
+--echo # taken for a value
+create table t1 (t time, d date, dt datetime, ts timestamp);
+insert into t1 values
+  ('10:00:00', '2000-01-01', '2000-01-01 10:00:00', '2000-01-01 10:00:00'),
+  ('11:00:00', '2000-01-02', '2000-01-02 11:00:00', '2000-01-02 11:00:00');
+prepare s4 from "select left((select t from t1 order by t limit 1), 2) as l";
+prepare s5 from "select left((select d from t1 order by t limit 1), 4) as l";
+prepare s6 from "select left((select dt from t1 order by t limit 1), 4) as l";
+prepare s7 from "select left((select ts from t1 order by t limit 1), 4) as l";
+prepare s8 from "select left(greatest(time'10:00:00', time'09:00:00'), 2) as l";
+prepare s9 from "select left(addtime(time'10:00:00', '01:00:00'), 2) as l";
+prepare s10 from
+  "select left(cast(time'10:00:00' as interval day_second(0)), 2) as l";
+set debug_dbug= '+d,temporal_to_string_oom';
+--error 5
+execute s4;
+--error 5
+execute s5;
+--error 5
+execute s6;
+--error 5
+execute s7;
+--error 5
+execute s8;
+--error 5
+execute s9;
+--error 5
+execute s10;
+set debug_dbug= @save_dbug;
+execute s4;
+execute s5;
+execute s6;
+execute s7;
+execute s8;
+execute s9;
+execute s10;
+deallocate prepare s4;
+deallocate prepare s5;
+deallocate prepare s6;
+deallocate prepare s7;
+deallocate prepare s8;
+deallocate prepare s9;
+deallocate prepare s10;
+
+--echo # NULL from val_str() does not stick for the other accessors
+prepare s5 from "select t + 0 as n, concat(t) as c
+                 from (select time'10:00:00' as t from t1) dt";
+prepare s6 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select curtime() as t from t1) dt";
+prepare s7 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select curdate() as t from t1) dt";
+prepare s8 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select now() as t from t1) dt";
+prepare s9 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select sysdate() as t from t1) dt";
+set debug_dbug= '+d,temporal_to_string_oom';
+--error 5
+execute s5;
+--error 5
+execute s6;
+--error 5
+execute s7;
+--error 5
+execute s8;
+--error 5
+execute s9;
+set debug_dbug= @save_dbug;
+execute s5;
+execute s6;
+execute s7;
+execute s8;
+execute s9;
+deallocate prepare s5;
+deallocate prepare s6;
+deallocate prepare s7;
+deallocate prepare s8;
+deallocate prepare s9;
+drop table t1;
+
+--echo # End of 10.11 tests

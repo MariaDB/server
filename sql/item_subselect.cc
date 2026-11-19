@@ -1489,11 +1489,22 @@ void Item_singlerow_subselect::bring_value()
     reset();
 }
 
+/*
+  Item_singlerow_subselect accessors:
+  value->val_real(), val_int() and val_bool() cannot fail when value is
+  not NULL, so null_value is taken from value->null_value. val_str(),
+  val_native(), val_decimal() and get_date() can fail (e.g. out of
+  memory) and set null_value from the result.
+*/
 double Item_singlerow_subselect::val_real()
 {
   DBUG_ASSERT(fixed());
   if (forced_const)
-    return value->val_real();
+  {
+    double val= value->val_real();
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1531,17 +1542,8 @@ longlong Item_singlerow_subselect::val_int()
 String *Item_singlerow_subselect::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  if (forced_const)
-  {
-    String *res= value->val_str(str);
-    null_value= value->null_value;
-    return res;
-  }
-  if (!exec() && !value->null_value)
-  {
-    null_value= FALSE;
-    return value->val_str(str);
-  }
+  if (forced_const || (!exec() && !value->null_value))
+    return check_str(value->val_str(str));
   else
   {
     reset();
@@ -1554,13 +1556,8 @@ String *Item_singlerow_subselect::val_str(String *str)
 bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
 {
   DBUG_ASSERT(fixed());
-  if (forced_const)
-    return value->val_native(thd, to);
-  if (!exec() && !value->null_value)
-  {
-    null_value= false;
-    return value->val_native(thd, to);
-  }
+  if (forced_const || (!exec() && !value->null_value))
+    return (null_value= value->val_native(thd, to));
   else
   {
     reset();
@@ -1572,16 +1569,11 @@ bool Item_singlerow_subselect::val_native(THD *thd, Native *to)
 my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed());
-  if (forced_const)
+  if (forced_const || (!exec() && !value->null_value))
   {
-    my_decimal *val= value->val_decimal(decimal_value);
-    null_value= value->null_value;
-    return val;
-  }
-  if (!exec() && !value->null_value)
-  {
-    null_value= FALSE;
-    return value->val_decimal(decimal_value);
+    my_decimal *res= value->val_decimal(decimal_value);
+    null_value= !res;
+    return res;
   }
   else
   {
@@ -1618,17 +1610,8 @@ bool Item_singlerow_subselect::val_bool()
 bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
   DBUG_ASSERT(fixed());
-  if (forced_const)
-  {
-    bool val= value->get_date(thd, ltime, fuzzydate);
-    null_value= value->null_value;
-    return val;
-  }
-  if (!exec() && !value->null_value)
-  {
-    null_value= FALSE;
-    return value->get_date(thd, ltime, fuzzydate);
-  }
+  if (forced_const || (!exec() && !value->null_value))
+    return (null_value= value->get_date(thd, ltime, fuzzydate));
   else
   {
     reset();
