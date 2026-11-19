@@ -576,8 +576,10 @@ DELETE t1 PARTITION (pNeg), t3 FROM t1, t3
 WHERE t1.a = t3.a AND t3.b = 'subp3';
 eval $get_handler_status_counts;
 --echo # Multi table delete without any matching rows
+# The handler counts below require t2 to be read first.
 FLUSH STATUS;
-DELETE t1, t2 FROM t1 PARTITION (pNeg), t3, t2 PARTITION (subp3)
+DELETE t1, t2 FROM t2 PARTITION (subp3)
+STRAIGHT_JOIN t1 PARTITION (pNeg) STRAIGHT_JOIN t3
 WHERE t1.a = t3.a AND t3.b = 'subp3' AND t3.a = t2.a;
 eval $get_handler_status_counts;
 --echo # 12 locks (3 in t1, 1 in t3, 2 in t2) x 2 (lock + unlock)

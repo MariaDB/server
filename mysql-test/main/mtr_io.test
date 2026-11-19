@@ -1,0 +1,70 @@
+--perl
+use lib "$ENV{MYSQL_TEST_DIR}/lib";
+use strict;
+use warnings;
+use Test::More qw(no_plan);
+use File::Temp qw(tempdir);
+use Errno qw(EACCES EIO);
+
+my ($target, $denials, $error, $sleeps);
+BEGIN {
+  *CORE::GLOBAL::unlink= sub {
+    if (@_ == 1 && defined($target) && $_[0] eq $target && $denials)
+    {
+      --$denials;
+      $!= $error;
+      return 0;
+    }
+    return CORE::unlink(@_);
+  };
+}
+
+sub mtr_error { die join('', @_) . "\n"; }
+sub mtr_milli_sleep { ++$sleeps; }
+require 'mtr_io.pl';
+
+my $dir= tempdir(CLEANUP => 1);
+$target= "$dir/mysqld.1.expect";
+
+sub write_marker {
+  open(my $file, '>', $target) or die "open $target: $!";
+  print $file "wait\nrestart\n";
+  close($file) or die "close $target: $!";
+  $denials= $sleeps= 0;
+}
+
+write_marker();
+mtr_unlink($target);
+ok(!-e $target, 'remove an unlocked restart marker');
+is($sleeps, 0, 'successful deletion does not wait');
+
+write_marker();
+$denials= 3;
+$error= EACCES;
+mtr_unlink($target);
+ok(!-e $target, 'consume the restart marker after transient access errors');
+ok($sleeps > 0, 'wait between access-denied retries');
+
+write_marker();
+$denials= 1000;
+$error= EACCES;
+eval { mtr_unlink($target); };
+like($@, qr/can't remove file "\Q$target\E":/, 'report persistent access errors');
+ok(-f $target, 'a failed removal does not pretend the marker was consumed');
+ok($sleeps < 100, 'access-denied retries are bounded');
+
+write_marker();
+$denials= 1000;
+$error= EIO;
+eval { mtr_unlink($target); };
+like($@, qr/can't remove file "\Q$target\E":/, 'report other I/O errors');
+is($sleeps, 0, 'do not retry unrelated errors');
+
+$denials= 0;
+CORE::unlink($target) or die "remove $target: $!";
+eval { mtr_unlink($target); };
+like($@, qr/can't remove file "\Q$target\E":/, 'report a missing restart marker');
+is($sleeps, 0, 'do not retry a missing file');
+EOF
+
+--echo # End of 13.2 tests

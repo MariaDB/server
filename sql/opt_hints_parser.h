@@ -137,6 +137,7 @@ public:
   };
 
 protected:
+  void get_spaces_and_comments();
   Token get_token(CHARSET_INFO *cs);
   static TokenID find_keyword(const LEX_CSTRING &str);
 };

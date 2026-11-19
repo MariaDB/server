@@ -221,10 +221,40 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
 }
 
 
+void Optimizer_hint_tokenizer::get_spaces_and_comments()
+{
+  enum class State { SPACE, LINE_COMMENT };
+  State state= State::SPACE;
+  for ( ; ; )
+  {
+    switch (state)
+    {
+    case State::SPACE:
+      get_spaces();
+      /*
+        SQL-style comments require at least three bytes: two dashes
+        followed by whitespace or a control character.
+      */
+      if (m_end - m_ptr < 3 || m_ptr[0] != '-' || m_ptr[1] != '-' ||
+          (!my_isspace(m_cs, m_ptr[2]) && !my_iscntrl(m_cs, m_ptr[2])))
+        return;
+      m_ptr+= 2;
+      state= State::LINE_COMMENT;
+      break;
+    case State::LINE_COMMENT:
+      for ( ; !eof() && *m_ptr != '\n'; m_ptr++)
+      { }
+      state= State::SPACE;
+      break;
+    }
+  }
+}
+
+
 Optimizer_hint_tokenizer::Token
 Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
 {
-  get_spaces();
+  get_spaces_and_comments();
   if (eof())
     return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tEOF);
   const char head= m_ptr[0];

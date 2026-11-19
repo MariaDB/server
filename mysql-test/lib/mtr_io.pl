@@ -21,6 +21,7 @@
 
 use strict;
 use Carp;
+use Errno qw(EACCES);
 use My::Platform;
 
 sub mtr_fromfile ($);
@@ -30,6 +31,22 @@ sub mtr_appendfile_to_file ($$);
 sub mtr_grab_file($);
 sub mtr_printfile($);
 sub mtr_lastlinesfromfile ($$);
+sub mtr_unlink ($);
+
+# A Windows reader can temporarily prevent deletion of a restart-control file.
+# Retry access errors for up to five seconds, then report the failure.
+sub mtr_unlink ($) {
+  my $file= shift;
+  my $error;
+  for (my $attempt= 0; $attempt < 50; $attempt++)
+  {
+    return if unlink($file);
+    $error= "$!";
+    last unless $! == EACCES;
+    mtr_milli_sleep(100) if $attempt < 49;
+  }
+  mtr_error("can't remove file \"$file\": $error");
+}
 
 # Read a whole file, stripping leading and trailing whitespace.
 sub mtr_fromfile ($) {

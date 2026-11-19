@@ -466,6 +466,10 @@ drop table t1;
 --echo # MDEV-34805 INFORMATION_SCHEMA.VECTOR_INDEXES
 --echo #
 
+# Background recalculation can change index sizes between PS executions.
+SET @save_innodb_stats_auto_recalc= @@GLOBAL.innodb_stats_auto_recalc;
+SET GLOBAL innodb_stats_auto_recalc= OFF;
+
 --echo # No vector tables yet in this schema
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
   WHERE TABLE_SCHEMA = DATABASE();
@@ -566,5 +570,7 @@ SHOW STATUS LIKE 'open_table%';
 DROP TABLE t_vec, t_cos, t_high, t_dim;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.VECTOR_INDEXES
   WHERE TABLE_SCHEMA = DATABASE();
+
+SET GLOBAL innodb_stats_auto_recalc= @save_innodb_stats_auto_recalc;
 
 --echo # End of 13.1 tests
