@@ -1,0 +1,67 @@
+#
+# MDEV-41725 cset_narrowing wrong result for non-general_ci utf8mb4 constant
+#
+SET @save_optimizer_switch= @@optimizer_switch;
+SET @save_character_set_client= @@character_set_client;
+SET @save_character_set_results= @@character_set_results;
+SET @save_collation_connection= @@collation_connection;
+SET optimizer_switch='cset_narrowing=on';
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
+b VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+KEY(a));
+INSERT INTO t1 VALUES (_utf8mb3 0xEFBFBD, _utf8mb4 0xF09F9880), ('a', 'a');
+# The bug: connection collation is utf8mb4_unicode_ci
+EXPLAIN SELECT HEX(a), HEX(b) FROM t1 WHERE a = b AND b = '😀';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	33	const	1	Using index condition; Using where
+SELECT HEX(a), HEX(b) FROM t1 WHERE a = b AND b = '😀';
+HEX(a)	HEX(b)
+EFBFBD	F09F9880
+SELECT HEX(a), HEX(b) FROM t1 IGNORE INDEX(a) WHERE a = b AND b = '😀';
+HEX(a)	HEX(b)
+EFBFBD	F09F9880
+DROP TABLE t1;
+# Same query with utf8mb4_bin connection collation
+SET NAMES utf8mb4 COLLATE utf8mb4_bin;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
+b VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci,
+KEY(a));
+INSERT INTO t1 VALUES (_utf8mb3 0xEFBFBD, _utf8mb4 0xF09F9880), ('a', 'a');
+SELECT HEX(a), HEX(b) FROM t1 WHERE a = b AND b = '😀';
+HEX(a)	HEX(b)
+EFBFBD	F09F9880
+SELECT HEX(a), HEX(b) FROM t1 IGNORE INDEX(a) WHERE a = b AND b = '😀';
+HEX(a)	HEX(b)
+EFBFBD	F09F9880
+DROP TABLE t1;
+# Controls: indexed and IGNORE INDEX results must be identical
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci, KEY(a));
+INSERT INTO t1 VALUES (_utf8mb3 0xEFBFBD), ('a');
+SELECT HEX(a) FROM t1 WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_unicode_ci;
+HEX(a)
+SELECT HEX(a) FROM t1 IGNORE INDEX(a) WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_unicode_ci;
+HEX(a)
+SELECT HEX(a) FROM t1 WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_unicode_520_ci;
+HEX(a)
+SELECT HEX(a) FROM t1 IGNORE INDEX(a) WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_unicode_520_ci;
+HEX(a)
+SELECT HEX(a) FROM t1 WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_bin;
+HEX(a)
+SELECT HEX(a) FROM t1 IGNORE INDEX(a) WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_bin;
+HEX(a)
+SELECT HEX(a) FROM t1 WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_general_ci;
+HEX(a)
+EFBFBD
+SELECT HEX(a) FROM t1 IGNORE INDEX(a) WHERE a = _utf8mb4 0xF09F9880 COLLATE utf8mb4_general_ci;
+HEX(a)
+EFBFBD
+DROP TABLE t1;
+SET optimizer_switch= @save_optimizer_switch;
+SET character_set_client= @save_character_set_client;
+SET character_set_results= @save_character_set_results;
+SET collation_connection= @save_collation_connection;
+#
+# End of test
+#
