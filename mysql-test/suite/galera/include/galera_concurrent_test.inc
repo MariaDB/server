@@ -10,6 +10,11 @@
 # - $query_node_1
 # - $query_node_1a (optional)
 # - $query_node_2
+# - $extra_errors (optional) - extra errors to tolerate on reap, as a
+#   comma-separated string with a leading comma, e.g. ",ER_NO_SUCH_TABLE".
+#   Use this when one of the queries is a DDL that recreates the table
+#   (e.g. TRUNCATE TABLE on an engine that implements it as a recreate),
+#   since a concurrent query can then race a momentarily missing table.
 #
 
 if (!$count) {
@@ -60,17 +65,17 @@ while ($i)
 	--send_eval $query_node_2
 
         --connection node_1
-        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY$extra_errors
 	--reap
 
 	--connection node_1a
         if ($query_node_1a) {
-	        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+	        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY$extra_errors
 	        --reap
 	}
 
         --connection node_2
-        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY
+        --error 0,ER_QUERY_INTERRUPTED,ER_LOCK_DEADLOCK,ER_DUP_ENTRY$extra_errors
         --reap
         --dec $i
 }
