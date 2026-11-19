@@ -221,6 +221,11 @@ wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
+extern bool wsrep_append_fk_keys_for_table(THD *thd, const LEX_CSTRING *db,
+                                           const LEX_CSTRING *table,
+                                           wsrep::key_array *keys);
+extern bool wsrep_append_fk_keys_for_db(THD *thd, const LEX_CSTRING *db,
+                                        wsrep::key_array *keys);
 extern bool wsrep_reload_ssl();
 extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
@@ -239,6 +244,22 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
 
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
+    goto wsrep_error_label;
+
+/*
+  TOI for DDL that InnoDB executes with an X lock on the FOREIGN KEY child
+  tables of the table (lock_table_children()): the FK parent and child tables
+  of fk_list_ are appended to the key set, so that a DML on them that is
+  ordered after the DDL is not applied in parallel with it (MDEV-39955).
+*/
+#define WSREP_TO_ISOLATION_BEGIN_FK(db_, table_, table_list_, fk_list_)  \
+  if (WSREP_ON && WSREP(thd) &&                                         \
+      wsrep_to_isolation_begin_fk(thd, db_, table_, table_list_, fk_list_)) \
+    goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_FK_WRTCHK(db_, table_, table_list_, fk_list_) \
+  if (WSREP(thd) && !thd->lex->no_write_to_binlog                       \
+      && wsrep_to_isolation_begin_fk(thd, db_, table_, table_list_, fk_list_)) \
     goto wsrep_error_label;
 
 #define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)	\
@@ -353,6 +374,10 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const Alter_info* alter_info= nullptr,
                              const wsrep::key_array *fk_tables= nullptr,
                              const HA_CREATE_INFO* create_info= nullptr);
+
+int wsrep_to_isolation_begin_fk(THD *thd, const char *db_, const char *table_,
+                                const TABLE_LIST* table_list,
+                                TABLE_LIST* fk_list);
 
 bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton);
 bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
@@ -506,6 +531,9 @@ int wsrep_append_table_keys(THD* thd,
                             TABLE_LIST* table_list,
                             Wsrep_service_key_type key_type);
 
+int wsrep_append_child_table_keys(THD *thd, TABLE *table,
+                                  Wsrep_service_key_type key_type);
+
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                           const MDL_ticket *ticket,
@@ -646,6 +674,8 @@ const std::string wsrep_get_checkpoint();
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
+#define WSREP_TO_ISOLATION_BEGIN_FK(db_, table_, table_list_, fk_list_) do { } while(0)
+#define WSREP_TO_ISOLATION_BEGIN_FK_WRTCHK(db_, table_, table_list_, fk_list_)
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)

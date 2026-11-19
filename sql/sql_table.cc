@@ -13314,8 +13314,24 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
               wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
+          /*
+            CREATE OR REPLACE drops the old table, InnoDB X-locks its
+            FOREIGN KEY child tables (MDEV-39955).
+          */
+          wsrep::key_array fk_keys;
+          if (create_info.or_replace() && !create_info.tmp_table() &&
+              wsrep_thd_is_local(thd) &&
+              wsrep_append_fk_keys_for_table(thd, &create_table->db,
+                                             &create_table->table_name,
+                                             &fk_keys))
+          {
+            res= true;
+            goto end_with_restore_list;
+          }
+
           WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
-                                         first_table, &alter_info, NULL, &create_info)
+                                         first_table, &alter_info, &fk_keys,
+                                         &create_info)
           {
             WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
