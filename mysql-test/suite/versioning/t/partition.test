@@ -2980,6 +2980,24 @@ drop table t1;
 eval set default_storage_engine= $default_engine;
 --enable_query_log
 
+--echo #
+--echo # MDEV-41645 Auto-create of SYSTEM_TIME history partitions checks the
+--echo #            partition limit without existing partitions and
+--echo #            subpartitions
+--echo #
+--echo # 4368 new partitions plus 2 existing, times 2 subpartitions, is over
+--echo # the limit
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto
+subpartition by key (x) subpartitions 2;
+set timestamp= unix_timestamp('2000-07-01 00:00:00');
+--error ER_VERS_HIST_PART_FAILED
+update t1 set x= x + 1;
+show warnings;
+set timestamp= default;
+drop table t1;
+
 --echo # End of 10.11 tests
 
 set global innodb_stats_persistent= @save_persistent;

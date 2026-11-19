@@ -874,7 +874,9 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
             return true;
           h= pack_time(&h0);
           ++*create_count;
-          if (*create_count == MAX_PARTITIONS - 2)
+          /* The new partitions are added to the existing ones */
+          if ((num_parts + *create_count) * MY_MAX(num_subparts, 1) >
+              MAX_PARTITIONS)
           {
             my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(ME_WARNING));
             my_error(ER_VERS_HIST_PART_FAILED, MYF(0),
