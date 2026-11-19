@@ -6457,4 +6457,66 @@ drop table t1;
 DO STR_TO_DATE(1, '%#');
 DO STR_TO_DATE(LOWER('q'), '%@');
 DO STR_TO_DATE(LOWER('.'), '%.');
+#
+# MDEV-41644 date_add_interval(): signed overflow on huge YEAR/MONTH
+#            interval values
+#
+select date_add('2000-01-01', interval 4294967301 year);
+date_add('2000-01-01', interval 4294967301 year)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 18446744073709551615 year);
+date_add('2000-01-01', interval 18446744073709551615 year)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 18446744073709551604 month);
+date_add('2000-01-01', interval 18446744073709551604 month)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 9223372036854775808 month),
+date_add('2000-01-01', interval 768614336404564651 year);
+date_add('2000-01-01', interval 9223372036854775808 month)	date_add('2000-01-01', interval 768614336404564651 year)
+NULL	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 4294967301 day),
+date_add('2000-01-01', interval 4294967301 hour);
+date_add('2000-01-01', interval 4294967301 day)	date_add('2000-01-01', interval 4294967301 hour)
+NULL	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+Warning	1441	Datetime function: datetime field overflow
+select date_add('2000-01-01', interval 18446744073709551615 microsecond);
+date_add('2000-01-01', interval 18446744073709551615 microsecond)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('0000-01-01', interval 9999 year),
+date_add('0000-01-01', interval 10000 year);
+date_add('0000-01-01', interval 9999 year)	date_add('0000-01-01', interval 10000 year)
+9999-01-01	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_add('0000-01-01', interval 119999 month),
+date_add('0000-01-01', interval 120000 month);
+date_add('0000-01-01', interval 119999 month)	date_add('0000-01-01', interval 120000 month)
+9999-12-01	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_sub('9999-12-31', interval 9999 year),
+date_sub('9999-12-31', interval 10000 year);
+date_sub('9999-12-31', interval 9999 year)	date_sub('9999-12-31', interval 10000 year)
+0000-12-31	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+select date_sub('9999-12-31', interval 119999 month),
+date_sub('9999-12-31', interval 120000 month);
+date_sub('9999-12-31', interval 119999 month)	date_sub('9999-12-31', interval 120000 month)
+0000-01-31	NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
 # End of 10.11 tests

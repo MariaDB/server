@@ -3295,4 +3295,25 @@ DO STR_TO_DATE(1, '%#');
 DO STR_TO_DATE(LOWER('q'), '%@');
 DO STR_TO_DATE(LOWER('.'), '%.');
 
+--echo #
+--echo # MDEV-41644 date_add_interval(): signed overflow on huge YEAR/MONTH
+--echo #            interval values
+--echo #
+select date_add('2000-01-01', interval 4294967301 year);
+select date_add('2000-01-01', interval 18446744073709551615 year);
+select date_add('2000-01-01', interval 18446744073709551604 month);
+select date_add('2000-01-01', interval 9223372036854775808 month),
+       date_add('2000-01-01', interval 768614336404564651 year);
+select date_add('2000-01-01', interval 4294967301 day),
+       date_add('2000-01-01', interval 4294967301 hour);
+select date_add('2000-01-01', interval 18446744073709551615 microsecond);
+select date_add('0000-01-01', interval 9999 year),
+       date_add('0000-01-01', interval 10000 year);
+select date_add('0000-01-01', interval 119999 month),
+       date_add('0000-01-01', interval 120000 month);
+select date_sub('9999-12-31', interval 9999 year),
+       date_sub('9999-12-31', interval 10000 year);
+select date_sub('9999-12-31', interval 119999 month),
+       date_sub('9999-12-31', interval 120000 month);
+
 --echo # End of 10.11 tests
