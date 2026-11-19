@@ -6632,6 +6632,11 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 	return 1;
 
       const int v= plm1 - i;
+      /*
+        shift still holds the previous shift. If it was pattern_len - u,
+        the factor u remembered from it is a prefix of the pattern.
+      */
+      const bool u_is_prefix= (shift == pattern_len - u);
       turboShift = u - v;
       bcShift    = bmBc[(uint) (uchar) text[i + j]] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);
@@ -6640,8 +6645,12 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 	u = MY_MIN(pattern_len - shift, v);
       else
       {
-	if (turboShift < bcShift)
-	  shift = MY_MAX(shift, u + 1);
+        /*
+          The turbo lower bound u + 1 is only valid when u is not a prefix
+          of the pattern and the current suffix is shorter than u.
+        */
+        if (turboShift < bcShift && v < u && !u_is_prefix)
+          shift= MY_MAX(shift, u + 1);
 	u = 0;
       }
       j+= shift;
@@ -6663,6 +6672,11 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 	return 1;
 
       const int v= plm1 - i;
+      /*
+        shift still holds the previous shift. If it was pattern_len - u,
+        the factor u remembered from it is a prefix of the pattern.
+      */
+      const bool u_is_prefix= (shift == pattern_len - u);
       turboShift = u - v;
       bcShift    = bmBc[(uint) likeconv(cs, text[i + j])] - plm1 + i;
       shift      = MY_MAX(turboShift, bcShift);
@@ -6671,8 +6685,12 @@ bool Item_func_like::turboBM_matches(const char* text, int text_len) const
 	u = MY_MIN(pattern_len - shift, v);
       else
       {
-	if (turboShift < bcShift)
-	  shift = MY_MAX(shift, u + 1);
+        /*
+          The turbo lower bound u + 1 is only valid when u is not a prefix
+          of the pattern and the current suffix is shorter than u.
+        */
+        if (turboShift < bcShift && v < u && !u_is_prefix)
+          shift= MY_MAX(shift, u + 1);
 	u = 0;
       }
       j+= shift;
