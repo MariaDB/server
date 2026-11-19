@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mariadb-10.2.7-1\n"
 "Report-Msgid-Bugs-To: mariadb@packages.debian.org\n"
-"POT-Creation-Date: 2019-07-23 19:16-0300\n"
+"POT-Creation-Date: 2026-11-19 08:38-0500\n"
 "PO-Revision-Date: 2018-03-29 21:25+0200\n"
 "Last-Translator: Frans Spiesschaert <Frans.Spiesschaert@yucom.be>\n"
 "Language-Team: Debian Dutch l10n Team <debian-l10n-dutch@lists.debian.org>\n"
@@ -66,11 +66,18 @@ msgstr "Belangrijke opmerking voor gebruikers van NIS/YP"
 #. Description
 #: ../mariadb-server.templates:3001
 msgid ""
-"Using MariaDB under NIS/YP requires a mysql user account to be added on the "
-"local system with:"
+"MariaDB uses systemd-sysusers to create missing mysql user and group entries "
+"on the local system."
 msgstr ""
-"Het gebruik van MariaDB onder NIS/YP vereist dat een mysql gebruikersaccount "
-"wordt toegevoegd aan het lokale systeem met:"
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:3001
+msgid ""
+"If you provide these entries through NIS/YP or override the local sysusers "
+"configuration, make sure both 'getent passwd mysql' and 'getent group mysql' "
+"return an entry before configuring MariaDB."
+msgstr ""
 
 #. Type: note
 #. Description

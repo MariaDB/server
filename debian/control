@@ -759,8 +759,7 @@ Recommends: libhtml-template-perl,
             mariadb-server-compat,
             pv,
             stunnel
-Pre-Depends: adduser (>= 3.40),
-             debconf,
+Pre-Depends: debconf,
              mariadb-common (>= ${source:Version})
 Depends: galera-4 (>= 26.4),
          gawk,
@@ -775,6 +774,7 @@ Depends: galera-4 (>= 26.4),
          psmisc,
          rsync,
          socat,
+         systemd | systemd-standalone-sysusers | systemd-sysusers,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}
