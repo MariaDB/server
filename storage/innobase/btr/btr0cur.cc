@@ -5449,11 +5449,6 @@ search_loop:
       n_rows+= should_count_the_left_border + should_count_the_right_border;
   }
 
-  if (root_height > divergence_height && !is_n_rows_exact)
-    /* In trees whose height is > 1 our algorithm tends to underestimate:
-    multiply the estimate by 2: */
-    n_rows*= 2;
-
   DBUG_EXECUTE_IF("bug14007649", DBUG_RETURN(n_rows););
 
 #ifdef NOT_USED
