@@ -102,6 +102,15 @@ static int duckdb_prepare(handlerton *hton, THD *thd, bool all)
   return 0;
 }
 
+#if MYSQL_VERSION_ID >= 110800
+static int duckdb_recover(XID *, uint)
+#else
+static int duckdb_recover(handlerton *, XID *, uint)
+#endif
+{
+  return 0;
+}
+
 static void push_duckdb_query_error(const std::string &err)
 {
   if (err.find("Parser Error") != std::string::npos ||
@@ -231,6 +240,7 @@ static int duckdb_init_func(void *p)
   duckdb_hton->create= duckdb_create_handler;
   duckdb_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
   duckdb_hton->prepare= duckdb_prepare;
+  duckdb_hton->recover= duckdb_recover;
   duckdb_hton->commit= duckdb_commit;
   duckdb_hton->rollback= duckdb_rollback;
   duckdb_hton->close_connection= duckdb_close_connection;
