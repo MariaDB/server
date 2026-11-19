@@ -1,0 +1,82 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--disable_ps2_protocol
+
+#
+# MDEV-41428: backport of MDEV-34240 to 10.11 (sql/handler.cc
+# run_binlog_first(), sql/log.cc binlog_commit()).
+#
+# Two conditions were added/changed there to keep Galera's internal
+# row-event cache flushed correctly:
+#
+#  1. run_binlog_first(): when no binlog handlerton took part in the
+#     transaction (get_binlog_hton() returns NULL), a wsrep fallback
+#     now flushes pending row events instead of dropping them. That
+#     fallback only fires on commit, not on rollback.
+#     - true:  no binlog hton, is_commit=true  (MDEV-41428.combinations
+#       'binlogoff', COMMIT below)
+#     - false: no binlog hton, is_commit=false (same combination,
+#       ROLLBACK below); also false whenever a binlog hton is present
+#       ('binlogon', both COMMIT and ROLLBACK)
+#
+#  2. binlog_commit(): a non-empty statement cache is now flushed to
+#     disk instead of being skipped while a wsrep transaction is still
+#     open.
+#     - true:  wsrep is on and the transaction has not ended yet -
+#       reached mid-transaction, when a NOCACHE sequence's own
+#       auto-commit populates the statement cache
+#     - false: the transaction is ending (COMMIT, or an autocommit
+#       statement) - the normal statement-cache flush runs
+#
+
+--connection node_1
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
+
+# Autocommit statement: the transaction ends immediately, so
+# binlog_commit() takes its normal, non-wsrep-deferred path.
+INSERT INTO t1 VALUES (NEXTVAL(seq));
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1;
+SELECT NEXTVAL(seq) = 2;
+
+--connection node_1
+
+# Explicit transaction: NEXTVAL(seq) auto-commits its own change and
+# populates the statement cache while this transaction is still open,
+# so binlog_commit() must flush that statement cache without clearing
+# it, instead of leaving it unflushed until the final COMMIT.
+START TRANSACTION;
+INSERT INTO t1 VALUES (0);
+SELECT NEXTVAL(seq);
+INSERT INTO t1 VALUES (NEXTVAL(seq));
+COMMIT;
+
+--connection node_2
+SELECT COUNT(*) = 3 FROM t1;
+SELECT NEXTVAL(seq) = 5;
+
+--connection node_1
+
+# ROLLBACK takes run_binlog_first() with is_commit=false, so the new
+# wsrep fallback must not fire even when there is no binlog hton
+# ('binlogoff'): the rolled-back row must not appear anywhere.
+START TRANSACTION;
+INSERT INTO t1 VALUES (100);
+ROLLBACK;
+
+SELECT COUNT(*) = 3 FROM t1;
+
+--connection node_2
+SELECT COUNT(*) = 3 FROM t1;
+
+--connection node_1
+
+DROP SEQUENCE seq;
+DROP TABLE t1;
+
+--enable_ps2_protocol

@@ -1,0 +1,42 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE SEQUENCE seq NOCACHE ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NEXTVAL(seq));
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+SELECT NEXTVAL(seq) = 2;
+NEXTVAL(seq) = 2
+1
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (0);
+SELECT NEXTVAL(seq);
+NEXTVAL(seq)
+3
+INSERT INTO t1 VALUES (NEXTVAL(seq));
+COMMIT;
+connection node_2;
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+SELECT NEXTVAL(seq) = 5;
+NEXTVAL(seq) = 5
+1
+connection node_1;
+START TRANSACTION;
+INSERT INTO t1 VALUES (100);
+ROLLBACK;
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+connection node_2;
+SELECT COUNT(*) = 3 FROM t1;
+COUNT(*) = 3
+1
+connection node_1;
+DROP SEQUENCE seq;
+DROP TABLE t1;
