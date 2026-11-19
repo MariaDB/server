@@ -470,6 +470,10 @@ Next_select_func setup_end_select_func(JOIN *join);
 int rr_sequential(READ_RECORD *info);
 int read_record_func_for_rr_and_unpack(READ_RECORD *info);
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond);
+/* A deep copy of the conjuncts of tab's condition over tab, its join buffer's
+   tables and the const ones. NULL when there is none, an item has no copy, OOM,
+   or a ref key part has two top-level =/<=> or none with the ref's value. */
+Item *make_multi_key_pushdown_cond(JOIN_TAB *tab);
 Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
                                            COND_EQUAL **cond_eq,
                                            List<Item> &new_conds,

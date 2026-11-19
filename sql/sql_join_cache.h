@@ -22,6 +22,7 @@
 #define JOIN_CACHE_INCREMENTAL_BIT           1
 #define JOIN_CACHE_HASHED_BIT                2
 #define JOIN_CACHE_BKA_BIT                   4
+#define JOIN_CACHE_MULTI_KEY_BIT             8
 
 /* 
   Categories of data fields of variable length written into join cache buffers.
@@ -62,6 +63,7 @@ typedef struct st_cache_field {
 
 
 class JOIN_TAB_SCAN;
+class JOIN_TAB_SCAN_MULTI_KEY;
 
 class EXPLAIN_BKA_TYPE;
 
@@ -691,6 +693,7 @@ public:
   friend class JOIN_CACHE_BKA;
   friend class JOIN_TAB_SCAN;
   friend class JOIN_TAB_SCAN_MRR;
+  friend class JOIN_TAB_SCAN_MULTI_KEY;
 
 };
 
@@ -1355,6 +1358,28 @@ public:
 
   /* Check index condition of the joined table for a record from BKA cache */
   bool skip_index_tuple(range_id_t range_info);
+
+  bool save_explain_data(EXPLAIN_BKA_TYPE *explain) override;
+};
+
+
+class JOIN_CACHE_MULTI_KEY :public JOIN_CACHE_BKA
+{
+private:
+
+  /* NULL when init() refused the path: the cache runs as BKA */
+  JOIN_TAB_SCAN_MULTI_KEY *multi_key_scan;
+
+protected:
+
+  uchar *get_next_candidate_for_match() override;
+
+public:
+
+  JOIN_CACHE_MULTI_KEY(JOIN *j, JOIN_TAB *tab, uint flags, JOIN_CACHE *prev)
+    :JOIN_CACHE_BKA(j, tab, flags, prev), multi_key_scan(0) {}
+
+  int init(bool for_explain) override;
 
   bool save_explain_data(EXPLAIN_BKA_TYPE *explain) override;
 };

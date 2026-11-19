@@ -20,7 +20,11 @@
 #include <heap.h>
 #include "sql_class.h"                          /* THD */
 
-class ha_heap final : public handler
+/*
+  Not final, and visible outside mariadbd: the handler of the dynamic plugin
+  test_multi_key derives from it.
+*/
+class __attribute__((visibility("default"))) ha_heap : public handler
 {
   HP_INFO *file;
   HP_SHARE *internal_share;

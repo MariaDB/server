@@ -20,6 +20,7 @@ usr/lib/mysql/plugin/dialog_examples.so
 usr/lib/mysql/plugin/example_key_management.so
 usr/lib/mysql/plugin/func_test.so
 usr/lib/mysql/plugin/ha_example.so
+usr/lib/mysql/plugin/ha_test_multi_key.so
 usr/lib/mysql/plugin/ha_test_sql_discovery.so
 usr/lib/mysql/plugin/libdaemon_example.so
 usr/lib/mysql/plugin/mypluglib.so
