@@ -396,8 +396,8 @@ def	information_schema	SLAVE_STATUS	Connects_Tried	57	NULL	NO	bigint	NULL	NULL	2
 def	information_schema	SLAVE_STATUS	Connect_Retry	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Executed_log_entries	61	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Exec_Master_Log_Pos	24	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Gtid_IO_Pos	46	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	64	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Gtid_IO_Pos	46	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	64	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Last_Errno	21	NULL	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(4) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Last_Error	22	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(1024)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Last_IO_Errno	37	NULL	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(4) unsigned			select		NEVER	NULL	NO	NO
@@ -428,16 +428,16 @@ def	information_schema	SLAVE_STATUS	Relay_Log_File	10	NULL	NO	varchar	512	1536	N
 def	information_schema	SLAVE_STATUS	Relay_Log_Pos	11	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Relay_Log_Space	25	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Relay_Master_Log_File	12	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(512)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Do_DB	15	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	47	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Do_Table	17	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	16	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	48	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	41	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	18	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Rewrite_DB	56	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	19	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	20	NULL	NO	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Do_DB	15	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	47	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Do_Table	17	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	16	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	48	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	41	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	18	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Rewrite_DB	56	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	19	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	20	NULL	NO	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Retried_transactions	59	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Seconds_Behind_Master	35	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Skip_Counter	23	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
@@ -449,7 +449,7 @@ def	information_schema	SLAVE_STATUS	Slave_last_event_time	66	NULL	YES	datetime	N
 def	information_schema	SLAVE_STATUS	Slave_Non_Transactional_Groups	54	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Slave_received_heartbeats	62	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Slave_SQL_Running	14	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(3)			select		NEVER	NULL	NO	NO
-def	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	52	NULL	YES	varchar	21844	65532	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(21844)			select		NEVER	NULL	NO	NO
+def	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	52	NULL	YES	blob	65535	65535	NULL	NULL	NULL	NULL	NULL	blob			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Slave_SQL_State	2	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(64)			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	Slave_Transactional_Groups	55	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select		NEVER	NULL	NO	NO
 def	information_schema	SLAVE_STATUS	SQL_Delay	50	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select		NEVER	NULL	NO	NO
@@ -1092,12 +1092,12 @@ NULL	information_schema	SLAVE_STATUS	Relay_Log_Pos	bigint	NULL	NULL	NULL	NULL	bi
 3.0000	information_schema	SLAVE_STATUS	Relay_Master_Log_File	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	SLAVE_STATUS	Slave_IO_Running	varchar	10	30	utf8mb3	utf8mb3_general_ci	varchar(10)
 3.0000	information_schema	SLAVE_STATUS	Slave_SQL_Running	varchar	3	9	utf8mb3	utf8mb3_general_ci	varchar(3)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Do_DB	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Do_Table	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Replicate_Do_DB	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_DB	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Do_Table	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Table	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Do_Table	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Wild_Ignore_Table	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	SLAVE_STATUS	Last_Errno	smallint	NULL	NULL	NULL	NULL	smallint(4) unsigned
 3.0000	information_schema	SLAVE_STATUS	Last_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
 NULL	information_schema	SLAVE_STATUS	Skip_Counter	int	NULL	NULL	NULL	NULL	int(10) unsigned
@@ -1118,22 +1118,22 @@ NULL	information_schema	SLAVE_STATUS	Last_IO_Errno	smallint	NULL	NULL	NULL	NULL	
 3.0000	information_schema	SLAVE_STATUS	Last_IO_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
 NULL	information_schema	SLAVE_STATUS	Last_SQL_Errno	smallint	NULL	NULL	NULL	NULL	smallint(4) unsigned
 3.0000	information_schema	SLAVE_STATUS	Last_SQL_Error	varchar	1024	3072	utf8mb3	utf8mb3_general_ci	varchar(1024)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Server_Ids	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	SLAVE_STATUS	Master_Server_Id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 3.0000	information_schema	SLAVE_STATUS	Master_SSL_Crl	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	SLAVE_STATUS	Master_SSL_Crlpath	varchar	512	1536	utf8mb3	utf8mb3_general_ci	varchar(512)
 3.0000	information_schema	SLAVE_STATUS	Using_Gtid	varchar	11	33	utf8mb3	utf8mb3_general_ci	varchar(11)
-3.0000	information_schema	SLAVE_STATUS	Gtid_IO_Pos	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
-3.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Gtid_IO_Pos	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Do_Domain_Ids	blob	65535	65535	NULL	NULL	blob
+1.0000	information_schema	SLAVE_STATUS	Replicate_Ignore_Domain_Ids	blob	65535	65535	NULL	NULL	blob
 3.0000	information_schema	SLAVE_STATUS	Parallel_Mode	varchar	12	36	utf8mb3	utf8mb3_general_ci	varchar(12)
 NULL	information_schema	SLAVE_STATUS	SQL_Delay	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	information_schema	SLAVE_STATUS	SQL_Remaining_Delay	int	NULL	NULL	NULL	NULL	int(10) unsigned
-3.0000	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Slave_SQL_Running_State	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	SLAVE_STATUS	Slave_DDL_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SLAVE_STATUS	Slave_Non_Transactional_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SLAVE_STATUS	Slave_Transactional_Groups	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
-3.0000	information_schema	SLAVE_STATUS	Replicate_Rewrite_DB	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Replicate_Rewrite_DB	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	SLAVE_STATUS	Connects_Tried	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SLAVE_STATUS	Master_Retry_Count	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	information_schema	SLAVE_STATUS	Retried_transactions	int	NULL	NULL	NULL	NULL	int(10) unsigned
@@ -1141,7 +1141,7 @@ NULL	information_schema	SLAVE_STATUS	Max_relay_log_size	int	NULL	NULL	NULL	NULL	
 NULL	information_schema	SLAVE_STATUS	Executed_log_entries	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	information_schema	SLAVE_STATUS	Slave_received_heartbeats	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	information_schema	SLAVE_STATUS	Slave_heartbeat_period	float	NULL	NULL	NULL	NULL	float(9,3)
-3.0000	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	varchar	21844	65532	utf8mb3	utf8mb3_general_ci	varchar(21844)
+1.0000	information_schema	SLAVE_STATUS	Gtid_Slave_Pos	blob	65535	65535	NULL	NULL	blob
 NULL	information_schema	SLAVE_STATUS	Master_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Slave_last_event_time	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	SLAVE_STATUS	Master_Slave_time_diff	int	NULL	NULL	NULL	NULL	int(10) unsigned
