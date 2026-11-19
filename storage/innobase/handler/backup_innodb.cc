@@ -20,6 +20,7 @@
 #include "log0crypt.h"
 #include "dict0load.h"
 #include "backup_innodb.h"
+#include "innodb_binlog.h"
 #ifdef WITH_WSREP
 # include "trx0rseg.h"
 # include "mysql/service_wsrep.h"
@@ -302,6 +303,10 @@ private:
     /** the original innodb_log_file_size;
     0 if innodb_log_archive was enabled */
     const uint64_t old_size{};
+    /** First binlog file to copy, or ~0. */
+    uint64_t start_binlog_file_no;
+    /** Last binlog file to copy, or ~0. */
+    uint64_t end_binlog_file_no;
     /** the start LSN of the last hard-linked file, or 0 */
     std::atomic<lsn_t> last_hardlink{};
     /** a log file to remove on the next checkpoint when old_size!=0 */
@@ -754,8 +759,8 @@ public:
     {
       new (&ctx) context{
         first_lsn, LSN_MAX, LSN_MAX, start, start_end,
-        log_sys.file_size, old_size, 0, 0, last_track_lsn, PROCESSING,
-        fil_space_t::backup_batch_size(),
+        log_sys.file_size, old_size, ~(uint64_t)0, ~(uint64_t)0, 0, 0,
+        last_track_lsn, PROCESSING, fil_space_t::backup_batch_size(),
         log_dst, log_dst, tracked, &target
       };
 
@@ -836,9 +841,7 @@ public:
      @retval 0 on completion
   */
   int step(const backup_target &target,
-#ifndef NDEBUG
            backup_stages stage, /*!< backup stage */
-#endif
            const backup_sink &sink) noexcept
   {
     ut_ad(&ctx == sink.ha_data);
@@ -876,7 +879,15 @@ public:
 
     int res= int(std::min(size_t{std::numeric_limits<int>::max()}, size - 1));
 
-    if (size > non_log_files)
+    if (stage == BACKUP_FINISHED)
+    {
+      if (int err= backup_binlog(target, sink, id_limit))
+      {
+        ut_ad(err < 0);
+        res= err;
+      }
+    }
+    else if (size > non_log_files)
     {
       log_sys.latch.rd_lock();
       const lsn_t first{log_sys.get_first_lsn()};
@@ -1261,6 +1272,15 @@ public:
   */
   bool commit() noexcept
   {
+    /*
+      Take locks to synchronize the last binlog file copied with the
+      backup LSN. */
+    mysql_mutex_lock(&purge_binlog_mutex);
+    ctx.start_binlog_file_no= ibb_get_backup_start(false);
+    mysql_mutex_lock(&active_binlog_mutex);
+    mysql_mutex_unlock(&purge_binlog_mutex);
+    ctx.end_binlog_file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+
     log_sys.latch.wr_lock();
     mutex.wr_lock();
     ut_ad(!non_log);
@@ -1269,12 +1289,15 @@ public:
     if (ctx.last_lsn == 0)
     {
       log_sys.latch.wr_unlock();
+      mysql_mutex_unlock(&active_binlog_mutex);
       mutex.wr_unlock();
       return true;
     }
     ut_ad(ctx.last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
     lsn_t first{log_sys.get_first_lsn()};
+    mysql_mutex_unlock(&active_binlog_mutex);
+
     if (!ctx.is_log_tracking())
     {
       ut_ad(ctx.last_track_lsn <= first);
@@ -1394,6 +1417,19 @@ public:
     ut_ad(ctx.state == PROCESSING);
 
     const uint64_t old_size{ctx.old_size};
+
+    /* Collect binlog files to copy. */
+    if (ctx.start_binlog_file_no != ~(uint64_t)0 &&
+        ctx.end_binlog_file_no != ~(uint64_t)0)
+    {
+      ut_ad(queue.empty());
+      for (uint64_t i= ctx.end_binlog_file_no; ; --i)
+      {
+        queue.emplace_back(i);
+        if (i == ctx.start_binlog_file_no)
+          break;
+      }
+    }
     mutex.wr_unlock();
 
     /* Restore innodb_log_archive as it was before init() */
@@ -1417,6 +1453,9 @@ public:
   */
   int finish_end(const backup_target &target, const backup_sink &sink) noexcept
   {
+    if (ctx.start_binlog_file_no != ~(uint64_t)0 &&
+        ctx.end_binlog_file_no != ~(uint64_t)0)
+      queue.clear();  // In case of error abort.
     ut_ad(!sink.ha_data || &ctx == static_cast<context*>(sink.ha_data));
     ut_ad(!sink.ha_data || &target == ctx.target);
     return sink.ha_data ? ctx.cleanup(sink) : 0;
@@ -1736,6 +1775,14 @@ private:
     space.release();
     ut_ad(res <= 0);
     return res;
+  }
+
+  int backup_binlog(const backup_target &target, const backup_sink &sink,
+                    uint64_t file_no)
+  {
+    char filename[OS_FILE_MAX_PATH];
+    binlog_name_make(filename, file_no);
+    return backup::copy_or_stream(target, sink, filename, 0);
   }
 
   /**
@@ -2788,9 +2835,7 @@ int innodb_backup_step(THD *thd, const backup_target *target,
   case BACKUP_LOCK_COMMIT:
   case BACKUP_FINISHED:
     return innodb_backup.step(*target,
-#ifndef NDEBUG
                               stage,
-#endif
                               *sink);
   default:
     return 0;
