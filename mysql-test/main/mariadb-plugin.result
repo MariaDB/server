@@ -61,6 +61,10 @@ ERROR: 'install' requires exactly one plugin name.
 ERROR: --dry-run is not supported with ENABLE/DISABLE.
 ERROR: --dry-run is not supported with ENABLE/DISABLE.
 #
+# Legacy syntax must not silently ignore --yes
+#
+ERROR: --yes is not supported with ENABLE/DISABLE.
+#
 # Legacy syntax rejects archive options rather than ignoring them
 #
 ERROR: --file, --sha256 and --base-url are not supported with ENABLE/DISABLE.

@@ -144,6 +144,13 @@
 --exec $MYSQL_PLUGIN --no-defaults --dry-run foo DISABLE 2>&1 > /dev/null
 
 --echo #
+--echo # Legacy syntax must not silently ignore --yes
+--echo #
+--replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//
+--error 1
+--exec $MYSQL_PLUGIN --no-defaults --yes foo ENABLE 2>&1 > /dev/null
+
+--echo #
 --echo # Legacy syntax rejects archive options rather than ignoring them
 --echo #
 --replace_regex /[^\n]*libcurl\.so\.4: no version information available \(required by [^\n]*mariadb-plugin\)\n?//

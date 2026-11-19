@@ -68,7 +68,7 @@ Provides\&. Uninstall resolves the real package name before removing it\&.
 .PP
 On binary tarball installations, install reads a local archive specified by
 \fB\-\-file\fR, or downloads one from the plugin repository\&. Downloads
-require a matching SHA\-256 checksum from the repository index\&. The tool
+require a matching SHA\-256 checksum from \fBsha256sums.txt\fR\&. The tool
 validates the archive, refuses to overwrite files, records installed paths
 under \fI<basedir>/.mariadb\-plugin/\fR, and prints instructions for enabling
 the plugin\&. It does not edit server configuration\&. Uninstall uses the
@@ -79,6 +79,8 @@ records must end with a newline. During a failed install, rollback uses
 the paths recorded in memory, so a partial manifest write is never used
 as a deletion path. If a file cannot be
 removed, the manifest is kept so uninstall can be retried\&.
+A directory that one plugin created and another plugin also ships is
+recorded by both, and stays until the last of them is uninstalled\&.
 .PP
 The deprecated
 ENABLE/DISABLE
@@ -141,36 +143,41 @@ Bundled libraries without a manifest are shown as available when listed in
 the repository\&. Plugins absent from the index are omitted from search but
 can still be uninstalled using their local manifests\&.
 .PP
-Windows uses WinHTTP for repository access and accepts \fB.zip\fR packages\&.
-It also accepts \fB.tar.gz\fR archives for compatibility\&. ZIP entries are
+Windows uses WinHTTP for repository access and downloads \fB.zip\fR
+packages\&. A local \fB\-\-file\fR archive may also be \fB.tar.gz\fR\&.
+ZIP entries are
 limited to regular files and directories with simple ASCII paths; encrypted
 entries, links and unsupported compression methods are rejected\&.
 .SH "TARBALL REPOSITORIES"
 .PP
 \fB\-\-base\-url\fR specifies an HTTP or HTTPS directory containing
-\fBplugins.index\fR and the plugin archives\&. No default repository is
-configured yet, so tarball search and downloading require this option\&. HTTPS is
+\fBplugins.yml\fR, \fBsha256sums.txt\fR and the plugin archives\&. No default
+repository is configured yet, so tarball search and downloading require this
+option\&. HTTPS is
 recommended; certificate verification is enabled\&. An HTTPS download
 cannot redirect to HTTP\&.
 .PP
-The index uses a restricted YAML subset: one \fBpackage:\fR mapping per
-document, with documents separated by \fB\-\-\-\fR on its own line\&.
-Fields use consistent space indentation and single-line scalar values\&.
-Blank lines and comments are allowed; blank lines do not separate records\&.
+The index uses a restricted YAML subset: a list with one mapping per
+package\&. An item starts with \fB\-\fR and a space at the beginning of a
+line, and the item's other fields are indented to align with its first field\&.
+Values are single-line scalars\&.
+Blank lines and comments are allowed\&.
 Each physical line may contain at most 1023 bytes before its newline\&.
 For example:
 .sp
 .nf
-package:
-  name: example
-  version: "1.0"
-  server: "13.1.0"
+\- name: example
+  filename: mariadb\-plugin\-example\-13.1.0\-1.0\-linux\-x86_64
+  version: 1.0
+  server: 13.1.0
   platform: linux\-x86_64
-  file: mariadb\-plugin\-example\-1.0.tar.gz
-  sha256: "<64 hexadecimal characters>"
+  author: Example Author
+  description: Example plugin
+  license: GPLv2
 .fi
 .PP
-All six fields are required\&. Server versions must be numeric
+The name, filename, version, server and platform fields are required\&.
+Server versions must be numeric
 major.minor or major.minor.patch; only the major/minor series is matched\&.
 The combined platform identifier must match CMake's
 \fBSYSTEM_NAME_AND_PROCESSOR\fR value for the build, ignoring letter case\&.
@@ -182,26 +189,32 @@ Duplicate occurrences of these fields are rejected, as are duplicate required
 fields\&. Unknown fields and unsupported YAML structures are rejected\&.
 Values may be plain, single-quoted (double an embedded apostrophe), or
 double-quoted (only escaped quotes and backslashes are supported)\&.
-Quote versions, checksums, and text containing a colon followed by a space
-or a space followed by a hash sign\&. Lists, aliases, tags, multiline values,
-directives and explicit document-end markers are not supported\&.
+Quote text containing a colon followed by a space
+or a space followed by a hash sign\&. Nested lists, aliases, tags, multiline
+values, directives and document markers are not supported\&.
 Plain null and boolean values are rejected; use quoted strings instead\&.
 Index text must be UTF-8; Unicode line-break characters are rejected by this
 single-line subset\&.
 .PP
-Per-package metadata inside an archive describes the package\&. The repository
-adds \fBfile\fR and \fBsha256\fR after creating the archive and combines
-the documents into \fBplugins.index\fR\&. Local uninstall manifests retain
+Each archive carries its own index item at its top level; the repository
+combines them into \fBplugins.yml\fR\&. Local uninstall manifests retain
 their existing format\&.
 .PP
-Archive filenames must end in \fB.tar.gz\fR (or \fB.zip\fR on Windows)
-and contain only letters,
-digits, dots, underscores and hyphens, without consecutive dots\&.
-They cannot contain directory paths or URLs\&. Keep the original CPack
-filename so the installer can recognize the archive's wrapper directory\&.
-The repository index is limited to 8 MiB and each downloaded archive to 1 GiB\&.
-ZIP extraction also limits the entry count to 4096 and the total expanded
-contents to 1 GiB\&.
+The filename field is the archive name without its extension; the tool
+appends \fB.tar.gz\fR (\fB.zip\fR on Windows)\&. It may contain only letters,
+digits, dots, underscores and hyphens, without consecutive dots, and cannot
+contain directory paths or URLs\&. The archive's top-level directory has the
+same name\&.
+.PP
+The archive's checksum is taken from the line in \fBsha256sums.txt\fR that
+names it, in \fBsha256sum\fR output format\&. A missing or repeated line is
+an error\&.
+The index and checksum list are each limited to 8 MiB and each downloaded
+archive to 1 GiB\&.
+Archives may hold at most 4096 entries and 1 GiB of expanded contents\&.
+Installed files keep their archive permissions, except setuid, setgid, and
+group or other write permission, which are dropped; the umask does not apply
+to them\&. New directories are created with mode 0755, subject to the umask\&.
 .SH "DEPRECATED SYNTAX"
 .PP
 The former syntax
@@ -236,7 +249,8 @@ The
 \fB\-\-my\-print\-defaults\fR
 and
 \fB\-\-lc\-messages\-dir\fR
-options apply to this syntax only\&.
+options apply to this syntax only; search, install and uninstall reject
+them\&.
 .PP
 For new setups, use
 INSTALL SONAME
@@ -281,9 +295,35 @@ and
 uninstall
 would run, without running them\&. The package name is resolved as usual, so
 the command shown is the one that would be executed\&. Needs no root\&.
-For tarball downloads, fetch the index and show the chosen URL and checksum,
-without downloading the archive or changing the installation\&. For a local
-archive, validate it and print the planned extraction\&.
+For tarball downloads, fetch the index and checksum list and show the
+chosen URL and checksum, without downloading the archive or changing the
+installation\&. For a local archive, validate it and print the planned
+extraction\&.
+This option is rejected with the deprecated ENABLE/DISABLE syntax\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-plugin: yes option
+.\" yes option: mariadb-plugin
+\fB\-\-yes\fR,
+\fB\-y\fR
+.sp
+Answer yes to the package manager's questions, so that
+install
+and
+uninstall
+can run from scripts\&. The package manager is run with \fB\-y\fR
+(\fBapt\-get\fR and \fBdnf\fR) or \fB\-\-non\-interactive\fR
+(\fBzypper\fR)\&. Without it, the package manager asks before installing
+additional packages or removing anything, and a run without a terminal stops
+there\&. Tarball installations never ask\&.
 This option is rejected with the deprecated ENABLE/DISABLE syntax\&.
 .RE
 .sp
@@ -333,7 +373,8 @@ extraction, so replacing the source path cannot change the installed bytes\&.
 \fB\-\-sha256=\fIhex\fR
 Expected checksum of a local archive\&. Requires \fB\-\-file\fR\&.
 Without this option, local installation warns that the archive is unverified\&.
-Downloaded archives always require the checksum supplied in the index\&.
+Downloaded archives always require the checksum listed in
+\fBsha256sums.txt\fR\&.
 Search rejects \fB\-\-file\fR and \fB\-\-sha256\fR\&.
 RPM and DEB installations also reject \fB\-\-base\-url\fR for search;
 they use native package repositories\&. They reject all three options for

@@ -73,6 +73,7 @@
 static uint my_end_arg= 0;
 static uint opt_verbose=0;
 static my_bool opt_dry_run= 0;
+static my_bool opt_yes= 0;
 static char *opt_file= 0;
 static char *opt_sha256= 0;
 static char *opt_base_url= 0;
@@ -110,6 +111,9 @@ static struct my_option my_long_options[] =
   {"dry-run", 0, "Print the commands that install and uninstall would run, "
    "without running them.",
     &opt_dry_run, &opt_dry_run, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"yes", 'y', "Answer yes to the package manager's questions, so that "
+   "install and uninstall can run from scripts.",
+    &opt_yes, &opt_yes, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"file", 0, "Install the plugin from this local archive instead of "
    "downloading it.",
     &opt_file, &opt_file, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -198,6 +202,13 @@ int main(int argc,char *argv[])
   if (opt_dry_run)
   {
     fprintf(stderr, "ERROR: --dry-run is not supported with ENABLE/DISABLE.\n");
+    my_end(my_end_arg);
+    return 1;
+  }
+
+  if (opt_yes)
+  {
+    fprintf(stderr, "ERROR: --yes is not supported with ENABLE/DISABLE.\n");
     my_end(my_end_arg);
     return 1;
   }
@@ -1610,6 +1621,15 @@ static const char *get_package_manager(void)
 }
 
 
+/* zypper takes the global option before the command; apt-get and dnf -y. */
+static int add_yes_option(char **cmd_argv, int n, const char *pm)
+{
+  if (opt_yes)
+    cmd_argv[n++]= (char *) (strcmp(pm, "zypper") ? "-y" : "--non-interactive");
+  return n;
+}
+
+
 /**
   Require root for native package changes, but allow non-root dry-runs.
 
@@ -2045,6 +2065,14 @@ static int search_zypper(void)
   @param[in]  output  The captured apt-cache output, modified in place.
 */
 
+/* Debug symbols share the plugin's package name prefix but are no plugin. */
+static int apt_debug_package(const char *package)
+{
+  size_t len= strlen(package);
+  return len > 7 && !strcmp(package + len - 7, "-dbgsym");
+}
+
+
 static int parse_apt_records(char *output)
 {
   struct plugin_entry *e;
@@ -2056,7 +2084,8 @@ static int parse_apt_records(char *output)
       *next++= '\0';
     if ((sep= strstr(line, " - ")))
       *sep= '\0';
-    if (strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) != 0)
+    if (strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) != 0 ||
+        apt_debug_package(line))
       continue;
     if (!(e= add_plugin_entry(line + PLUGIN_PREFIX_LEN)))
       return 1;
@@ -2104,7 +2133,8 @@ static int search_apt(void)
       continue;
     *sep++= '\0';
     if (strcmp(sep, "installed") == 0 &&
-        strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) == 0)
+        strncmp(line, PLUGIN_PREFIX, PLUGIN_PREFIX_LEN) == 0 &&
+        !apt_debug_package(line))
     {
       if (!(e= add_plugin_entry(line + PLUGIN_PREFIX_LEN)))
         return 1;
@@ -2177,7 +2207,14 @@ static int do_search(const char *term, const char *basedir)
 
 #define MANIFEST_SUBDIR ".mariadb-plugin"
 #define PLUGIN_BASE_URL ""
-#define PLUGIN_INDEX "plugins.index"
+#define PLUGIN_INDEX "plugins.yml"
+#define PLUGIN_CHECKSUMS "sha256sums.txt"
+/* The index names archives without extension; each platform has one format. */
+#ifdef _WIN32
+#define PLUGIN_ARCHIVE_EXT ".zip"
+#else
+#define PLUGIN_ARCHIVE_EXT ".tar.gz"
+#endif
 
 struct manifest_entry
 {
@@ -2369,11 +2406,13 @@ static int valid_relative_path(const char *path)
 }
 
 
+#ifdef _WIN32
 static int archive_is_zip(const char *name)
 {
   size_t len= strlen(name);
   return len >= 4 && !strncasecmp(name + len - 4, ".zip", 4);
 }
+#endif
 
 
 static int reserved_manifest_path(const char *path)
@@ -3111,10 +3150,8 @@ struct index_entry
   char server[32];
   char platform[64];
   char file[FN_REFLEN];
-  char sha256[65];
-  char author[KV_LINE_SIZE];
+  char sha256[65];                   /* from PLUGIN_CHECKSUMS, not the index */
   char description[KV_LINE_SIZE];
-  char license[KV_LINE_SIZE];
 };
 
 
@@ -3241,42 +3278,56 @@ struct index_reader
 {
   FILE *file;
   const char *source;
-  my_bool after_separator;
+  /* The line that starts the next sequence item, read while ending one. */
+  char next[KV_LINE_SIZE];
+  my_bool have_next;
 };
 
 
-/* One package mapping per YAML document. 1 = record, 0 = EOF, -1 = error. */
+/* One package mapping per YAML list item. 1 = record, 0 = EOF, -1 = error. */
 static int read_index_entry(struct index_reader *reader, struct index_entry *e)
 {
   char line[KV_LINE_SIZE];
-  const char *keys[]= {"name", "version", "server", "platform",
-                       "file", "sha256", "author", "description", "license"};
-  char *values[]= {e->name, e->version, e->server, e->platform,
-                    e->file, e->sha256, e->author, e->description, e->license};
-  size_t sizes[]= {sizeof(e->name), sizeof(e->version), sizeof(e->server),
-                    sizeof(e->platform), sizeof(e->file),
-                    sizeof(e->sha256), sizeof(e->author),
-                    sizeof(e->description), sizeof(e->license)};
+  const char *keys[]= {"name", "filename", "version", "server", "platform",
+                       "author", "description", "license"};
+  /* author and license are validated, but nothing reads them */
+  char *values[]= {e->name, e->file, e->version, e->server, e->platform,
+                   NULL, e->description, NULL};
+  size_t sizes[]= {sizeof(e->name), sizeof(e->file), sizeof(e->version),
+                   sizeof(e->server), sizeof(e->platform), 0,
+                   sizeof(e->description), 0};
   uint seen= 0, major, minor;
-  my_bool have_package= FALSE, separator= reader->after_separator;
+  my_bool have_item= FALSE;
   int rc;
   size_t i, len, indent= 0;
 
   bzero(e, sizeof(*e));
   for (;;)
   {
-    my_bool oversized;
+    my_bool oversized= FALSE;
     char *key, *value;
     size_t spaces;
 
-    rc= read_metadata_line(reader->file, reader->source, line, &oversized);
-    if (rc < 0)
+    if (reader->have_next)
+    {
+      safe_strcpy(line, sizeof(line), reader->next);
+      reader->have_next= FALSE;
+      rc= 1;
+    }
+    else if ((rc= read_metadata_line(reader->file, reader->source, line,
+                                     &oversized)) < 0)
       return -1;
     if (oversized)
     {
       fprintf(stderr, "ERROR: '%s' contains an invalid or oversized line.\n",
               reader->source);
       return -1;
+    }
+    if (!rc)
+    {
+      if (!have_item)
+        return 0;
+      break;
     }
     if (index_line_utf8(line))
       goto invalid;
@@ -3287,54 +3338,26 @@ static int read_index_entry(struct index_reader *reader, struct index_entry *e)
     while (*key == ' ')
       key++;
     spaces= (size_t) (key - line);
-    if (rc && (!*key || *key == '#'))
+    if (!*key || *key == '#')
       continue;
-    if (rc && !spaces && !strncmp(key, "---", 3) &&
-        (!key[3] || key[3] == ' '))
+    /* "- key: value" at column 0 starts an item; its keys align after "- ". */
+    if (!spaces && key[0] == '-' && key[1] == ' ')
     {
-      value= key + 3;
-      while (*value == ' ')
-        value++;
-      if (*value && *value != '#')
-        goto invalid;
-      if (!have_package)
+      if (have_item)
       {
-        if (separator)
-          goto invalid;
-        separator= TRUE;
-        continue;
+        safe_strcpy(reader->next, sizeof(reader->next), line);
+        reader->have_next= TRUE;
+        break;
       }
-      reader->after_separator= TRUE;
-      break;
-    }
-    if (!rc)
-    {
-      if (!have_package)
-      {
-        if (separator)
-          goto invalid;
-        return 0;
-      }
-      reader->after_separator= FALSE;
-      break;
-    }
-    if (!have_package)
-    {
-      if (spaces || strncmp(key, "package:", 8))
+      for (key++; *key == ' '; key++)
+      {}
+      if (!*key || *key == '#')
         goto invalid;
-      value= key + 8;
-      if (*value && *value != ' ')
-        goto invalid;
-      while (*value == ' ')
-        value++;
-      if (*value && *value != '#')
-        goto invalid;
-      have_package= TRUE;
-      continue;
+      indent= (size_t) (key - line);
+      have_item= TRUE;
     }
-    if (!spaces || (indent && spaces != indent))
+    else if (!have_item || spaces != indent)
       goto invalid;
-    indent= spaces;
     value= strchr(key, ':');
     if (!value || value == key || value[1] != ' ')
       goto invalid;
@@ -3348,35 +3371,27 @@ static int read_index_entry(struct index_reader *reader, struct index_entry *e)
         break;
     /* Unknown fields require an explicit schema extension, not silent loss. */
     if (i == array_elements(keys) || (seen & (1U << i)) ||
-        (i < 6 && !*value) ||
-        safe_strcpy_truncated(values[i], sizes[i], value))
+        (i < 5 && !*value) ||
+        (values[i] && safe_strcpy_truncated(values[i], sizes[i], value)))
       goto invalid;
     seen|= 1U << i;
   }
-  if ((seen & 63) != 63 || validate_plugin_name(e->name) ||
-      index_server_series(e->server, &major, &minor))
+  if ((seen & 31) != 31 || validate_plugin_name(e->name) ||
+      index_server_series(e->server, &major, &minor) ||
+      !valid_relative_path(e->file))
     goto invalid;
   len= strlen(e->file);
-  /* The index combines platforms, so recognize both archive types here. */
-  if (!archive_is_zip(e->file) &&
-      (len < 7 || strcmp(e->file + len - 7, ".tar.gz")))
-    goto invalid;
-  if (!valid_relative_path(e->file))
-    goto invalid;
   for (i= 0; i < len; i++)
     if (!isalnum((uchar) e->file[i]) && e->file[i] != '.' &&
         e->file[i] != '_' && e->file[i] != '-')
       goto invalid;
-  if (strlen(e->sha256) != 64)
+  if (safe_strcat(e->file, sizeof(e->file), PLUGIN_ARCHIVE_EXT))
     goto invalid;
-  for (i= 0; i < 64; i++)
-    if (!isxdigit((uchar) e->sha256[i]))
-      goto invalid;
   return 1;
 
 invalid:
   fprintf(stderr, "ERROR: invalid plugin record in '%s' "
-          "(expected a supported package YAML document).\n", reader->source);
+          "(expected a supported YAML package list).\n", reader->source);
   return -1;
 }
 
@@ -3384,10 +3399,6 @@ invalid:
 static int index_entry_compatible(const struct index_entry *e)
 {
   uint major, minor;
-#ifndef _WIN32
-  if (archive_is_zip(e->file))
-    return 0;
-#endif
   return !index_server_series(e->server, &major, &minor) &&
          major == MYSQL_VERSION_ID / 10000 &&
          minor == MYSQL_VERSION_ID / 100 % 100 &&
@@ -3399,9 +3410,12 @@ static int read_index(FILE *file, const char *source, const char *name,
                        struct index_entry *result)
 {
   struct index_entry e;
-  struct index_reader reader= {file, source, FALSE};
+  struct index_reader reader;
   int rc, found= 0;
 
+  reader.file= file;
+  reader.source= source;
+  reader.have_next= FALSE;
   while ((rc= read_index_entry(&reader, &e)) > 0)
   {
     if (strcmp(e.name, name) || !index_entry_compatible(&e))
@@ -3422,6 +3436,48 @@ static int read_index(FILE *file, const char *source, const char *name,
             "(server %u.%u, platform %s).\n", name,
             MYSQL_VERSION_ID / 10000, MYSQL_VERSION_ID / 100 % 100,
             PLUGIN_PACKAGE_PLATFORM);
+  return !found;
+}
+
+
+/*
+  The repository publishes sha256sum output for the whole directory:
+  "<hex>  <file>", or "<hex> *<file>" in binary mode. Exactly one line
+  must name the archive.
+*/
+static int read_checksum(FILE *file, const char *source, const char *archive,
+                         char *sha256)
+{
+  char line[KV_LINE_SIZE];
+  my_bool oversized;
+  int rc, found= 0;
+  size_t i;
+
+  while ((rc= read_metadata_line(file, source, line, &oversized)) > 0)
+  {
+    /* An oversized line cannot name an archive that fits in FN_REFLEN. */
+    if (oversized || strlen(line) < 66)
+      continue;
+    for (i= 0; i < 64 && isxdigit((uchar) line[i]); i++)
+    {}
+    if (i < 64 || line[64] != ' ' || (line[65] != ' ' && line[65] != '*') ||
+        strcmp(line + 66, archive))
+      continue;
+    if (found)
+    {
+      fprintf(stderr, "ERROR: '%s' lists '%s' more than once.\n", source,
+              archive);
+      return 1;
+    }
+    memcpy(sha256, line, 64);
+    sha256[64]= '\0';
+    found= 1;
+  }
+  if (rc < 0)
+    return 1;
+  if (!found)
+    fprintf(stderr, "ERROR: '%s' has no checksum for '%s'.\n", source,
+            archive);
   return !found;
 }
 
@@ -3613,7 +3669,7 @@ static int search_tarball(const char *basedir)
     return 1;
   reader.file= index;
   reader.source= url;
-  reader.after_separator= FALSE;
+  reader.have_next= FALSE;
   while ((rc= read_index_entry(&reader, &entry)) > 0)
   {
     struct plugin_entry *plugin;
@@ -3642,10 +3698,84 @@ end:
 
 
 /**
+  Find another plugin whose manifest records a directory.
+
+  A directory that one plugin created and another also ships is shared:
+  every plugin shipping it records it, and only the last of them to be
+  uninstalled removes it.
+
+  @param[in]   self   Plugin to skip, or NULL.
+  @param[out]  owner  The other plugin's name, when one is found.
+
+  @retval int 1 = recorded by another plugin, 0 = not
+*/
+
+static int shared_dir_owner(const char *basedir, const char *self,
+                            const char *dir, char *owner, size_t size)
+{
+  char path[FN_REFLEN], line[KV_LINE_SIZE];
+  MY_DIR *list;
+  size_t i, len;
+  int found= 0, flags= O_RDONLY | O_BINARY;
+
+#ifndef _WIN32
+  flags|= O_NONBLOCK;
+#endif
+  if (build_full_path(path, sizeof(path), basedir, MANIFEST_SUBDIR) ||
+      !(list= my_dir(path, MYF(0))))
+    return 0;
+  for (i= 0; i < list->number_of_files && !found; i++)
+  {
+    const char *file= list->dir_entry[i].name;
+    my_bool oversized;
+    MY_STAT info;
+    FILE *m;
+    File fd;
+
+    len= strlen(file);
+    if (len <= 5 || len - 5 >= size || strcmp(file + len - 5, ".list") ||
+        (self && strlen(self) == len - 5 && !strncmp(file, self, len - 5)))
+      continue;
+    if (safe_strcpy_truncated(path, sizeof(path), MANIFEST_SUBDIR "/") ||
+        safe_strcat(path, sizeof(path), file) ||
+        (fd= plugin_file_op(basedir, path, PLUGIN_OPEN, flags)) < 0)
+      continue;
+    if (my_fstat(fd, &info, MYF(0)) || !MY_S_ISREG(info.st_mode) ||
+        !(m= my_fdopen(fd, path, O_RDONLY | O_BINARY, MYF(0))))
+    {
+      my_close(fd, MYF(0));
+      continue;
+    }
+    while (read_metadata_line(m, path, line, &oversized) > 0)
+      if (!oversized && !strncmp(line, "dir: ", 5) && !strcmp(line + 5, dir))
+      {
+        memcpy(owner, file, len - 5);
+        owner[len - 5]= '\0';
+        found= 1;
+        break;
+      }
+    my_fclose(m, MYF(0));
+  }
+  my_dirend(list);
+  return found;
+}
+
+
+/* Longer paths first: a directory always sorts before its parents. */
+static int manifest_depth_cmp(const void *a, const void *b)
+{
+  size_t la= strlen(((const struct manifest_entry *) a)->path);
+  size_t lb= strlen(((const struct manifest_entry *) b)->path);
+  return la < lb ? 1 : la > lb ? -1 : 0;
+}
+
+
+/**
   Delete everything a manifest lists, then the manifest.
 
   Remove files before directories. Keep the manifest if file removal fails
   so the user can retry; nonempty directories are reported but retained.
+  A directory another plugin also records is left to that plugin.
 
   @param[in]  basedir   The base directory.
   @param[in]  manifest  Path of the manifest file.
@@ -3672,6 +3802,8 @@ static int manifest_remove(const char *basedir, const char *manifest,
     delete_dynamic(&entries);
     return 1;
   }
+  my_qsort(entries.buffer, entries.elements, sizeof(struct manifest_entry),
+           manifest_depth_cmp);
 
   for (i= 0; i < entries.elements; i++)
   {
@@ -3700,12 +3832,20 @@ static int manifest_remove(const char *basedir, const char *manifest,
     }
   }
 
-  /* directories in reverse manifest order, so children come before parents */
-  for (i= entries.elements; i-- > 0; )
+  /* sorted deepest first, so children come before parents */
+  for (i= 0; i < entries.elements; i++)
   {
+    char owner[NAME_CHAR_LEN + 1];
     e= dynamic_element(&entries, i, struct manifest_entry *);
     if (!e->is_dir || build_full_path(full, sizeof(full), basedir, e->path))
       continue;
+    if (shared_dir_owner(basedir, name, e->path, owner, sizeof(owner)))
+    {
+      if (opt_dry_run)
+        printf("would keep directory %s, still used by plugin '%s'\n", full,
+               owner);
+      continue;
+    }
     if (opt_dry_run)
       printf("would remove directory %s\n", full);
     else if (plugin_file_op(basedir, e->path, PLUGIN_RMDIR, 0) &&
@@ -3747,11 +3887,18 @@ static int manifest_remove(const char *basedir, const char *manifest,
 
 #define TAR_BLOCK 512
 
+/* Both archive formats share these limits; a checksum says nothing of size. */
+#define ARCHIVE_MAX_ENTRIES 4096
+#define ARCHIVE_MAX_EXPANDED (1024ULL * 1024 * 1024)
+/* A TAR stream also holds headers, padding and the end-of-archive blocks. */
+#define TAR_MAX_STREAM (ARCHIVE_MAX_EXPANDED + 64ULL * 1024 * 1024)
+
 struct tar_reader
 {
   gzFile gz;
   const char *file;
   ulonglong data_left;  /* unread bytes of the current entry, plus padding */
+  ulonglong consumed;   /* decompressed bytes read or skipped so far */
 };
 
 struct tar_entry
@@ -3769,6 +3916,7 @@ static int tar_open(struct tar_reader *r, const char *file, FILE *contents)
   int fd;
   r->file= file;
   r->data_left= 0;
+  r->consumed= 0;
   r->gz= NULL;
   if (fseek(contents, 0, SEEK_SET))
     goto error;
@@ -3803,9 +3951,25 @@ static void tar_close(struct tar_reader *r)
 }
 
 
+static int tar_consume(struct tar_reader *r, ulonglong len)
+{
+  if (len > TAR_MAX_STREAM - r->consumed)
+  {
+    fprintf(stderr, "ERROR: '%s' expands to more than %llu MiB.\n", r->file,
+            TAR_MAX_STREAM / (1024 * 1024));
+    return 1;
+  }
+  r->consumed+= len;
+  return 0;
+}
+
+
 static int tar_read_bytes(struct tar_reader *r, void *buf, size_t len)
 {
-  int n= gzread(r->gz, buf, (unsigned) len);
+  int n;
+  if (tar_consume(r, len))
+    return 1;
+  n= gzread(r->gz, buf, (unsigned) len);
   if (n != (int) len)
   {
     int err;
@@ -3821,7 +3985,8 @@ static int tar_read_bytes(struct tar_reader *r, void *buf, size_t len)
 
 static int tar_skip_data(struct tar_reader *r)
 {
-  if (r->data_left && gzseek(r->gz, (z_off_t) r->data_left, SEEK_CUR) < 0)
+  if (r->data_left && (tar_consume(r, r->data_left) ||
+                       gzseek(r->gz, (z_off_t) r->data_left, SEEK_CUR) < 0))
   {
     fprintf(stderr, "ERROR: '%s' is truncated.\n", r->file);
     return 1;
@@ -3909,8 +4074,12 @@ static int tar_next(struct tar_reader *r, struct tar_entry *e)
         goto bad_end;
       /* Consume padding and the gzip trailer, including its checksum. */
       while ((n= gzread(r->gz, block, TAR_BLOCK)) > 0)
+      {
+        if (tar_consume(r, (ulonglong) n))
+          return -1;
         if (memcmp(block, zero, (size_t) n))
           goto bad_end;
+      }
       gzerror(r->gz, &err);
       if (n == 0 && err == Z_OK)
         return 0;
@@ -4056,8 +4225,12 @@ bad_end:
     e->path[--len]= '\0';
 
   e->size= size;
-  /* setuid and setgid bits from an archive are never honored */
-  e->mode= (uint) mode & 0777;
+  /*
+    The server loads these files: never honor setuid, setgid, or group and
+    other write bits from an archive. Like rpm and dpkg, the packaged mode is
+    otherwise kept regardless of umask, so the server can still read it.
+  */
+  e->mode= (uint) mode & 0755;
   return 1;
 }
 
@@ -4152,6 +4325,7 @@ static int tar_scan(const char *file, FILE *contents,
   struct tar_entry e, *p;
   const char *base;
   my_bool have_topdir= TRUE;
+  ulonglong expanded= 0;
   size_t i, len;
   int rc;
 
@@ -4169,6 +4343,17 @@ static int tar_scan(const char *file, FILE *contents,
       rc= -1;
       break;
     }
+    if (entries->elements >= ARCHIVE_MAX_ENTRIES ||
+        (!e.is_dir && e.size > ARCHIVE_MAX_EXPANDED - expanded))
+    {
+      fprintf(stderr, "ERROR: '%s' has more than %u entries or more than "
+              "%llu MiB of contents.\n", file, ARCHIVE_MAX_ENTRIES,
+              ARCHIVE_MAX_EXPANDED / (1024 * 1024));
+      rc= -1;
+      break;
+    }
+    if (!e.is_dir)
+      expanded+= e.size;
     /* a top directory exists only if no entry sits beside it at the root */
     slash= strchr(e.path, '/');
     len= slash ? (size_t) (slash - e.path) : strlen(e.path);
@@ -4316,7 +4501,7 @@ static int tar_extract(const char *file, FILE *contents, const char *basedir,
 {
   struct tar_reader r;
   struct tar_entry e;
-  char full[FN_REFLEN];
+  char full[FN_REFLEN], owner[NAME_CHAR_LEN + 1];
   size_t skip= topdir[0] ? strlen(topdir) + 1 : 0;
   size_t i;
   int rc;
@@ -4351,6 +4536,10 @@ static int tar_extract(const char *file, FILE *contents, const char *basedir,
                   "without symlinks.\n", full);
           goto err;
         }
+        /* not created here, so rollback keeps it; uninstall shares it */
+        if (shared_dir_owner(basedir, NULL, ok->path, owner, sizeof(owner)) &&
+            manifest_append(m, "dir", ok->path))
+          goto err;
         continue;
       }
       if (plugin_file_op(basedir, ok->path, PLUGIN_MKDIR, 0))
@@ -4379,8 +4568,6 @@ err:
 
 
 #ifdef _WIN32
-#define ZIP_MAX_ENTRIES 4096
-#define ZIP_MAX_EXPANDED (1024ULL * 1024 * 1024)
 
 struct zip_reader
 {
@@ -4597,7 +4784,7 @@ static int zip_current_entry(struct zip_reader *r, struct tar_entry *e)
   uint type;
   if (unzGetCurrentFileInfo64(r->zip, &info, NULL, 0, NULL, 0, NULL, 0) != UNZ_OK ||
       !info.size_filename || info.size_filename >= sizeof(e->path) ||
-      info.uncompressed_size > ZIP_MAX_EXPANDED ||
+      info.uncompressed_size > ARCHIVE_MAX_EXPANDED ||
       (info.compression_method != 0 && info.compression_method != 8) ||
       (info.flag & ~(8UL | 0x800UL |
                      (info.compression_method == 8 ? 0x6UL : 0))) ||
@@ -4635,14 +4822,14 @@ static int zip_scan(const char *file, FILE *contents, DYNAMIC_ARRAY *entries,
     return 1;
   topdir[0]= '\0';
   if (unzGetGlobalInfo64(r.zip, &global) != UNZ_OK ||
-      !global.number_entry || global.number_entry > ZIP_MAX_ENTRIES ||
+      !global.number_entry || global.number_entry > ARCHIVE_MAX_ENTRIES ||
       unzGoToFirstFile(r.zip) != UNZ_OK)
     goto end;
   for (i= 0; i < (size_t) global.number_entry; i++)
   {
     const char *slash;
     if (zip_current_entry(&r, &e) ||
-        e.size > ZIP_MAX_EXPANDED - expanded)
+        e.size > ARCHIVE_MAX_EXPANDED - expanded)
       goto end;
     expanded+= e.size;
     slash= strchr(e.path, '/');
@@ -4712,7 +4899,7 @@ static int zip_extract(const char *file, FILE *contents, const char *basedir,
   struct zip_reader r;
   unz_global_info64 global;
   size_t i, accepted= 0, skip= topdir[0] ? strlen(topdir) + 1 : 0;
-  char full[FN_REFLEN], buf[8192];
+  char full[FN_REFLEN], buf[8192], owner[NAME_CHAR_LEN + 1];
   int error= 1;
   if (zip_open(&r, file, contents))
     return 1;
@@ -4740,6 +4927,9 @@ static int zip_extract(const char *file, FILE *contents, const char *basedir,
       if (file_exists(full))
       {
         if (plugin_file_op(basedir, ok->path, PLUGIN_CHECK_DIR, 0))
+          goto end;
+        if (shared_dir_owner(basedir, NULL, ok->path, owner, sizeof(owner)) &&
+            manifest_append(m, "dir", ok->path))
           goto end;
       }
       else
@@ -4927,7 +5117,8 @@ static int do_install(const char *name, const char *basedir)
 #ifdef PKG_DELEGATION
   char package[PACKAGE_NAME_SIZE];
   const char *pm;
-  char *cmd_argv[4];
+  char *cmd_argv[5];
+  int n;
 
   /* Do not silently replace a requested archive with a repository package. */
   if (opt_file || opt_sha256 || opt_base_url)
@@ -4944,9 +5135,10 @@ static int do_install(const char *name, const char *basedir)
 
   build_package_name(package, sizeof(package), name);
   cmd_argv[0]= (char *) pm;
-  cmd_argv[1]= (char *) "install";
-  cmd_argv[2]= package;
-  cmd_argv[3]= 0;
+  n= add_yes_option(cmd_argv, 1, pm);
+  cmd_argv[n++]= (char *) "install";
+  cmd_argv[n++]= package;
+  cmd_argv[n]= 0;
   return run_argv(cmd_argv);
 #else
   char manifest[FN_REFLEN], full[FN_REFLEN], topdir[FN_REFLEN];
@@ -4985,6 +5177,12 @@ static int do_install(const char *name, const char *basedir)
     if (!(index= download_file(url, 8 * 1024 * 1024)))
       return 1;
     invalid= read_index(index, url, name, &remote);
+    my_fclose(index, MYF(0));
+    if (invalid || build_download_url(url, sizeof(url), PLUGIN_CHECKSUMS))
+      return 1;
+    if (!(index= download_file(url, 8 * 1024 * 1024)))
+      return 1;
+    invalid= read_checksum(index, url, remote.file, remote.sha256);
     my_fclose(index, MYF(0));
     if (invalid || build_download_url(url, sizeof(url), remote.file))
       return 1;
@@ -5199,10 +5397,12 @@ static int do_uninstall(const char *name, const char *basedir)
   const char *pm;
   const char *target;
   char *cmd_argv[7];
-  int error;
+  int error, n;
 #ifdef INSTALL_LAYOUT_RPM
   DYNAMIC_STRING providers;
   char *nl;
+#else
+  DYNAMIC_STRING state;
 #endif
 
   if (check_root("uninstall"))
@@ -5241,12 +5441,35 @@ static int do_uninstall(const char *name, const char *basedir)
   }
   *nl= '\0';
   target= providers.str;
+#else
+  /* apt-get reports success for a package that is not installed. */
+  if (init_dynamic_string(&state, "", 64, 64))
+    return 1;
+  cmd_argv[0]= (char *) "dpkg-query";
+  cmd_argv[1]= (char *) "-W";
+  cmd_argv[2]= (char *) "-f=${db:Status-Status}";
+  cmd_argv[3]= package;
+  cmd_argv[4]= 0;
+  /* dpkg-query exits 1 for a package it has never seen */
+  error= run_argv_capture(cmd_argv, &state, 1);
+  if (error > 1)
+    fprintf(stderr, "ERROR: cannot query the package database (dpkg-query "
+            "exit %d).\n", error);
+  else if (error || strcmp(state.str, "installed"))
+    fprintf(stderr, "ERROR: plugin '%s' is not installed.\n", name);
+  if (error || strcmp(state.str, "installed"))
+  {
+    dynstr_free(&state);
+    return 1;
+  }
+  dynstr_free(&state);
 #endif
 
   cmd_argv[0]= (char *) pm;
-  cmd_argv[1]= (char *) "remove";
-  cmd_argv[2]= (char *) target;
-  cmd_argv[3]= 0;
+  n= add_yes_option(cmd_argv, 1, pm);
+  cmd_argv[n++]= (char *) "remove";
+  cmd_argv[n++]= (char *) target;
+  cmd_argv[n]= 0;
   error= run_argv(cmd_argv);
 #ifdef INSTALL_LAYOUT_RPM
   dynstr_free(&providers);
@@ -5360,6 +5583,16 @@ static int run_new_command(int argc, char **argv)
   {
     fprintf(stderr, "ERROR: uninstall does not support --file, --sha256 "
             "or --base-url.\n");
+    return 1;
+  }
+  /* The installation comes from where this tool is, never from options. */
+  if (opt_basedir || opt_datadir || opt_plugin_dir || opt_plugin_ini ||
+      opt_mysqld || opt_my_print_defaults || opt_lc_messages_dir)
+  {
+    fprintf(stderr, "ERROR: --basedir, --datadir, --plugin-dir, --plugin-ini, "
+            "--mysqld, --my-print-defaults and --lc-messages-dir only apply "
+            "to ENABLE/DISABLE; %s acts on the installation this tool "
+            "belongs to.\n", verb);
     return 1;
   }
 #ifdef PKG_DELEGATION
