@@ -31,3 +31,23 @@ INSERT INTO t2 (c) VALUES ('b');
 --error ER_DUP_ENTRY
 INSERT INTO t2 (c) VALUES ('b');
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-37719 use-after-free on logged CREATE OR REPLACE TEMPORARY TABLE LIKE not-logged-table
+--echo #
+
+set binlog_format='MIXED';
+create temporary table t1 (x int);
+create temporary table t2 (y int);
+set create_tmp_table_binlog_formats='MIXED';
+create or replace temporary table t2 like t1;
+drop table t1, t2;
+
+SET binlog_format='MIXED';
+CREATE TEMPORARY TABLE t1 (x INT);
+CREATE TEMPORARY TABLE t2 (y INT);
+SET create_tmp_table_binlog_formats='MIXED';
+PREPARE s FROM 'CREATE OR REPLACE TEMPORARY TABLE t2 LIKE t1';
+EXECUTE s;
+DEALLOCATE PREPARE s;
+DROP TABLE t1, t2;
