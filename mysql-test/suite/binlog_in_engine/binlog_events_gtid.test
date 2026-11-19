@@ -1,0 +1,65 @@
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb_binlog.inc
+
+--source include/reset_master.inc
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 0);
+
+--let $gtid1 = `SELECT @@gtid_binlog_pos`
+
+INSERT INTO t1 VALUES (2, 1);
+--replace_regex /xid=[0-9]+/xid=XX/
+--eval SHOW BINLOG EVENTS FROM '$gtid1'
+
+# Invalid GTID call
+--error ER_INCORRECT_GTID_STATE
+SHOW BINLOG EVENTS FROM 'abc';
+
+# GTID not given
+--replace_regex /xid=[0-9]+/xid=XX/
+SHOW BINLOG EVENTS FROM '';
+
+# Check for GTIDs that are not present
+SHOW BINLOG EVENTS FROM '0-1-99';
+SHOW BINLOG EVENTS FROM '5-1-1';
+
+# Inserting more values in our table
+INSERT INTO t1 VALUES(3,2);
+INSERT INTO t1 VALUES(4,3);
+INSERT INTO t1 VALUES(5,4);
+
+--replace_regex /xid=[0-9]+/xid=XX/
+SHOW BINLOG EVENTS FROM '0-1-2' TO '0-1-5';
+
+# GTID range that spans more than one binlog file
+--let $gtid_a= `SELECT @@gtid_binlog_pos`
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES(6,5);
+INSERT INTO t1 VALUES(7,6);
+INSERT INTO t1 VALUES(8,7);
+--let $gtid_b= `SELECT @@gtid_binlog_pos`
+
+--replace_regex /xid=[0-9]+/xid=XX/
+--eval SHOW BINLOG EVENTS FROM '$gtid_a' TO '$gtid_b'
+
+# Full Query Execution
+--replace_regex /xid=[0-9]+/xid=XX/
+SHOW BINLOG EVENTS FROM '0-1-4' TO '0-1-8';
+
+# Valid FROM gtid and invalid TO gtid
+--error ER_INCORRECT_GTID_STATE
+SHOW BINLOG EVENTS FROM '0-1-2' TO 'abc';
+
+# FROM higher gtid TO lower gtid
+SHOW BINLOG EVENTS FROM '0-1-5' TO '0-1-2';
+
+# Mixed FROM value and valid TO gtid
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+SHOW BINLOG EVENTS FROM 100 TO '0-1-5';
+
+# with no FROM
+--replace_regex /xid=[0-9]+/xid=XX/
+SHOW BINLOG EVENTS TO '0-1-4';
+
+DROP TABLE t1;
+
