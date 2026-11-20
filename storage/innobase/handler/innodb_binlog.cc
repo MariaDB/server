@@ -80,7 +80,7 @@ static bool prealloc_thread_end= false;
 mysql_mutex_t purge_binlog_mutex;
 
 /** The earliest binlog tablespace file. Used in binlog purge. */
-static uint64_t earliest_binlog_file_no= ~(uint64_t)0;
+static uint64_t earliest_binlog_file_no= IBB_NONE;
 
 /**
   The total space in use by binlog tablespace files. Maintained in-memory to
@@ -5089,6 +5089,11 @@ binlog_recover_end(lsn_t lsn) noexcept
 }
 
 
+/**
+   Determine the starting binlog file to include in a backup.
+   Can be the first existing binlog file, or for a minimal binlog backup
+   just the active file and any prior files still referened from it.
+*/
 uint64_t
 ibb_get_backup_start(bool minimal)
 {

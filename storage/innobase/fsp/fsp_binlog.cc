@@ -74,7 +74,7 @@ mysql_mutex_t binlog_durable_mutex;
 mysql_cond_t binlog_durable_cond;
 
 /** The currently being written binlog tablespace. */
-std::atomic<uint64_t> active_binlog_file_no{~(uint64_t)0};
+std::atomic<uint64_t> active_binlog_file_no{IBB_NONE};
 
 /**
   The first binlog tablespace that is still open.

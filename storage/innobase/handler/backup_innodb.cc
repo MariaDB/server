@@ -383,6 +383,13 @@ private:
 #endif
 
     /**
+       Whether there are (InnoDB) binlog files to copy in the backup.
+       (Both have to be != ~0).
+    */
+    bool need_copy_binlog() const noexcept
+    { return (~start_binlog_file_no & ~end_binlog_file_no); }
+
+    /**
        Note that a log file was hard-linked.
        @param lsn   start LSN of a hard-linked file
     */
@@ -759,7 +766,7 @@ public:
     {
       new (&ctx) context{
         first_lsn, LSN_MAX, LSN_MAX, start, start_end,
-        log_sys.file_size, old_size, ~(uint64_t)0, ~(uint64_t)0, 0, 0,
+        log_sys.file_size, old_size, IBB_NONE, IBB_NONE, 0, 0,
         last_track_lsn, PROCESSING, fil_space_t::backup_batch_size(),
         log_dst, log_dst, tracked, &target
       };
@@ -836,12 +843,12 @@ public:
      Process a file that was collected at init().
      This may be invoked from multiple concurrent threads.
      @param target  backup target
+     @param stage   backup stage
      @param sink    backup worker context
      @return number of files remaining, or negative on error
      @retval 0 on completion
   */
-  int step(const backup_target &target,
-           backup_stages stage, /*!< backup stage */
+  int step(const backup_target &target, backup_stages stage,
            const backup_sink &sink) noexcept
   {
     ut_ad(&ctx == sink.ha_data);
@@ -1282,6 +1289,7 @@ public:
     ctx.end_binlog_file_no= active_binlog_file_no.load(std::memory_order_relaxed);
 
     log_sys.latch.wr_lock();
+    mysql_mutex_unlock(&active_binlog_mutex);
     mutex.wr_lock();
     ut_ad(!non_log);
     ut_ad(ctx.state == PROCESSING);
@@ -1289,15 +1297,12 @@ public:
     if (ctx.last_lsn == 0)
     {
       log_sys.latch.wr_unlock();
-      mysql_mutex_unlock(&active_binlog_mutex);
       mutex.wr_unlock();
       return true;
     }
     ut_ad(ctx.last_lsn == LSN_MAX);
     const lsn_t last_lsn{log_sys.get_lsn()};
     lsn_t first{log_sys.get_first_lsn()};
-    mysql_mutex_unlock(&active_binlog_mutex);
-
     if (!ctx.is_log_tracking())
     {
       ut_ad(ctx.last_track_lsn <= first);
@@ -1415,14 +1420,11 @@ public:
     ut_ad(!log_sys.resize_in_progress());
     ut_ad(log_sys.archive);
     ut_ad(ctx.state == PROCESSING);
-
-    const uint64_t old_size{ctx.old_size};
+    ut_ad(queue.empty());
 
     /* Collect binlog files to copy. */
-    if (ctx.start_binlog_file_no != ~(uint64_t)0 &&
-        ctx.end_binlog_file_no != ~(uint64_t)0)
+    if (ctx.need_copy_binlog())
     {
-      ut_ad(queue.empty());
       for (uint64_t i= ctx.end_binlog_file_no; ; --i)
       {
         queue.emplace_back(i);
@@ -1430,6 +1432,8 @@ public:
           break;
       }
     }
+
+    const uint64_t old_size{ctx.old_size};
     mutex.wr_unlock();
 
     /* Restore innodb_log_archive as it was before init() */
@@ -1453,9 +1457,8 @@ public:
   */
   int finish_end(const backup_target &target, const backup_sink &sink) noexcept
   {
-    if (ctx.start_binlog_file_no != ~(uint64_t)0 &&
-        ctx.end_binlog_file_no != ~(uint64_t)0)
-      queue.clear();  // In case of error abort.
+    ut_ad(queue.empty() || ctx.need_copy_binlog());
+    queue.clear();  // In case of error abort.
     ut_ad(!sink.ha_data || &ctx == static_cast<context*>(sink.ha_data));
     ut_ad(!sink.ha_data || &target == ctx.target);
     return sink.ha_data ? ctx.cleanup(sink) : 0;
@@ -1777,8 +1780,14 @@ private:
     return res;
   }
 
-  int backup_binlog(const backup_target &target, const backup_sink &sink,
-                    uint64_t file_no)
+  /**
+     Copy one binlog file into the backup.
+     @param target  backup target directory
+     @param sink    backup target stream
+     @param file_no Binlog file to copy.
+  */
+  static int backup_binlog(const backup_target &target, const backup_sink &sink,
+                           uint64_t file_no) noexcept
   {
     char filename[OS_FILE_MAX_PATH];
     binlog_name_make(filename, file_no);
@@ -2834,9 +2843,7 @@ int innodb_backup_step(THD *thd, const backup_target *target,
   case BACKUP_START:
   case BACKUP_LOCK_COMMIT:
   case BACKUP_FINISHED:
-    return innodb_backup.step(*target,
-                              stage,
-                              *sink);
+    return innodb_backup.step(*target, stage, *sink);
   default:
     return 0;
   }
