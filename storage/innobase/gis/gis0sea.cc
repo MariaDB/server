@@ -493,6 +493,22 @@ rtr_pcur_getnext_from_path(
 			/* Keep the parent path node, which points to
 			last node just located */
 			skip_parent = true;
+
+			if (!need_parent) {
+				/* The matching child pages were pushed
+				to the path, where the "page" locks and
+				the SSN protect them. Do not keep the
+				non-leaf page latched while the caller
+				processes a leaf record (for example,
+				waits for a clustered index latch), or a
+				thread that holds the tablespace latch
+				may wait for this page. */
+				ut_ad(block
+				      == mtr->at_savepoint(block_savepoint));
+				mtr->release_last_page();
+			}
+
+			DEBUG_SYNC_C("rtr_pcur_getnext_from_path_nonleaf");
 		} else {
 			mtr->release_last_page();
 		}
