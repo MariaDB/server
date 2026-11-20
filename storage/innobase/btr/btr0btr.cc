@@ -3376,6 +3376,19 @@ parent_corrupted:
 		}
 
 		lift_father_up = (n_blocks && page_level == 0);
+		if (lift_father_up && index->is_spatial()
+		    && !lock_test_prdt_page_lock(
+			    thr ? thr_get_trx(thr) : nullptr,
+			    father_block->page.id())) {
+			/* The father page would be freed, but another
+			search depends on it, like in
+			btr_cur_compress_if_useful(): the search has
+			yet to visit the father page and this page.
+			Keep the height of the tree. A later
+			btr_compress() can reduce it. */
+			mem_heap_free(heap);
+			return block_orig;
+		}
 		if (lift_father_up) {
 			/* The father page also should be the only on its level (not
 			root). We should lift up the father page at first.
