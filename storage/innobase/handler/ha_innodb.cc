@@ -9185,16 +9185,6 @@ ha_innobase::index_read(
 		DBUG_RETURN(HA_ERR_ROLLBACK);
 	}
 
-	/* For R-Tree index, we will always place the page lock to
-	pages being searched */
-	if (index->is_spatial() && !m_prebuilt->trx->will_lock) {
-		if (trx_state != TRX_STATE_NOT_STARTED) {
-			DBUG_RETURN(HA_ERR_READ_ONLY_TRANSACTION);
-		} else {
-			m_prebuilt->trx->will_lock = true;
-		}
-	}
-
 	/* Note that if the index for which the search template is built is not
 	necessarily m_prebuilt->index, but can also be the clustered index */
 
@@ -16317,6 +16307,12 @@ ha_innobase::reset()
 	reset_template();
 
 	m_ds_mrr.dsmrr_close();
+
+	/* A non-locking SPATIAL INDEX search pins pages until the
+	end of the statement. */
+	if (m_prebuilt->rtr_info) {
+		rtr_unpin_all(m_prebuilt->rtr_info);
+	}
 
 	/* TODO: This should really be reset in reset_template() but for now
 	it's safer to do it explicitly here. */

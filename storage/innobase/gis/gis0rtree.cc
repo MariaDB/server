@@ -1156,6 +1156,9 @@ after_insert:
 	/* Check any predicate locks need to be moved/copied to the
 	new page */
 	lock_prdt_update_split(new_block, &prdt, &new_prdt, page_id);
+	/* Likewise, copy the pins of non-locking searches. */
+	rtr_pin_split(cursor->index(), page_id.page_no(),
+		      new_block->page.id().page_no());
 
 	/* Adjust the upper level. */
 	*err = rtr_adjust_upper_level(cursor, flags, block, new_block,
