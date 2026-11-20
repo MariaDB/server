@@ -62,20 +62,28 @@ XA RECOVER;
     --let $rpl_allow_error=1
   }
   ROLLBACK;
---let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
---source include/wait_condition.inc
---connection backup_slave
-  --reap
-  BACKUP STAGE END;
---connection slave
+
 if (!$slave_ooo_error)
 {
+  --connection aux_slave
+  --let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock" and command = "Slave_worker"
+  source include/wait_condition.inc;
+}
+  --connection backup_slave
+  --reap
+  BACKUP STAGE END;
+
+if (!$slave_ooo_error)
+{
+  --connection slave
   --source include/sync_with_master_gtid.inc
 }  
+
 --let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
 if ($slave_ooo_error)
 {
+  --connection slave
   SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
   SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 }
