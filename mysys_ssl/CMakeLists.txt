@@ -14,7 +14,9 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
-                    ${CMAKE_SOURCE_DIR}/mysys_ssl
+                    ${CMAKE_SOURCE_DIR}/mysys_ssl)
+
+INCLUDE_DIRECTORIES(SYSTEM
                     ${SSL_INCLUDE_DIRS})
 
 IF(SSL_DEFINES)
