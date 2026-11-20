@@ -1,0 +1,92 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42356: Purge leaves records and pages behind in a SPATIAL INDEX
+--echo # while another transaction depends on the page
+--echo #
+
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+let $pages= SELECT COUNT(*) AS rtree_pages, SUM(number_records) AS records
+FROM information_schema.innodb_buffer_page WHERE page_type LIKE 'RTREE%'
+AND space = (SELECT space FROM information_schema.innodb_sys_tables
+WHERE name = 'test/t1');
+
+connect (con_purge,localhost,root,,);
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+
+# 1: a locking read in a transaction that has not committed yet
+# 2: a non-locking read that is in progress while purge runs
+let $i= 1;
+while ($i <= 2)
+{
+  connection default;
+  CREATE TABLE t1 (id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+  ENGINE=InnoDB STATS_PERSISTENT=0;
+  INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+  FROM seq_1_to_300;
+  # These records end up on their own leaf page.
+  INSERT INTO t1 SELECT seq, POINT(5000 + seq/1000, 5000 + seq/1000)
+  FROM seq_10001_to_10200;
+  eval $pages;
+
+  # Keep purge from running until the reader has started.
+  connection con_purge;
+  START TRANSACTION WITH CONSISTENT SNAPSHOT;
+  connection default;
+  DELETE FROM t1 WHERE id > 10000;
+
+  connection con_r;
+  if ($i == 1)
+  {
+    BEGIN;
+    SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w)
+    LOCK IN SHARE MODE;
+  }
+  if ($i == 2)
+  {
+    SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+    send SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+    connection default;
+    SET DEBUG_SYNC='now WAIT_FOR paused';
+  }
+
+  connection con_purge;
+  COMMIT;
+  connection default;
+  SET GLOBAL innodb_max_purge_lag_wait=0;
+
+  connection con_r;
+  if ($i == 1)
+  {
+    COMMIT;
+  }
+  if ($i == 2)
+  {
+    connection default;
+    SET DEBUG_SYNC='now SIGNAL resume';
+    connection con_r;
+    reap;
+    SET DEBUG_SYNC='RESET';
+  }
+
+  connection default;
+  SET GLOBAL innodb_max_purge_lag_wait=0;
+  # Without the fix, a delete-marked record and its leaf page were left
+  # behind: 3 pages, 303 records.
+  eval $pages;
+  SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+  CHECK TABLE t1 EXTENDED;
+  DROP TABLE t1;
+  inc $i;
+}
+
+disconnect con_r;
+disconnect con_purge;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

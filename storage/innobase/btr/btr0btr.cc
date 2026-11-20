@@ -4243,6 +4243,12 @@ btr_discard_page(
 			/* Move the predicate locks, which include
 			waiting ones, before they are discarded. */
 			lock_prdt_rec_move(merge_block, block->page.id());
+			/* Remove the page from the search paths and
+			free its "page" locks. Purge may discard a page
+			on which a locking read holds record locks and
+			"page" locks; lock_update_discard() expects no
+			"page" locks on a page with record locks. */
+			rtr_check_discard_page(index, cursor, block);
 		}
 
 		if (left_page_no != FIL_NULL) {
@@ -4252,10 +4258,6 @@ btr_discard_page(
 			lock_update_discard(merge_block,
 					    lock_get_min_heap_no(merge_block),
 					    block);
-		}
-
-		if (index->is_spatial()) {
-			rtr_check_discard_page(index, cursor, block);
 		}
 	}
 
