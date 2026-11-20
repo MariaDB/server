@@ -9813,6 +9813,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         key_type= Key::FULLTEXT;
       else if (key_info->algorithm == HA_KEY_ALG_VECTOR)
         key_type= Key::VECTOR;
+      else if (key_info->algorithm == HA_KEY_ALG_ARRAY)
+        key_type= Key::ARRAY;
       else
         key_type= Key::MULTIPLE;
 

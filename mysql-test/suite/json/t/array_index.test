@@ -1,0 +1,10 @@
+--echo # Can add a b-tree index
+CREATE TABLE t (a JSON, b INT, INDEX (CAST(a AS CHAR(32) ARRAY)));
+CREATE INDEX ib ON t (b);
+DROP TABLE t;
+
+--echo # A second ARRAY index is rejected
+CREATE TABLE t (a JSON, b INT, INDEX (CAST(a AS CHAR(32) ARRAY)));
+--error ER_NOT_SUPPORTED_YET
+ALTER TABLE t ADD INDEX ic (CAST(a AS CHAR(32) ARRAY));
+DROP TABLE t;
