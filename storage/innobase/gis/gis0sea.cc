@@ -1580,7 +1580,11 @@ rtr_check_discard_page(
 			}
 
 			if (node.seq_no < ssn && next_page_no != FIL_NULL
-			    && rtr_info->parent_path->empty()) {
+			    && rtr_info->parent_path->empty()
+			    && std::none_of(rtr_info->path->begin(),
+					    rtr_info->path->end(),
+					    [next_page_no](const node_visit_t& n)
+					    { return n.page_no == next_page_no; })) {
 				/* The page was split after the search
 				pushed it to the path. The search has
 				yet to visit the pages that were created
@@ -1588,7 +1592,15 @@ rtr_check_discard_page(
 				page. See rtr_pcur_getnext_from_path().
 				The "page" locks of the search were
 				copied to those pages when they were
-				created. */
+				created.
+
+				If the next page is already in the path,
+				it is not a page that was created by the
+				split. This happens for a search that has
+				ended: it no longer protects the pages, so
+				the pages created by the split may have
+				been merged meanwhile. Remove the entry
+				instead of adding a duplicate. */
 				node.page_no = next_page_no;
 			} else {
 				rtr_rebuild_path(rtr_info, node.page_no);
