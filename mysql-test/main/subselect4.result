@@ -3416,4 +3416,29 @@ t1	CREATE TABLE `t1` (
   `c2` varchar(3) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t0, t1;
+#
+# MDEV-42239: ALL subquery that was NULL in an earlier execution of
+# a prepared statement is TRUE when the subquery is empty
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (5);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (NULL);
+PREPARE s1 FROM 'SELECT a FROM t1 WHERE a > ALL (SELECT b FROM t2)';
+PREPARE s2 FROM 'SELECT IF(a > ALL (SELECT b FROM t2), ''T'', ''F'') AS v FROM t1';
+EXECUTE s1;
+a
+EXECUTE s2;
+v
+F
+DELETE FROM t2;
+EXECUTE s1;
+a
+5
+EXECUTE s2;
+v
+T
+DEALLOCATE PREPARE s1;
+DEALLOCATE PREPARE s2;
+DROP TABLE t1, t2;
 # End of 10.11 tests

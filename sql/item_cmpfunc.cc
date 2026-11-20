@@ -226,7 +226,10 @@ bool Item_func_not_all::val_bool()
     optimization (ALL subquery)
   */
   if (empty_underlying_subquery())
+  {
+    null_value= 0;
     return 1;
+  }
 
   null_value= args[0]->null_value;
   return ((!null_value && value == 0) ? 1 : 0);
@@ -267,7 +270,10 @@ bool Item_func_nop_all::val_bool()
     optimization (SAME/ANY subquery)
   */
   if (empty_underlying_subquery())
+  {
+    null_value= 0;
     return 0;
+  }
 
   null_value= args[0]->null_value;
   return (null_value || value == 0) ? 0 : 1;
@@ -3084,7 +3090,7 @@ Item *Item_func_case_searched::find_item()
   uint count= when_count();
   for (uint i= 0 ; i < count ; i++)
   {
-    if (args[i]->val_bool())
+    if (args[i]->val_bool() && !args[i]->null_value)
       return args[i + count];
   }
   Item **pos= Item_func_case_searched::else_expr_addr();
@@ -5708,7 +5714,7 @@ bool Item_cond_and::val_bool()
   null_value= 0;
   while ((item=li++))
   {
-    if (!item->val_bool())
+    if (!item->val_bool() || item->null_value)
     {
       if (is_top_level_item() || !(null_value= item->null_value))
         return 0;
@@ -5726,7 +5732,7 @@ bool Item_cond_or::val_bool()
   null_value=0;
   while ((item=li++))
   {
-    if (item->val_bool())
+    if (item->val_bool() && !item->null_value)
     {
       null_value=0;
       return 1;

@@ -2734,4 +2734,24 @@ SHOW CREATE TABLE t1;
 DROP TABLE t0, t1;
 
 
+--echo #
+--echo # MDEV-42239: ALL subquery that was NULL in an earlier execution of
+--echo # a prepared statement is TRUE when the subquery is empty
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (5);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (NULL);
+PREPARE s1 FROM 'SELECT a FROM t1 WHERE a > ALL (SELECT b FROM t2)';
+PREPARE s2 FROM 'SELECT IF(a > ALL (SELECT b FROM t2), ''T'', ''F'') AS v FROM t1';
+EXECUTE s1;
+EXECUTE s2;
+DELETE FROM t2;
+EXECUTE s1;
+EXECUTE s2;
+DEALLOCATE PREPARE s1;
+DEALLOCATE PREPARE s2;
+DROP TABLE t1, t2;
+
 --echo # End of 10.11 tests

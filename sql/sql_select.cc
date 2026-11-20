@@ -23428,7 +23428,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
 
   if (select_cond)
   {
-    select_cond_result= MY_TEST(select_cond->val_bool());
+    select_cond_result= select_cond->val_bool() && !select_cond->null_value;
 
     /* check for errors evaluating the condition */
     if (unlikely(join->thd->is_error()))
