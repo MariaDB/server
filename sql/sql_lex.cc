@@ -1315,6 +1315,7 @@ void LEX::start(THD *thd_arg)
   used_tables= 0;
   table_type= TABLE_TYPE_UNKNOWN;
   reset_slave_info.all= false;
+  next_binlog_file_number= 0;
   limit_rows_examined= 0;
   limit_rows_examined_cnt= ULONGLONG_MAX;
   var_list.empty();

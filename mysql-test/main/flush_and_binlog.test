@@ -41,3 +41,19 @@ ANALYZE TABLE t;
 --connection default
 UNLOCK TABLES;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-40402 use-of-uninitialized-value in reload_acl_and_cache
+--echo #
+
+RESET MASTER TO 7;
+FLUSH MASTER;
+--source include/show_binary_logs.inc
+
+CREATE PROCEDURE p() FLUSH MASTER;
+RESET MASTER TO 7;
+CALL p();
+--source include/show_binary_logs.inc
+DROP PROCEDURE p;
+
+--echo # End of 10.11 tests
