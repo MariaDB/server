@@ -202,9 +202,12 @@ class ssux_lock_impl
   void wr_wait(uint32_t lk) noexcept;
   /** Wake up wait() on the last rd_unlock() */
   void wake() noexcept;
-  /** Acquire a read lock */
-  void rd_wait() noexcept;
 public:
+  /** Acquire a read lock, with a spin loop */
+  void rd_lock_spin() noexcept;
+  /** Acquire a read lock, without a spin loop */
+  void rd_lock_nospin() noexcept;
+
   void init() noexcept
   {
     writer.init();
@@ -261,7 +264,7 @@ public:
     return false;
   }
 
-  void rd_lock() noexcept { if (!rd_lock_try()) rd_wait(); }
+  inline void rd_lock() noexcept;
   void u_lock() noexcept
   {
     writer.wr_lock();
@@ -343,6 +346,11 @@ public:
   void lock() noexcept { wr_lock(); }
   void unlock() noexcept { wr_unlock(); }
 };
+
+template<> inline void ssux_lock_impl<false>::rd_lock() noexcept
+{ rd_lock_nospin(); }
+template<> inline void ssux_lock_impl<true>::rd_lock() noexcept
+{ if (!rd_lock_try()) rd_lock_spin(); }
 
 #if defined _WIN32 || defined SUX_LOCK_GENERIC
 /** Slim read-write lock */

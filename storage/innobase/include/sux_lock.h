@@ -185,6 +185,8 @@ public:
   /** Acquire a shared lock */
   inline void s_lock();
   inline void s_lock(const char *file, unsigned line);
+  /** Acquire a shared lock, skipping any spin loop */
+  inline void s_lock_nospin() noexcept;
   /** Acquire an update lock */
   inline void u_lock();
   inline void u_lock(const char *file, unsigned line);
@@ -385,6 +387,13 @@ inline void sux_lock<ssux_lock>::u_x_upgrade(const char *file, unsigned line)
 template<> inline void index_lock::operator=(const sux_lock&)
 {
   memset((void*) this, 0, sizeof *this);
+}
+
+template<> inline void block_lock::s_lock_nospin() noexcept
+{
+  ut_ad(!have_any());
+  lock.rd_lock_nospin();
+  ut_d(s_lock_register());
 }
 
 template<typename ssux> inline void sux_lock<ssux>::s_lock()
