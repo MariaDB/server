@@ -397,6 +397,7 @@ public:
      elements(1),use_count(1),left(0),right(0),
      next_key_part(0), color(BLACK), type(type_arg), weight(1)
   {}
+  virtual ~SEL_ARG() = default;
   /**
     returns true if a range predicate is equal. Use all_same()
     to check for equality of all the predicates on this keypart.
@@ -487,6 +488,11 @@ public:
   {						// min <= X <= key_max
     return new SEL_ARG(field, part, min_value, arg->max_value,
 		       min_flag, arg->max_flag, maybe_flag | arg->maybe_flag);
+  }
+  virtual SEL_ARG *clone_node(MEM_ROOT *root)
+  {
+    return new (root) SEL_ARG(field, part, min_value, max_value,
+                              min_flag, max_flag, maybe_flag);
   }
   SEL_ARG *clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent, SEL_ARG **next);
 
@@ -880,6 +886,74 @@ public:
 };
 
 
+/*
+  A JSON index SEL_ARG corresponding to a disjunction of array
+  elements, i.e. "the array contains any of the elements"
+*/
+class SEL_ARG_ARRAY: public SEL_ARG
+{
+public:
+  /* Each point is an element encoded by json_index::make_key */
+  Mem_root_array<const uchar*, true> points;
+  /* Length of an encoded element */
+  uint point_len;
+  uint keynr;
+  bool normalized;
+  bool estimated;
+  /* Estimated number of rows containing any of the elements */
+  ha_rows rows;
+  /* Cost of reading the rows */
+  Cost_estimate cost;
+
+  SEL_ARG_ARRAY(MEM_ROOT *root, Field *field, const uchar *point, uint len,
+                uint keynr_arg)
+   :SEL_ARG(field, point, point), points(root), point_len(len),
+    keynr(keynr_arg), normalized(true), estimated(false), rows(HA_POS_ERROR)
+  {
+    maybe_null= false;
+    min_flag= GEOM_FLAG;
+    max_flag= NO_MAX_RANGE;
+  }
+  SEL_ARG *clone_node(MEM_ROOT *root) override
+  {
+    SEL_ARG_ARRAY *tmp;
+    if (!(tmp= new (root) SEL_ARG_ARRAY(root, field, min_value, point_len,
+                                        keynr)) ||
+        tmp->add_points(this))
+      return 0;
+    tmp->part= part;
+    tmp->maybe_flag= maybe_flag;
+    tmp->normalized= normalized;
+    tmp->estimated= estimated;
+    tmp->rows= rows;
+    tmp->cost= cost;
+    return tmp;
+  }
+  /* Whether arg is a SEL_ARG_ARRAY */
+  static bool is_array(const SEL_ARG *arg)
+  {
+    return arg->type == SEL_ARG::KEY_RANGE && arg->min_flag == GEOM_FLAG;
+  }
+  bool add_points(const SEL_ARG_ARRAY *other)
+  {
+    for (size_t i= 0; i < other->points.size(); i++)
+      if (points.push_back(other->points.at(i)))
+        return true;
+    normalized= false;
+    estimated= false;
+    return false;
+  }
+  void normalize();
+  void estimate(RANGE_OPT_PARAM *param);
+  ha_rows get_rows(RANGE_OPT_PARAM *param)
+  {
+    if (!estimated)
+      estimate(param);
+    return rows;
+  }
+};
+
+
 class RANGE_OPT_PARAM
 {
 public:
@@ -891,7 +965,12 @@ public:
 
   /* Array of parts of all keys for which range analysis is performed */
   KEY_PART *key_parts;
+  /*
+    End of non-cloned key parts, followed by cloned key parts (see
+    get_claimed_key_part())
+  */
   KEY_PART *key_parts_end;
+  KEY_PART *key_part_clones_end;
   MEM_ROOT *mem_root; /* Memory that will be freed when range analysis completes */
   MEM_ROOT *old_root; /* Memory that will last until the query end */
   /*
@@ -899,6 +978,12 @@ public:
     #keys elements are not empty)
   */
   uint keys;
+  /*
+    Allocated size of SEL_TREE::keys. MAX_KEY for R-tree keys (#keys
+    grows when get_claimed_key_part() clones key parts), #keys
+    otherwise. Always keys <= max_keys.
+  */
+  uint max_keys;
 
   /*
     If true, the index descriptions describe real indexes (and it is ok to
@@ -1344,6 +1429,8 @@ range_seq_t quick_range_seq_init(void *init_param, uint n_ranges, uint flags);
 bool quick_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range);
 
 
+class QUICK_RANGE_SELECT_ARRAY;
+
 /*
   Quick select that does a range scan on a single key. The records are
   returned in key order.
@@ -1428,6 +1515,9 @@ private:
                              KEY_PART *key, SEL_ARG *key_tree, 
                              uchar *min_key, uint min_key_flag,
                              uchar *max_key, uint max_key_flag);
+  friend bool get_quick_keys_array(PARAM *param,
+                                   QUICK_RANGE_SELECT_ARRAY *quick,
+                                   SEL_ARG *key_tree);
   friend QUICK_RANGE_SELECT *get_quick_select(PARAM*,uint idx,
                                               SEL_ARG *key_tree,
                                               uint mrr_flags,
@@ -1476,11 +1566,15 @@ public:
 class QUICK_RANGE_SELECT_ARRAY: public QUICK_RANGE_SELECT
 {
 public:
+  /* Array elements concatenated */
+  uchar *points;
+  /* Total length of the concatenated elements */
+  uint points_length;
   QUICK_RANGE_SELECT_ARRAY(THD *thd, TABLE *table, uint index_arg,
                           bool no_alloc, MEM_ROOT *parent_alloc,
                           bool *create_err)
     :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
-    create_err)
+    create_err), points(0), points_length(0)
     {};
   int reset() override;
   int get_next() override;
