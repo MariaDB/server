@@ -98,342 +98,371 @@ int main(int args, char **argv)
   diag("Testing Json_writer checks");
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("foo");
-    w.end_object();
-    ok(w.invalid_json, "Started a name but didn't add a value");
+    Json_writer * w= new Json_writer();
+    w->start_object();
+    w->add_member("foo");
+    w->end_object();
+    ok(w->invalid_json, "Started a name but didn't add a value");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_ull(123);
-    ok(w.invalid_json, "Unnamed value in an object");
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_ull(123);
+    ok(w->invalid_json, "Unnamed value in an object");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_array();
-    w.add_member("bebebe").add_ull(345);
-    ok(w.invalid_json, "Named member in array");
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->add_member("bebebe").add_ull(345);
+    ok(w->invalid_json, "Named member in array");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.start_array();
-    ok(w.invalid_json, "Unnamed array in an object");
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->start_array();
+    ok(w->invalid_json, "Unnamed array in an object");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.start_object();
-    ok(w.invalid_json, "Unnamed object in an object");
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->start_object();
+    ok(w->invalid_json, "Unnamed object in an object");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_array();
-    w.add_member("zzz");
-    w.start_object();
-    ok(w.invalid_json, "Named object in an array");
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->add_member("zzz");
+    w->start_object();
+    ok(w->invalid_json, "Named object in an array");
+    delete w;
   }
   {
-    Json_writer w;
-    w.start_array();
-    w.add_member("zzz");
-    w.start_array();
-    ok(w.invalid_json, "Named array in an array");
-  }
-
-  {
-    Json_writer w;
-    w.start_array();
-    w.end_object();
-    ok(w.invalid_json, "JSON object end of array");
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->add_member("zzz");
+    w->start_array();
+    ok(w->invalid_json, "Named array in an array");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.end_array();
-    ok(w.invalid_json, "JSON array end of object");
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->end_object();
+    ok(w->invalid_json, "JSON object end of array");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("name").start_object();
-    w.add_member("name").add_ll(2);
-    w.end_object();
-    w.end_object();
-    ok(!w.invalid_json, "Valid JSON: nested object member name is the same");
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->end_array();
+    ok(w->invalid_json, "JSON array end of object");
+    delete w;
+  }
+
+  {
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("name").start_object();
+    w->add_member("name").add_ll(2);
+    w->end_object();
+    w->end_object();
+    ok(!w->invalid_json, "Valid JSON: nested object member name is the same");
+    ok(json_output_eq(*w,
        "{\n"
        "  \"name\": {\n"
        "    \"name\": 2\n"
        "  }\n"
        "}"),
        "Nested same-name key output");
+    delete w;
   }
 
   diag("Testing Json_writer output");
 
   {
-    Json_writer w;
-    w.start_object();
-    w.end_object();
-    ok(json_output_eq(w, "{}"), "Empty object");
-    ok(!w.invalid_json, "Empty object is valid");
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->end_object();
+    ok(json_output_eq(*w, "{}"), "Empty object");
+    ok(!w->invalid_json, "Empty object is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_array();
-    w.end_array();
-    ok(json_output_eq(w, "[]"), "Empty array");
-    ok(!w.invalid_json, "Empty array is valid");
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->end_array();
+    ok(json_output_eq(*w, "[]"), "Empty array");
+    ok(!w->invalid_json, "Empty array is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("key").add_str("hello");
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("key").add_str("hello");
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"key\": \"hello\"\n"
        "}"),
        "String value");
-    ok(!w.invalid_json, "String value is valid");
+    ok(!w->invalid_json, "String value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("s").add_str("");
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("s").add_str("");
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"s\": \"\"\n"
        "}"),
        "Empty string value");
-    ok(!w.invalid_json, "Empty string value is valid");
+    ok(!w->invalid_json, "Empty string value is valid");
+    delete w;
   }
 
   /* add_str does not escape: special chars are passed through verbatim */
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("s").add_str("with\"quote");
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("s").add_str("with\"quote");
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"s\": \"with\"quote\"\n"
        "}"),
        "String with embedded quote (no escaping)");
-    ok(!w.invalid_json,
+    ok(!w->invalid_json,
        "String with embedded quote remains valid for this writer");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     String latin1_str("\xe9\xf6\xfc", 3, &my_charset_latin1);
-    w.start_object();
-    w.add_member("s").add_str(latin1_str);
-    w.end_object();
-    ok(json_output_eq(w,
+    w->start_object();
+    w->add_member("s").add_str(latin1_str);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"s\": \"\xe9\xf6\xfc\"\n"
        "}"),
        "Latin-1 encoded string bytes pass through unchanged");
-    ok(!w.invalid_json,
+    ok(!w->invalid_json,
        "Latin-1 encoded string bytes pass through unchanged and stay valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     /* 4-byte UTF-8 sequence (U+1F600) */
     String utf8mb4_str("\xf0\x9f\x98\x80", 4, &my_charset_utf8mb4_general_ci);
-    w.start_object();
-    w.add_member("s").add_str(utf8mb4_str);
-    w.end_object();
-    ok(json_output_eq(w,
+    w->start_object();
+    w->add_member("s").add_str(utf8mb4_str);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"s\": \"\xf0\x9f\x98\x80\"\n"
        "}"),
        "UTF-8 mb4 encoded string bytes pass through unchanged");
-    ok(!w.invalid_json,
+    ok(!w->invalid_json,
        "UTF-8 mb4 encoded string bytes pass through unchanged and stay valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("num").add_ll(42);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("num").add_ll(42);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"num\": 42\n"
        "}"),
        "Positive longlong value");
-    ok(!w.invalid_json, "Positive longlong value is valid");
+    ok(!w->invalid_json, "Positive longlong value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("num").add_ll(-100);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("num").add_ll(-100);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"num\": -100\n"
        "}"),
        "Negative longlong value");
-    ok(!w.invalid_json, "Negative longlong value is valid");
+    ok(!w->invalid_json, "Negative longlong value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("num").add_ll(LLONG_MAX);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("num").add_ll(LLONG_MAX);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"num\": 9223372036854775807\n"
        "}"),
        "LLONG_MAX");
-    ok(!w.invalid_json, "LLONG_MAX is valid");
+    ok(!w->invalid_json, "LLONG_MAX is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("num").add_ll(LLONG_MIN);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("num").add_ll(LLONG_MIN);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"num\": -9223372036854775808\n"
        "}"),
        "LLONG_MIN");
-    ok(!w.invalid_json, "LLONG_MIN is valid");
+    ok(!w->invalid_json, "LLONG_MIN is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("num").add_ull(ULLONG_MAX);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("num").add_ull(ULLONG_MAX);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"num\": 18446744073709551615\n"
        "}"),
        "ULLONG_MAX");
-    ok(!w.invalid_json, "ULLONG_MAX is valid");
+    ok(!w->invalid_json, "ULLONG_MAX is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("flag").add_bool(true);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("flag").add_bool(true);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"flag\": true\n"
        "}"),
        "Bool true");
-    ok(!w.invalid_json, "Bool true is valid");
+    ok(!w->invalid_json, "Bool true is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("val").add_null();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("val").add_null();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"val\": null\n"
        "}"),
        "Null value");
-    ok(!w.invalid_json, "Null value is valid");
+    ok(!w->invalid_json, "Null value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("pi").add_double(3.14);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("pi").add_double(3.14);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"pi\": 3.14\n"
        "}"),
        "Double value");
-    ok(!w.invalid_json, "Double value is valid");
+    ok(!w->invalid_json, "Double value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("d").add_double(0.0);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("d").add_double(0.0);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"d\": 0\n"
        "}"),
        "Double zero");
-    ok(!w.invalid_json, "Double zero is valid");
+    ok(!w->invalid_json, "Double zero is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("d").add_double(-0.0);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("d").add_double(-0.0);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"d\": 0\n" /* the sign was removed in the fix of MDEV-38670 */
        "}"),
        "Double negative zero");
-    ok(!w.invalid_json, "Double negative zero is valid");
+    ok(!w->invalid_json, "Double negative zero is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("d").add_double(1e-10);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("d").add_double(1e-10);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"d\": 1e-10\n"
        "}"),
        "Double very small value");
-    ok(!w.invalid_json, "Double very small value is valid");
+    ok(!w->invalid_json, "Double very small value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("d").add_double(1e+15);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("d").add_double(1e+15);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"d\": 1e15\n"
        "}"),
        "Double very large value");
-    ok(!w.invalid_json, "Double very large value is valid");
+    ok(!w->invalid_json, "Double very large value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("a").add_str("hello");
-    w.add_member("b").add_ll(42);
-    w.add_member("c").add_bool(true);
-    w.add_member("d").add_null();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("a").add_str("hello");
+    w->add_member("b").add_ll(42);
+    w->add_member("c").add_bool(true);
+    w->add_member("d").add_null();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"a\": \"hello\",\n"
        "  \"b\": 42,\n"
@@ -441,157 +470,168 @@ int main(int args, char **argv)
        "  \"d\": null\n"
        "}"),
        "Object with multiple typed members");
-    ok(!w.invalid_json, "Multiple members is valid");
+    ok(!w->invalid_json, "Multiple members is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("key with spaces").add_ll(1);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("key with spaces").add_ll(1);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"key with spaces\": 1\n"
        "}"),
        "Key with spaces");
-    ok(!w.invalid_json, "Key with spaces is valid");
+    ok(!w->invalid_json, "Key with spaces is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("cl\xe9").add_ll(1);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("cl\xe9").add_ll(1);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"cl\xe9\": 1\n"
        "}"),
        "Key with Latin-1 byte");
-    ok(!w.invalid_json, "Key with Latin-1 byte is valid");
+    ok(!w->invalid_json, "Key with Latin-1 byte is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("has\"quote").add_ll(1);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("has\"quote").add_ll(1);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"has\"quote\": 1\n"
        "}"),
        "Key with embedded quote (no escaping)");
-    ok(!w.invalid_json,
+    ok(!w->invalid_json,
        "Key with embedded quote remains valid for this writer");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("").add_ll(1);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("").add_ll(1);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"\": 1\n"
        "}"),
        "Empty key name");
-    ok(!w.invalid_json, "Empty key name is valid");
+    ok(!w->invalid_json, "Empty key name is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     const char key[]= "prefix";
-    w.start_object();
-    w.add_member(key, 3).add_ll(7);
-    w.end_object();
-    ok(json_output_eq(w,
+    w->start_object();
+    w->add_member(key, 3).add_ll(7);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"pre\": 7\n"
        "}"),
        "add_member(name, len) uses explicit key length");
-    ok(!w.invalid_json, "add_member(name, len) remains valid");
+    ok(!w->invalid_json, "add_member(name, len) remains valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     const char key_with_nul[]= { 'k', '\0', 'y' };
     const char expected[]=
        "{\n"
        "  \"k\0y\": 1\n"
        "}";
-    w.start_object();
-    w.add_member(key_with_nul, sizeof(key_with_nul)).add_ll(1);
-    w.end_object();
-    ok(json_output_eq_len(w, expected, sizeof(expected) - 1),
+    w->start_object();
+    w->add_member(key_with_nul, sizeof(key_with_nul)).add_ll(1);
+    w->end_object();
+    ok(json_output_eq_len(*w, expected, sizeof(expected) - 1),
        "add_member(name, len) preserves embedded NUL in key");
-    ok(!w.invalid_json, "Embedded-NUL key does not mark writer invalid");
+    ok(!w->invalid_json, "Embedded-NUL key does not mark writer invalid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("name").add_ll(1);
-    w.add_member("name").add_ll(2);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("name").add_ll(1);
+    w->add_member("name").add_ll(2);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"name\": 1,\n"
        "  \"name\": 2\n"
        "}"),
        "Duplicate key output");
-    ok(w.invalid_json, "Duplicate key is invalid JSON");
+    ok(w->invalid_json, "Duplicate key is invalid JSON");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("arr");
-    w.start_array();
-    w.add_str("a");
-    w.add_str("b");
-    w.add_str("c");
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("arr");
+    w->start_array();
+    w->add_str("a");
+    w->add_str("b");
+    w->add_str("c");
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"arr\": [\"a\", \"b\", \"c\"]\n"
        "}"),
        "Named string array: single-line format");
-    ok(!w.invalid_json, "Named string array is valid");
+    ok(!w->invalid_json, "Named string array is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("one");
-    w.start_array();
-    w.add_str("only");
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("one");
+    w->start_array();
+    w->add_str("only");
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"one\": [\"only\"]\n"
        "}"),
        "Named array with single element");
-    ok(!w.invalid_json, "Named array with single element is valid");
+    ok(!w->invalid_json, "Named array with single element is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("empty");
-    w.start_array();
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("empty");
+    w->start_array();
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"empty\": []\n"
        "}"),
        "Empty named array");
-    ok(!w.invalid_json, "Empty named array is valid");
+    ok(!w->invalid_json, "Empty named array is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     const char value_with_nul[]= { 'a', '\0', 'b' };
     const char expected[]=
        "{\n"
@@ -599,29 +639,30 @@ int main(int args, char **argv)
        "    \"a\0b\"\n"
        "  ]\n"
        "}";
-    w.start_object();
-    w.add_member("arr");
-    w.start_array();
-    w.add_str(value_with_nul, sizeof(value_with_nul));
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq_len(w, expected, sizeof(expected) - 1),
+    w->start_object();
+    w->add_member("arr");
+    w->start_array();
+    w->add_str(value_with_nul, sizeof(value_with_nul));
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq_len(*w, expected, sizeof(expected) - 1),
        "Named array element with embedded NUL is preserved");
-    ok(!w.invalid_json, "Embedded-NUL array element keeps writer valid");
+    ok(!w->invalid_json, "Embedded-NUL array element keeps writer valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("arr");
-    w.start_array();
-    w.add_str("first");
-    w.start_object();
-    w.add_member("k").add_ll(1);
-    w.end_object();
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("arr");
+    w->start_array();
+    w->add_str("first");
+    w->start_object();
+    w->add_member("k").add_ll(1);
+    w->end_object();
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"arr\": [\n"
        "    \"first\",\n"
@@ -631,21 +672,22 @@ int main(int args, char **argv)
        "  ]\n"
        "}"),
        "Single-line helper flushes buffered values before nested object");
-    ok(!w.invalid_json, "Nested object in named array stays valid");
+    ok(!w->invalid_json, "Nested object in named array stays valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     char long_val[91];
     memset(long_val, 'b', 90);
     long_val[90]= 0;
-    w.start_object();
-    w.add_member("arr");
-    w.start_array();
-    w.add_str("a");
-    w.add_str(long_val);
-    w.end_array();
-    w.end_object();
+    w->start_object();
+    w->add_member("arr");
+    w->start_array();
+    w->add_str("a");
+    w->add_str(long_val);
+    w->end_array();
+    w->end_object();
 
     String expected;
     expected.append(STRING_WITH_LEN("{\n"
@@ -656,57 +698,60 @@ int main(int args, char **argv)
     expected.append(STRING_WITH_LEN("\"\n"
                                     "  ]\n"
                                     "}"));
-    ok(json_output_eq_len(w, expected.ptr(), expected.length()),
+    ok(json_output_eq_len(*w, expected.ptr(), expected.length()),
        "Single-line helper falls back when line length exceeds threshold");
-    ok(!w.invalid_json, "Long element fallback output stays valid");
+    ok(!w->invalid_json, "Long element fallback output stays valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_array();
-    w.add_str("x");
-    w.add_str("y");
-    w.end_array();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_array();
+    w->add_str("x");
+    w->add_str("y");
+    w->end_array();
+    ok(json_output_eq(*w,
        "[\n"
        "  \"x\",\n"
        "  \"y\"\n"
        "]"),
        "Root array: multi-line format");
-    ok(!w.invalid_json, "Root array is valid");
+    ok(!w->invalid_json, "Root array is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("outer").start_object();
-    w.add_member("inner").add_str("val");
-    w.end_object();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("outer").start_object();
+    w->add_member("inner").add_str("val");
+    w->end_object();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"outer\": {\n"
        "    \"inner\": \"val\"\n"
        "  }\n"
        "}"),
        "Nested objects");
-    ok(!w.invalid_json, "Nested objects valid");
+    ok(!w->invalid_json, "Nested objects valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("items");
-    w.start_array();
-    w.start_object();
-    w.add_member("x").add_ll(10);
-    w.end_object();
-    w.start_object();
-    w.add_member("x").add_ll(20);
-    w.end_object();
-    w.end_array();
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("items");
+    w->start_array();
+    w->start_object();
+    w->add_member("x").add_ll(10);
+    w->end_object();
+    w->start_object();
+    w->add_member("x").add_ll(20);
+    w->end_object();
+    w->end_array();
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"items\": [\n"
        "    {\n"
@@ -718,25 +763,26 @@ int main(int args, char **argv)
        "  ]\n"
        "}"),
        "Object with array of objects");
-    ok(!w.invalid_json, "Object with array of objects valid");
+    ok(!w->invalid_json, "Object with array of objects valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("name").add_str("test");
-    w.add_member("enabled").add_bool(true);
-    w.add_member("config").start_object();
-    w.add_member("timeout").add_ll(30);
-    w.add_member("tags");
-    w.start_array();
-    w.add_str("fast");
-    w.add_str("reliable");
-    w.end_array();
-    w.end_object();
-    w.add_member("count").add_ll(0);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("name").add_str("test");
+    w->add_member("enabled").add_bool(true);
+    w->add_member("config").start_object();
+    w->add_member("timeout").add_ll(30);
+    w->add_member("tags");
+    w->start_array();
+    w->add_str("fast");
+    w->add_str("reliable");
+    w->end_array();
+    w->end_object();
+    w->add_member("count").add_ll(0);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"name\": \"test\",\n"
        "  \"enabled\": true,\n"
@@ -747,126 +793,134 @@ int main(int args, char **argv)
        "  \"count\": 0\n"
        "}"),
        "Complex mixed structure");
-    ok(!w.invalid_json, "Complex structure valid");
+    ok(!w->invalid_json, "Complex structure valid");
+    delete w;
   }
 
   diag("Testing RAII wrappers");
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object obj(&w);
-      w.add_member("key").add_str("val");
+      Json_writer_object obj(w);
+      w->add_member("key").add_str("val");
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"key\": \"val\"\n"
        "}"),
        "Json_writer_object auto-closes on destruction");
-    ok(!w.invalid_json, "RAII object valid");
+    ok(!w->invalid_json, "RAII object valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object obj(&w);
+      Json_writer_object obj(w);
       obj.add("name", "test");
       obj.add("count", (longlong) 7);
       obj.add("flag", true);
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"name\": \"test\",\n"
        "  \"count\": 7,\n"
        "  \"flag\": true\n"
        "}"),
        "Json_writer_object fluent add()");
-    ok(!w.invalid_json, "Fluent add valid");
+    ok(!w->invalid_json, "Fluent add valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object obj(&w);
+      Json_writer_object obj(w);
       obj.add("u", (ulonglong) ULLONG_MAX);
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"u\": 18446744073709551615\n"
        "}"),
        "Json_writer_object add(ulonglong) preserves unsigned range");
-    ok(!w.invalid_json, "Json_writer_object add(ulonglong) stays valid");
+    ok(!w->invalid_json, "Json_writer_object add(ulonglong) stays valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    Json_writer_object obj(&w);
+    Json_writer * w = new Json_writer();
+    Json_writer_object obj(w);
     obj.add("a", (longlong) 1);
     obj.end();
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"a\": 1\n"
        "}"),
        "Json_writer_object explicit end()");
-    ok(!w.invalid_json, "Explicit end valid");
+    ok(!w->invalid_json, "Explicit end valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_array arr(&w);
+      Json_writer_array arr(w);
       arr.add("x");
       arr.end();
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "[\n"
        "  \"x\"\n"
        "]"),
        "Json_writer_array explicit end()");
-    ok(!w.invalid_json, "Json_writer_array explicit end stays valid");
+    ok(!w->invalid_json, "Json_writer_array explicit end stays valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_array arr(&w);
+      Json_writer_array arr(w);
       arr.add("foo");
       arr.add("bar");
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "[\n"
        "  \"foo\",\n"
        "  \"bar\"\n"
        "]"),
        "Json_writer_array auto-closes on destruction");
-    ok(!w.invalid_json, "RAII array valid");
+    ok(!w->invalid_json, "RAII array valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_array arr(&w);
+      Json_writer_array arr(w);
       arr.add((ulonglong) 42);
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "[\n"
        "  42\n"
        "]"),
        "RAII array add(ulonglong) output");
-    ok(!w.invalid_json, "RAII array add(ulonglong) valid");
+    ok(!w->invalid_json, "RAII array add(ulonglong) valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object outer(&w);
+      Json_writer_object outer(w);
       outer.add("level", "outer");
       {
-        Json_writer_object inner(&w, "nested");
+        Json_writer_object inner(w, "nested");
         inner.add("level", "inner");
       }
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"level\": \"outer\",\n"
        "  \"nested\": {\n"
@@ -874,41 +928,43 @@ int main(int args, char **argv)
        "  }\n"
        "}"),
        "Nested RAII Json_writer_objects");
-    ok(!w.invalid_json, "Nested RAII valid");
+    ok(!w->invalid_json, "Nested RAII valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object obj(&w);
+      Json_writer_object obj(w);
       obj.add("name", "test");
       {
-        Json_writer_array arr(&w, "values");
+        Json_writer_array arr(w, "values");
         arr.add("a");
         arr.add("b");
       }
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"name\": \"test\",\n"
        "  \"values\": [\"a\", \"b\"]\n"
        "}"),
        "RAII array inside RAII object");
-    ok(!w.invalid_json, "RAII array in object valid");
+    ok(!w->invalid_json, "RAII array in object valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     {
-      Json_writer_object obj(&w);
+      Json_writer_object obj(w);
       obj.add("partial", "hello world", 5);
     }
-    ok(json_output_eq(w,
+    ok(json_output_eq(*w,
        "{\n"
        "  \"partial\": \"hello\"\n"
        "}"),
        "add(name, value, num_bytes) honors length");
-    ok(!w.invalid_json,
+    ok(!w->invalid_json,
        "add(name, value, num_bytes) produces valid JSON");
   }
 
@@ -971,74 +1027,79 @@ int main(int args, char **argv)
   diag("Testing Json_writer size limit");
 
   {
-    Json_writer full;
-    full.start_object();
-    full.add_member("longkey").add_str("longvalue");
-    full.end_object();
+    Json_writer * full = new Json_writer();
+    full->start_object();
+    full->add_member("longkey").add_str("longvalue");
+    full->end_object();
 
-    Json_writer limited;
-    limited.set_size_limit(10);
-    limited.start_object();
-    limited.add_member("longkey").add_str("longvalue");
-    limited.end_object();
+    Json_writer * limited = new Json_writer();
+    limited->set_size_limit(10);
+    limited->start_object();
+    limited->add_member("longkey").add_str("longvalue");
+    limited->end_object();
 
-    ok(limited.output.length() == 10, "Size limit enforced on Json_writer");
-    ok(limited.get_truncated_bytes() ==
-       full.output.length() - limited.output.length(),
+    ok(limited->output.length() == 10, "Size limit enforced on Json_writer");
+    ok(limited->get_truncated_bytes() ==
+       full->output.length() - limited->output.length(),
        "Truncated byte count is exact");
+    delete full;
+    delete limited;
   }
 
   diag("Testing add_size formatting");
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("size").add_size(512);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("size").add_size(512);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"size\": \"512\"\n"
        "}"),
        "add_size: bytes (< 1024)");
-    ok(!w.invalid_json, "add_size: bytes (< 1024) is valid");
+    ok(!w->invalid_json, "add_size: bytes (< 1024) is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("size").add_size(2048);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("size").add_size(2048);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"size\": \"2KiB\"\n"
        "}"),
        "add_size: KiB value");
-    ok(!w.invalid_json, "add_size: KiB value is valid");
+    ok(!w->invalid_json, "add_size: KiB value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
-    w.start_object();
-    w.add_member("size").add_size((longlong) 32 * 1024 * 1024);
-    w.end_object();
-    ok(json_output_eq(w,
+    Json_writer * w = new Json_writer();
+    w->start_object();
+    w->add_member("size").add_size((longlong) 32 * 1024 * 1024);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"size\": \"32MiB\"\n"
        "}"),
        "add_size: MiB value");
-    ok(!w.invalid_json, "add_size: MiB value is valid");
+    ok(!w->invalid_json, "add_size: MiB value is valid");
+    delete w;
   }
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     const longlong mb16= (longlong) 16 * 1024 * 1024;
-    w.start_object();
-    w.add_member("below_kb").add_size(1023);
-    w.add_member("at_kb").add_size(1024);
-    w.add_member("below_16mb").add_size(mb16 - 1);
-    w.add_member("at_16mb").add_size(mb16);
-    w.end_object();
-    ok(json_output_eq(w,
+    w->start_object();
+    w->add_member("below_kb").add_size(1023);
+    w->add_member("at_kb").add_size(1024);
+    w->add_member("below_16mb").add_size(mb16 - 1);
+    w->add_member("at_16mb").add_size(mb16);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"below_kb\": \"1023\",\n"
        "  \"at_kb\": \"1KiB\",\n"
@@ -1046,24 +1107,26 @@ int main(int args, char **argv)
        "  \"at_16mb\": \"16MiB\"\n"
        "}"),
        "add_size boundary formatting");
-    ok(!w.invalid_json, "add_size boundary formatting is valid");
+    ok(!w->invalid_json, "add_size boundary formatting is valid");
+    delete w;
   }
 
   diag("Testing add_str overloads");
 
   {
-    Json_writer w;
+    Json_writer * w = new Json_writer();
     String s;
     s.append("hello", 5);
-    w.start_object();
-    w.add_member("msg").add_str(s);
-    w.end_object();
-    ok(json_output_eq(w,
+    w->start_object();
+    w->add_member("msg").add_str(s);
+    w->end_object();
+    ok(json_output_eq(*w,
        "{\n"
        "  \"msg\": \"hello\"\n"
        "}"),
        "add_str with String object");
-    ok(!w.invalid_json, "add_str with String object is valid");
+    ok(!w->invalid_json, "add_str with String object is valid");
+    delete w;
   }
 
   diag("Done");
