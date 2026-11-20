@@ -1964,7 +1964,11 @@ dberr_t recv_sys_t::find_checkpoint()
           if (err == DB_SUCCESS)
           {
             last_checkpoint_no= log_sys.next_checkpoint_no;
-            ut_ad(last_checkpoint_no > uint16_t(4 * log_sys.is_encrypted()));
+            ut_ad(last_checkpoint_no
+                  ? last_checkpoint_no > uint16_t(4 * log_sys.is_encrypted())
+                  : (lsn + SIZE_OF_FILE_CHECKPOINT +
+                     8 * log_sys.is_encrypted()) ==
+                  log_sys.get_first_lsn() + log_sys.capacity());
             ut_ad(last_checkpoint_no <= uint16_t{log_t::START_OFFSET});
             if (!recovery_start || i == found_recovery_start)
               return DB_SUCCESS;
@@ -5777,7 +5781,11 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     end_lsn= parse_start;
     if (end_lsn == recovery_start)
       recovery_start_checkpoint= checkpoint;
-    n_checkpoint++;
+    ut_ad(lsn >= log_sys.get_first_lsn());
+    if (UNIV_LIKELY(lsn != log_sys.get_first_lsn()))
+      n_checkpoint++;
+    else
+      n_checkpoint= 0;
 
     if (first_lsn != log_sys.get_first_lsn())
     {
