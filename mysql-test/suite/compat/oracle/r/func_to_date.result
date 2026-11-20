@@ -960,4 +960,111 @@ t
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '-2024-05-10' for function to_date
+#
+# MDEV-41936 TO_DATE accepts conflicting AD and BC era elements instead
+# of rejecting the format
+#
+# Any two era elements in one format are rejected
+SELECT TO_DATE('2024-01-02 AD AD', 'YYYY-MM-DD AD AD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at AD in function to_date.
+SELECT TO_DATE('2024-01-02 AD A.D.', 'YYYY-MM-DD AD A.D.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at A.D. in function to_date.
+SELECT TO_DATE('2024-01-02 AD BC', 'YYYY-MM-DD AD BC') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at BC in function to_date.
+SELECT TO_DATE('2024-01-02 AD B.C.', 'YYYY-MM-DD AD B.C.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at B.C. in function to_date.
+SELECT TO_DATE('2024-01-02 A.D. AD', 'YYYY-MM-DD A.D. AD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at AD in function to_date.
+SELECT TO_DATE('2024-01-02 A.D. A.D.', 'YYYY-MM-DD A.D. A.D.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at A.D. in function to_date.
+SELECT TO_DATE('2024-01-02 A.D. BC', 'YYYY-MM-DD A.D. BC') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at BC in function to_date.
+SELECT TO_DATE('2024-01-02 A.D. B.C.', 'YYYY-MM-DD A.D. B.C.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at B.C. in function to_date.
+SELECT TO_DATE('2024-01-02 BC AD', 'YYYY-MM-DD BC AD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at AD in function to_date.
+SELECT TO_DATE('2024-01-02 BC A.D.', 'YYYY-MM-DD BC A.D.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at A.D. in function to_date.
+SELECT TO_DATE('2024-01-02 BC BC', 'YYYY-MM-DD BC BC') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at BC in function to_date.
+SELECT TO_DATE('2024-01-02 BC B.C.', 'YYYY-MM-DD BC B.C.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at B.C. in function to_date.
+SELECT TO_DATE('2024-01-02 B.C. AD', 'YYYY-MM-DD B.C. AD') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at AD in function to_date.
+SELECT TO_DATE('2024-01-02 B.C. A.D.', 'YYYY-MM-DD B.C. A.D.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at A.D. in function to_date.
+SELECT TO_DATE('2024-01-02 B.C. BC', 'YYYY-MM-DD B.C. BC') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at BC in function to_date.
+SELECT TO_DATE('2024-01-02 B.C. B.C.', 'YYYY-MM-DD B.C. B.C.') FROM DUAL;
+ERROR HY000: Invalid argument error: date format not recognized at B.C. in function to_date.
+# A format with one era element accepts each era word
+SELECT TO_DATE('2024-01-02 AD', 'YYYY-MM-DD AD') FROM DUAL;
+TO_DATE('2024-01-02 AD', 'YYYY-MM-DD AD')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD AD') FROM DUAL;
+TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD AD')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 BC', 'YYYY-MM-DD AD') FROM DUAL;
+TO_DATE('2024-01-02 BC', 'YYYY-MM-DD AD')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 BC' for function to_date
+SELECT TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD AD') FROM DUAL;
+TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD AD')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 B.C.' for function to_date
+SELECT TO_DATE('2024-01-02 AD', 'YYYY-MM-DD A.D.') FROM DUAL;
+TO_DATE('2024-01-02 AD', 'YYYY-MM-DD A.D.')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD A.D.') FROM DUAL;
+TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD A.D.')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 BC', 'YYYY-MM-DD A.D.') FROM DUAL;
+TO_DATE('2024-01-02 BC', 'YYYY-MM-DD A.D.')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 BC' for function to_date
+SELECT TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD A.D.') FROM DUAL;
+TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD A.D.')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 B.C.' for function to_date
+SELECT TO_DATE('2024-01-02 AD', 'YYYY-MM-DD BC') FROM DUAL;
+TO_DATE('2024-01-02 AD', 'YYYY-MM-DD BC')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD BC') FROM DUAL;
+TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD BC')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 BC', 'YYYY-MM-DD BC') FROM DUAL;
+TO_DATE('2024-01-02 BC', 'YYYY-MM-DD BC')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 BC' for function to_date
+SELECT TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD BC') FROM DUAL;
+TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD BC')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 B.C.' for function to_date
+SELECT TO_DATE('2024-01-02 AD', 'YYYY-MM-DD B.C.') FROM DUAL;
+TO_DATE('2024-01-02 AD', 'YYYY-MM-DD B.C.')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD B.C.') FROM DUAL;
+TO_DATE('2024-01-02 A.D.', 'YYYY-MM-DD B.C.')
+2024-01-02 00:00:00
+SELECT TO_DATE('2024-01-02 BC', 'YYYY-MM-DD B.C.') FROM DUAL;
+TO_DATE('2024-01-02 BC', 'YYYY-MM-DD B.C.')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 BC' for function to_date
+SELECT TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD B.C.') FROM DUAL;
+TO_DATE('2024-01-02 B.C.', 'YYYY-MM-DD B.C.')
+NULL
+Warnings:
+Warning	1411	Incorrect datetime value: '2024-01-02 B.C.' for function to_date
+CREATE TABLE t1 (f VARCHAR(30));
+INSERT INTO t1 VALUES ('YYYY-MM-DD BC AD');
+SELECT TO_DATE('2024-01-02 AD AD', f) FROM t1;
+ERROR HY000: Invalid argument error: date format not recognized at AD in function to_date.
+DROP TABLE t1;
 # End of 12.3 tests

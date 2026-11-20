@@ -2806,7 +2806,7 @@ static bool parse_format_string(const String *format, uint16 *fmt_array,
     case 'B':                                     // BC and B.C
       if (ptr+1 >= end)
         goto error;
-      if (for_to_date && formats_used(&used, FMT_BC))
+      if (for_to_date && formats_used(&used, FMT_AD))
         goto error;
 
       next_char= my_toupper(system_charset_info, *(ptr+1));
