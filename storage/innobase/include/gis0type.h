@@ -28,6 +28,7 @@ Created 2013/03/27 Jimmy Yang
 #define gis0type_h
 
 #include "buf0buf.h"
+#include <unordered_set>
 #include "data0type.h"
 #include "data0types.h"
 #include "dict0types.h"
@@ -85,6 +86,14 @@ typedef struct rtr_mbr {
 	double	ymax;			/*!< maximum on y */
 } rtr_mbr_t;
 
+/** Pages pinned by a non-locking R-tree search, so that they will not be
+merged or emptied by purge while the search may still visit them.
+Unlike LOCK_PRDT_PAGE locks, pins are not part of the transactional lock
+system; they are released when the search ends. */
+typedef std::unordered_set<uint32_t, std::hash<uint32_t>,
+			   std::equal_to<uint32_t>,
+			   ut_allocator<uint32_t> > rtr_pins_t;
+
 /* Maximum index level for R-Tree, this is consistent with BTR_MAX_LEVELS */
 #define RTR_MAX_LEVELS		100
 
@@ -112,6 +121,14 @@ typedef	struct rtr_info{
 	bool		need_page_lock;
 				/*!< whether we will need predicate page lock
 				the tree */
+	bool		non_locking;
+				/*!< whether this is a non-locking search
+				that protects pages with "pins" instead of
+				LOCK_PRDT_PAGE locks */
+	rtr_pins_t*	pins;	/*!< pages pinned by a non-locking search;
+				protected by rtr_path_mutex; other threads
+				access it while also holding
+				index->rtr_track->rtr_active_mutex */
 	bool		allocated;/*!< whether this structure is allocate or
 				on stack */
 	bool		mbr_adj;/*!< whether mbr will need to be enlarged

@@ -1,0 +1,50 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-26123: A SPATIAL INDEX search keeps non-leaf pages latched while it
+--echo # processes a leaf record, which can cause a deadlock
+--echo #
+
+# A wide primary key makes the leaf records large, so that the tree
+# gets three levels with fewer rows.
+CREATE TABLE t1(id INT, pad1 CHAR(255) NOT NULL DEFAULT '',
+pad2 CHAR(255) NOT NULL DEFAULT '', pad3 CHAR(255) NOT NULL DEFAULT '',
+pad4 CHAR(255) NOT NULL DEFAULT '', pad5 CHAR(255) NOT NULL DEFAULT '',
+pad6 CHAR(255) NOT NULL DEFAULT '', pad7 CHAR(255) NOT NULL DEFAULT '',
+pad8 CHAR(255) NOT NULL DEFAULT '', pad9 CHAR(255) NOT NULL DEFAULT '',
+pad10 CHAR(255) NOT NULL DEFAULT '', p POINT NOT NULL,
+PRIMARY KEY(id, pad1, pad2, pad3, pad4, pad5, pad6, pad7, pad8, pad9, pad10),
+SPATIAL INDEX(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
+
+INSERT INTO t1(id, p) SELECT seq, POINT(seq, seq) FROM seq_1_to_3000;
+
+SET @w = ST_GeomFromText('POLYGON((0 0,0 4000,4000 4000,4000 0,0 0))');
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((0 0,0 4000,4000 4000,4000 0,0 0))');
+# Pause the search after it found matches on a non-leaf page that it
+# took from the search path
+SET DEBUG_SYNC='rtr_pcur_getnext_from_path_nonleaf SIGNAL held WAIT_FOR go EXECUTE 1';
+send SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR held';
+# This search latches every non-leaf page. It used to wait for the
+# page that the paused search kept latched.
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+SET DEBUG_SYNC='now SIGNAL go';
+
+connection con_r;
+reap;
+SET DEBUG_SYNC='RESET';
+disconnect con_r;
+connection default;
+CHECK TABLE t1;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

@@ -1,0 +1,208 @@
+#
+# MDEV-26123: autocommit non-locking reads of a SPATIAL INDEX
+# must follow the isolation level exactly like other indexes.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, x INT NOT NULL, p POINT NOT NULL,
+INDEX(x), SPATIAL INDEX(p)) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq MOD 100, POINT(seq MOD 100, seq DIV 100)
+FROM seq_1_to_3000;
+connect  con1,localhost,root,,;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+connect  con2,localhost,root,,;
+# SERIALIZABLE
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+# 3000 rows committed; another transaction has 3050 uncommitted.
+connection con2;
+BEGIN;
+INSERT INTO t1 SELECT 10000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id <= 50;
+connection con1;
+SET STATEMENT innodb_lock_wait_timeout=1 FOR
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+connection con2;
+ROLLBACK;
+# A scan sees the snapshot of its start (3000), not the
+# 3050 rows that were committed while it was suspended.
+connection con1;
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS rtree FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+INSERT INTO t1 SELECT 20000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id BETWEEN 2001 AND 2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+rtree
+3000
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3050	3050
+# The same with a B-tree scan: 3050, not the restored 3000.
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS btree FROM t1 FORCE INDEX(x) WHERE x >= 0;
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+DELETE FROM t1 WHERE id > 20000;
+INSERT INTO t1 SELECT seq, seq MOD 100, POINT(seq MOD 100, seq DIV 100)
+FROM seq_2001_to_2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+btree
+3050
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+# REPEATABLE READ
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+# 3000 rows committed; another transaction has 3050 uncommitted.
+connection con2;
+BEGIN;
+INSERT INTO t1 SELECT 10000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id <= 50;
+connection con1;
+SET STATEMENT innodb_lock_wait_timeout=1 FOR
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+connection con2;
+ROLLBACK;
+# A scan sees the snapshot of its start (3000), not the
+# 3050 rows that were committed while it was suspended.
+connection con1;
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS rtree FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+INSERT INTO t1 SELECT 20000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id BETWEEN 2001 AND 2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+rtree
+3000
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3050	3050
+# The same with a B-tree scan: 3050, not the restored 3000.
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS btree FROM t1 FORCE INDEX(x) WHERE x >= 0;
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+DELETE FROM t1 WHERE id > 20000;
+INSERT INTO t1 SELECT seq, seq MOD 100, POINT(seq MOD 100, seq DIV 100)
+FROM seq_2001_to_2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+btree
+3050
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+# READ COMMITTED
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+# 3000 rows committed; another transaction has 3050 uncommitted.
+connection con2;
+BEGIN;
+INSERT INTO t1 SELECT 10000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id <= 50;
+connection con1;
+SET STATEMENT innodb_lock_wait_timeout=1 FOR
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+connection con2;
+ROLLBACK;
+# A scan sees the snapshot of its start (3000), not the
+# 3050 rows that were committed while it was suspended.
+connection con1;
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS rtree FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+INSERT INTO t1 SELECT 20000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id BETWEEN 2001 AND 2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+rtree
+3000
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3050	3050
+# The same with a B-tree scan: 3050, not the restored 3000.
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) AS btree FROM t1 FORCE INDEX(x) WHERE x >= 0;
+connection con2;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+BEGIN;
+DELETE FROM t1 WHERE id > 20000;
+INSERT INTO t1 SELECT seq, seq MOD 100, POINT(seq MOD 100, seq DIV 100)
+FROM seq_2001_to_2050;
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+btree
+3050
+SET DEBUG_SYNC = 'RESET';
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3000	3000
+# READ UNCOMMITTED
+connection con1;
+SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+# 3000 rows committed; another transaction has 3050 uncommitted.
+connection con2;
+BEGIN;
+INSERT INTO t1 SELECT 10000 + seq, 1, POINT(1, 1) FROM seq_1_to_100;
+DELETE FROM t1 WHERE id <= 50;
+connection con1;
+SET STATEMENT innodb_lock_wait_timeout=1 FOR
+SELECT (SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g))
+AS rtree,
+(SELECT COUNT(*) FROM t1 FORCE INDEX(x) WHERE x >= 0) AS btree;
+rtree	btree
+3050	3050
+connection con2;
+ROLLBACK;
+disconnect con1;
+disconnect con2;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+# End of 11.4 tests

@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-26123: a non-locking SPATIAL INDEX search must not acquire
+--echo # locks, but it must keep the pages in its search path from being
+--echo # merged away while it is suspended.
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq * 10, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 200,200 200,200 -1,-1 -1))');
+
+# Split the pages, so that the search will have to visit multiple pages.
+BEGIN;
+INSERT INTO t1 SELECT seq * 10 + 1, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 2, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+COMMIT;
+
+connect (con1,localhost,root,,);
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 200,200 200,200 -1,-1 -1))');
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+--send SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g)
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+# The suspended search is a non-locking read-only transaction,
+# and it did not create any LOCK_PRDT_PAGE locks.
+SELECT trx_autocommit_non_locking, trx_is_read_only, trx_lock_structs
+FROM information_schema.innodb_trx WHERE trx_query LIKE 'SELECT COUNT%';
+
+# Split pages in the search path, and then make them sparse again,
+# so that the rollback will attempt to merge them.
+BEGIN;
+INSERT INTO t1 SELECT seq * 10 + 5, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 6, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 7, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 8, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL go';
+
+connection con1;
+--reap
+disconnect con1;
+
+connection default;
+SET DEBUG_SYNC = 'RESET';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests

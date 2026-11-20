@@ -1,0 +1,56 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-26123 Using Spatial Indexes results in
+--echo # Update locks cannot be acquired during a READ UNCOMMITTED transaction
+--echo #
+
+# A spatial index search must acquire page locks. If another table or
+# index had already started the autocommit transaction as a non-locking
+# read-only one, the search used to fail with ER_READ_ONLY_TRANSACTION.
+
+# Join of two tables that have SPATIAL INDEX (MDEV-35742)
+CREATE TABLE t1(geom GEOMETRY NOT NULL, SPATIAL INDEX(geom)) ENGINE=InnoDB;
+CREATE TABLE t2(geom GEOMETRY NOT NULL, SPATIAL INDEX(geom)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(ST_GeomFromText('LINESTRING(2 0,1 1,2 2,2 0)'));
+INSERT INTO t2 VALUES(ST_GeomFromText('POLYGON((4 4,0 1,0 2,4 4))'));
+EXPLAIN SELECT COUNT(*) FROM t1 JOIN t2 ON MBRIntersects(t1.geom, t2.geom);
+SELECT COUNT(*) FROM t1 JOIN t2 ON MBRIntersects(t1.geom, t2.geom);
+DROP TABLE t1, t2;
+
+# Constant scalar subquery on a table without SPATIAL INDEX (MDEV-40306)
+CREATE TABLE parcel(id INT PRIMARY KEY, poly GEOMETRY NOT NULL,
+SPATIAL INDEX(poly)) ENGINE=InnoDB;
+CREATE TABLE coord(id INT PRIMARY KEY, x DOUBLE, y DOUBLE) ENGINE=InnoDB;
+INSERT INTO parcel VALUES
+(1, ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0))')),
+(2, ST_GeomFromText('POLYGON((20 20,30 20,30 30,20 30,20 20))'));
+INSERT INTO coord VALUES(1, 5, 5), (2, 50, 50);
+SELECT id FROM parcel
+WHERE ST_Contains(poly, (SELECT POINT(x, y) FROM coord WHERE id = 1));
+DROP TABLE parcel, coord;
+
+# Rowid filter on a secondary index of the same table (MDEV-26123)
+CREATE TABLE t1(id INT PRIMARY KEY AUTO_INCREMENT, type VARCHAR(10) NOT NULL,
+p POINT NOT NULL, INDEX tindex(type), SPATIAL INDEX pindex(p))
+ENGINE=InnoDB;
+INSERT INTO t1(type, p) SELECT IF(seq % 10, 'other', 'acco'),
+POINT(seq % 100, seq DIV 100) FROM seq_1_to_10000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE type IN ('acco') AND
+MBRContains(ST_GeomFromText('LINESTRING(10 10,20 20)'), p);
+SELECT COUNT(*) FROM t1 WHERE type IN ('acco') AND
+MBRContains(ST_GeomFromText('LINESTRING(10 10,20 20)'), p);
+SELECT COUNT(*) FROM t1 FORCE INDEX(pindex, tindex) WHERE type IN ('acco') AND
+MBRContains(ST_GeomFromText('LINESTRING(10 10,20 20)'), p);
+
+# Inside an explicit transaction, too
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+BEGIN;
+SELECT COUNT(*) FROM t1 FORCE INDEX(pindex, tindex) WHERE type IN ('acco') AND
+MBRContains(ST_GeomFromText('LINESTRING(10 10,20 20)'), p);
+COMMIT;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
