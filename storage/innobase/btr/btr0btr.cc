@@ -4193,6 +4193,25 @@ btr_discard_page(
 		return err;
 	}
 
+	if (left_page_no != FIL_NULL && index->is_spatial()) {
+		/* A search that finds that the left sibling page was
+		split after the search had pushed it to its path
+		(rtr_pcur_getnext_from_path()) will continue to the
+		next page, and from there onwards for as long as the
+		split sequence number of the page is larger than the
+		one of the search. Make such searches treat the left
+		sibling page like they would have treated the discarded
+		page, so that they will not continue to a page that
+		was not created by the split. */
+		const node_seq_t ssn = page_get_ssn_id(block->page.frame);
+
+		if (ssn < page_get_ssn_id(merge_block->page.frame)) {
+			page_set_ssn_id(merge_block,
+					buf_block_get_page_zip(merge_block),
+					ssn, mtr);
+		}
+	}
+
 #ifdef UNIV_ZIP_DEBUG
 	if (page_zip_des_t* merge_page_zip
 	    = buf_block_get_page_zip(merge_block))

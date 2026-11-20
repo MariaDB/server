@@ -306,8 +306,16 @@ rtr_pcur_getnext_from_path(
 
 		/* If there are splits, push the splitted page.
 		Note that we have SX lock on index->lock, there
-		should not be any split/shrink happening here */
-		if (page_ssn > path_ssn) {
+		should not be any split/shrink happening here.
+
+		A page that was split after it was pushed to the path
+		always has a next page: the split linked the new page
+		right after it, and btr_discard_page() and the
+		"page" locks or pins of the search keep this so. If
+		that ever failed, do not push FIL_NULL, which would end
+		the search without visiting the rest of the path. */
+		ut_ad(page_ssn <= path_ssn || page_has_next(page));
+		if (page_ssn > path_ssn && page_has_next(page)) {
 			uint32_t next_page_no = btr_page_get_next(page);
 			rtr_non_leaf_stack_push(
 				rtr_info->path, next_page_no, path_ssn,
@@ -1555,6 +1563,8 @@ rtr_check_discard_page(
 	buf_block_t*	block)	/*!< in: block of page to be discarded */
 {
 	const page_id_t id{block->page.id()};
+	const node_seq_t ssn = page_get_ssn_id(block->page.frame);
+	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
 	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 
@@ -1564,11 +1574,26 @@ rtr_check_discard_page(
 		}
 
 		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
-		for (const node_visit_t& node : *rtr_info->path) {
-			if (node.page_no == id.page_no()) {
-				rtr_rebuild_path(rtr_info, node.page_no);
-				break;
+		for (node_visit_t& node : *rtr_info->path) {
+			if (node.page_no != id.page_no()) {
+				continue;
 			}
+
+			if (node.seq_no < ssn && next_page_no != FIL_NULL
+			    && rtr_info->parent_path->empty()) {
+				/* The page was split after the search
+				pushed it to the path. The search has
+				yet to visit the pages that were created
+				by the split, starting with the next
+				page. See rtr_pcur_getnext_from_path().
+				The "page" locks of the search were
+				copied to those pages when they were
+				created. */
+				node.page_no = next_page_no;
+			} else {
+				rtr_rebuild_path(rtr_info, node.page_no);
+			}
+			break;
 		}
 		mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
 
