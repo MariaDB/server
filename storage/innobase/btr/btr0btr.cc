@@ -4252,10 +4252,21 @@ btr_discard_page(
 		    && !page_has_siblings(btr_cur_get_page(&parent_cursor))
 		    && page_get_n_recs(btr_cur_get_page(&parent_cursor))
 		    == 1) {
-			btr_lift_page_up(index, merge_block,
-					 cursor->rtr_info
-					 ? cursor->rtr_info->thr
-					 : nullptr, mtr, &err);
+			que_thr_t* thr = cursor->rtr_info
+				? cursor->rtr_info->thr : nullptr;
+
+			if (index->is_spatial()
+			    && !lock_test_prdt_page_lock(
+				    thr ? thr_get_trx(thr) : nullptr,
+				    merge_block->page.id())) {
+				/* Another search depends on the page,
+				like in btr_cur_compress_if_useful().
+				A later btr_compress() can reduce the
+				height of the tree. */
+			} else {
+				btr_lift_page_up(index, merge_block, thr,
+						 mtr, &err);
+			}
 		}
 	}
 
