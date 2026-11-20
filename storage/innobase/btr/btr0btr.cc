@@ -3376,6 +3376,19 @@ parent_corrupted:
 		}
 
 		lift_father_up = (n_blocks && page_level == 0);
+		if (lift_father_up && index->is_spatial()
+		    && !lock_test_prdt_page_lock(
+			    thr ? thr_get_trx(thr) : nullptr,
+			    father_block->page.id())) {
+			/* The father page would be freed, but another
+			search depends on it, like in
+			btr_cur_compress_if_useful(): the search has
+			yet to visit the father page and this page.
+			Keep the height of the tree. A later
+			btr_compress() can reduce it. */
+			mem_heap_free(heap);
+			return block_orig;
+		}
 		if (lift_father_up) {
 			/* The father page also should be the only on its level (not
 			root). We should lift up the father page at first.
@@ -3459,10 +3472,7 @@ parent_corrupted:
 					       page_get_infimum_rec(page));
 		}
 
-		/* Also update the predicate locks */
-		if (dict_index_is_spatial(index)) {
-			lock_prdt_rec_move(father_block, block->page.id());
-		} else {
+		if (!dict_index_is_spatial(index)) {
 			btr_search_move_or_delete_hash_entries(
 				father_block, block);
 		}
@@ -3473,6 +3483,9 @@ copied:
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
 		if (index->is_spatial()) {
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(father_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 			lock_update_copy_and_discard(*father_block, id);
@@ -3750,6 +3763,7 @@ cannot_merge:
 			}
 
 			/* No GAP lock needs to be worrying about */
+			lock_prdt_rec_move(merge_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 			err = btr_cur_node_ptr_delete(&father_cursor, mtr);
@@ -3898,6 +3912,7 @@ cannot_merge:
 							 merge_page, mtr);
 			}
 			const page_id_t id{block->page.id()};
+			lock_prdt_rec_move(merge_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 
@@ -3988,18 +4003,22 @@ btr_discard_only_page_on_level(
 		cursor.page_cur.block = block;
 
 		if (index->is_spatial()) {
-			/* Check any concurrent search having this page */
-			rtr_check_discard_page(index, NULL, block);
 			if (!rtr_page_get_father(mtr, nullptr, &cursor,
 						 cur->rtr_info->thr)) {
 				return;
 			}
+			father = btr_cur_get_block(&cursor);
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(father, block->page.id());
+			/* Check any concurrent search having this page */
+			rtr_check_discard_page(index, NULL, block);
 		} else {
 			if (!btr_page_get_father(mtr, &cursor)) {
 				return;
 			}
+			father = btr_cur_get_block(&cursor);
 		}
-		father = btr_cur_get_block(&cursor);
 
 		if (index->has_locking()) {
 			lock_update_discard(
@@ -4193,6 +4212,25 @@ btr_discard_page(
 		return err;
 	}
 
+	if (left_page_no != FIL_NULL && index->is_spatial()) {
+		/* A search that finds that the left sibling page was
+		split after the search had pushed it to its path
+		(rtr_pcur_getnext_from_path()) will continue to the
+		next page, and from there onwards for as long as the
+		split sequence number of the page is larger than the
+		one of the search. Make such searches treat the left
+		sibling page like they would have treated the discarded
+		page, so that they will not continue to a page that
+		was not created by the split. */
+		const node_seq_t ssn = page_get_ssn_id(block->page.frame);
+
+		if (ssn < page_get_ssn_id(merge_block->page.frame)) {
+			page_set_ssn_id(merge_block,
+					buf_block_get_page_zip(merge_block),
+					ssn, mtr);
+		}
+	}
+
 #ifdef UNIV_ZIP_DEBUG
 	if (page_zip_des_t* merge_page_zip
 	    = buf_block_get_page_zip(merge_block))
@@ -4201,6 +4239,18 @@ btr_discard_page(
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (index->has_locking()) {
+		if (index->is_spatial()) {
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(merge_block, block->page.id());
+			/* Remove the page from the search paths and
+			free its "page" locks. Purge may discard a page
+			on which a locking read holds record locks and
+			"page" locks; lock_update_discard() expects no
+			"page" locks on a page with record locks. */
+			rtr_check_discard_page(index, cursor, block);
+		}
+
 		if (left_page_no != FIL_NULL) {
 			lock_update_discard(merge_block, PAGE_HEAP_NO_SUPREMUM,
 					    block);
@@ -4208,10 +4258,6 @@ btr_discard_page(
 			lock_update_discard(merge_block,
 					    lock_get_min_heap_no(merge_block),
 					    block);
-		}
-
-		if (index->is_spatial()) {
-			rtr_check_discard_page(index, cursor, block);
 		}
 	}
 
@@ -4233,10 +4279,21 @@ btr_discard_page(
 		    && !page_has_siblings(btr_cur_get_page(&parent_cursor))
 		    && page_get_n_recs(btr_cur_get_page(&parent_cursor))
 		    == 1) {
-			btr_lift_page_up(index, merge_block,
-					 cursor->rtr_info
-					 ? cursor->rtr_info->thr
-					 : nullptr, mtr, &err);
+			que_thr_t* thr = cursor->rtr_info
+				? cursor->rtr_info->thr : nullptr;
+
+			if (index->is_spatial()
+			    && !lock_test_prdt_page_lock(
+				    thr ? thr_get_trx(thr) : nullptr,
+				    merge_block->page.id())) {
+				/* Another search depends on the page,
+				like in btr_cur_compress_if_useful().
+				A later btr_compress() can reduce the
+				height of the tree. */
+			} else {
+				btr_lift_page_up(index, merge_block, thr,
+						 mtr, &err);
+			}
 		}
 	}
 

@@ -841,15 +841,18 @@ lock_place_prdt_page_lock(
 	return(DB_SUCCESS);
 }
 
-/** Check whether there are R-tree Page lock on a page
-@param[in]	trx	trx to test the lock
+/** Check whether another transaction holds an R-tree "page" lock on a page
+@param[in]	trx	the transaction whose own locks are ignored, or nullptr
 @param[in]	page_id	page identifier
 @return	true if there is none */
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id)
 {
   LockGuard g{lock_sys.prdt_page_hash, page_id};
-  lock_t *lock= lock_sys_t::get_first(g.cell(), page_id);
-  return !lock || trx == lock->trx;
+  for (const lock_t *lock= lock_sys_t::get_first(g.cell(), page_id); lock;
+       lock= lock_rec_get_next_on_page_const(lock))
+    if (lock->trx != trx)
+      return false;
+  return true;
 }
 
 /*************************************************************//**
@@ -897,6 +900,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
+    ut_ad(!lock->is_waiting());
     lock_rec_discard(lock, *cell);
   }
 
@@ -909,6 +913,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
     for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
     {
       next= lock_rec_get_next_on_page(lock);
+      ut_ad(!lock->is_waiting());
       lock_rec_discard(lock, *cell);
     }
   }
@@ -921,6 +926,7 @@ void lock_sys_t::prdt_page_free_from_discard(const page_id_t id, bool all)
   for (lock_t *lock= get_first(*cell, id), *next; lock; lock= next)
   {
     next= lock_rec_get_next_on_page(lock);
+    ut_ad(!lock->is_waiting());
     lock_rec_discard(lock, *cell);
   }
 

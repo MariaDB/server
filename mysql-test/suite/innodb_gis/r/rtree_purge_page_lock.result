@@ -1,0 +1,103 @@
+#
+# MDEV-42356: Purge leaves records and pages behind in a SPATIAL INDEX
+# while another transaction depends on the page
+#
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+connect  con_purge,localhost,root,,;
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+connection default;
+CREATE TABLE t1 (id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_300;
+INSERT INTO t1 SELECT seq, POINT(5000 + seq/1000, 5000 + seq/1000)
+FROM seq_10001_to_10200;
+SELECT COUNT(*) AS rtree_pages, SUM(number_records) AS records
+FROM information_schema.innodb_buffer_page WHERE page_type LIKE 'RTREE%'
+AND space = (SELECT space FROM information_schema.innodb_sys_tables
+WHERE name = 'test/t1');
+rtree_pages	records
+3	502
+connection con_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1 WHERE id > 10000;
+connection con_r;
+BEGIN;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w)
+LOCK IN SHARE MODE;
+COUNT(*)
+300
+connection con_purge;
+COMMIT;
+connection default;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connection con_r;
+COMMIT;
+connection default;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SELECT COUNT(*) AS rtree_pages, SUM(number_records) AS records
+FROM information_schema.innodb_buffer_page WHERE page_type LIKE 'RTREE%'
+AND space = (SELECT space FROM information_schema.innodb_sys_tables
+WHERE name = 'test/t1');
+rtree_pages	records
+2	301
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)
+300
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+connection default;
+CREATE TABLE t1 (id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_300;
+INSERT INTO t1 SELECT seq, POINT(5000 + seq/1000, 5000 + seq/1000)
+FROM seq_10001_to_10200;
+SELECT COUNT(*) AS rtree_pages, SUM(number_records) AS records
+FROM information_schema.innodb_buffer_page WHERE page_type LIKE 'RTREE%'
+AND space = (SELECT space FROM information_schema.innodb_sys_tables
+WHERE name = 'test/t1');
+rtree_pages	records
+3	502
+connection con_purge;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+DELETE FROM t1 WHERE id > 10000;
+connection con_r;
+SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR paused';
+connection con_purge;
+COMMIT;
+connection default;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connection con_r;
+connection default;
+SET DEBUG_SYNC='now SIGNAL resume';
+connection con_r;
+COUNT(*)
+300
+SET DEBUG_SYNC='RESET';
+connection default;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SELECT COUNT(*) AS rtree_pages, SUM(number_records) AS records
+FROM information_schema.innodb_buffer_page WHERE page_type LIKE 'RTREE%'
+AND space = (SELECT space FROM information_schema.innodb_sys_tables
+WHERE name = 'test/t1');
+rtree_pages	records
+2	301
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)
+300
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+disconnect con_r;
+disconnect con_purge;
+# End of 11.4 tests
