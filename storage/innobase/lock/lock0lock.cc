@@ -1365,7 +1365,10 @@ static void lock_rec_queue_validate_bypass(const lock_t *checked_lock,
   reorganizing, which causes validation failure. Skip the validation for such
   case. */
   DBUG_EXECUTE_IF("do_lock_reverse_page_reorganize", return;);
-  if (!checked_lock || checked_lock->is_waiting())
+  /* Predicate locks of a SPATIAL INDEX are not in lock_sys.rec_hash
+  and are not subject to bypassing. */
+  if (!checked_lock || checked_lock->is_waiting() ||
+      (checked_lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
     return;
   page_id_t page_id= checked_lock->un_member.rec_lock.page_id;
   hash_cell_t *cell= lock_sys.rec_hash.cell_get(page_id.fold());

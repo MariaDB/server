@@ -3459,10 +3459,7 @@ parent_corrupted:
 					       page_get_infimum_rec(page));
 		}
 
-		/* Also update the predicate locks */
-		if (dict_index_is_spatial(index)) {
-			lock_prdt_rec_move(father_block, block->page.id());
-		} else {
+		if (!dict_index_is_spatial(index)) {
 			btr_search_move_or_delete_hash_entries(
 				father_block, block);
 		}
@@ -3473,6 +3470,9 @@ copied:
 		const page_id_t id{block->page.id()};
 		/* Free predicate page locks on the block */
 		if (index->is_spatial()) {
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(father_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 			lock_update_copy_and_discard(*father_block, id);
@@ -3750,6 +3750,7 @@ cannot_merge:
 			}
 
 			/* No GAP lock needs to be worrying about */
+			lock_prdt_rec_move(merge_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 			err = btr_cur_node_ptr_delete(&father_cursor, mtr);
@@ -3898,6 +3899,7 @@ cannot_merge:
 							 merge_page, mtr);
 			}
 			const page_id_t id{block->page.id()};
+			lock_prdt_rec_move(merge_block, id);
 			lock_sys.prdt_page_free_from_discard(id);
 		} else {
 
@@ -3988,18 +3990,22 @@ btr_discard_only_page_on_level(
 		cursor.page_cur.block = block;
 
 		if (index->is_spatial()) {
-			/* Check any concurrent search having this page */
-			rtr_check_discard_page(index, NULL, block);
 			if (!rtr_page_get_father(mtr, nullptr, &cursor,
 						 cur->rtr_info->thr)) {
 				return;
 			}
+			father = btr_cur_get_block(&cursor);
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(father, block->page.id());
+			/* Check any concurrent search having this page */
+			rtr_check_discard_page(index, NULL, block);
 		} else {
 			if (!btr_page_get_father(mtr, &cursor)) {
 				return;
 			}
+			father = btr_cur_get_block(&cursor);
 		}
-		father = btr_cur_get_block(&cursor);
 
 		if (index->has_locking()) {
 			lock_update_discard(
@@ -4201,6 +4207,12 @@ btr_discard_page(
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (index->has_locking()) {
+		if (index->is_spatial()) {
+			/* Move the predicate locks, which include
+			waiting ones, before they are discarded. */
+			lock_prdt_rec_move(merge_block, block->page.id());
+		}
+
 		if (left_page_no != FIL_NULL) {
 			lock_update_discard(merge_block, PAGE_HEAP_NO_SUPREMUM,
 					    block);
