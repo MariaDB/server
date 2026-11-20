@@ -1,0 +1,45 @@
+#
+# MDEV-42351: A SPATIAL INDEX search misses records when btr_compress()
+# frees the father page of the only leaf page
+#
+CREATE TABLE t1(id INT, pad1 CHAR(255) NOT NULL DEFAULT '',
+pad2 CHAR(255) NOT NULL DEFAULT '', p POINT NOT NULL,
+PRIMARY KEY(id, pad1, pad2), SPATIAL INDEX(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 60000,60000 60000,60000 -1,-1 -1))');
+connect  con_w,localhost,root,,;
+BEGIN;
+INSERT INTO t1(id, p) SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_30000;
+connection default;
+INSERT INTO t1(id, p) SELECT 1000000 + seq, POINT(50000 + seq, 50000 + seq)
+FROM seq_1_to_20;
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 60000,60000 60000,60000 -1,-1 -1))');
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+SELECT COUNT(*), SUM(id > 1000000) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+connection con_w;
+SET DEBUG_SYNC='now WAIT_FOR paused';
+ROLLBACK;
+connection default;
+BEGIN;
+INSERT INTO t1(id, p) VALUES (2000000, POINT(50005, 50006));
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL resume';
+connection con_r;
+# SUM(): the reader must find the 20 rows of B (COUNT(*) also includes
+# the uncommitted rows of A that it read before the ROLLBACK)
+COUNT(*)	SUM(id > 1000000)
+21	20
+SET DEBUG_SYNC='RESET';
+disconnect con_r;
+disconnect con_w;
+connection default;
+SELECT COUNT(*), SUM(id > 1000000) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)	SUM(id > 1000000)
+20	20
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests
