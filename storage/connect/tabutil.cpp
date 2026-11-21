@@ -106,10 +106,38 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
       mysql = true;
 
   } else {
-    if (thd->is_error())
-      thd->clear_error();  // Avoid stopping info commands
+    if (thd->is_error()) {
+      // open_table_def() already raised specific condition(s) on the
+      // THD; the diagnostics area may hold several, so aggregate them
+      // (as wsrep_store_error_da() does) instead of taking only the
+      // first message.
+      Diagnostics_area *da= thd->get_stmt_da();
+      Diagnostics_area::Sql_condition_iterator it= da->sql_conditions();
+      size_t len= 0;
+      g->Message[0]= 0;
 
-    snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
+      for (const Sql_condition *cond= it++;
+           cond && len < sizeof(g->Message) - 1; cond= it++)
+      {
+        // Skip notes/warnings raised earlier in the statement
+        if (cond->get_level() != Sql_condition::WARN_LEVEL_ERROR)
+          continue;
+
+        int n= snprintf(g->Message + len, sizeof(g->Message) - len,
+                        "%s%s", len ? "; " : "",
+                        cond->get_message_text());
+        if (n < 0)
+          break;
+        len= MY_MIN(len + n, sizeof(g->Message) - 1);
+      }
+
+      if (!len)  // No condition list (e.g. during TOI): use the DA itself
+        snprintf(g->Message, sizeof(g->Message), "%s", da->message());
+
+      thd->clear_error();  // Avoid stopping info commands
+    } else
+      snprintf(g->Message, sizeof(g->Message), "Error %d opening share", s->error);
+
     free_table_share(s);
     return NULL;
   } // endif open_table_def
