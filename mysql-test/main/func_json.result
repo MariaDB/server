@@ -5831,4 +5831,298 @@ JSON_SCHEMA_VALID(@schema, @value)
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 r
 0
+#
+# MDEV-13645 JSON_QUOTE() returns NULL for numeric arguments
+#
+# A number is a valid JSON value and is returned as is
+select json_quote(17) a, json_quote(-17) b, json_quote(0) c,
+json_quote(18446744073709551615) d, json_quote(-9223372036854775808) e;
+a	b	c	d	e
+17	-17	0	18446744073709551615	-9223372036854775808
+select json_quote(3.14) a, json_quote(-0.50) b, json_quote(.5) c,
+json_quote(99999999999999999999999999999.123456789) d;
+a	b	c	d
+3.14	-0.50	0.5	99999999999999999999999999999.123456789
+select json_quote(1.5e2) a, json_quote(1e0) b, json_quote(-1.5e-10) c,
+json_quote(1e300) d, json_quote(cast(1.1 as float)) e;
+a	b	c	d	e
+150	1	-0.00000000015	1e300	1.1
+select json_quote(1=1) a, json_quote(1 div 3) b, json_quote(1/3) c,
+json_quote(pi()) d, json_quote(0x41+0) e;
+a	b	c	d	e
+1	0	0.3333	3.141592653589793	65
+select json_type(json_quote(17)) a, json_type(json_quote(3.14)) b,
+json_type(json_quote(1.5e-10)) c, json_type(json_quote('17')) d;
+a	b	c	d
+INTEGER	DOUBLE	DOUBLE	STRING
+# Strings are quoted as before, also if they look like a number or JSON
+select json_quote('hello') a, json_quote('"q"') b, json_quote('17') c,
+json_quote('') d, json_quote(0x41) e;
+a	b	c	d	e
+"hello"	"\"q\""	"17"	""	"A"
+select json_quote(json_array(1,'a')) a, json_quote(json_quote(17)) b,
+json_unquote(json_quote(17)) c;
+a	b	c
+"[1, \"a\"]"	"17"	17
+# Other data types are quoted like strings
+select json_quote(date'2025-01-02') a, json_quote(time'12:30:00') b,
+json_quote(timestamp'2025-01-02 03:04:05.123456') c;
+a	b	c
+"2025-01-02"	"12:30:00"	"2025-01-02 03:04:05.123456"
+select json_quote(cast('::1' as inet6)) a,
+json_quote(cast('00000000-0000-0000-0000-000000000001' as uuid)) b;
+a	b
+"::1"	"00000000-0000-0000-0000-000000000001"
+# NULL of any data type is still NULL
+select json_quote(NULL) a, json_quote(cast(NULL as signed)) b,
+json_quote(cast(NULL as decimal(5,2))) c,
+json_quote(cast(NULL as double)) d, json_quote(cast(NULL as date)) e;
+a	b	c	d	e
+NULL	NULL	NULL	NULL	NULL
+select json_quote(row(1,2));
+ERROR 21000: Operand should contain 1 column(s)
+# Columns. ZEROFILL padding must not get into the JSON number.
+create table t1 (id int, i int, u bigint unsigned, z int(5) zerofill,
+d decimal(6,2), dz decimal(6,2) zerofill,
+f double, fz double(10,2) zerofill, fl float,
+y year, bt bit(10), e enum('a','b"c'), dt datetime(2),
+v varchar(10), js json);
+insert into t1 values
+(1, 1, 18446744073709551615, 7, 1.5, 1.5, 2.25, 2.25, 1.1,
+2025, b'101', 'b"c', '2025-01-02 03:04:05.67', 'a"b', '{"a": 1}'),
+(2, -2147483648, 0, 123456, -9999.99, 9999.99, -1e308, 1e7, 3.4e38,
+1901, b'1111111111', 'a', '0000-00-00 00:00:00', '', '[]'),
+(3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+NULL, NULL, NULL, NULL, NULL, NULL);
+select json_quote(i) i, json_quote(u) u, json_quote(z) z, json_quote(d) d,
+json_quote(dz) dz, json_quote(f) f, json_quote(fz) fz,
+json_quote(fl) fl, json_quote(y) y, json_quote(bt) bt,
+json_quote(e) e, json_quote(dt) dt, json_quote(v) v, json_quote(js) js
+from t1 order by id;
+i	1
+u	18446744073709551615
+z	7
+d	1.50
+dz	1.50
+f	2.25
+fz	2.25
+fl	1.1
+y	2025
+bt	5
+e	"b\"c"
+dt	"2025-01-02 03:04:05.67"
+v	"a\"b"
+js	"{\"a\": 1}"
+i	-2147483648
+u	0
+z	123456
+d	-9999.99
+dz	9999.99
+f	-1e308
+fz	10000000
+fl	3.4e38
+y	1901
+bt	1023
+e	"a"
+dt	"0000-00-00 00:00:00.00"
+v	""
+js	"[]"
+i	NULL
+u	NULL
+z	NULL
+d	NULL
+dz	NULL
+f	NULL
+fz	NULL
+fl	NULL
+y	NULL
+bt	NULL
+e	NULL
+dt	NULL
+v	NULL
+js	NULL
+# The result is valid JSON for every data type
+select json_valid(json_quote(i)) i, json_valid(json_quote(u)) u,
+json_valid(json_quote(z)) z, json_valid(json_quote(d)) d,
+json_valid(json_quote(dz)) dz, json_valid(json_quote(f)) f,
+json_valid(json_quote(fz)) fz, json_valid(json_quote(fl)) fl,
+json_valid(json_quote(y)) y, json_valid(json_quote(bt)) bt,
+json_valid(json_quote(e)) e, json_valid(json_quote(dt)) dt,
+json_valid(json_quote(v)) v, json_valid(json_quote(js)) js
+from t1 where id < 3 order by id;
+i	1
+u	1
+z	1
+d	1
+dz	1
+f	1
+fz	1
+fl	1
+y	1
+bt	1
+e	1
+dt	1
+v	1
+js	1
+i	1
+u	1
+z	1
+d	1
+dz	1
+f	1
+fz	1
+fl	1
+y	1
+bt	1
+e	1
+dt	1
+v	1
+js	1
+select json_quote(sum(i)) a, json_quote(avg(i)) b, json_quote(count(*)) c,
+json_quote(max(f)) d, json_quote(min(d)) e, json_quote(max(v)) f
+from t1;
+a	-2147483647
+b	-1073741823.5000
+c	3
+d	2.25
+e	-9999.99
+f	"a\"b"
+select json_quote(i) q, count(*) from t1 group by q order by q;
+q	count(*)
+NULL	1
+-2147483648	1
+1	1
+select id from t1 where json_quote(i) = '1';
+id
+1
+select id, json_quote(i) from t1 where i = 1.0;
+id	json_quote(i)
+1	1
+select id, json_quote(z) from t1 where z = 7;
+id	json_quote(z)
+1	7
+select id, json_quote(v) from t1 where v = '';
+id	json_quote(v)
+2	""
+select json_quote(x) from (select max(z) x from t1) dt;
+json_quote(x)
+123456
+select json_quote((select d from t1 where id = 1)) a;
+a
+1.50
+# Result data type
+create table t2 as select json_quote(i) i, json_quote(u) u, json_quote(z) z,
+json_quote(d) d, json_quote(dz) dz, json_quote(f) f, json_quote(fl) fl,
+json_quote(y) y, json_quote(bt) bt, json_quote(v) v,
+json_quote(17) lit from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `i` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `u` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `z` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `d` varchar(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `dz` varchar(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `f` varchar(53) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `fl` varchar(25) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `y` varchar(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `bt` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `v` varchar(122) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `lit` varchar(11) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+select i, u, z, d, dz, f, fl, y, bt, v, lit from t2 order by lit, i;
+i	u	z	d	dz	f	fl	y	bt	v	lit
+NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	17
+-2147483648	0	123456	-9999.99	9999.99	-1e308	3.4e38	1901	1023	""	17
+1	18446744073709551615	7	1.50	1.50	2.25	1.1	2025	5	"a\"b"	17
+drop table t2;
+# View and generated columns
+create view v1 as select id, json_quote(i) a, json_quote(123) b,
+json_quote(v) c from t1;
+select * from v1 order by id;
+id	a	b	c
+1	1	123	"a\"b"
+2	-2147483648	123	""
+3	NULL	123	NULL
+drop view v1;
+alter table t1 add g1 varchar(30) as (json_quote(i)) virtual,
+add g2 varchar(30) as (json_quote(d)) stored, add key(g1);
+select id, g1, g2 from t1 order by id;
+id	g1	g2
+1	1	1.50
+2	-2147483648	-9999.99
+3	NULL	NULL
+select id from t1 force index(g1) where g1 = '1';
+id
+1
+drop table t1;
+# User variables and stored routines
+set @i= 5, @d= 1.50, @r= 1.5e0, @s= '5', @n= NULL;
+select json_quote(@i) a, json_quote(@d) b, json_quote(@r) c,
+json_quote(@s) d, json_quote(@n) e;
+a	b	c	d	e
+5	1.50000000000000000000000000000000000000	1.5	"5"	NULL
+create function f1(a int) returns int deterministic return a + 1$$
+create function f2(a varchar(10)) returns varchar(10) deterministic return a$$
+create procedure p1(a int, b decimal(5,2), c varchar(5), d double)
+begin
+declare x bigint unsigned default 18446744073709551615;
+select json_quote(a) a, json_quote(b) b, json_quote(c) c, json_quote(d) d,
+json_quote(x) x;
+end$$
+select json_quote(f1(1)) a, json_quote(f2('a')) b;
+a	b
+2	"a"
+call p1(1, 2.5, 'x', 1e-5);
+a	b	c	d	x
+1	2.50	"x"	0.00001	18446744073709551615
+call p1(NULL, NULL, NULL, NULL);
+a	b	c	d	x
+NULL	NULL	NULL	NULL	18446744073709551615
+call p1(1, 2.5, 'x', 1e-5);
+a	b	c	d	x
+1	2.50	"x"	0.00001	18446744073709551615
+drop procedure p1;
+drop function f1;
+drop function f2;
+# Prepared statements: the data type of a parameter can change
+execute immediate 'select json_quote(?) a, json_quote(?) b, json_quote(?) c,
+                          json_quote(?) d, json_quote(?) e'
+  using 1, 1.5, 1e0, 'a', NULL;
+a	b	c	d	e
+1	1.5	1	"a"	NULL
+prepare stmt from 'select json_quote(?) q';
+execute stmt using 1;
+q
+1
+execute stmt using 'x';
+q
+"x"
+execute stmt using 2.50;
+q
+2.50
+execute stmt using @n;
+q
+NULL
+execute stmt using date'2001-01-01';
+q
+"2001-01-01"
+execute stmt using 3;
+q
+3
+deallocate prepare stmt;
+# The argument is evaluated exactly once
+set @i= 0, @d= 0.5, @r= 0.5e0;
+select json_quote(@i:= @i + 1) a, json_quote(@d:= @d + 1) b,
+json_quote(@r:= @r + 1) c, @i, @d, @r;
+a	b	c	@i	@d	@r
+1	1.50000000000000000000000000000000000000	1.5	1	1.5	1.5
+create sequence s1;
+select json_quote(nextval(s1)) a, json_quote(nextval(s1)) b;
+a	b
+1	2
+select nextval(s1);
+nextval(s1)
+3
+drop sequence s1;
 # End of 11.4 tests
