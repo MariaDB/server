@@ -1,0 +1,44 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo # The Galera applier is not a listed system account,
+--echo # but it must still be able to replay account management of system accounts
+
+--connection node_1
+create user sysadmin@localhost;
+create user other@localhost;
+alter user sysadmin@localhost identified by 'x';
+grant select on *.* to sysadmin@localhost;
+create role r1;
+grant r1 to sysadmin@localhost;
+set password for sysadmin@localhost = password('y');
+rename user sysadmin@localhost to sysadmin@'10.0.0.1';
+rename user sysadmin@'10.0.0.1' to sysadmin@localhost;
+revoke r1 from sysadmin@localhost;
+create user dba@localhost;
+grant all on *.* to dba@localhost with grant option;
+
+--connection node_2
+select user, host, is_role from mysql.user where user in ('sysadmin','other','r1','dba') order by user, host;
+
+--echo # a non-system session on the other node is still denied
+--let $port_2= \$NODE_MYPORT_2
+--connect(dba_node_2,127.0.0.1,dba,,"*NO-ONE*",$port_2,)
+--error ER_ACCESS_DENIED_ERROR
+drop user sysadmin@localhost;
+--disconnect dba_node_2
+
+--echo # the denied statement must not have been replicated
+--connection node_1
+select user, host from mysql.user where user = 'sysadmin';
+
+--echo # cleanup
+--connection node_1
+drop role r1;
+drop user sysadmin@localhost, other@localhost, dba@localhost;
+
+--connection node_2
+select count(*) from mysql.user where user in ('sysadmin','other','r1','dba');
+
+--source include/galera_end.inc
+--echo # End of test
