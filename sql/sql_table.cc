@@ -9265,15 +9265,24 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       enum Key::Keytype key_type;
       LEX_CSTRING tmp_name;
       bzero((char*) &key_create_info, sizeof(key_create_info));
-      if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-        key_info->algorithm= alter_ctx->fast_alter_partition ?
-          HA_KEY_ALG_HASH : HA_KEY_ALG_UNDEF;
       /*
-        For fast alter partition we set HA_KEY_ALG_HASH above to make sure it
-        doesn't lose the hash property.
-        Otherwise we let mysql_prepare_create_table() decide if the hash field
-        is needed depending on the (possibly changed) data types.
+        All columns of a long hash key survive here, so the key keeps
+        HA_KEY_ALG_LONG_HASH unless a column was changed or the storage engine
+        is changed.
+        For fast alter partition we set HA_KEY_ALG_HASH
+        to make sure it doesn't lose the hash property.
+        Otherwise we let mysql_prepare_create_table() decide
+        if the hash field is needed depending on the (possibly changed)
+        data types or engine.
       */
+      if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+      {
+        if (alter_ctx->fast_alter_partition)
+          key_info->algorithm= HA_KEY_ALG_HASH;
+        else if ((alter_info->flags & ALTER_CHANGE_COLUMN) ||
+                 create_info->db_type != table->s->db_type())
+          key_info->algorithm= HA_KEY_ALG_UNDEF;
+      }
       key_create_info.algorithm= key_info->algorithm;
       /*
         We copy block size directly as some engines, like Area, sets this
