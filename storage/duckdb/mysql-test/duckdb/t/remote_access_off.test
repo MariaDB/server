@@ -1,0 +1,9 @@
+--source ../include/have_duckdb.inc
+
+--echo #
+--echo # Remote access (extension autoinstall/autoload, e.g. httpfs) is OFF by default
+--echo #
+SELECT @@GLOBAL.duckdb_allow_remote_access;
+SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL duckdb_allow_remote_access = ON;
