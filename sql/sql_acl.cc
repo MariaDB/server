@@ -731,6 +731,8 @@ static HASH acl_roles;
 static HASH acl_roles_mappings;
 static MEM_ROOT acl_memroot, grant_memroot;
 static bool initialized=0;
+static void system_users_free();
+static bool has_auth(LEX_USER *user, LEX *lex);
 static bool allow_all_hosts=1;
 static HASH acl_check_hosts, column_priv_hash, proc_priv_hash, func_priv_hash;
 static HASH package_spec_priv_hash, package_body_priv_hash;
@@ -3751,6 +3753,7 @@ void acl_free(bool end)
     acl_cache->clear(1); /* purecov: inspected */
   else
   {
+    system_users_free();
     plugin_unlock(0, native_password_plugin);
     plugin_unlock(0, old_password_plugin);
     delete acl_cache;
@@ -4942,6 +4945,179 @@ bool acl_check_host(const char *host, const char *ip)
   return 1;					// Host is not allowed
 }
 
+/* Accounts from --system-users; only a system session can manage them. */
+struct System_user { LEX_CSTRING user; LEX_CSTRING host; };
+static char *system_users_buf;
+static System_user *system_users;
+static uint system_users_count;
+
+static void system_users_free()
+{
+  my_free(system_users_buf);
+  my_free(system_users);
+  system_users_buf= 0;
+  system_users= 0;
+  system_users_count= 0;
+}
+
+/**
+  Parse the --system-users list into the system accounts.
+
+  Entries are "user@host", comma separated, ASCII, lowercase, without
+  spaces, quotes or extra '@'.
+
+  @param list  value of --system-users, may be NULL or empty
+
+  @retval false  success
+  @retval true   malformed list (an error is printed)
+*/
+bool system_users_init(const char *list)
+{
+  if (!list || !*list)
+    return false;
+
+  size_t len= strlen(list);
+  uint max_count= 1;
+  for (const char *p= list; *p; p++)
+    max_count+= (*p == ',');
+
+  system_users_buf= (char*) my_malloc(PSI_NOT_INSTRUMENTED, len + 1, MYF(MY_WME));
+  system_users= (System_user*) my_malloc(PSI_NOT_INSTRUMENTED,
+                                         max_count * sizeof(System_user),
+                                         MYF(MY_WME));
+  if (!system_users_buf || !system_users)
+  {
+    system_users_free();
+    return true;
+  }
+  memcpy(system_users_buf, list, len + 1);
+
+  for (char *entry= system_users_buf, *next; entry; entry= next)
+  {
+    next= strchr(entry, ',');
+    if (next)
+      *next++= 0;
+
+    char *at= strchr(entry, '@');
+    bool ok= at && at != entry && at[1] && !strchr(at + 1, '@');
+    for (const uchar *p= (const uchar*) entry; ok && *p; p++)
+      ok= *p == '@' ? p == (const uchar*) at :
+          *p > ' ' && *p < 0x7f && !strchr("'\"`", *p) && !(*p >= 'A' && *p <= 'Z');
+    if (!ok)
+    {
+      sql_print_error("Invalid --system-users entry '%s': expected "
+                      "lowercase ASCII user@host without spaces or quotes",
+                      entry);
+      system_users_free();
+      return true;
+    }
+    *at= 0;
+    System_user &su= system_users[system_users_count++];
+    su.user= Lex_cstring_strlen(entry);
+    su.host= Lex_cstring_strlen(at + 1);
+  }
+  return false;
+}
+
+/**
+  Whether the session may manage system accounts: bootstrap, a replica or
+  Galera applier, or a session logged in as one of the system accounts.
+
+  @param thd  session to check
+
+  @return true if it is a system session
+*/
+static bool is_system_session(THD *thd)
+{
+  if (thd->bootstrap || thd->slave_thread || IF_WSREP(thd->wsrep_applier, false))
+    return true;
+  for (uint i= 0; i < system_users_count; i++)
+    if (thd->security_ctx->is_priv_user(system_users[i].user,
+                                        system_users[i].host))
+      return true;
+  return false;
+}
+
+/**
+  Check a single account against the system accounts.
+
+  @param thd   session running the statement
+  @param user  account name
+  @param host  account host, NULL or empty when it is not a user account
+
+  @retval false  allowed
+  @retval true   the account is a system account and the session is not a
+                 system session (an error is sent)
+*/
+bool system_user_denied(THD *thd, const LEX_CSTRING &user,
+                        const LEX_CSTRING &host)
+{
+  if (!system_users_count || !host.str || !host.length)
+    return false;
+  for (uint i= 0; i < system_users_count; i++)
+  {
+    if (!strcmp(user.str, system_users[i].user.str) &&
+        Lex_ident_host(host).streq(system_users[i].host))
+    {
+      if (is_system_session(thd))
+        return false;
+      my_printf_error(ER_ACCESS_DENIED_ERROR,
+                      "Access denied: '%s'@'%s' is a system account and can "
+                      "only be managed by a system account", MYF(0),
+                      user.str, host.str);
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+  Check all accounts of an account-management statement.
+
+  Call it at the statement entry, before WSREP_TO_ISOLATION_BEGIN, as the
+  appliers on the other nodes are exempt and would execute the statement.
+
+  @param thd         session running the statement
+  @param list        accounts (or roles) the statement operates on
+  @param skip_first  skip the first element (GRANT role: it is the role)
+
+  @retval false  allowed
+  @retval true   a system account is targeted by a non-system session
+                 (an error is sent)
+*/
+bool check_system_users(THD *thd, List<LEX_USER> &list, bool skip_first)
+{
+  if (!system_users_count || !initialized)
+    return false;
+  List_iterator<LEX_USER> it(list);
+  if (skip_first)
+    it++;
+  while (LEX_USER *user= it++)
+  {
+    /* CURRENT_USER/CURRENT_ROLE are the caller itself */
+    if (user->user.str == current_user.str ||
+        user->user.str == current_role.str)
+      continue;
+
+    LEX_CSTRING host= user->host;
+    if (!host.str) // a user without a host, or a role (as in get_current_user)
+    {
+      if (!has_auth(user, thd->lex))
+      {
+        mysql_mutex_lock(&acl_cache->lock);
+        bool is_role= find_acl_role(user->user, false);
+        mysql_mutex_unlock(&acl_cache->lock);
+        if (is_role)
+          continue;
+      }
+      host= host_not_specified;
+    }
+    if (system_user_denied(thd, user->user, host))
+      return true;
+  }
+  return false;
+}
+
 /**
   Check if the user is allowed to alter the mysql.user table
 
@@ -4979,6 +5155,9 @@ static int check_alter_user(THD *thd,
     my_error(ER_PASSWORD_NO_MATCH, MYF(0));
     goto end;
   }
+
+  if (system_user_denied(thd, user, host))
+    goto end;
 
   if (!thd->slave_thread &&
       IF_WSREP((!WSREP(thd) || !thd->wsrep_applier),1) &&
@@ -9440,6 +9619,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
      entries for the command to be valid
    */
   DBUG_ASSERT(list.elements >= 2);
+
   int result;
   bool create_new_user, no_auto_create_user;
   String wrong_users;
@@ -14660,6 +14840,8 @@ bool Sql_cmd_grant_proxy::execute(THD *thd)
       check_access_proxy(thd, lex->users_list))
     return true;
 
+  if (check_system_users(thd, lex->users_list))
+    return true;
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
   if (mysql_grant(thd, null_clex_str/*db*/, lex->users_list, m_grant_option,
@@ -14739,6 +14921,8 @@ bool Sql_cmd_grant_table::execute_exact_table(THD *thd, TABLE_LIST *table)
        check_grant(thd, m_object_privilege | m_column_privilege_total | GRANT_ACL,
                    lex->query_tables, FALSE, UINT_MAX, FALSE)))
     return true;
+  if (check_system_users(thd, lex->users_list))
+    return true;
   /* Conditionally writes to binlog */
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   return mysql_table_grant(thd, lex->query_tables, lex->users_list,
@@ -14773,6 +14957,8 @@ bool Sql_cmd_grant_sp::execute(THD *thd)
        check_grant_routine(thd, grants|GRANT_ACL, lex->query_tables, &m_sph, 0)))
     return true;
 
+  if (check_system_users(thd, lex->users_list))
+    return true;
   /* Conditionally writes to binlog */
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   if (mysql_routine_grant(thd, lex->query_tables, &m_sph,
@@ -14807,6 +14993,8 @@ bool Sql_cmd_grant_table::execute_table_mask(THD *thd)
     return true;
   }
 
+  if (check_system_users(thd, lex->users_list))
+    return true;
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
   /* Conditionally writes to binlog */
   if (mysql_grant(thd, m_db, lex->users_list, m_object_privilege,
@@ -14874,6 +15062,11 @@ int acl_setauthorization(THD *thd, const LEX_USER *user)
        strcmp(acl_user->user.str, sctx->priv_user) ||
        strcmp(acl_user->host.hostname, sctx->priv_host)))
     goto access_denied;
+
+  /* The session would otherwise become a system session */
+  if (system_user_denied(thd, acl_user->user,
+                         Lex_cstring_strlen(acl_user->host.hostname)))
+    return 1;
 
   thd->change_user();
   thd->clear_error();                         // if errors from rollback

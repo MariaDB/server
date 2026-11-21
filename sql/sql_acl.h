@@ -90,6 +90,10 @@ bool hostname_requires_resolving(const char *hostname);
 bool  acl_init(bool dont_read_acl_tables);
 bool acl_reload(THD *thd);
 void acl_free(bool end=0);
+bool system_users_init(const char *list);
+bool system_user_denied(THD *thd, const LEX_CSTRING &user,
+                        const LEX_CSTRING &host);
+bool check_system_users(THD *thd, List<LEX_USER> &list, bool skip_first= false);
 access_t acl_get_all3(Security_context *sctx, const char *db,
                          bool db_is_patern);
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);

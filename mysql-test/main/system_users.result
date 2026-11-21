@@ -1,0 +1,121 @@
+# --system-users: only system accounts can manage system accounts
+# (denied statements fail with ER_ACCESS_DENIED_ERROR)
+create user sysadmin@localhost;
+create user sysadmin2@localhost;
+grant all on *.* to sysadmin@localhost with grant option;
+create user dba@localhost;
+grant all on *.* to dba@localhost with grant option;
+create user other@localhost;
+create role r1;
+grant r1 to sysadmin@localhost with admin option;
+create table test.t1 (a int);
+grant proxy on other@localhost to dba@localhost with grant option;
+grant proxy on sysadmin@localhost to dba@localhost with grant option;
+# a non-system account, even with ALL ... WITH GRANT OPTION, is denied
+connect  dba,localhost,dba,,;
+create user sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create user if not exists sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create or replace user sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+alter user sysadmin@localhost identified by 'x';
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+alter user sysadmin@localhost account lock;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+drop user sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+drop user if exists sysadmin@LOCALHOST;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+drop user other@localhost, sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+rename user sysadmin@localhost to renamed@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+rename user other@localhost to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant select on *.* to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant select on test.* to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant select on test.t1 to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant select (a) on test.t1 to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant select on *.* to sysadmin@localhost identified by 'x';
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant r1 to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant proxy on other@localhost to sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+grant proxy on sysadmin@localhost to other@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+revoke select on *.* from sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+revoke all privileges, grant option from sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+revoke r1 from sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+set password for sysadmin@localhost = password('x');
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+set default role r1 for sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+# a non-system account cannot create objects defined by a system account
+create definer=sysadmin@localhost procedure test.p2() select 1;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create definer=sysadmin@localhost function test.f2() returns int return 1;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create definer=sysadmin@localhost view test.v2 as select 1;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create definer=sysadmin@localhost trigger test.tr2 before insert on test.t1
+for each row set @a=1;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create definer=sysadmin@localhost event test.e2 on schedule every 1 day do select 1;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+create definer=other@localhost view test.v3 as select 1;
+drop view test.v3;
+# nor become a system account
+set session authorization sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+# non-system accounts are unaffected
+create user other2@localhost;
+alter user other2@localhost identified by 'x';
+grant select on test.* to other2@localhost;
+rename user other2@localhost to other3@localhost;
+drop user other3@localhost;
+create role r2;
+drop role r2;
+disconnect dba;
+connection default;
+# a system account can manage any account, including other system ones
+connect  sysadmin,localhost,sysadmin,,;
+alter user sysadmin@localhost identified by '';
+alter user sysadmin2@localhost account lock;
+alter user sysadmin2@localhost account unlock;
+grant select on test.* to sysadmin2@localhost;
+revoke select on test.* from sysadmin2@localhost;
+grant r1 to sysadmin2@localhost;
+revoke r1 from sysadmin2@localhost;
+alter user dba@localhost identified by '';
+create definer=sysadmin2@localhost procedure test.p2() select 1;
+drop procedure test.p2;
+set session authorization sysadmin2@localhost;
+select current_user();
+current_user()
+sysadmin2@localhost
+disconnect sysadmin;
+connection default;
+# a SECURITY DEFINER routine of a system account acts as that account
+create definer=sysadmin@localhost procedure test.p1()
+sql security definer alter user other@localhost identified by 'y';
+grant execute on procedure test.p1 to dba@localhost;
+connect  dba,localhost,dba,,;
+call test.p1();
+alter user sysadmin@localhost identified by 'x';
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+disconnect dba;
+connection default;
+# cleanup
+drop procedure test.p1;
+drop table test.t1;
+drop role r1;
+drop user sysadmin@localhost, sysadmin2@localhost, dba@localhost, other@localhost;

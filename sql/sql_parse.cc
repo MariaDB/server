@@ -2871,6 +2871,10 @@ bool sp_process_definer(THD *thd)
     if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    if (!curuser && system_user_denied(thd, d->user, d->host))
+      DBUG_RETURN(TRUE);
+#endif
   }
 
   /* Check that the specified definer exists. Emit a warning if not. */
@@ -5301,6 +5305,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (lex->sql_command == SQLCOM_CREATE_USER &&
+        check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5316,6 +5323,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (lex->sql_command == SQLCOM_DROP_USER &&
+        check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5331,6 +5341,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5348,6 +5360,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5359,6 +5373,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_GRANT_ROLE:
   {
+    if (check_system_users(thd, lex->users_list, true))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     if (!(res= mysql_grant_role(thd, lex->users_list,
