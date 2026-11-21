@@ -177,7 +177,15 @@ SET(INSTALL_BINDIR_DEB                  "bin")
 SET(INSTALL_SBINDIR_DEB                 "sbin")
 SET(INSTALL_SCRIPTDIR_DEB               "bin")
 SET(INSTALL_SYSCONFDIR_DEB              "/etc")
-SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/mariadb.conf.d")
+# MARIADB_CONFDIR is the directory for my.cnf, conf.d/ and other
+# MariaDB configuration files. It follows DEFAULT_SYSCONFDIR if that
+# is given to cmake.
+IF(DEFAULT_SYSCONFDIR)
+  STRING(REGEX REPLACE "/+$" "" MARIADB_CONFDIR "${DEFAULT_SYSCONFDIR}")
+ELSE()
+  SET(MARIADB_CONFDIR "/etc/mysql")
+ENDIF()
+SET(INSTALL_SYSCONF2DIR_DEB             "${MARIADB_CONFDIR}/mariadb.conf.d")
 #
 SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")

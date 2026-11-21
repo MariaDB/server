@@ -972,6 +972,7 @@ static void safe_exit(int error, MYSQL *mysql)
         so it does not keep busy with load.
       */
       kill_tp_connections(mysql);
+      mysql_close(mysql);
     }
 
     _exit(error);
@@ -1121,7 +1122,8 @@ static void close_tp_connections()
 static void kill_tp_connections(MYSQL *mysql)
 {
   for (auto &conn : all_tp_connections)
-    mysql_kill(mysql, mysql_thread_id(conn));
+    if (conn != mysql)
+      mysql_kill(mysql, mysql_thread_id(conn));
 }
 
 static void tpool_thread_init(void)
