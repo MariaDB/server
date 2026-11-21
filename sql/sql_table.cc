@@ -12618,13 +12618,54 @@ public:
 };
 
 
+/**
+  Charge the online alter log to the altering thread.
+
+  The log is written by the concurrent DMLs. They must not fail because of
+  the tmp space limits, so it is the altering thread that accounts for the
+  log and that fails if max_tmp_session_space_usage or
+  max_tmp_total_space_usage is exceeded.
+
+  @param log        The online alter log
+  @param track      Tracking of the altering thread
+  @param replaying  Size of the part of the log that is being replayed
+
+  @retval false  OK
+  @retval true   Limit exceeded. The error is reported.
+*/
+
+static bool online_alter_charge_log(Cache_flip_event_log *log,
+                                    struct tmp_file_tracking *track,
+                                    ulonglong replaying)
+{
+  ulonglong size= log->pending_size() + replaying;
+  int error;
+
+  if (!update_tmp_file_size || size == track->file_size)
+    return false;
+
+  track->file_size= size;
+  if ((error= update_tmp_file_size(track, 0)))
+  {
+    my_error(error, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
 static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
                                          Cache_flip_event_log *log,
+                                         struct tmp_file_tracking *track,
                                          ha_rows *found_rows)
 {
   int error= 0;
 
   IO_CACHE *log_file= log->flip();
+  ulonglong replaying= log_file->end_of_file;
+
+  if (online_alter_charge_log(log, track, replaying))
+    return 1;
 
   thd_progress_report(thd, 1, MY_MAX(1, my_b_write_tell(log_file)));
 
@@ -12654,8 +12695,15 @@ static int online_alter_read_from_binlog(THD *thd, rpl_group_info *rgi,
       delete ev;
     thd_progress_report(thd, my_b_tell(log_file), thd->progress.max_counter);
     DEBUG_SYNC(thd, "alter_table_online_progress");
+    /* The DMLs are still writing to the log */
+    if (!error && online_alter_charge_log(log, track, replaying))
+      error= 1;
   } while(!error);
   thd->pop_internal_handler();
+
+  /* The replayed part is not needed anymore */
+  if (!error && online_alter_charge_log(log, track, 0))
+    error= 1;
 
   return MY_TEST(error);
 }
@@ -12742,6 +12790,9 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   bool make_unversioned= from->versioned() && !to->versioned();
   bool keep_versioned= from->versioned() && to->versioned();
   bool bulk_insert_started= 0;
+#ifdef HAVE_REPLICATION
+  struct tmp_file_tracking online_log_track= { 0, 0 };
+#endif
   Field *to_row_start= NULL, *to_row_end= NULL, *from_row_end= NULL;
   MYSQL_TIME query_start;
   DBUG_ENTER("copy_data_between_tables");
@@ -12959,6 +13010,17 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
         break;
       }
 
+#ifdef HAVE_REPLICATION
+      /* Fail early if the DMLs have filled the allowed tmp space */
+      if (online &&
+          online_alter_charge_log(from->s->online_alter_binlog,
+                                  &online_log_track, 0))
+      {
+        error= 1;
+        break;
+      }
+#endif
+
       if (make_unversioned)
       {
         if (!from_row_end->is_max())
@@ -13161,7 +13223,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     mysql_unlock_tables(thd, thd->lock);
     thd->lock= NULL;
 
-    error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
+    error= online_alter_read_from_binlog(thd, &rgi, binlog,
+                                         &online_log_track, &found_count);
     if (start_alter_id)
     {
       DBUG_ASSERT(thd->slave_thread);
@@ -13182,7 +13245,8 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     if (!error)
     {
       thd_progress_next_stage(thd);
-      error= online_alter_read_from_binlog(thd, &rgi, binlog, &found_count);
+      error= online_alter_read_from_binlog(thd, &rgi, binlog,
+                                           &online_log_track, &found_count);
     }
 
     /*
@@ -13239,6 +13303,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
 end:
+#ifdef HAVE_REPLICATION
+  if (online_log_track.previous_file_size)
+  {
+    /* Release the tmp space that was charged for the online alter log */
+    online_log_track.file_size= 0;
+    update_tmp_file_size(&online_log_track, 1);
+  }
+#endif
   if (bulk_insert_started)
     (void) to->file->ha_end_bulk_insert();
 

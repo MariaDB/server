@@ -454,9 +454,12 @@ class Cache_flip_event_log: public Event_log {
   IO_CACHE alt_buf;
   IO_CACHE *current, *alt;
   std::atomic<uint> ref_count;
+  /* Bytes written to the current buffer since the last flip() */
+  std::atomic<ulonglong> pending_bytes;
 public:
   Cache_flip_event_log() : Event_log(),
-                           current(&log_file), alt(&alt_buf), ref_count(1)
+                           current(&log_file), alt(&alt_buf), ref_count(1),
+                           pending_bytes(0)
   { bzero(&alt_buf, sizeof(alt_buf)); }
 
   bool open(enum cache_type io_cache_type_arg)
@@ -488,10 +491,26 @@ public:
     mysql_mutex_lock(get_log_lock());
     reinit_io_cache(current, READ_CACHE, 0, 0, 0);
     current= alt;
+    pending_bytes.store(0, std::memory_order_relaxed);
     mysql_mutex_unlock(get_log_lock());
     alt= tmp;
 
     return alt;
+  }
+
+  /**
+    Size of the data that is written but not yet taken by flip().
+    Writers are not limited by the tmp space limits. The reader uses this
+    to charge the log to itself, so that it is the one to fail.
+  */
+  ulonglong pending_size() const
+  { return pending_bytes.load(std::memory_order_relaxed); }
+
+  /** Must be called with the log lock held, after a write to the log */
+  void log_written()
+  {
+    mysql_mutex_assert_owner(get_log_lock());
+    pending_bytes.store(my_b_write_tell(current), std::memory_order_relaxed);
   }
 
   IO_CACHE *get_log_file() override
