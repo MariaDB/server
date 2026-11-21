@@ -1,7 +1,7 @@
 #ifndef SQL_COMMON_INCLUDED
 #define SQL_COMMON_INCLUDED
 /* Copyright (c) 2003, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,6 +44,13 @@ struct st_mysql_options_extention {
   HASH connection_attributes;
   size_t connection_attributes_length;
   my_bool tls_allow_invalid_server_cert;
+};
+
+struct st_mariadb_extension {
+  unsigned long mariadb_client_flag; /* MariaDB specific client flags */
+  unsigned long mariadb_server_capabilities; /* MariaDB specific server capabilities */
+  my_bool auto_local_infile;
+  const char *tls_self_signed_error;
 };
 
 typedef struct st_mysql_methods

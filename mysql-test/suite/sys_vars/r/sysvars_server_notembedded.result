@@ -3754,12 +3754,12 @@ READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	REQUIRE_SECURE_TRANSPORT
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	When this option is enabled, connections attempted using insecure transport will be rejected. Secure transports are SSL/TLS, Unix sockets or named pipes.
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	When this option is enabled, connections attempted using insecure transport will be rejected. Secure transports are SSL/TLS, Unix sockets or named pipes. Over TCP the client must also prove that it has verified the server certificate, which needs a password hash or a client certificate. CLIENT trusts clients of accounts without a password hash to have verified it
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
+ENUM_VALUE_LIST	OFF,ON,CLIENT
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	ROWID_MERGE_BUFF_SIZE

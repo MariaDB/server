@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -287,6 +287,12 @@ enum enum_indicator_type
 
 /* Do not resend metadata for prepared statements, since 10.6*/
 #define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
+
+/*
+  Server: may require ssl_info_client (require_secure_transport over TCP).
+  Client: sends ssl_info_client right after the authentication OK packet.
+*/
+#define MARIADB_CLIENT_SSL_INFO_CLIENT (1ULL << 38)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS

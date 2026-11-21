@@ -3508,14 +3508,18 @@ static bool check_require_secure_transport(sys_var *self, THD *thd, set_var *var
 #endif
 }
 
-static Sys_var_mybool Sys_require_secure_transport(
+static const char *require_secure_transport_names[]= {"OFF", "ON", "CLIENT", 0};
+static Sys_var_enum Sys_require_secure_transport(
   "require_secure_transport",
   "When this option is enabled, connections attempted using insecure "
   "transport will be rejected. Secure transports are SSL/TLS, "
-  "Unix sockets or named pipes.",
+  "Unix sockets or named pipes. Over TCP the client must also prove that "
+  "it has verified the server certificate, which needs a password hash or "
+  "a client certificate. CLIENT trusts clients of accounts without "
+  "a password hash to have verified it",
   GLOBAL_VAR(opt_require_secure_transport),
-  CMD_LINE(OPT_ARG),
-  DEFAULT(FALSE),
+  CMD_LINE(OPT_ARG), require_secure_transport_names,
+  DEFAULT(REQUIRE_SECURE_TRANSPORT_OFF),
   NO_MUTEX_GUARD, NOT_IN_BINLOG,
   ON_CHECK(check_require_secure_transport), ON_UPDATE(0));
 

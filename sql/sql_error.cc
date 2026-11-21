@@ -496,9 +496,11 @@ Diagnostics_area::set_error_status(uint sql_errno,
 /**
   Mark the diagnostics area as 'DISABLED'.
 
-  This is used in rare cases when the COM_ command at hand sends a response
-  in a custom format. One example is the query cache, another is
-  COM_STMT_PREPARE.
+  Used to suppress a response sent to the client.
+
+  Needed in acl_authenticate() when ssl_info_client is read and in cases when
+  the COM_ command at hand sends a response in a custom format. One example is
+  the query cache, another is COM_STMT_PREPARE.
 */
 
 void
