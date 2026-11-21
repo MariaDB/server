@@ -16,6 +16,21 @@ set global debug_key_management_version=10;
 select count(*) from information_schema.innodb_tablespaces_encryption where current_key_version <> 10;
 count(*)
 0
+#
+# MDEV-31094 innodb_encryption_rotate_key_age behaviour is misleading
+#
+# Pages that are innodb_encryption_rotate_key_age versions behind
+# are re-encrypted, not only pages that are more versions behind
+set global innodb_encryption_rotate_key_age=1;
+set global debug_key_management_version=11;
+select name, current_key_version, min_key_version from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+name	current_key_version	min_key_version
+test/t1	11	11
+set global innodb_encryption_rotate_key_age=2;
+set global debug_key_management_version=13;
+select name, current_key_version, min_key_version from information_schema.innodb_tablespaces_encryption where name = 'test/t1';
+name	current_key_version	min_key_version
+test/t1	13	13
 SET GLOBAL innodb_log_checkpoint_now = 1;
 SET GLOBAL innodb_flush_log_at_trx_commit = 1;
 INSERT INTO t1 VALUES(NULL);
