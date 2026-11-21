@@ -6304,7 +6304,7 @@ static void embedded_get_error(MYSQL *mysql, MYSQL_DATA *data)
   strmake_buf(net->last_error, ei->info);
   memcpy(net->sqlstate, ei->sqlstate, sizeof(net->sqlstate));
   mysql->server_status= ei->server_status;
-  my_free(data);
+  free_rows(data);
 }
 
 
