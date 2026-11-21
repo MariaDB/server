@@ -165,7 +165,10 @@ int online_alter_log_row(TABLE* table, const uchar *before_record,
   MY_BITMAP *old_rpl_write_set= table->rpl_write_set;
   table->rpl_write_set= &table->s->all_set;
 
-  table->online_alter_cache->store_prev_position();
+  // Not moved for every row: a failed statement is rolled back to it
+  if (table->online_alter_cache->get_prev_position() == MY_OFF_T_UNDEF)
+    table->online_alter_cache->store_prev_position();
+  my_off_t row_pos= my_b_write_tell(&table->online_alter_cache->cache_log);
   int error= (*log_func)(thd, table, table->s->online_alter_binlog,
                          table->online_alter_cache,
                          table->file->has_transactions_and_rollback(),
@@ -176,7 +179,8 @@ int online_alter_log_row(TABLE* table, const uchar *before_record,
 
   if (unlikely(error))
   {
-    table->online_alter_cache->restore_prev_position();
+    // Undo only what this row wrote and keep the statement start
+    table->online_alter_cache->restore_savepoint(row_pos);
     return HA_ERR_RBR_LOGGING_FAILED;
   }
 
@@ -243,7 +247,9 @@ int online_alter_end_trans(Online_alter_cache_list &cache_list, THD *thd,
     else if (!commit) // rollback
     {
       DBUG_ASSERT(!non_trans);
-      cache.restore_prev_position();
+      // Undefined if the statement did not write to this cache
+      if (cache.get_prev_position() != MY_OFF_T_UNDEF)
+        cache.restore_prev_position();
     }
     else
     {
