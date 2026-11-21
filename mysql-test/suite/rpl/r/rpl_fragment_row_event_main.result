@@ -408,53 +408,17 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_insert_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_insert_frags.out
 # Server_2 binlogs for Write_rows event
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_insert_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_insert_frags.out
 # Server_3 binlogs for Write_rows event
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_insert_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_insert_frags.out
 #
 # Test Update_rows_log_event fragmentation
 connection server_1;
@@ -475,53 +439,17 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_update_frags.out
-Partial_rows (1 / 12)
-Partial_rows (2 / 12)
-Partial_rows (3 / 12)
-Partial_rows (4 / 12)
-Partial_rows (5 / 12)
-Partial_rows (6 / 12)
-Partial_rows (7 / 12)
-Partial_rows (8 / 12)
-Partial_rows (9 / 12)
-Partial_rows (10 / 12)
-Partial_rows (11 / 12)
-Partial_rows (12 / 12)
+FOUND 1 matches in binlog_update_frags.out
 # Server_2 binlogs for Update_rows event
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_update_frags.out
-Partial_rows (1 / 12)
-Partial_rows (2 / 12)
-Partial_rows (3 / 12)
-Partial_rows (4 / 12)
-Partial_rows (5 / 12)
-Partial_rows (6 / 12)
-Partial_rows (7 / 12)
-Partial_rows (8 / 12)
-Partial_rows (9 / 12)
-Partial_rows (10 / 12)
-Partial_rows (11 / 12)
-Partial_rows (12 / 12)
+FOUND 1 matches in binlog_update_frags.out
 # Server_3 binlogs for Update_rows event
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_update_frags.out
-Partial_rows (1 / 12)
-Partial_rows (2 / 12)
-Partial_rows (3 / 12)
-Partial_rows (4 / 12)
-Partial_rows (5 / 12)
-Partial_rows (6 / 12)
-Partial_rows (7 / 12)
-Partial_rows (8 / 12)
-Partial_rows (9 / 12)
-Partial_rows (10 / 12)
-Partial_rows (11 / 12)
-Partial_rows (12 / 12)
+FOUND 1 matches in binlog_update_frags.out
 #
 # Test Delete_rows_log_event fragmentation
 connection server_1;
@@ -542,53 +470,17 @@ include/diff_tables.inc [server_1:test.t1, server_2:test.t1, server_3:test.t1]
 connection server_1;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_delete_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_delete_frags.out
 # Server_2 binlogs for Delete_rows event
 connection server_2;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_delete_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_delete_frags.out
 # Server_3 binlogs for Delete_rows event
 connection server_3;
 flush logs;
 # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
-FOUND 12 matches in binlog_delete_frags.out
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
-Partial_rows (1 / 6)
-Partial_rows (2 / 6)
-Partial_rows (3 / 6)
-Partial_rows (4 / 6)
-Partial_rows (5 / 6)
-Partial_rows (6 / 6)
+FOUND 2 matches in binlog_delete_frags.out
 #
 # Cleanup test case
 connection server_2;

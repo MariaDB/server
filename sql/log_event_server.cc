@@ -6138,19 +6138,13 @@ Rows_log_event_fragmenter::fragment()
   uint32_t width_size=
       static_cast<uint32_t>(width_tmp_buf_end - width_tmp_buf);
   /*
-    TODO: MDEV-40851
-
-    A bug in the fragmentation logic bypasses compression when
-    log_bin_compress=ON, so events cannot currently be both fragmented and
-    compressed. Where the server expects the event to be compressed, we must
-    revert that decision because of this bug. So revert the type of the event
-    back to a regular row event.
-
-    Remove the following if conditional when MDEV-40851 is fixed.
-    rpl_fragment_row_event_(main/mysqlbinlog) tests should fail without this
-    workaround.
+    The fragments write the rows data as-is, so a compressed event must
+    already hold compressed rows data here (see compress_rows_buf()). If it
+    couldn't be compressed, write it as a regular row event instead, so the
+    type matches the data.
   */
-  if (LOG_EVENT_IS_ROW_COMPRESSED(rows_event->m_type))
+  if (LOG_EVENT_IS_ROW_COMPRESSED(rows_event->m_type) &&
+      !rows_event->m_rows_compressed)
   {
     DBUG_ASSERT(!LOG_EVENT_IS_ROW_V2(rows_event->m_type));
     rows_event->m_type= (Log_event_type)
@@ -6388,8 +6382,42 @@ Log_event *Rows_log_event_assembler::create_rows_event(
 }
 
 
+bool Rows_log_event::compress_rows_buf()
+{
+  DBUG_ASSERT(LOG_EVENT_IS_ROW_COMPRESSED(get_type_code()));
+  DBUG_ASSERT(!m_rows_compressed);
+  size_t len= m_rows_cur - m_rows_buf;
+  /*
+    The slave refuses to uncompress rows data larger than
+    MAX_MAX_ALLOWED_PACKET (see uncompress_buf()), so leave it uncompressed.
+  */
+  if (len > MAX_MAX_ALLOWED_PACKET || DBUG_IF("binlog_compress_rows_buf_fail"))
+    return true;
+
+  uint32 comlen, alloc_size;
+  comlen= alloc_size= binlog_get_compress_len((uint32) len);
+  uchar *new_buf= (uchar *) my_malloc(PSI_INSTRUMENT_ME, alloc_size, MYF(0));
+  if (!new_buf ||
+      binlog_buf_compress(m_rows_buf, new_buf, (uint32) len, &comlen))
+  {
+    my_free(new_buf);
+    return true;
+  }
+  my_free(m_rows_buf);
+  m_rows_buf= new_buf;
+  m_rows_cur= m_rows_buf + comlen;
+  m_rows_end= m_rows_buf + alloc_size;
+  m_rows_compressed= true;
+  return false;
+}
+
+
 bool Rows_log_event::write_compressed(Log_event_writer *writer)
 {
+  /* Already compressed by compress_rows_buf() */
+  if (m_rows_compressed)
+    return Log_event::write(writer);
+
   uchar *m_rows_buf_tmp= m_rows_buf;
   uchar *m_rows_cur_tmp= m_rows_cur;
   bool ret= true;

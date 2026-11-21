@@ -145,7 +145,9 @@ set @@global.log_bin_compress= 1;
 --let $old_s3_compress= `SELECT @@global.log_bin_compress`
 set @@global.log_bin_compress= 1;
 
+--let $log_bin_compress= 1
 --source rpl_fragment_row_event.inc
+--let $log_bin_compress=
 
 --connection server_1
 --eval set @@global.log_bin_compress= $old_s1_compress

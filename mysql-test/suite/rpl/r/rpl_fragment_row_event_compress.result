@@ -1,0 +1,51 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int, b longblob) engine=innodb;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+#
+# Test case 1) Compressed rows that fit under the threshold are written
+# as one compressed event, without fragments
+connection master;
+set @@global.log_bin_compress= 1;
+insert into t1 values (1, repeat('a', 10000));
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 values (1, repeat('a', 10000))
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_compressed_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
+#
+# Test case 2) Compressed rows that don't fit are fragmented, and take
+# fewer fragments than uncompressed rows
+# The number of fragments of compressed rows depends on the zlib
+# library, so the fragment counts are compared instead of shown.
+# Each event is Gtid, Annotate_rows, Table_map, then the fragments.
+# Uncompressed
+set @@global.log_bin_compress= 0;
+insert into t1 select 2, group_concat(sha2(seq,512) separator '')
+from seq_1_to_40;
+# Compressed
+set @@global.log_bin_compress= 1;
+insert into t1 select 3, group_concat(sha2(seq,512) separator '')
+from seq_1_to_40;
+update t1 set a= a + 10 where a = 3;
+delete from t1 where a = 2;
+include/save_master_gtid.inc
+uncompressed_fragmented	insert_fragmented	update_fragmented	delete_fragmented
+1	1	1	1
+compressed_takes_fewer_fragments
+1
+connection slave;
+include/sync_with_master_gtid.inc
+include/diff_tables.inc [master:test.t1, slave:test.t1]
+#
+# Cleanup
+connection master;
+set @@global.log_bin_compress= 0;
+drop table t1;
+include/rpl_end.inc
+# End of rpl_fragment_row_event_compress.test

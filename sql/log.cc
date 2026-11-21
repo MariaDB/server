@@ -8193,6 +8193,15 @@ Event_log::flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
         LOG_EVENT_HEADER_LEN + ROWS_HEADER_LEN_V1 + BINLOG_CHECKSUM_LEN;
     uint max_rows_ev_len=
         opt_binlog_row_event_fragment_threshold - rows_ev_metadata_len;
+    /*
+      Fragments write the rows data as-is, so compress it first. If the
+      compressed data fits, the event is written whole. If compression fails,
+      the fragmenter writes a regular row event.
+    */
+    if (LOG_EVENT_IS_ROW_COMPRESSED(pending->get_type_code()) &&
+        pending->rows_data_size_exceeds(
+            static_cast<ulonglong>(max_rows_ev_len)))
+      pending->compress_rows_buf();
     if (pending->rows_data_size_exceeds(
             static_cast<ulonglong>(max_rows_ev_len)))
     {

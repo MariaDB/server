@@ -4932,6 +4932,13 @@ public:
                             uint64_t len_to_write= 0);
 
   virtual bool write_compressed(Log_event_writer *writer);
+
+  /*
+    Replaces the rows data with its compressed form, so a compressed event can
+    be fragmented into Partial_rows_log_events, which write the rows data
+    as-is. Returns true if the data was left uncompressed.
+  */
+  bool compress_rows_buf();
   const char *get_db() override { return m_table->s->db.str; }
 #ifdef HAVE_REPLICATION
    bool is_part_of_group() override { return get_flags(STMT_END_F) != 0; }
@@ -5005,6 +5012,8 @@ protected:
   uchar    *m_rows_buf;		/* The rows in packed format */
   uchar    *m_rows_cur;		/* One-after the end of the data */
   uchar    *m_rows_end;		/* One-after the end of the allocated space */
+  /* Set by compress_rows_buf(), when m_rows_buf holds compressed data */
+  bool     m_rows_compressed= false;
 
   size_t   m_rows_before_size;  /* The length before m_rows_buf */
   size_t   m_flags_pos; /* The position of the m_flags */
