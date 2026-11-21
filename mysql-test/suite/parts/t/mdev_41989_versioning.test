@@ -1,0 +1,64 @@
+--source include/have_partition.inc
+--source include/have_aria.inc
+--source include/have_innodb.inc
+
+# A failed write to the history partition must not replace m_last_part,
+# because it still identifies the current row for the fallback delete.
+--disable_query_log
+
+--let $engine=MyISAM
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+REPLACE INTO t1 VALUES (1), (1), (1);
+DROP TABLE t1;
+
+--let $engine=Aria
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+REPLACE INTO t1 VALUES (1), (1), (1);
+DROP TABLE t1;
+
+--let $engine=InnoDB
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+REPLACE INTO t1 VALUES (1), (1), (1);
+DROP TABLE t1;
+
+# Recreate the same history row at the same timestamp. The second DELETE
+# hits a duplicate in the history partition and must still delete from the
+# partition containing the current row.
+--let $engine=MyISAM
+SET timestamp=1;
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+SET timestamp=1;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+DROP TABLE t1;
+
+--let $engine=Aria
+SET timestamp=1;
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+SET timestamp=1;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+DROP TABLE t1;
+
+--let $engine=InnoDB
+SET timestamp=1;
+eval CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=$engine WITH SYSTEM VERSIONING PARTITION BY SYSTEM_TIME;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+SET timestamp=1;
+INSERT INTO t1 VALUES (1);
+SET timestamp=2;
+DELETE FROM t1;
+DROP TABLE t1;
+
+SET timestamp=DEFAULT;
+--enable_query_log
