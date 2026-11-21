@@ -220,6 +220,14 @@ enum enum_object_type
   OBJECT_TYPE_PACKAGE= 9,
   OBJECT_TYPE_PACKAGE_BODY= 10,
   OBJECT_TYPE_USER_LEVEL_LOCK= 11,
+
+  /*
+    Internal, outside of FIRST_OBJECT_TYPE..LAST_OBJECT_TYPE.
+    Used only in the hash key of package routines, see PFS_program.
+  */
+
+  OBJECT_TYPE_PACKAGE_PROCEDURE= 12,
+  OBJECT_TYPE_PACKAGE_FUNCTION= 13,
 };
 /** Integer, first value of @sa enum_object_type. */
 #define FIRST_OBJECT_TYPE (static_cast<int> (OBJECT_TYPE_EVENT))

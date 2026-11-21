@@ -43,7 +43,9 @@ struct PFS_program_key
   /**
     Hash search key.
     This has to be a string for LF_HASH,
-    the format is "<object_type><0x00><object_name><0x00><schema_name><0x00>"
+    the format is "<object_type><object_name><0x00><schema_name><0x00>".
+    The object type of package routines is OBJECT_TYPE_PACKAGE_PROCEDURE
+    or OBJECT_TYPE_PACKAGE_FUNCTION.
   */
   char m_hash_key[PROGRAM_HASH_KEY_LENGTH];
   uint m_key_length;
@@ -51,7 +53,7 @@ struct PFS_program_key
 
 struct PFS_ALIGNED PFS_program : public PFS_instr
 {
-  /** Object type. */
+  /** Object type, PROCEDURE or FUNCTION for package routines too. */
   enum_object_type m_type;
 
   /** Object name. */

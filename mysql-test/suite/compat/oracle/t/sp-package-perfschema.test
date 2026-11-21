@@ -1,0 +1,158 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/no_protocol.inc
+
+--echo #
+--echo # MDEV-34817: Performance schema is not cleared of removed package routines
+--echo #
+
+# Package routines are recorded in performance schema as
+# PROCEDURE/FUNCTION "<package>.<routine>". They must disappear when
+# the package is dropped, regardless of which connection executed them
+# and which connection drops the package.
+# Non-zero counts of package routines also show that SETUP_OBJECTS
+# rules for PROCEDURE/FUNCTION apply to them.
+
+SET @save_sql_mode= @@sql_mode;
+CREATE DATABASE mdev34817;
+USE mdev34817;
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+let $create_pkg=
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+let $create_pkg_body=
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+$$
+CREATE PROCEDURE p1 AS BEGIN NULL; END;
+$$
+DELIMITER ;$$
+let $show=
+SELECT object_type, object_name, count_star
+  FROM performance_schema.events_statements_summary_by_program
+  WHERE object_schema='mdev34817' AND object_type IN ('PROCEDURE','FUNCTION')
+  ORDER BY object_type, object_name, count_star;
+
+eval $create_pkg;
+eval $create_pkg_body;
+
+# Execute the package routines from two other connections.
+# The default connection, which drops the package, never executes them.
+connect (con1,localhost,root,,mdev34817);
+SET sql_mode=ORACLE;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+CALL p1;
+connect (con2,localhost,root,,mdev34817);
+SET sql_mode=ORACLE;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+connection default;
+eval $show;
+
+--echo # DROP PACKAGE BODY: package routines are gone, p1 stays
+DROP PACKAGE BODY pkg1;
+eval $show;
+
+--echo # DROP PACKAGE: re-create routines, then drop package
+eval $create_pkg_body;
+connection con1;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+connection default;
+eval $show;
+DROP PACKAGE pkg1;
+eval $show;
+
+--echo # DROP DATABASE: drop everything
+eval $create_pkg;
+eval $create_pkg_body;
+connection con2;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+disconnect con2;
+disconnect con1;
+connection default;
+eval $show;
+DROP DATABASE mdev34817;
+eval $show;
+
+--echo #
+--echo # Differentiate between package routines and standalone routines
+--echo # (with a dot(.) in the name. ex: `pkg1.p1`
+--echo #
+
+CREATE DATABASE mdev34817;
+USE mdev34817;
+eval $create_pkg;
+eval $create_pkg_body;
+DELIMITER $$;
+CREATE PROCEDURE `pkg1.p1` AS BEGIN NULL; END;
+$$
+CREATE PROCEDURE `pkg1.p9` AS BEGIN NULL; END;
+$$
+DELIMITER ;$$
+CALL pkg1.p1;
+CALL `pkg1.p1`;
+CALL `pkg1.p1`;
+CALL `pkg1.p9`;
+eval $show;
+--echo # Only the package routines are gone
+DROP PACKAGE BODY pkg1;
+eval $show;
+
+--echo #
+--echo # Routines of packages with names truncated in performance schema
+--echo #
+
+connect (con1,localhost,root,,mdev34817);
+SET NAMES utf8mb4;
+SET sql_mode=ORACLE;
+let $long= `SELECT REPEAT('k', 64)`;
+# 32 characters, 64 bytes
+let $cyrillic= `SELECT REPEAT('ж', 32)`;
+DELIMITER $$;
+eval CREATE PACKAGE $long AS PROCEDURE p1; PROCEDURE p2; END;
+$$
+eval CREATE PACKAGE BODY $long AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  PROCEDURE p2 AS BEGIN NULL; END;
+END;
+$$
+eval CREATE PACKAGE $cyrillic AS PROCEDURE p1; END;
+$$
+eval CREATE PACKAGE BODY $cyrillic AS PROCEDURE p1 AS BEGIN NULL; END; END;
+$$
+DELIMITER ;$$
+eval CALL $long.p1;
+eval CALL $long.p2;
+eval CALL $cyrillic.p1;
+SELECT object_type, CHAR_LENGTH(object_name), count_star
+  FROM performance_schema.events_statements_summary_by_program
+  WHERE object_schema='mdev34817' AND object_name NOT LIKE 'pkg%'
+    AND object_type IN ('PROCEDURE','FUNCTION')
+  ORDER BY object_type, object_name;
+eval DROP PACKAGE BODY $long;
+eval DROP PACKAGE BODY $cyrillic;
+SELECT object_type, CHAR_LENGTH(object_name), count_star
+  FROM performance_schema.events_statements_summary_by_program
+  WHERE object_schema='mdev34817' AND object_name NOT LIKE 'pkg%'
+    AND object_type IN ('PROCEDURE','FUNCTION')
+  ORDER BY object_type, object_name;
+disconnect con1;
+connection default;
+
+DROP DATABASE mdev34817;
+eval $show;
+
+USE test;
+SET sql_mode= @save_sql_mode;
+
+--echo # End of 10.11 tests
