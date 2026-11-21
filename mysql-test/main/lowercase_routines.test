@@ -1,0 +1,15 @@
+--source include/lcase_names.inc
+if (`SELECT @@lower_case_table_names = 0`)
+{
+  --skip Requires lower_case_table_names=1 or 2
+}
+
+--echo #
+--echo # MDEV-37493 information_schema.routines.routine_schema no longer
+--echo # matched case-insensitively with lower_case_table_names=2
+--echo #
+CREATE DATABASE FooBar;
+CREATE PROCEDURE FooBar.testing(IN p INT) SELECT p;
+SELECT routine_schema, routine_name FROM information_schema.routines WHERE routine_schema = 'FooBar';
+SELECT specific_schema, specific_name, parameter_name FROM information_schema.parameters WHERE specific_schema = 'FOOBAR';
+DROP DATABASE FooBar;
