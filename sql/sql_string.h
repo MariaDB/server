@@ -101,6 +101,38 @@ class String_copier: public String_copy_status,
                      protected MY_STRCONV_STATUS
 {
 public:
+  /*
+    Whether a copy between these two character sets moves the bytes
+    across as they stand, rather than writing the characters again in
+    the destination's formatting.
+
+    This is the branch well_formed_copy() takes, said where a caller can
+    read it as well.  Sets that are the same are copied unchanged, and so
+    is anything with a binary set at either end - the bytes go across
+    untouched and are then read as whatever the other set makes of them.
+  */
+  static bool conversion_copies_bytes(CHARSET_INFO *to_cs,
+                                      CHARSET_INFO *from_cs)
+  {
+    return to_cs == &my_charset_bin || from_cs == &my_charset_bin ||
+           to_cs == from_cs || my_charset_same(from_cs, to_cs);
+  }
+  /*
+    Whether such a copy still puts down the characters it was given.
+
+    Sets that are the same put them down unchanged and different sets
+    convert them, both of which keep the characters.  A binary set at
+    either end is neither: the bytes are kept and called by the other
+    set's name, which is a different string of characters and, for a
+    document, usually not one at all.  That is the one case the branch
+    above takes without converting, which is what this asks.
+  */
+  static bool conversion_keeps_characters(CHARSET_INFO *to_cs,
+                                          CHARSET_INFO *from_cs)
+  {
+    return my_charset_same(from_cs, to_cs) ||
+           !conversion_copies_bytes(to_cs, from_cs);
+  }
   const char *cannot_convert_error_pos() const
   { return m_cannot_convert_error_pos; }
   const char *most_important_error_pos() const

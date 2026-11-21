@@ -26,6 +26,60 @@
 #include "item_sum.h"
 #include "sql_type_json.h"
 
+/*
+  The three below are read by DBUG_ASSERT and by nothing else, so they
+  are here wherever a DBUG_ASSERT is compiled rather than wherever a
+  debug build is.  Those are not the same set: DBUG_ASSERT_AS_PRINTF
+  turns the assertion into a printed complaint and leaves its expression
+  standing, while setting DBUG_OFF, so a guard written the other way
+  round leaves those expressions with nothing to call and that build
+  stops compiling.
+*/
+#ifdef DBUG_ASSERT_EXISTS
+/*
+  Reads a value the way whoever receives it will read it, and says
+  whether it got to the end.  For the debug checks that hold the marks to
+  what they say; the reading is not counted, being the debug build's work
+  and not the server's.
+*/
+bool json_value_reads_as_document(const String *str);
+/*
+  Writes the value out again in the loose form and says whether that
+  changed anything.  For the same debug checks, and uncounted for the
+  same reason.
+*/
+bool json_value_is_nice(const String *str);
+/*
+  Reads the value and says how deep it actually goes.  For the checks
+  that hold a claimed depth to the truth - a claim larger than this is
+  what saying nothing amounts to, and one smaller is the failure worth
+  catching.  Uncounted for the same reason as the two above.
+*/
+uint json_value_depth(const String *str);
+#endif
+
+#ifndef DBUG_OFF
+/*
+  Holds the reading count still across a reading the released server does
+  not do.
+
+  The count is of the work a server does, and a debug build's reading back
+  of a value to check what was claimed about it is not that work: counting
+  it would move a number kept to watch queries for reasons no query has.
+  Where the reading is one call the count is taken straight back off it;
+  where it is a whole expression, whose readings the caller cannot count,
+  the figure is put back as it stood.
+*/
+class Json_scans_unbilled
+{
+  THD *m_thd;
+  ulong m_scans;
+public:
+  Json_scans_unbilled(THD *thd);
+  ~Json_scans_unbilled();
+};
+#endif
+
 class json_path_with_flags
 {
 public:
@@ -48,7 +102,23 @@ void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
 bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
-int st_append_escaped(String *s, const String *a);
+
+/*
+  What an append of escaped text to a document came to.  The two ways
+  of failing are kept apart because they are not answered alike: a
+  buffer that would not grow has already raised an error of its own and
+  the statement is over, while a character that cannot be written into
+  a document is an ordinary property of the data, which callers have
+  always carried on past.
+*/
+enum json_append_result
+{
+  JSON_APPEND_OK= 0,
+  JSON_APPEND_OOM= 1,
+  JSON_APPEND_BAD_CHR= 2
+};
+
+json_append_result st_append_escaped(String *s, const String *a);
 int json_find_overlap_with_object(json_engine_t *js,
                                               json_engine_t *value,
                                               bool compare_whole);
@@ -82,6 +152,15 @@ class Json_path_extractor: public json_path_with_flags
 {
 protected:
   String tmp_js, tmp_path;
+  /*
+    What the document said about itself, taken while extract() had just
+    evaluated it and before it worked the path out.  A path is any
+    expression a caller cares to write, so the two readings would
+    otherwise be a stored function apart, and what the document answers
+    can change over that distance while the document in hand does not.
+  */
+  bool m_js_nice;
+  uint m_js_depth;
   virtual ~Json_path_extractor() { }
   virtual bool check_and_get_value(Json_engine_scan *je,
                                    String *to, int *error)=0;
@@ -110,11 +189,10 @@ public:
     set_maybe_null();
     return FALSE;
   }
-  bool set_format_by_check_constraint(Send_field_extended_metadata *to) const
-    override
+  bool json_valid_of_column_processor(void *arg) override
   {
-    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
-    return to->set_format_name(fmt);
+    return Type_handler_json_common::
+             is_json_valid_of_name(this, *(const LEX_CSTRING *) arg);
   }
   enum Functype functype() const override { return JSON_VALID_FUNC; }
 
@@ -166,6 +244,14 @@ protected:
 
 class Item_json_func: public Item_str_func
 {
+protected:
+  Json_result_marks m_marks;
+  /*
+    Return a document as this function's answer rather than reading it
+    again to find out what it is - out of line, where the rule it stands
+    on is written.
+  */
+  String *return_json(String *to, const String *from, uint depth);
 public:
   Item_json_func(THD *thd)
    :Item_str_func(thd) { }
@@ -179,6 +265,9 @@ public:
   {
     return Type_handler_json_common::json_type_handler(max_length);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
 };
 
 
@@ -227,15 +316,42 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *to) override
   {
+    m_marks.clear();
     null_value= Json_path_extractor::extract(to, args[0], args[1],
                                              collation.collation, func_name_cstring(), true);
-    return null_value ? NULL : to;
+    if (null_value)
+      return NULL;
+    /*
+      The piece is copied out with whatever spacing the document it came
+      from was written with, so it is formatted the loose way exactly when
+      that document was.  Cutting it out cannot change that: the loose
+      form writes the same punctuation wherever a value sits, so a value
+      inside a document is written there the way it would be written on
+      its own, and the two ends of the cut are the two ends of the value
+      with no spacing of the document's left on either side.
+
+      And a piece of a document does not nest deeper than the document
+      it was cut out of, wherever inside it the cut was made - so what
+      the document could say about its own depth is said about the
+      piece as well.
+
+      Both of them as the document answered them when it was read, not
+      as it answers them now - see Json_path_extractor::m_js_nice.
+    */
+    m_marks.set(to, true, m_js_nice, m_js_depth);
+    return to;
   }
   bool check_and_get_value(Json_engine_scan *je,
                            String *res, int *error) override
   {
     return je->check_and_get_value_complex(res, error);
   }
+  /*
+    Returns a slice of the searched document, delimited by the two ends
+    of a value the scanner has just parsed.  A fully parsed value is a
+    document in its own right.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -269,6 +385,7 @@ class Item_func_json_unquote: public Item_str_func
 protected:
   String tmp_s;
   String *read_json(json_engine_t *je);
+  String *return_as_is(String *str, String *js);
 public:
   Item_func_json_unquote(THD *thd, Item *s): Item_str_func(thd, s) {}
   LEX_CSTRING func_name_cstring() const override
@@ -335,6 +452,16 @@ public:
   double val_real() override;
   my_decimal *val_decimal(my_decimal *) override;
   uint get_n_paths() const override { return arg_count - 1; }
+  /*
+    The values found are put together into a result of their own.  Each
+    of them was read as a document on the way in and is written back out
+    as one, so what holds them is all that can be wrong with the result
+    - and that is the brackets, written only when several values can
+    match.  In a character set that cannot encode those, the result is
+    read back through json_nice() as it always was, and anything that
+    will not read comes back as NULL.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -413,6 +540,23 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array") };
     return name;
   }
+  /*
+    A document or nothing.  Every value is read as it goes in - the ones
+    quoted here come out of json_escape() and are documents of their
+    own, and the ones spliced as they stand were either read on the way
+    or passed by something that had already read them - and a value that
+    did not read as one takes the whole result down to NULL rather than
+    into the answer.  What goes between them is written here.
+
+    Which leaves the brackets and the separators.  In a character set
+    that might not write those as themselves the result is read back
+    before it is returned, and one that does not read comes back NULL,
+    exactly as it does for the functions that always read back.
+
+    Said for Item_func_json_object as well, which composes the same way
+    through the same routines.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -436,6 +580,19 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_array_append") };
     return name;
   }
+  /*
+    Each of the six functions that EDIT a document returns a document
+    or NULL, and for the same two reasons in all of them.
+
+    Where the document it was given is_valid, and the result character
+    set can represent the punctuation being written, the result is a
+    document by construction: the parts retained were parsed as one on
+    input, and what goes between them is written here.  Where either
+    does not hold, the whole result is re-parsed through json_nice()
+    before being returned, and anything that fails to parse gives
+    NULL.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -494,6 +651,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_merge_preserve") };
     return name;
   }
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -518,6 +680,11 @@ protected:
 };
 
 
+/*
+  Reads its argument through in full and writes the document out again
+  in a normal form, in utf8mb4 whatever the argument arrived in.  What
+  it writes is the compact formatting, so it is never in the loose form.
+*/
 class Item_func_json_normalize: public Item_json_func
 {
 public:
@@ -530,6 +697,12 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  /*
+    Written out afresh from a document read through in full, and always
+    in utf8mb4, which can encode everything written into it whatever the
+    argument arrived in.
+  */
+  bool is_valid_json_static() const override { return true; }
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_normalize>(thd, this); }
 };
@@ -624,6 +797,11 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count/2; }
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
+  bool is_valid_json_static() const override { return true; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING json_set=    {STRING_WITH_LEN("json_set") };
@@ -654,6 +832,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_remove") };
     return name;
   }
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array_append declares the same.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -661,7 +844,17 @@ protected:
 };
 
 
-class Item_func_json_keys: public Item_str_func
+/*
+  Typed as returning a document like the rest of the family: the keys
+  are returned as an array, and a function given that array in value
+  position is meant to embed an array.
+
+  The array is attested as well.  It is written one key at a time out of
+  a document that parsed, and being an array of strings fixes its
+  validity, its formatting and its depth without measuring any of the
+  three - see where the result is returned.
+*/
+class Item_func_json_keys: public Item_json_func
 {
 protected:
   json_path_with_flags path;
@@ -669,7 +862,7 @@ protected:
 
 public:
   Item_func_json_keys(THD *thd, List<Item> &list):
-    Item_str_func(thd, list) {}
+    Item_json_func(thd, list) {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_keys") };
@@ -677,6 +870,12 @@ public:
   }
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
+  /*
+    A document or nothing, whichever row it is asked about: an object
+    gives back an array of its key names and anything else gives back
+    NULL, so a column of these can be built saying so.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -708,6 +907,15 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *) override;
   uint get_n_paths() const override { return arg_count > 4 ? arg_count - 4 : 0; }
+  /*
+    A path is a JSON string, and every path returned here is built from
+    pieces of a document that has just been parsed.  Several of them go
+    inside brackets, which needs a character set that can represent a
+    bracket - and a document in a character set that cannot is a
+    scalar, there being no way to write a container in it, so it holds
+    one value and yields one path.
+  */
+  bool is_valid_json_static() const override { return true; }
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -728,6 +936,7 @@ public:
 protected:
   formats fmt;
   String tmp_js;
+  String *forward_json(String *js);
 public:
   Item_func_json_format(THD *thd, Item *js, formats format):
     Item_json_func(thd, js), fmt(format) {}
@@ -738,6 +947,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   String *val_str(String *str) override;
   String *val_json(String *str) override;
+  String *val_json_at_once(String *str) override;
 
 protected:
   Item *shallow_copy(THD *thd) const override
@@ -758,6 +968,51 @@ protected:
                              const uchar *key, size_t offset) override;
   void cut_max_length(String *result,
                       uint old_length, uint max_length) const override;
+  /*
+    The two brackets, which val_str() writes round the group once it is
+    asked for.  They go in through String::append(), which writes them
+    in the set of the result, so each of them is as wide as the
+    narrowest character that set has.
+  */
+  uint32 reserved_result_length() const override
+  { return 2 * collation.collation->mbminlen; }
+  /*
+    A row of this group could not be written out at all, the buffer
+    having failed to grow.  Neither a row whose value does not parse as
+    JSON nor one holding a character no document can carry is this:
+    the first is written out as it stands and the second is dropped
+    where it always was, both with a note.  Those two are answered by
+    the mark below instead.  Reset for each group by clear().
+  */
+  bool m_bad_element;
+  /*
+    The brackets have been put on already.  Nothing says how often the
+    result of a group is asked for, and the buffer they go into belongs
+    to this item and outlives the asking, so putting them on once per
+    call would put on one pair per call.  Reset for each group by
+    clear().
+  */
+  bool m_closed;
+  /*
+    Whether everything that went into this group leaves the array around
+    it answerable for.  Cleared by a value that did not read as JSON, or
+    one holding a character that could not be written, which is dropped
+    and leaves the separator either side of it with nothing between
+    them.  Reset for each group by clear(), the same as above, and kept
+    apart from it because they say different things - that one means the
+    group is missing a row, this one that the group is complete and
+    still not a document.  Either way there is no array to return,
+    so a group this is cleared for is refused when it is asked for.
+  */
+  bool m_elements_valid;
+  /*
+    How deep the deepest element written so far reaches, counted from
+    outside the brackets that go round the group.  Accumulated over the
+    elements for the same reason as the mark above: the group is written
+    out a row at a time, and the answer is the deepest of them.
+  */
+  uint m_elements_depth;
+  Json_result_marks m_marks;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -765,15 +1020,49 @@ public:
                           const SQL_I_List<ORDER> &is_order, String *is_separator,
                           bool limit_clause, Item *row_limit, Item *offset_limit):
       Item_func_group_concat(thd, context_arg, is_distinct, is_select, is_order,
-                             is_separator, limit_clause, row_limit, offset_limit)
+                             is_separator, limit_clause, row_limit, offset_limit),
+      m_bad_element(false), m_closed(false), m_elements_valid(true),
+      m_elements_depth(1)
   {
   }
+  /*
+    A copy is not fixed again, so anything fix_fields() settled has to
+    be settled here too.  The buffer's character set is one of those:
+    left at its default the copy would read the values it is given as
+    bytes rather than as the characters they are, and say they were
+    not JSON.
+  */
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
-    Item_func_group_concat(thd, item) {}
+    Item_func_group_concat(thd, item), m_bad_element(false),
+    m_closed(false), m_elements_valid(true), m_elements_depth(1)
+  {
+    m_tmp_json.set_charset(collation.collation);
+  }
   const Type_handler *type_handler() const override
   {
     return Type_handler_json_common::json_type_handler_sum(this);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
+  /*
+    A document or nothing, for the reason given where
+    Item_func_json_array declares the same: the elements are read as
+    they arrive, a group carrying one that did not read as a document
+    comes back NULL, and the brackets are written here.  A group cut to
+    fit its length limit is cut back to the last whole element, so the
+    brackets still go round a document.
+  */
+  bool is_valid_json_static() const override { return true; }
+  /*
+    Asked for rather than read off.  The aggregate this inherits from
+    settles a NULL before any of the group is written, that being what
+    it says about a group with no rows in it and the only time it says
+    it, so Item_sum::is_null() reads what is already there.  A group
+    refused here is refused as it is written out, and what is already
+    there is then the answer to a question nothing has asked yet.
+  */
+  bool is_null() override { update_null_value(); return null_value; }
 
   LEX_CSTRING func_name_cstring() const override
   {
@@ -783,6 +1072,7 @@ public:
   bool fix_fields(THD *thd, Item **ref) override;
   enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
+  void clear() override;
   String* val_str(String *str) override;
 
   Item *copy_or_same(THD* thd) override;
@@ -796,12 +1086,92 @@ protected:
 class Item_func_json_objectagg : public Item_sum
 {
   String result;
+  /*
+    A pair of this group could not be written out in full, the buffer
+    having failed to grow part way through it.  Reset for each group by
+    clear().
+  */
+  bool m_bad_pair;
+  /*
+    The closing brace has been written already.  Nothing says how often
+    the result of a group is asked for, and the buffer it goes into is
+    this item's own and outlives the asking, so writing it once per call
+    would write one brace per call.  Reset for each group by clear().
+  */
+  bool m_closed;
+  /*
+    Whether everything that went into this group leaves the object
+    around it answerable for.  Cleared by a value that did not read as
+    JSON, or one holding a character that could not be written, which
+    leaves the string it was being written into unclosed.  Reset for
+    each group by clear(), and kept apart from the flag above for the
+    same reason as in the sister aggregate - one means a pair is
+    missing, this one that the pairs are all there and still do not make
+    a document.  Either way there is no object to return, so a group
+    this is cleared for is refused when it is asked for.
+
+    A KEY holding such a character is neither: it goes in as the empty
+    key with its pair finished round it, so the object is a document
+    whose keys are not the ones that were asked for, and the note raised
+    where it happens is the whole of what is said about it.
+  */
+  bool m_pairs_valid;
+  /*
+    How deep the deepest value written so far reaches, counted from
+    outside the braces that go round the group - the sister aggregate's
+    m_elements_depth, for the same reason.
+  */
+  uint m_pairs_depth;
+  /*
+    The group has been cut back to fit group_concat_max_len and nothing
+    further goes into it.  A later pair small enough to fit in what is
+    left would go in behind the pair that did not fit, putting the
+    object out of the order the group was read in.  Once this is set,
+    add() evaluates neither argument.  Reset for each group by clear().
+  */
+  bool m_cut;
+  /*
+    Which row of this group is being added, counted over the rows that
+    have a key to make a pair of - a row whose key is NULL is not one of
+    them and is not counted.  Neither is a row read after the cut, whose
+    key is not evaluated.  Only the cut warning reads it, to say where
+    the group stopped, and it has been raised by then.
+
+    Counted per group, where the sister aggregate's row_count runs on
+    across the groups of a statement.  Nothing here needs it to run on,
+    and a number naming a row of the group is what the warning reads as.
+  */
+  uint m_row_count;
+  /*
+    The session this group is being built for, taken once by clear()
+    rather than looked up again for every row of it.  A group runs on
+    one connection, so the lookup answers the same thing every time it
+    is made; what is read THROUGH it is read per row still, the length
+    limit being the session's setting as it stands.
+  */
+  THD *m_thd;
+  Json_result_marks m_marks;
+  /*
+    How wide a brace is.  Both of them go in through String::append(),
+    which writes them in the set of the result, so each is as wide as
+    the narrowest character that set has.
+  */
+  uint32 brace_length() const
+  { return collation.collation->mbminlen; }
 public:
+  /*
+    The opening brace is not written here.  This runs while the
+    expression is being parsed, before there is a character set to write
+    it in, and a brace put down now would be one byte wide however wide a
+    character of the result turns out to be.  clear() writes it instead,
+    once per group and once the width is known.
+  */
   Item_func_json_objectagg(THD *thd, Item *key, Item *value) :
-    Item_sum(thd, key, value)
+    Item_sum(thd, key, value), m_bad_pair(false), m_closed(false),
+    m_pairs_valid(true), m_pairs_depth(1), m_cut(false), m_row_count(0),
+    m_thd(NULL)
   {
     quick_group= FALSE;
-    result.append('{');
   }
 
   Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
@@ -817,6 +1187,16 @@ public:
   {
     return Type_handler_json_common::json_type_handler_sum(this);
   }
+  bool is_valid_json() const override { return m_marks.valid(); }
+  bool is_nice_json() const override { return m_marks.nice(); }
+  uint last_depth() const override { return m_marks.depth(); }
+  /*
+    A document or nothing, for the reason given where the sister
+    aggregate declares the same.
+  */
+  bool is_valid_json_static() const override { return true; }
+  /* Asked for rather than read off, also as in the sister aggregate. */
+  bool is_null() override { update_null_value(); return null_value; }
   void clear() override;
   bool add() override;
   void reset_field() override { DBUG_ASSERT(0); }        // not used

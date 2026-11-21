@@ -1,0 +1,445 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # Behavioral baseline: JSON values that come out of a table.
+--echo #
+--echo # A JSON column carries a check constraint that is supposed to keep
+--echo # invalid documents out, but the check can be switched off for the
+--echo # duration of a statement, after which the column holds bytes that no
+--echo # longer satisfy it.  This test records what every JSON function does
+--echo # with such a column, what the check constraints look like, and how a
+--echo # user-created temporary table compares with a base table.
+--echo #
+
+SET NAMES utf8mb4;
+
+# A check constraint is looked at while the column definition is validated,
+# which for a prepared CREATE TABLE is prepare time, so the warnings the
+# constraints below draw only reach the client when prepare warnings are
+# asked for.
+--enable_prepare_warnings
+
+--echo #
+--echo # 1. What declaring a column JSON actually creates.
+--echo #
+
+CREATE TABLE t1 (id INT, j JSON);
+SHOW CREATE TABLE t1;
+SELECT column_name, data_type, column_type
+  FROM information_schema.columns
+  WHERE table_schema = 'test' AND table_name = 't1'
+  ORDER BY ordinal_position;
+SELECT constraint_name, check_clause
+  FROM information_schema.check_constraints
+  WHERE constraint_schema = 'test' AND table_name = 't1';
+
+--echo # a column that is only LONGTEXT does not get the constraint
+CREATE TABLE t2 (id INT, j LONGTEXT);
+SHOW CREATE TABLE t2;
+SELECT COUNT(*) AS constraints
+  FROM information_schema.check_constraints
+  WHERE constraint_schema = 'test' AND table_name = 't2';
+
+--echo # a constraint written out by hand, worded exactly like the automatic one
+CREATE TABLE t3 (id INT, j LONGTEXT CHECK (json_valid(j)));
+SHOW CREATE TABLE t3;
+--echo # a constraint that mentions the column inside a larger expression
+CREATE TABLE t4 (id INT, j LONGTEXT CHECK (json_valid(j) AND id > 0));
+SHOW CREATE TABLE t4;
+--echo # a table level constraint over two columns
+CREATE TABLE t5 (id INT, j LONGTEXT, k LONGTEXT,
+                 CONSTRAINT both_valid CHECK (json_valid(j) AND json_valid(k)));
+SHOW CREATE TABLE t5;
+
+--echo #
+--echo # 2. The constraint doing its job.
+--echo #
+
+INSERT INTO t1 VALUES (1, '{"a":1,"b":[1,2]}');
+INSERT INTO t1 VALUES (2, '{"a": 1, "b": [1, 2]}');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (3, '{"a":1,');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (3, 'not json at all');
+--error ER_CONSTRAINT_FAILED
+UPDATE t1 SET j = '{' WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+--echo # the hand written constraint behaves the same way
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t3 VALUES (1, '{');
+INSERT INTO t3 VALUES (1, '{"a":1}');
+SELECT id, j FROM t3;
+
+--echo # the constraint shapes that are NOT a bare check of one column.  Each
+--echo # of these still has to run in full, so what they accept and reject is
+--echo # recorded here rather than left to the CREATE statement alone.
+--echo # constraint on the column combined with a test of another column
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t4 VALUES (1, '{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t4 VALUES (0, '{"a":1}');
+INSERT INTO t4 VALUES (1, '{"a":1}');
+SELECT id, j FROM t4;
+--echo # table level constraint over two columns
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5 VALUES (1, '{', '{"a":1}');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5 VALUES (1, '{"a":1}', '{');
+INSERT INTO t5 VALUES (1, '{"a":1}', '{"b":2}');
+SELECT id, j, k FROM t5;
+--echo # an OR, where the other side can let an invalid document through
+CREATE TABLE t5b (id INT, j LONGTEXT CHECK (json_valid(j) OR id > 0));
+INSERT INTO t5b VALUES (1, '{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5b VALUES (0, '{');
+SELECT id, j, JSON_VALID(j) AS valid FROM t5b;
+--echo # an AND whose parts all have to hold, but where none of them is
+--echo # the call: the promise is inside an OR one level down, so the
+--echo # constraint can pass without it and the column stays ordinary
+CREATE TABLE t5d (id INT,
+                  j LONGTEXT CHECK (LENGTH(j) > 0 AND
+                                    (json_valid(j) OR id > 0)));
+INSERT INTO t5d VALUES (1, '{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5d VALUES (0, '{');
+INSERT INTO t5d VALUES (0, '{"a":1}');
+SELECT id, j, JSON_VALID(j) AS valid FROM t5d ORDER BY id, j;
+--echo # a constraint attached to one column that tests a different column
+CREATE TABLE t5c (a LONGTEXT, b LONGTEXT CHECK (json_valid(a)));
+INSERT INTO t5c VALUES ('{"a":1}', '{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5c VALUES ('{', '{"a":1}');
+SELECT a, b FROM t5c;
+--echo # writing any constraint of your own on a JSON column replaces the
+--echo # automatic one, so invalid documents go in with the checks left on
+CREATE TABLE t5e (j JSON CHECK (LENGTH(j) > 0));
+SHOW CREATE TABLE t5e;
+INSERT INTO t5e VALUES ('{"a":1}');
+INSERT INTO t5e VALUES ('{');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5e VALUES ('');
+SELECT j, JSON_VALID(j) AS valid FROM t5e ORDER BY j;
+SELECT JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS still_valid
+  FROM t5e ORDER BY j;
+DROP TABLE t5b, t5c, t5d, t5e;
+
+--echo #
+--echo # 3. Switching the check off, which is what makes a stored document
+--echo #    unverifiable afterwards.
+--echo #
+
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO t1 VALUES (10, '{"a":1,');
+INSERT INTO t1 VALUES (11, 'not json at all');
+INSERT INTO t1 VALUES (12, '{"a":1} trailing');
+INSERT INTO t1 VALUES (13, CONCAT(REPEAT('[', 32), '1', REPEAT(']', 32)));
+INSERT INTO t3 VALUES (10, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+
+--echo # the rows are there and the constraint is back on
+SELECT id, j FROM t1 ORDER BY id;
+SELECT id, JSON_VALID(j) AS valid FROM t1 ORDER BY id;
+--echo # a new statement is checked again, the stored rows are not
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES (14, '{');
+--echo # reading the column back does not check anything
+SELECT id, j FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, HEX(j) FROM t1 WHERE id = 10;
+
+--echo #
+--echo # 4. Every function fed the column that no longer satisfies its check.
+--echo #
+
+SELECT id, JSON_VALID(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_TYPE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_DEPTH(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_LENGTH(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_KEYS(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_EXTRACT(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_QUERY(j, '$') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALUE(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_INSERT(j, '$.z', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_REPLACE(j, '$.a', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_REMOVE(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_ARRAY_APPEND(j, '$', 1) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_MERGE(j, '{"z":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_MERGE_PATCH(j, '{"z":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_COMPACT(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_LOOSE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_NORMALIZE(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_EXISTS(j, '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_CONTAINS(j, '1', '$.a') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_SEARCH(j, 'one', '1') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_EQUALS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_OVERLAPS(j, '{"a":1}') AS v FROM t1 WHERE id >= 10 ORDER BY id;
+
+--echo #
+--echo # 5. The column as an embedded argument.  A JSON column is embedded as
+--echo #    a document, so whatever it holds is copied into the result as is.
+--echo #
+
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_OBJECT('k', j) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALID(JSON_OBJECT('k', j)) AS still_valid
+  FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_ARRAYAGG(j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
+SELECT id, JSON_OBJECTAGG(id, j) AS v FROM t1 WHERE id >= 10 GROUP BY id ORDER BY id;
+--echo # the same column read as plain text is quoted instead of embedded
+SELECT id, JSON_ARRAY(CONCAT(j, '')) AS v FROM t1 WHERE id >= 10 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(CONCAT(j, ''))) AS still_valid
+  FROM t1 WHERE id >= 10 ORDER BY id;
+--echo # a LONGTEXT column holding the same bytes is quoted, not embedded
+SELECT id, JSON_ARRAY(j) AS v FROM t3 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM t3 ORDER BY id;
+
+--echo # 5a. The same column reached through a scalar subquery, where the
+--echo #     value is fetched once and held rather than read per row.
+CREATE TABLE ts (id INT, j JSON);
+INSERT INTO ts VALUES (1, '{"a": 1}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO ts VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT JSON_ARRAY((SELECT j FROM ts WHERE id = 1)) AS v;
+SELECT JSON_VALID(JSON_ARRAY((SELECT j FROM ts WHERE id = 1))) AS ok;
+SELECT JSON_ARRAY((SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+SELECT JSON_VALID(JSON_ARRAY((SELECT j FROM ts WHERE id = 2))) AS ok_poisoned;
+SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 1)) AS v;
+SELECT JSON_OBJECT('k', (SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+SELECT JSON_SET('{}', '$.d', (SELECT j FROM ts WHERE id = 1)) AS v;
+SELECT JSON_SET('{}', '$.d', (SELECT j FROM ts WHERE id = 2)) AS v_poisoned;
+DROP TABLE ts;
+
+--echo # 5b. The same column reached through a view.  A merged view reads the
+--echo #     table directly; a materialised one copies the value into a
+--echo #     temporary table first.
+CREATE TABLE tv (id INT, j JSON);
+INSERT INTO tv VALUES (1, '{"a": 1, "b": [1, 2]}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tv VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+CREATE ALGORITHM=MERGE VIEW v_merge AS SELECT id, j FROM tv;
+CREATE ALGORITHM=TEMPTABLE VIEW v_tmp AS SELECT id, j FROM tv;
+SHOW CREATE VIEW v_merge;
+SHOW CREATE VIEW v_tmp;
+SELECT id, j, HEX(j) FROM v_merge ORDER BY id;
+SELECT id, j, HEX(j) FROM v_tmp ORDER BY id;
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
+  FROM v_merge ORDER BY id;
+SELECT id, JSON_ARRAY(j) AS v, JSON_VALID(JSON_ARRAY(j)) AS ok
+  FROM v_tmp ORDER BY id;
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM v_merge ORDER BY id;
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM v_tmp ORDER BY id;
+SELECT JSON_ARRAYAGG(j) AS v FROM v_merge WHERE id = 1;
+DROP VIEW v_merge, v_tmp;
+DROP TABLE tv;
+
+--echo #
+--echo # 6. A valid column, for comparison: the same calls with nothing wrong.
+--echo #
+
+SELECT id, JSON_ARRAY(j) AS v FROM t1 WHERE id < 10 ORDER BY id;
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM t1 WHERE id < 10 ORDER BY id;
+SELECT id, JSON_EXTRACT(j, '$.b') AS v FROM t1 WHERE id < 10 ORDER BY id;
+--echo # a column value keeps the formatting it was stored with
+SELECT id, HEX(j) FROM t1 WHERE id < 10 ORDER BY id;
+
+--echo # 6a. The same document stored in every column type it can live in.
+--echo #     Retrieval returns the stored bytes unchanged in all of them;
+--echo #     only the JSON-typed column is embedded rather than quoted.
+CREATE TABLE tr (jj JSON, lt LONGTEXT CHECK (JSON_VALID(lt)), vc VARCHAR(64),
+                 vb VARBINARY(64), bl BLOB);
+INSERT INTO tr VALUES ('{"a": 1,  "b":[1, 2]}', '{"a": 1,  "b":[1, 2]}',
+                       '{"a": 1,  "b":[1, 2]}', '{"a": 1,  "b":[1, 2]}',
+                       '{"a": 1,  "b":[1, 2]}');
+SELECT HEX(jj) AS h_json, HEX(lt) AS h_longtext, HEX(vc) AS h_varchar,
+       HEX(vb) AS h_varbinary, HEX(bl) AS h_blob FROM tr;
+SELECT jj, lt, vc, vb, bl FROM tr;
+SELECT JSON_ARRAY(jj) AS a_json, JSON_ARRAY(vc) AS a_varchar,
+       JSON_ARRAY(vb) AS a_varbinary, JSON_ARRAY(bl) AS a_blob FROM tr;
+DROP TABLE tr;
+
+--echo #
+--echo # 7. Storing a JSON function result back into a column, which is where
+--echo #    the check constraint runs again.
+--echo #
+
+CREATE TABLE t6 (j JSON);
+INSERT INTO t6 SELECT JSON_SET('{"a":1}', '$.b', 2);
+INSERT INTO t6 SELECT JSON_ARRAY(1,2);
+INSERT INTO t6 SELECT JSON_OBJECT('a',1);
+SELECT j FROM t6;
+--echo # a value the constructor will not build.  A released server built
+--echo # something 32 deep, which is one too many to read back, and the
+--echo # check on the column was what caught it.  The constructor now
+--echo # answers NULL, and the complaint that says why is a warning, which
+--echo # a statement inserting under strict mode makes an error of - so
+--echo # the statement stops at the value rather than at the column, and
+--echo # says what is wrong with the value.
+CREATE TABLE t7 (j JSON);
+--error ER_JSON_DEPTH
+INSERT INTO t7 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
+SELECT COUNT(*) AS stored FROM t7;
+--echo # the same value into a plain LONGTEXT column, which has no check
+--echo # on it to reach: the constructor is where it stops either way
+CREATE TABLE t8 (j LONGTEXT);
+--error ER_JSON_DEPTH
+INSERT INTO t8 SELECT JSON_ARRAY(JSON_COMPACT(CONCAT(REPEAT('[',31),'1',REPEAT(']',31))));
+SELECT COUNT(*) AS stored FROM t8;
+--echo # a value that is truncated on the way into the column
+CREATE TABLE t9 (j VARCHAR(10));
+SET @@sql_mode='';
+INSERT INTO t9 SELECT JSON_SET('{"a":1,"b":2}', '$.a', 9);
+SELECT j, JSON_VALID(j) AS still_valid FROM t9;
+SET @@sql_mode=DEFAULT;
+DROP TABLE t6, t7, t8, t9;
+
+--echo # 7a. The same truncating store into a column that IS checked.  The
+--echo #     chop happens first and the constraint then judges the chopped
+--echo #     bytes, which sometimes still parse and sometimes do not.
+CREATE TABLE tn (v VARCHAR(10) CHECK (json_valid(v)));
+SET @@sql_mode='';
+--echo # chopped into an unparseable prefix: rejected
+--error ER_CONSTRAINT_FAILED
+INSERT INTO tn VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+--echo # chopped on a boundary that still parses: accepted, with a warning
+INSERT INTO tn VALUES (CONCAT('[1,2,3,45]', ',6789'));
+INSERT INTO tn VALUES ('{"a":1}');
+SELECT v, JSON_VALID(v) AS valid FROM tn ORDER BY v;
+SET @@sql_mode=DEFAULT;
+--error ER_DATA_TOO_LONG
+INSERT INTO tn VALUES (JSON_SET('{"a":1,"b":2}', '$.a', 9));
+SELECT COUNT(*) AS stored FROM tn;
+DROP TABLE tn;
+
+--echo # 7b. A store that converts the character set on the way in.  The
+--echo #     constraint judges the converted bytes, not the ones the
+--echo #     function produced.
+--echo # swe7 cannot carry the JSON punctuation at all
+CREATE TABLE t11 (j LONGTEXT CHARACTER SET swe7 CHECK (json_valid(j)));
+SET @@sql_mode='';
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t11 VALUES ('{"a":1}');
+SELECT COUNT(*) AS stored FROM t11;
+--echo # the same column without a constraint keeps the damaged bytes
+CREATE TABLE t12 (j LONGTEXT CHARACTER SET swe7);
+INSERT INTO t12 VALUES ('{"a":1}');
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v FROM t12;
+SET @@sql_mode=DEFAULT;
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+INSERT INTO t11 VALUES ('{"a":1}');
+--echo # a conversion that loses nothing still changes the bytes
+CREATE TABLE t13 (j VARCHAR(100) CHARACTER SET latin1 CHECK (json_valid(j)));
+INSERT INTO t13 VALUES (JSON_OBJECT('a', _utf8mb4 X'C3A9'));
+SELECT HEX(j) AS stored, JSON_VALID(j) AS v FROM t13;
+CREATE TABLE tu (j JSON);
+INSERT INTO tu VALUES ('{"a":1}');
+INSERT INTO t13 SELECT JSON_SET(j, '$.c', 3) FROM tu;
+SELECT HEX(j) FROM t13 ORDER BY j;
+DROP TABLE t11, t12, t13, tu;
+
+--echo # 7c. A table rebuilt by ALTER, which checks every existing row again
+--echo #     rather than the value of one statement.
+CREATE TABLE ta (id INT, j JSON);
+INSERT INTO ta VALUES (1, '{"a":1}');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO ta VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+--error ER_CONSTRAINT_FAILED
+ALTER TABLE ta FORCE, ALGORITHM=COPY;
+ALTER IGNORE TABLE ta FORCE, ALGORITHM=COPY;
+SELECT id, j FROM ta ORDER BY id;
+DROP TABLE ta;
+--echo # ALTER that converts the character set rewrites the stored bytes
+CREATE TABLE tb (j JSON);
+INSERT INTO tb VALUES (JSON_SET('{"a":1}', '$.b', _utf8mb4 X'C3A9'));
+ALTER TABLE tb CONVERT TO CHARACTER SET latin1;
+SHOW CREATE TABLE tb;
+SELECT HEX(j) AS stored, JSON_VALID(j) AS valid FROM tb;
+SELECT HEX(JSON_ARRAY(j)) AS h FROM tb;
+DROP TABLE tb;
+
+--echo # 7d. Generated columns, where the JSON function result is computed
+--echo #     and stored by the server rather than supplied by the statement.
+CREATE TABLE tg (j JSON,
+                 c1 LONGTEXT AS (JSON_SET(j, '$.z', 9)) PERSISTENT,
+                 c2 VARCHAR(20) AS (JSON_EXTRACT(j, '$.a')) PERSISTENT, KEY (c2));
+SHOW CREATE TABLE tg;
+INSERT INTO tg (j) VALUES ('{"a": 1,  "b": 2}');
+SELECT j, c1, HEX(c1), c2 FROM tg;
+UPDATE tg SET j = '{"a": 7}';
+SELECT j, c1, HEX(c1), c2 FROM tg;
+SELECT c2 FROM tg FORCE INDEX (c2) WHERE c2 = '7';
+DROP TABLE tg;
+
+--echo #
+--echo # 8. A temporary table the user created.  It is under user control the
+--echo #    same way a base table is, including the check switch.
+--echo #
+
+CREATE TEMPORARY TABLE tmp1 (id INT, j JSON);
+SHOW CREATE TABLE tmp1;
+INSERT INTO tmp1 VALUES (1, '{"a":1}');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO tmp1 VALUES (2, '{');
+SET SESSION check_constraint_checks = OFF;
+INSERT INTO tmp1 VALUES (2, '{"a":1,');
+SET SESSION check_constraint_checks = ON;
+SELECT id, j, JSON_VALID(j) AS valid FROM tmp1 ORDER BY id;
+SELECT id, JSON_ARRAY(j) AS v FROM tmp1 ORDER BY id;
+SELECT id, JSON_VALID(JSON_ARRAY(j)) AS still_valid FROM tmp1 ORDER BY id;
+SELECT id, JSON_SET(j, '$.z', 1) AS v FROM tmp1 ORDER BY id;
+DROP TEMPORARY TABLE tmp1;
+
+--echo #
+--echo # 9. Values passing through a temporary table the server made for
+--echo #    itself: grouping, materialised derived tables, union branches and
+--echo #    window frames.
+--echo #
+
+CREATE TABLE t10 (g INT, j JSON, txt VARCHAR(30));
+INSERT INTO t10 VALUES
+  (1, '{"a":1}', '{"a":1}'), (1, '{"a":2}', '{"a":2}'),
+  (2, '{"b":1}', '{"b":1}');
+
+--echo # grouping over a JSON expression
+SELECT g, JSON_ARRAYAGG(JSON_SET(j, '$.z', 1)) AS v FROM t10 GROUP BY g ORDER BY g;
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j ORDER BY j;
+SELECT g, COUNT(*) AS c FROM t10 GROUP BY g, JSON_SET(j, '$.z', 1) ORDER BY g, c;
+
+--echo # a materialised derived table
+SELECT JSON_VALID(v) AS valid, v
+  FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+  ORDER BY v;
+SELECT JSON_SET(v, '$.y', 2) AS w
+  FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+  ORDER BY w;
+SELECT JSON_ARRAY(v) AS w
+  FROM (SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 GROUP BY j) d
+  ORDER BY w;
+
+--echo # union branches, where one branch is a document and the other is text
+SELECT v, JSON_VALID(v) AS valid FROM (
+  SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 WHERE g = 1
+  UNION
+  SELECT txt FROM t10 WHERE g = 2) u ORDER BY v;
+SELECT JSON_ARRAY(v) AS w FROM (
+  SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 WHERE g = 1
+  UNION
+  SELECT txt FROM t10 WHERE g = 2) u ORDER BY w;
+
+--echo # a window frame, which materialises its input
+SELECT g, JSON_SET(j, '$.z', 1) AS v,
+       ROW_NUMBER() OVER (PARTITION BY g ORDER BY j) AS rn
+  FROM t10 ORDER BY g, rn;
+SELECT g, JSON_ARRAY(JSON_SET(j, '$.z', 1)) AS v,
+       COUNT(*) OVER (PARTITION BY g) AS c
+  FROM t10 ORDER BY g, v;
+
+--echo # an ORDER BY that has to materialise the value first
+SELECT JSON_SET(j, '$.z', 1) AS v FROM t10 ORDER BY JSON_EXTRACT(j, '$.a'), v;
+
+DROP TABLE t1, t2, t3, t4, t5, t10;
+
+--disable_prepare_warnings

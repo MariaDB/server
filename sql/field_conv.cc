@@ -701,6 +701,7 @@ void Copy_field::set(Field *to,Field *from,bool save)
   }
   from_field=from;
   to_field=to;
+  to_needs_confirm= to->is_valid_json_static();
   from_ptr=from->ptr;
   from_length=from->pack_length_in_rec();
   to_ptr=  to->ptr;
@@ -909,9 +910,21 @@ static int field_conv_incompatible(Field *to, Field *from)
 
 int field_conv(Field *to,Field *from)
 {
-  return to->memcpy_field_possible(from) ?
-         field_conv_memcpy(to, from) :
-         field_conv_incompatible(to, from);
+  int rc= to->memcpy_field_possible(from) ?
+          field_conv_memcpy(to, from) :
+          field_conv_incompatible(to, from);
+  /*
+    A field of a temporary table the server built for itself attests to
+    every value it holds, and a value put here came from another FIELD
+    rather than from an item that could be asked.  The source is asked
+    instead, and it is asked HERE so that the answer does not rest on a
+    list of callers being kept complete: the two routes that go around
+    this function ask for themselves, and everything that goes through it
+    is covered wherever it is written.
+  */
+  if (unlikely(to->is_valid_json_static()))
+    to->confirm_is_valid_json_static_from(from);
+  return rc;
 }
 
 

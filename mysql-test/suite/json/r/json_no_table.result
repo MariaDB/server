@@ -2930,7 +2930,7 @@ Warnings:
 Warning	4036	Character disallowed in JSON in argument 1 to function 'json_compact' at position 1
 select json_unquote(json_compact(st_geomfromtext('point(1 1)')));
 json_unquote(json_compact(st_geomfromtext('point(1 1)')))
-             ð?      ð?
+             Ã°?      Ã°?
 SELECT JSON_UNQUOTE( '"abc"' );
 JSON_UNQUOTE( '"abc"' )
 abc

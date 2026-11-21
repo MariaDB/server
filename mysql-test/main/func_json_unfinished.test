@@ -1,0 +1,44 @@
+--echo #
+--echo # A path counted from the end of an array in a document that does
+--echo # not end.
+--echo #
+--echo # A step written with 'last' is not known until the array it is
+--echo # counted in has been counted, so a document carrying one is read
+--echo # through twice: once to find out how many elements each array
+--echo # holds, and once to answer.  The counting pass can run off the
+--echo # end of a document that stops in the middle, and what it finds
+--echo # there has to be carried out of the loop rather than left to the
+--echo # answering pass, which would otherwise answer about an array it
+--echo # never finished counting.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. The counting pass reaching the end of the text
+--echo #
+SELECT JSON_CONTAINS_PATH('{"a":[1,2,3', 'one', '$.a[last]') AS one_path;
+SELECT JSON_CONTAINS_PATH('{"a":[1,2,3', 'all', '$.a[last-1]', '$.a[0]')
+       AS all_paths;
+SELECT JSON_CONTAINS_PATH('[[1,2],[3', 'one', '$[1][last]') AS nested;
+SELECT JSON_CONTAINS_PATH('[[1,2],[3', 'all', '$[0][last]', '$[1][last]')
+       AS nested_all;
+
+--echo #
+--echo # 2. The same documents finished, which is what the answers above
+--echo #    are read against
+--echo #
+SELECT JSON_CONTAINS_PATH('{"a":[1,2,3]}', 'one', '$.a[last]') AS one_path;
+SELECT JSON_CONTAINS_PATH('{"a":[1,2,3]}', 'all', '$.a[last-1]', '$.a[0]')
+       AS all_paths;
+SELECT JSON_CONTAINS_PATH('[[1,2],[3]]', 'one', '$[1][last]') AS nested;
+SELECT JSON_CONTAINS_PATH('[[1,2],[3]]', 'all', '$[0][last]', '$[1][last]')
+       AS nested_all;
+
+--echo #
+--echo # 3. The reading functions over the same shapes
+--echo #
+SELECT JSON_EXTRACT('{"a":[1,2,3', '$.a[last]') AS unfinished;
+SELECT JSON_EXTRACT('{"a":[1,2,3]}', '$.a[last]') AS finished;
+SELECT JSON_EXTRACT('[[1,2],[3', '$[1][last]') AS unfinished;
+SELECT JSON_EXTRACT('[[1,2],[3]]', '$[1][last]') AS finished;

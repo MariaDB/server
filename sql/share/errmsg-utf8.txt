@@ -2577,10 +2577,8 @@ ER_TABLE_NOT_LOCKED
         spa "La tabla '%-.192s' no fue bloqueada con LOCK TABLES"
         swe "Tabell '%-.192s' är inte låst med LOCK TABLES"
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
-ER_UNUSED_17
-        eng "You should never see it"
-        geo "ის ვერასდროს უნდა დაგენახათ"
-        spa "Nunca debería vd de ver esto"
+ER_WARN_JSON_VALID_OTHER_COLUMN
+        eng "CHECK constraint of column '%-.192s' calls JSON_VALID() on something other than '%-.192s'; the column is not a JSON column"
 ER_WRONG_DB_NAME 42000 
         chi "数据库名称不正确'%-.100T'"
         cze "Nepřípustné jméno databáze '%-.100T'"
@@ -4457,10 +4455,8 @@ ER_NEW_ABORTING_CONNECTION 08S01
         spa "Abortada conexión %lld a la base de datos: '%-.192s' usuario: '%-.48s' equipo: '%-.64s'%-.64s (%-.64s)"
         swe "Avbröt länken för tråd %lld till db '%-.192s', användare '%-.48s', host '%-.64s'%-.64s (%-.64s)"
         ukr "Перервано з'єднання %lld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s'%-.64s (%-.64s)"
-ER_UNUSED_10
-        eng "You should never see it"
-        geo "ეს ვერასდროს უნდა დაინახოთ"
-        spa "Nunca lo debería vd de ver"
+ER_WARN_JSON_VALID_NOT_REQUIRED
+        eng "CHECK constraint of column '%-.192s' can pass without JSON_VALID() holding; the column is not a JSON column"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         chi "Binlog 已关闭, 不能 RESET MASTER"
         eng "Binlog closed, cannot RESET MASTER"
@@ -7391,10 +7387,8 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         ger "Kein DATETIME-Ausdruck angegeben"
         geo "დრო/თარიღის გამოსახულება მითითებული არაა"
         spa "No se ha suministrado expresión datetime"
-ER_UNUSED_2
-        eng "You should never see it"
-        geo "ამას წესით ვერ უნდა ხედავდეთ"
-        spa "No lo debería vd de ver nunca"
+ER_WARN_JSON_VALID_NOT_ALONE
+        eng "CHECK constraint of column '%-.192s' asks more than JSON_VALID() of it; the column is not a JSON column"
 ER_UNUSED_3
         eng "You should never see it"
         geo "ამას წესით ვერასდროს უნდა ხედავდეთ"

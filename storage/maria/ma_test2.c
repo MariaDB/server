@@ -35,7 +35,10 @@ static void put_blob_in_record(uchar *blob_pos,char **blob_buffer,
                                ulong *length);
 static void copy_key(MARIA_HA *info, uint inx, uchar *record, uchar *key);
 
-static int verbose= 0, testflag= 0, first_key= 0, async_io= 0, pagecacheing= 0;
+static int verbose= 0, testflag= 0, first_key= 0, async_io= 0;
+#ifdef REMOVE_WHEN_WE_HAVE_RESIZE
+static int pagecaching= 0;
+#endif
 static int write_cacheing= 0, do_locking= 0, rec_pointer_size= 0;
 static int silent= 0, opt_quick_mode= 0, transactional= 0, skip_update= 0;
 static int die_in_middle_of_transaction= 0, pack_fields= 1;
@@ -1056,7 +1059,9 @@ static void get_options(int argc, char **argv)
         use_blob= atol(pos);
       break;
     case 'K':				/* Use key cacheing */
+#ifdef REMOVE_WHEN_WE_HAVE_RESIZE
       pagecacheing=1;
+#endif
       if (*++pos)
 	pagecache_size=atol(pos);
       break;
