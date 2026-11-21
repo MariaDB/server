@@ -2,23 +2,79 @@ connection node_2;
 connection node_1;
 connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
-connection node_1;
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-expect_4
-4
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
 connection node_2;
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-expect_4
-4
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+#
+# Round 1: CREATE SCHEMA - fails on nodes 2, 3 and 4 (schema exists
+# there), succeeds on node_1 (schema was dropped there only).
+#
+connection node_1;
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+SET SESSION wsrep_on=ON;
+connection node_2;
+CREATE SCHEMA test;
+ERROR HY000: Can't create database 'test'; database exists
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
 connection node_3;
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-expect_4
-4
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+SET SESSION wsrep_sync_wait=0;
 connection node_4;
-SELECT VARIABLE_VALUE AS expect_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-expect_4
-4
-CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+disconnect node_1;
+connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1;
+Killing server ...
+connection node_2;
+#
+# Round 2: DROP TABLE - succeeds on nodes 2, 3 and 4 (table exists
+# there), fails to apply on node_1 (table was dropped there only).
+#
+CREATE TABLE test.t1 (f1 INTEGER) ENGINE=InnoDB;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+DROP TABLE test.t1;
+SET SESSION wsrep_on=ON;
+connection node_2;
+DROP TABLE test.t1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+connection node_4;
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+disconnect node_1;
+connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1;
+Killing server ...
+connection node_2;
+#
+# Round 3: ALTER TABLE - succeeds on nodes 2, 3 and 4 (column does
+# not exist there yet), fails to apply on node_1 (column was added
+# there only).
+#
+CREATE TABLE test.t2 (f1 INTEGER) ENGINE=InnoDB;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+ALTER TABLE test.t2 ADD COLUMN f2 INTEGER;
+SET SESSION wsrep_on=ON;
+connection node_2;
+ALTER TABLE test.t2 ADD COLUMN f2 INTEGER;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+connection node_4;
+SET SESSION wsrep_sync_wait=0;
+connection node_1;
+SET SESSION wsrep_sync_wait=0;
+disconnect node_1;
+connect node_1, 127.0.0.1, root, , mysql, $NODE_MYPORT_1;
+Killing server ...
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+DROP TABLE test.t2;
+connection node_1;
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on (.*) is inconsistent with group\\. Leaving cluster\\.");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
