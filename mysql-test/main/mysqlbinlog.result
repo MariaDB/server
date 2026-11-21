@@ -1116,3 +1116,122 @@ AAAAAAAAAAAEEwQADQgICAoKCgGZrF/L
 ERROR: Error in Log_event::read_log_event(): 'Found invalid event in binary log', data_len: 401, event_type: 162
 ERROR: Could not read entry at offset 256: Error in log format or read error.
 # End of 10.6 tests
+#
+# MDEV-40294 mariadb-binlog --start/stop-datetime incorrectly accepts
+# over-max timestamps
+#
+# --start-datetime over max
+WARNING: Date and time argument out of range: 2106-02-08 00:00:00
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+# --stop-datetime over max
+WARNING: Date and time argument out of range: 2106-02-08 00:00:00
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
+SET @@session.sql_mode=0/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(20)
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+SavePoint mixed_cases
+/*!*/;
+use `db1`/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t2 VALUES("in savepoint mixed_cases")
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(40)
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+ROLLBACK TO mixed_cases
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t2 VALUES("after rollback to")
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(50)
+/*!*/;
+COMMIT/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+# --start-datetime under min
+WARNING: Date and time argument out of range: 1000-01-01 00:00:00
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+SET @@session.pseudo_thread_id=999999999/*!*/;
+SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.system_versioning_insert_history=0/*!*/;
+SET @@session.sql_mode=0/*!*/;
+SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
+/*!\C latin1 *//*!*/;
+SET @@session.character_set_client=latin1,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.lc_time_names=0/*!*/;
+SET @@session.collation_database=DEFAULT/*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(20)
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+SavePoint mixed_cases
+/*!*/;
+use `db1`/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t2 VALUES("in savepoint mixed_cases")
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(40)
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+ROLLBACK TO mixed_cases
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t2 VALUES("after rollback to")
+/*!*/;
+SET TIMESTAMP=1266652094/*!*/;
+INSERT INTO db1.t1 VALUES(50)
+/*!*/;
+COMMIT/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+# --stop-datetime under min
+WARNING: Date and time argument out of range: 1000-01-01 00:00:00
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+# End of 11.4 tests

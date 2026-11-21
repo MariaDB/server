@@ -796,9 +796,10 @@ void buf_read_recover(fil_space_t *space, const page_id_t page_id,
       goto fail;
     const bool exist(uintptr_t(bpage) & 1);
     bpage= reinterpret_cast<buf_page_t*>(uintptr_t(bpage) & ~uintptr_t{1});
-    bpage->unfix();
 
-    if (!exist)
+    if (exist)
+      bpage->unfix();
+    else
       os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
                              UT_LIST_GET_FIRST(space->chain),
                              IORequest::READ_ASYNC}, init_lsn);

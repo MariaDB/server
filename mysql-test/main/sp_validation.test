@@ -2952,4 +2952,32 @@ UPDATE t1 SET a = 4;
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-37335: crash on re-parsing an sp_instr_set that does not own its LEX
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--delimiter $
+CREATE PROCEDURE p()
+BEGIN
+  DECLARE b,c INT DEFAULT (SELECT a FROM t1);
+  SELECT b, c;
+END
+$
+--delimiter ;
+
+CALL p();
+
+ALTER TABLE t1 MODIFY a BIGINT;
+
+# The instruction assigning the variable b doesn't own the LEX shared with
+# the instruction assigning the variable c, so re-parsing it after a metadata
+# change used to run the code path intended for cursor instructions.
+CALL p();
+
+--echo # Clean up
+DROP PROCEDURE p;
+DROP TABLE t1;
+
 --enable_ps2_protocol

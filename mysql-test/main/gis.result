@@ -5654,3 +5654,51 @@ SELECT ST_GEOMFROMWKB (0x0104000000010000008201000000000000000000000000000000000
 multipoint_bad_inner_bo
 NULL
 # End of 10.11 tests
+#
+# MDEV-38643 ST_GeomFromText marks its SELECT with UNCACHEABLE_RAND
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+# The derived table must be mergeable
+EXPLAIN SELECT * FROM (SELECT a, ST_GeomFromText('POINT(1 1)') g FROM t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT * FROM
+(SELECT a, ST_GeomFromWKB(0x0101000000000000000000F03F000000000000F03F) g
+FROM t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT * FROM
+(SELECT a, ST_GeomFromGeoJSON('{"type":"Point","coordinates":[1,1]}') g
+FROM t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT * FROM (SELECT a, ST_AsGeoJSON(POINT(1,1)) g FROM t1) dt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+# The subquery must not be UNCACHEABLE SUBQUERY
+EXPLAIN SELECT (SELECT ST_AsText(ST_GeomFromText('POINT(1 1)')) FROM t1 LIMIT 1)
+FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT
+(SELECT ST_AsText(ST_GeomFromWKB(0x0101000000000000000000F03F000000000000F03F))
+FROM t1 LIMIT 1)
+FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT
+(SELECT ST_AsText(ST_GeomFromGeoJSON('{"type":"Point","coordinates":[1,1]}'))
+FROM t1 LIMIT 1)
+FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+EXPLAIN SELECT (SELECT ST_AsGeoJSON(POINT(1,1)) FROM t1 LIMIT 1) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+DROP TABLE t1;
+# End of 11.4 tests
