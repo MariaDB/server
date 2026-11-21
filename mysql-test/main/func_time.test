@@ -3295,4 +3295,20 @@ DO STR_TO_DATE(1, '%#');
 DO STR_TO_DATE(LOWER('q'), '%@');
 DO STR_TO_DATE(LOWER('.'), '%.');
 
+--echo #
+--echo # MDEV-41968 CURTIME, UTC_TIME and UTC_TIMESTAMP accept precision 65536 as zero
+--echo #
+--error ER_TOO_BIG_PRECISION
+select curtime(65536);
+--error ER_TOO_BIG_PRECISION
+select utc_time(65536);
+--error ER_TOO_BIG_PRECISION
+select utc_timestamp(65536);
+--error ER_TOO_BIG_PRECISION
+select now(65542);
+--error ER_TOO_BIG_PRECISION
+select sysdate(65536);
+--error ER_TOO_BIG_PRECISION
+select curtime(4294967296);
+
 --echo # End of 10.11 tests
