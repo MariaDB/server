@@ -1,0 +1,73 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-42355: A locking read of a SPATIAL INDEX must not miss records
+--echo # after waiting for a record lock.
+--echo #
+
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+
+--echo # The set of matching records on the page changes during the wait.
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_20;
+
+connect (con1,localhost,root,,);
+let $n= 3;
+while ($n)
+{
+  let $x= `SELECT ELT($n, 0, 10.5, 30)`;
+  connection con1;
+  BEGIN;
+  eval INSERT INTO t1 VALUES(100, POINT($x, $x));
+  connection default;
+  SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 1000,1000 1000,1000 -1,-1 -1))');
+  send SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+  WHERE MBRWithin(p, @g) AND id <= 20 LOCK IN SHARE MODE;
+  connection con1;
+  let $wait_condition=
+    SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+  --source include/wait_condition.inc
+  ROLLBACK;
+  connection default;
+  reap;
+  dec $n;
+}
+DROP TABLE t1;
+
+--echo # The leaf page is split during the wait.
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq MOD 100, seq DIV 100)
+FROM seq_1_to_2000;
+# The search window ends at x=50.5. The locking read will wait for the
+# uncommitted record at x=50, and meanwhile other records are inserted
+# right outside the window (not conflicting with the predicate lock),
+# so that the page that contains the waiting record will be split.
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 100,50.5 100,50.5 -1,-1 -1))');
+SELECT COUNT(*), SUM(id) FROM t1 IGNORE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 2000;
+
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100000, POINT(50, 10));
+connection default;
+send SELECT COUNT(*), SUM(id) FROM t1 FORCE INDEX(p)
+WHERE MBRWithin(p, @g) AND id <= 2000 LOCK IN SHARE MODE;
+connection con1;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+--source include/wait_condition.inc
+connect (con2,localhost,root,,);
+INSERT INTO t1 SELECT 200000 + seq, POINT(50.6 + seq / 2000, 10 + seq / 2000)
+FROM seq_1_to_1000;
+disconnect con2;
+connection con1;
+ROLLBACK;
+connection default;
+reap;
+disconnect con1;
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
