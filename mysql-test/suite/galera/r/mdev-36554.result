@@ -1,5 +1,6 @@
 connection node_2;
 connection node_1;
+# Correct Galera library found
 CALL mtr.add_suppression("Event .* Update_rows.* apply failed");
 CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
 CALL mtr.add_suppression("Failed to apply write set.*");
