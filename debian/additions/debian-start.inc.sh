@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This file is included by /etc/mysql/debian-start
+# This file is included by /etc/mariadb/debian-start
 #
 
 ## Check for tables needing an upgrade.

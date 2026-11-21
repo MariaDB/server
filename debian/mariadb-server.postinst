@@ -21,6 +21,12 @@ ERR_LOGGER="logger -p daemon.err -t mariadb-server.postinst -i"
 # the install, rather than failing silently and leaving a broken install.
 set -o pipefail
 
+# cmake/sysconfdir.cmake changes the configuration directory in the
+# maintainer scripts to the configured one, except on lines that contain
+# old_sysconfdir, and fills in the first package version using it.
+old_sysconfdir=/etc/mysql
+sysconfdir_move_version=@DEB_SYSCONFDIR_MOVE_VERSION@
+
 case "$1" in
   configure)
     # This is needed because mariadb-install-db removes the pid file in /run
@@ -218,6 +224,16 @@ EOF
       install -o 0 -g 0 -m 0755 -d $mariadb_cfgdir
     fi
 
+    # Move debian.cnf from the old directory when upgrading from a version
+    # that used it. Otherwise the file belongs to MySQL.
+    if [ "$mariadb_cfgdir" != "$old_sysconfdir" ] && [ -n "$2" ] &&
+       dpkg --compare-versions "$2" le-nl "$sysconfdir_move_version" &&
+       [ ! -e "$dc" ] && [ -e "$old_sysconfdir/debian.cnf" ]
+    then
+      mv "$old_sysconfdir/debian.cnf" "$dc"
+      echo "Moved $old_sysconfdir/debian.cnf to $dc"
+    fi
+
     if [ ! -e "$dc" ]
     then
       cat /dev/null > $dc
@@ -312,4 +328,15 @@ esac
 db_stop # in case invoke fails
 
 #DEBHELPER#
+
+# A locally modified debian-start was moved from the old directory by
+# dpkg-maintscript-helper above. Update its references to debian.cnf,
+# which was moved too.
+if [ "$1" = "configure" ] && [ "$mariadb_cfgdir" != "$old_sysconfdir" ] &&
+   [ -n "$2" ] &&
+   dpkg --compare-versions "$2" le-nl "$sysconfdir_move_version" &&
+   grep --quiet --no-messages "$old_sysconfdir/debian\.cnf" "$mariadb_cfgdir/debian-start"
+then
+  sed -i "s#$old_sysconfdir/debian\.cnf#$mariadb_cfgdir/debian.cnf#g" "$mariadb_cfgdir/debian-start"
+fi
 

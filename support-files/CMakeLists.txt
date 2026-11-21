@@ -78,7 +78,14 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
-    INSTALL(DIRECTORY policy DESTINATION ${inst_location} COMPONENT SupportFiles)
+    INSTALL(DIRECTORY policy DESTINATION ${inst_location}
+            COMPONENT SupportFiles PATTERN usr.sbin.mysqld EXCLUDE)
+    COPY_WITH_SYSCONFDIR(
+      ${CMAKE_CURRENT_SOURCE_DIR}/policy/apparmor/usr.sbin.mysqld
+      ${CMAKE_CURRENT_BINARY_DIR}/usr.sbin.mysqld)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/usr.sbin.mysqld
+            DESTINATION ${inst_location}/policy/apparmor
+            COMPONENT SupportFiles)
     FIND_PROGRAM(CHECKMODULE checkmodule)
     FIND_PROGRAM(SEMODULE_PACKAGE semodule_package)
     MARK_AS_ADVANCED(CHECKMODULE SEMODULE_PACKAGE)

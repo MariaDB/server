@@ -1,1 +1,2 @@
-debian/additions/mariadb.cnf etc/mysql/
+#!/usr/bin/dh-exec
+debian/additions/mariadb.cnf => etc/mariadb/my.cnf
