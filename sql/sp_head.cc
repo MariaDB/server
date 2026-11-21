@@ -3935,6 +3935,8 @@ sp_head::set_local_variable(THD *thd, sp_pcontext *spcont,
   if (val->walk(&Item::unknown_splocal_processor, false, NULL))
     return true;
 
+  set_param_stored_as_is(val);
+
   sp_instr_set *sp_set= new (thd->mem_root)
                         sp_instr_set(instructions(), spcont, rh,
                                      spv->offset, val, lex,
@@ -3958,6 +3960,7 @@ sp_head::set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
 {
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
+  set_param_stored_as_is(val);
 
   sp_instr_set_row_field *sp_set= new (thd->mem_root)
                                   sp_instr_set_row_field(instructions(),
@@ -3980,6 +3983,7 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
 {
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
+  set_param_stored_as_is(val);
 
   sp_instr_set_row_field_by_name *sp_set=
     new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
