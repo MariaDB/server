@@ -1050,6 +1050,7 @@ typedef struct system_status_var
   ulong update_scan_count;
   ulong delete_scan_count;
   ulong executed_triggers;
+  ulong executed_functions;
   ulong long_query_count;
   ulong filesort_merge_passes_;
   ulong filesort_range_count_;

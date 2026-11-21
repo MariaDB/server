@@ -2177,6 +2177,8 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     thd->bulk_param= save_bulk_param;
   }
 
+  status_var_increment(thd->status_var.executed_functions);
+
   thd->restore_active_arena(call_arena, &backup_arena);
 
   if (need_binlog_call)
