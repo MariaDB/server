@@ -2847,6 +2847,9 @@ public:
   /* Optimize case of not_null_column IS NULL */
   void update_used_tables() override
   {
+    Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+    if (traversal.check_and_mark(this))
+      return;
     args[0]->update_used_tables();
     used_tables_cache= args[0]->used_tables();
     const_item_cache= args[0]->const_item();
@@ -3088,6 +3091,9 @@ public:
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
+    Dedup_traversal traversal(this, processor, walk_subquery, arg);
+    if (traversal.check_and_mark(this))
+      return false;
     return (walk_args(processor, walk_subquery, arg) ||
             escape_item->walk(processor, walk_subquery, arg) ||
             (this->*processor)(arg));
@@ -3291,6 +3297,9 @@ public:
   table_map used_tables() const override;
   void update_used_tables() override
   {
+    Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+    if (traversal.check_and_mark(this))
+      return;
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(list);
   }

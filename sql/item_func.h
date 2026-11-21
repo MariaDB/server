@@ -213,11 +213,7 @@ public:
     override;
   void quick_fix_field() override;
   table_map not_null_tables() const override;
-  void update_used_tables() override
-  {
-    used_tables_and_const_cache_init();
-    used_tables_and_const_cache_update_and_join(arg_count, args);
-  }
+  void update_used_tables() override;
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
                           COND_EQUAL **cond_equal_ref) override;

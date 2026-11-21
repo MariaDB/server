@@ -1487,6 +1487,9 @@ bool Item_in_optimizer::walk(Item_processor processor,
                              bool walk_subquery,
                              void *arg)
 {
+  Dedup_traversal traversal(this, processor, walk_subquery, arg);
+  if (traversal.check_and_mark(this))
+    return false;
   bool res= FALSE;
   if (args[1]->type() == Item::SUBSELECT_ITEM &&
       ((Item_subselect *)args[1])->substype() != Item_subselect::EXISTS_SUBS &&
@@ -2604,6 +2607,9 @@ void Item_func_nullif::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 bool Item_func_nullif::walk(Item_processor processor,
                             bool walk_subquery, void *arg)
 {
+  Dedup_traversal traversal(this, processor, walk_subquery, arg);
+  if (traversal.check_and_mark(this))
+    return false;
   /*
     No needs to iterate through args[2] when it's just a copy of args[0].
     See MDEV-9712 Performance degradation of nested NULLIF
@@ -2620,6 +2626,9 @@ bool Item_func_nullif::walk(Item_processor processor,
 
 void Item_func_nullif::update_used_tables()
 {
+  Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+  if (traversal.check_and_mark(this))
+    return;
   if (m_cache)
   {
     used_tables_and_const_cache_init();
@@ -5310,12 +5319,17 @@ void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
 
 bool Item_cond::walk(Item_processor processor, bool walk_subquery, void *arg)
 {
+  Dedup_traversal traversal(this, processor, walk_subquery, arg);
+  if (traversal.check_and_mark(this))
+    return false;
   List_iterator_fast<Item> li(list);
   Item *item;
   while ((item= li++))
     if (item->walk(processor, walk_subquery, arg))
       return 1;
-  return Item_func::walk(processor, walk_subquery, arg);
+  /* Not Item_func::walk(), it would find this item visited */
+  return walk_args(processor, walk_subquery, arg) ||
+         (this->*processor)(arg);
 }
 
 /**
@@ -5849,6 +5863,9 @@ bool Item_is_not_null_test::val_bool()
 */
 void Item_is_not_null_test::update_used_tables()
 {
+  Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+  if (traversal.check_and_mark(this))
+    return;
   if (!args[0]->maybe_null())
     used_tables_cache= 0;			/* is always true */
   else
@@ -7405,6 +7422,9 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
 
 void Item_equal::update_used_tables()
 {
+  Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+  if (traversal.check_and_mark(this))
+    return;
   not_null_tables_cache= used_tables_cache= 0;
   if ((const_item_cache= cond_false || cond_true))
     return;
@@ -7532,6 +7552,9 @@ bool Item_equal::fix_length_and_dec(THD *thd)
 
 bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
 {
+  Dedup_traversal traversal(this, processor, walk_subquery, arg);
+  if (traversal.check_and_mark(this))
+    return false;
   Item *item;
   Item_equal_fields_iterator it(*this);
   while ((item= it++))
@@ -7539,7 +7562,9 @@ bool Item_equal::walk(Item_processor processor, bool walk_subquery, void *arg)
     if (item->walk(processor, walk_subquery, arg))
       return 1;
   }
-  return Item_func::walk(processor, walk_subquery, arg);
+  /* Not Item_func::walk(), it would find this item visited */
+  return walk_args(processor, walk_subquery, arg) ||
+         (this->*processor)(arg);
 }
 
 

@@ -102,6 +102,9 @@ public:
   bool const_item() const override { return const_item_cache; };
   void update_used_tables() override
   {
+    Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+    if (traversal.check_and_mark(this))
+      return;
     used_tables_and_const_cache_init();
     used_tables_and_const_cache_update_and_join(arg_count, args);
   }
@@ -110,6 +113,9 @@ public:
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {
+    Dedup_traversal traversal(this, processor, walk_subquery, arg);
+    if (traversal.check_and_mark(this))
+      return false;
     if (walk_args(processor, walk_subquery, arg))
       return true;
     return (this->*processor)(arg);
