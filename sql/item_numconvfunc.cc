@@ -3265,8 +3265,19 @@ public:
     const auto level= Sql_condition::WARN_LEVEL_ERROR;
     // Evaluate the format and cache its value in m_format_buffer.
     String *fmt= args[1]->val_str(&m_format_buffer);
-    if (!fmt || copy_or_convert_to_mb1_maybe_self(&m_format_buffer, *fmt))
-      return null_value= true;// SQL NULL or EOM
+    if (!fmt) // format is SQL NULL
+    {
+      // not an error: prepare continues, NULL comes later per row
+      null_value= true;
+      set_func_handler(&Ha_double_with_format_per_row::s_singleton);
+      return false;
+    }
+    if (copy_or_convert_to_mb1_maybe_self(&m_format_buffer, *fmt))
+    {
+      // EOM(out of memory)
+      my_error(ER_OUTOFMEMORY, MYF(0), (int) fmt->length());
+      return true;
+    }
     // Parse the format and validate it
     m_parser= Parser(thd, func_name_cstring(),
                      m_format_buffer.charset(),
