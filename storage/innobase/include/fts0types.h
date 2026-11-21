@@ -262,6 +262,11 @@ struct fts_doc_t {
 
 	st_mysql_ftparser* parser;	/*!< fts plugin parser */
 
+	ulint		parser_pos;	/*!< lowest position for the next
+					token of a parser plugin: the
+					positions of a document keep
+					increasing across its fields */
+
 	ib_rbt_t*	stopwords;	/*!< Stopwords */
 };
 
