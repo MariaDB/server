@@ -692,6 +692,9 @@ struct btr_cur_t {
 	search_leaf() to pass information: */
 	/* @{ */
 	enum btr_cur_method	flag;	/*!< Search method used */
+	/** whether rtr_info is owned by another cursor, which will
+	clean it up */
+	bool		rtr_info_borrowed;
 	ulint		tree_height;	/*!< Tree height if the search is done
 					for a pessimistic insert or update
 					operation */
