@@ -5889,8 +5889,8 @@ a	b
 2	3
 SELECT * FROM t2;
 a	b
-1	NULL
-2	NULL
+1	10
+2	30
 # re-check the case for Prepared Statement with parameters
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
