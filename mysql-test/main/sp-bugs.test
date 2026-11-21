@@ -528,6 +528,58 @@ DROP FUNCTION f1;
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-39001 Server crashes in find_type2 / Field_enum::store upon returning ENUM from function
+--echo #
+
+create function f() returns enum('yes','no') return 'yes';
+
+--echo # Trigger
+create table t1 (a int);
+create trigger tr1 after insert on t1 for each row
+  create or replace temporary table tmp as select f() as r;
+insert into t1 values (1);
+insert into t1 values (2);
+select * from tmp;
+drop temporary table tmp;
+drop table t1;
+
+--echo # Prepared statement
+prepare stmt from "select f() as r";
+execute stmt;
+create temporary table tmp (a int);
+execute stmt;
+drop temporary table tmp;
+deallocate prepare stmt;
+
+--echo # SET to a DEFAULT that calls the function
+delimiter $$;
+create procedure p1()
+begin
+  declare a varchar(10) default f();
+  set a= default;
+  select a;
+end$$
+delimiter ;$$
+call p1();
+call p1();
+drop procedure p1;
+
+--echo # Function replaced with a longer and then a shorter return type
+create table t1 (a int);
+create trigger tr1 after insert on t1 for each row set @x= f();
+create or replace function f() returns varchar(10) return 'a';
+insert into t1 values (1);
+select @x;
+create or replace function f() returns varchar(100) return repeat('c', 50);
+insert into t1 values (2);
+select @x;
+create or replace function f() returns varchar(10) return 'b';
+insert into t1 values (3);
+select @x;
+drop table t1;
+drop function f;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #
 

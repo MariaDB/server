@@ -5938,12 +5938,18 @@ public:
      The result field of the stored function.
   */
   Field *sp_result_field;
+  /*
+    Memory for sp_result_field. It lives as long as this item, so cleanup()
+    can delete the field whenever it is called.
+  */
+  MEM_ROOT result_field_mem_root;
   Item_sp(THD *thd, Name_resolution_context *context_arg, sp_name *name_arg);
   Item_sp(THD *thd, Item_sp *item);
   virtual ~Item_sp()
   {
     delete sp_result_field;
     sp_result_field= NULL;
+    free_root(&result_field_mem_root, MYF(0));
   }
   LEX_CSTRING func_name_cstring(THD *thd, bool is_package_function) const;
   void cleanup();
