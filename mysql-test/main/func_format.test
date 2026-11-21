@@ -253,3 +253,6 @@ DROP TABLE memory_counts;
 --echo #
 --echo # End of 11.8 tests
 --echo #
+
+--echo # MDEV-42322 Preserve the unit for negative values with three-digit exponents
+SELECT FORMAT_BYTES(-1e125) AS bytes, FORMAT_PICO_TIME(-1e126) AS time;
