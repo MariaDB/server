@@ -703,6 +703,7 @@ READ_ONLY_SYSVAR char lc_messages_dir[FN_REFLEN];
 char reg_ext[FN_EXTLEN], mysql_charsets_dir[FN_REFLEN];
 char *opt_tc_log_file, *opt_ddl_recovery_file;
 READ_ONLY_SYSVAR char *opt_init_file;
+static char *opt_system_users;
 READ_ONLY_SYSVAR char *lc_messages_dir_ptr= lc_messages_dir;
 READ_ONLY_SYSVAR char *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
@@ -7061,6 +7062,11 @@ struct my_option my_long_options[]=
   {"chroot", 'r', "Chroot mariadbd process during startup",
    &mysqld_chroot, &mysqld_chroot, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
+  {"system-users", 0,
+   "Comma-separated list of user@host accounts that only system accounts "
+   "(the listed ones) can create, alter, grant to or drop",
+   &opt_system_users, &opt_system_users, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
   {"collation-server", 0, "Set the default collation",
    &default_collation_name, &default_collation_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
@@ -9260,6 +9266,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   }
 
 #ifndef EMBEDDED_LIBRARY
+  if (system_users_init(opt_system_users))
+    return 1;
+
   if (validate_redirect_url(global_system_variables.redirect_url,
                             strlen(global_system_variables.redirect_url)))
   {

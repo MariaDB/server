@@ -1,0 +1,37 @@
+--source include/not_embedded.inc
+--source include/master-slave.inc
+
+--echo # The replica applier is not a listed system account,
+--echo # but it must still be able to replay account management of system accounts
+
+create user sysadmin@localhost;
+create user other@localhost;
+alter user sysadmin@localhost identified by 'x';
+grant select on *.* to sysadmin@localhost;
+create role r1;
+grant r1 to sysadmin@localhost;
+set password for sysadmin@localhost = password('y');
+rename user sysadmin@localhost to sysadmin@'10.0.0.1';
+rename user sysadmin@'10.0.0.1' to sysadmin@localhost;
+revoke r1 from sysadmin@localhost;
+--sync_slave_with_master
+select user, host, is_role from mysql.user where user in ('sysadmin','other','r1') order by user, host;
+
+--echo # a non-system session on the replica is still denied
+connection master;
+create user dba@localhost;
+grant all on *.* to dba@localhost with grant option;
+--sync_slave_with_master
+connect (dba_slave,localhost,dba,,,$SLAVE_MYPORT);
+--error ER_ACCESS_DENIED_ERROR
+drop user sysadmin@localhost;
+disconnect dba_slave;
+
+--echo # cleanup
+connection master;
+drop role r1;
+drop user sysadmin@localhost, other@localhost, dba@localhost;
+--sync_slave_with_master
+select count(*) from mysql.user where user in ('sysadmin','other','r1','dba');
+
+--source include/rpl_end.inc

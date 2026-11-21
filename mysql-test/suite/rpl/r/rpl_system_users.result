@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+# The replica applier is not a listed system account,
+# but it must still be able to replay account management of system accounts
+create user sysadmin@localhost;
+create user other@localhost;
+alter user sysadmin@localhost identified by 'x';
+grant select on *.* to sysadmin@localhost;
+create role r1;
+grant r1 to sysadmin@localhost;
+set password for sysadmin@localhost = password('y');
+rename user sysadmin@localhost to sysadmin@'10.0.0.1';
+rename user sysadmin@'10.0.0.1' to sysadmin@localhost;
+revoke r1 from sysadmin@localhost;
+connection slave;
+select user, host, is_role from mysql.user where user in ('sysadmin','other','r1') order by user, host;
+User	Host	is_role
+other	localhost	N
+r1		Y
+sysadmin	localhost	N
+# a non-system session on the replica is still denied
+connection master;
+create user dba@localhost;
+grant all on *.* to dba@localhost with grant option;
+connection slave;
+connect  dba_slave,localhost,dba,,,$SLAVE_MYPORT;
+drop user sysadmin@localhost;
+ERROR 28000: Access denied: 'sysadmin'@'localhost' is a system account and can only be managed by a system account
+disconnect dba_slave;
+# cleanup
+connection master;
+drop role r1;
+drop user sysadmin@localhost, other@localhost, dba@localhost;
+connection slave;
+select count(*) from mysql.user where user in ('sysadmin','other','r1','dba');
+count(*)
+0
+include/rpl_end.inc

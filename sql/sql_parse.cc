@@ -5301,6 +5301,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (lex->sql_command == SQLCOM_CREATE_USER &&
+        check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5316,6 +5319,9 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (lex->sql_command == SQLCOM_DROP_USER &&
+        check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5331,6 +5337,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5348,6 +5356,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         check_global_access(thd,CREATE_USER_ACL))
       break;
 
+    if (check_system_users(thd, lex->users_list))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     /* Conditionally writes to binlog */
@@ -5359,6 +5369,8 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_GRANT_ROLE:
   {
+    if (check_system_users(thd, lex->users_list, true))
+      break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
     if (!(res= mysql_grant_role(thd, lex->users_list,

@@ -1621,6 +1621,9 @@ The following specify which files/extra groups are read (specified before remain
  safe-replicable. Since 5.0, SYSDATE() returns a `dynamic'
  value different for different invocations, even within
  the same statement
+ --system-users=name Comma-separated list of user@host accounts that only
+ system accounts (the listed ones) can create, alter,
+ grant to or drop
  --system-versioning-alter-history=name 
  Versioning ALTER TABLE mode. ERROR: Fail ALTER with
  error; KEEP: Keep historical system rows and subject them
@@ -2159,6 +2162,7 @@ sync-master-info 10000
 sync-relay-log 10000
 sync-relay-log-info 10000
 sysdate-is-now FALSE
+system-users (No default value)
 system-versioning-alter-history ERROR
 system-versioning-insert-history FALSE
 table-definition-cache 400
