@@ -1,0 +1,21 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed.inc
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-40743 slave does not retry connect in some cases even when
+--echo # master_retry_count=0 is set
+--echo #
+
+--connection slave
+CALL mtr.add_suppression("SET @master_heartbeat_period to master failed");
+CALL mtr.add_suppression("Master command COM_REGISTER_SLAVE failed");
+CHANGE MASTER TO MASTER_CONNECT_RETRY= 1;
+SET @saved_dbug= @@GLOBAL.debug_dbug;
+# Connecting works, but the setup after it fails 2 times with no event between
+SET @@GLOBAL.debug_dbug= '+d,simulate_slave_heartbeat_network_error';
+--source include/start_slave.inc
+SET @@GLOBAL.debug_dbug= @saved_dbug;
+
+--source include/rpl_end.inc
