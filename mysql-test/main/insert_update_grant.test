@@ -1,0 +1,98 @@
+--source include/not_embedded.inc
+
+# count_sessions.inc skips view mode because of its extra utility connections.
+if (!$VIEW_PROTOCOL)
+{
+  --source include/count_sessions.inc
+}
+
+--echo #
+--echo # MDEV-41522 INSERT ... ON DUPLICATE KEY UPDATE requires SELECT on
+--echo # a column that is only written
+--echo #
+
+CREATE TABLE t1 (i INT PRIMARY KEY, s VARCHAR(5), r VARCHAR(5) DEFAULT 'r');
+CREATE USER mysqltest_1@localhost;
+GRANT INSERT, UPDATE, SELECT(i) ON t1 TO mysqltest_1@localhost;
+
+--connect (con1,localhost,mysqltest_1,,test)
+--let $con1_id= `SELECT CONNECTION_ID()`
+INSERT INTO t1 (i,s) VALUES (1,'a');
+UPDATE t1 SET s='b' WHERE i=1;
+INSERT INTO t1 (i,s) VALUES (1,'c') ON DUPLICATE KEY UPDATE s='c';
+INSERT INTO t1 (i,s) VALUES (2,'a') ON DUPLICATE KEY UPDATE s='c';
+--connection default
+SELECT * FROM t1 ORDER BY i;
+--connection con1
+INSERT INTO t1 (i,s) SELECT 1,'d' ON DUPLICATE KEY UPDATE s='d';
+INSERT INTO t1 (i,s) SELECT 3,'a' ON DUPLICATE KEY UPDATE s='d';
+--connection default
+SELECT * FROM t1 ORDER BY i;
+--connection con1
+INSERT INTO t1 SET i=1,s='a' ON DUPLICATE KEY UPDATE s='f';
+INSERT INTO t1 (i,s) VALUES (1,'a'),(4,'b') ON DUPLICATE KEY UPDATE s='m';
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=s;
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) SELECT 1,'a' ON DUPLICATE KEY UPDATE s=s;
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=(SELECT s);
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='x' RETURNING s;
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s=i;
+
+PREPARE stmt FROM
+  'INSERT INTO t1 (i,s) VALUES (1,?) ON DUPLICATE KEY UPDATE s=?';
+SET @s='p';
+EXECUTE stmt USING @s,@s;
+SET @s='q';
+EXECUTE stmt USING @s,@s;
+
+--connection default
+SELECT * FROM t1 ORDER BY i;
+REVOKE UPDATE ON t1 FROM mysqltest_1@localhost;
+GRANT UPDATE(i,s), SELECT(r) ON t1 TO mysqltest_1@localhost;
+
+--connection con1
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='e';
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE r='x';
+--error ER_COLUMNACCESS_DENIED_ERROR
+INSERT INTO t1 (i,s) SELECT 1,'a' ON DUPLICATE KEY UPDATE r='x';
+
+--connection default
+REVOKE UPDATE(s) ON t1 FROM mysqltest_1@localhost;
+--connection con1
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXECUTE stmt USING @s,@s;
+DEALLOCATE PREPARE stmt;
+
+--connection default
+SELECT * FROM t1 ORDER BY i;
+CREATE VIEW v1 AS SELECT i,s,r FROM t1;
+GRANT INSERT, UPDATE, SELECT(i) ON v1 TO mysqltest_1@localhost;
+
+--connection con1
+INSERT INTO v1 (i,s) VALUES (1,'a') ON DUPLICATE KEY UPDATE s='v';
+--error ER_COLUMNACCESS_DENIED_ERROR
+SELECT s FROM v1;
+--disconnect con1
+
+--connection default
+if (!$VIEW_PROTOCOL)
+{
+  --source include/wait_until_count_sessions.inc
+}
+if ($VIEW_PROTOCOL)
+{
+  let $wait_condition=
+    SELECT COUNT(*)=0 FROM information_schema.processlist WHERE ID=$con1_id;
+  --source include/wait_condition.inc
+}
+SELECT * FROM t1 ORDER BY i;
+DROP VIEW v1;
+DROP TABLE t1;
+DROP USER mysqltest_1@localhost;
+
+--echo # End of 11.4 tests
