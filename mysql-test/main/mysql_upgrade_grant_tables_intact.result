@@ -1,0 +1,68 @@
+#
+# mysql_upgrade also requires Grant_tables_intact, not just
+# a matching recorded version, before it decides no upgrade is needed.
+#
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
+# Establish a clean baseline: mysql_upgrade_info records the current
+# version, and the grant tables are intact.
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# Already upgraded: --check-if-upgrade-is-needed must say so.
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
+#
+# Simulate restoring mysql.db from an older version's dump onto this
+# already-upgraded server: the recorded version is untouched, but the
+# live table is now missing a column this server expects.
+#
+ALTER TABLE mysql.db DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+# --check-if-upgrade-is-needed must now report an upgrade is needed,
+# even though the recorded version still matches.
+# A plain run (no --force) must actually perform the upgrade - and so
+# repair the table - instead of skipping it just because the recorded
+# version matches.
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+SELECT COUNT(*) AS `Delete_history_priv restored` FROM information_schema.columns WHERE table_schema='mysql' AND table_name='db' AND column_name='Delete_history_priv';
+Delete_history_priv restored
+1
+# Already upgraded again, as normal.
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
+#
+# MDEV-39343: Restoring from a mysqldump from older version makes mysql_upgrade version test fail
+#
+# Back up the current (upgraded) mysql schema, to restore afterward.
+#
+# Restore a MariaDB 10.4 mysql schema directly over the live tables -
+# exactly like restoring a mariadb-dump backup taken on an older
+# server. mysql_upgrade_info, on the filesystem, is untouched by this
+# and still records the CURRENT version.
+#
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	OFF
+#
+# Before this fix, mysql_upgrade trusted the recorded version alone
+# and would have reported no upgrade needed here - leaving the
+# older, just-restored schema un-upgraded. It must now correctly
+# detect that an upgrade is needed.
+#
+# A plain run (no --force) must therefore actually perform the
+# upgrade, instead of skipping it.
+SHOW STATUS LIKE 'Grant_tables_intact';
+Variable_name	Value
+Grant_tables_intact	ON
+# Already upgraded now.
+This installation of MariaDB is already upgraded to X.Y.Z-MariaDB.
+There is no need to run mysql_upgrade again.
+# Restore the original (current-version) mysql schema backup.
+# End of 10.11 tests

@@ -1,0 +1,100 @@
+--source include/mysql_upgrade_preparation.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # mysql_upgrade also requires Grant_tables_intact, not just
+--echo # a matching recorded version, before it decides no upgrade is needed.
+--echo #
+
+call mtr.add_suppression("is wrong. Expected");
+call mtr.add_suppression("Incorrect definition of table");
+
+--echo # Establish a clean baseline: mysql_upgrade_info records the current
+--echo # version, and the grant tables are intact.
+--disable_result_log
+--exec $MYSQL_UPGRADE --force 2>&1
+--enable_result_log
+SHOW STATUS LIKE 'Grant_tables_intact';
+
+--echo # Already upgraded: --check-if-upgrade-is-needed must say so.
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+--echo #
+--echo # Simulate restoring mysql.db from an older version's dump onto this
+--echo # already-upgraded server: the recorded version is untouched, but the
+--echo # live table is now missing a column this server expects.
+--echo #
+ALTER TABLE mysql.db DROP COLUMN Delete_history_priv;
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+
+--echo # --check-if-upgrade-is-needed must now report an upgrade is needed,
+--echo # even though the recorded version still matches.
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+--echo # A plain run (no --force) must actually perform the upgrade - and so
+--echo # repair the table - instead of skipping it just because the recorded
+--echo # version matches.
+--disable_result_log
+--exec $MYSQL_UPGRADE 2>&1
+--enable_result_log
+
+SHOW STATUS LIKE 'Grant_tables_intact';
+SELECT COUNT(*) AS `Delete_history_priv restored` FROM information_schema.columns WHERE table_schema='mysql' AND table_name='db' AND column_name='Delete_history_priv';
+
+--echo # Already upgraded again, as normal.
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+--echo #
+--echo # MDEV-39343: Restoring from a mysqldump from older version makes mysql_upgrade version test fail
+--echo #
+
+--echo # Back up the current (upgraded) mysql schema, to restore afterward.
+--exec $MYSQL_DUMP mysql > $MYSQL_TMP_DIR/mysql_database_backup_39343
+
+# Workaround for MDEV-22127 (can't import a dump created before 10.4)
+--exec $MYSQL -e "DROP TABLE IF EXISTS mysql.global_priv; DROP VIEW IF EXISTS mysql.user"
+
+--echo #
+--echo # Restore a MariaDB 10.4 mysql schema directly over the live tables -
+--echo # exactly like restoring a mariadb-dump backup taken on an older
+--echo # server. mysql_upgrade_info, on the filesystem, is untouched by this
+--echo # and still records the CURRENT version.
+--echo #
+--exec $MYSQL mysql < $MYSQLTEST_VARDIR/std_data/mysql_database_10.4.dump
+
+FLUSH PRIVILEGES;
+SHOW STATUS LIKE 'Grant_tables_intact';
+
+--echo #
+--echo # Before this fix, mysql_upgrade trusted the recorded version alone
+--echo # and would have reported no upgrade needed here - leaving the
+--echo # older, just-restored schema un-upgraded. It must now correctly
+--echo # detect that an upgrade is needed.
+--echo #
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+--echo # A plain run (no --force) must therefore actually perform the
+--echo # upgrade, instead of skipping it.
+--disable_result_log
+--exec $MYSQL_UPGRADE 2>&1
+--enable_result_log
+
+SHOW STATUS LIKE 'Grant_tables_intact';
+
+--echo # Already upgraded now.
+--replace_result $MYSQL_SERVER_VERSION X.Y.Z-MariaDB
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed 2>&1
+
+--echo # Restore the original (current-version) mysql schema backup.
+--exec $MYSQL mysql < $MYSQL_TMP_DIR/mysql_database_backup_39343
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo # End of 10.11 tests
