@@ -1577,13 +1577,83 @@ static int test_mb_wc_filename_truncated()
 }
 
 
+/*
+  my_string_repertoire() and my_string_metadata_get() on 8-bit ASCII based
+  character sets: a string is ASCII unless it has a byte above 0x7F.
+  The scan reads a machine word at a time and the remainder byte by byte,
+  so put a single non-ASCII byte at every position of strings that are
+  shorter than, equal to and longer than a few words, at every starting
+  alignment. The bytes around the string are non-ASCII, so a scan that
+  reads outside the string finds a non-ASCII byte in an ASCII string.
+*/
+static int
+test_string_repertoire_8bit_one(CHARSET_INFO *cs, const char *str,
+                                size_t length, size_t align, size_t pos,
+                                uint byte, my_repertoire_t expected)
+{
+  MY_STRING_METADATA metadata;
+  int failed= 0;
+  if (my_string_repertoire(cs, str, length) != expected)
+    failed++;
+  my_string_metadata_get(&metadata, cs, str, length);
+  if (metadata.repertoire != expected || metadata.char_length != length)
+    failed++;
+  if (failed)
+    diag("%s: align=%u length=%u pos=%u byte=0x%02X expected=%u",
+         cs->coll_name.str, (uint) align, (uint) length, (uint) pos, byte,
+         (uint) expected);
+  return failed;
+}
+
+
+static int
+test_string_repertoire_8bit()
+{
+  static CHARSET_INFO *charsets[]= {&my_charset_bin, &my_charset_latin1};
+  static const uchar nonascii[]= {0x80, 0xFF};
+  /* 64 bytes for the string and its alignment, then a word of guard bytes */
+  char buf[64 + 8];
+  int failed= 0;
+  size_t c, align, length, pos, i;
+
+  for (c= 0; c < array_elements(charsets); c++)
+  {
+    for (align= 0; align < 8; align++)
+    {
+      char *str= buf + align;
+      for (length= 0; length + align <= 64; length++)
+      {
+        memset(buf, 0x80, sizeof(buf));
+        /* 0x7F is the highest ASCII byte */
+        memset(str, 0x7F, length);
+        failed+= test_string_repertoire_8bit_one(charsets[c], str, length,
+                                                 align, length, 0x7F,
+                                                 MY_REPERTOIRE_ASCII);
+        for (pos= 0; pos < length; pos++)
+        {
+          for (i= 0; i < array_elements(nonascii); i++)
+          {
+            str[pos]= (char) nonascii[i];
+            failed+= test_string_repertoire_8bit_one(charsets[c], str, length,
+                                                     align, pos, nonascii[i],
+                                                     MY_REPERTOIRE_UNICODE30);
+          }
+          str[pos]= 'a';
+        }
+      }
+    }
+  }
+  return failed;
+}
+
+
 int main(int ac, char **av)
 {
   size_t i, failed= 0;
 
   MY_INIT(av[0]);
 
-  plan(5);
+  plan(6);
   diag("Testing my_like_range_xxx() functions");
   
   for (i= 0; i < array_elements(charset_list); i++)
@@ -1612,6 +1682,13 @@ int main(int ac, char **av)
   diag("Testing my_charset_filename mb_wc end-pointer bounds");
   ok(test_mb_wc_filename_truncated() == 0,
      "filename decoder does not read past the end pointer");
+
+  diag("MDEV-42316 A binary string parameter is read byte by byte on every "
+       "execution to compute its repertoire, and since MDEV-41246 this read "
+       "takes about 1.2 ms per MB of ASCII data");
+  diag("Testing my_string_repertoire() on 8-bit character sets");
+  ok(test_string_repertoire_8bit() == 0,
+     "8-bit repertoire scan finds a non-ASCII byte at any position");
 
   my_end(0);
 

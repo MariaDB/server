@@ -851,7 +851,21 @@ my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
     return MY_REPERTOIRE_UNICODE30;
   if (!str) // Avoid UBSAN nullptr-with-offset
     return MY_REPERTOIRE_ASCII;
-  for (strend= str + length; str < strend; str++)
+  strend= str + length;
+  /*
+    A string can be megabytes long, e.g. a BLOB parameter of a prepared
+    statement, and an ASCII string is read to the end.
+    Test a machine word at a time for a byte above 0x7F.
+  */
+#if SIZEOF_SIZE_T <= 8
+  for (size_t f; (size_t) (strend - str) >= sizeof f; str+= sizeof f)
+  {
+    memcpy(&f, str, sizeof f);
+    if (f & (size_t) 0x8080808080808080ULL)
+      return MY_REPERTOIRE_UNICODE30;
+  }
+#endif
+  for ( ; str < strend; str++)
   {
     if (((uchar) *str) > 0x7F)
       return MY_REPERTOIRE_UNICODE30;

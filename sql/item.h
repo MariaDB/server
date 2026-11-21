@@ -3099,6 +3099,11 @@ protected:
       MY_STRING_METADATA::repertoire= repertoire_arg;
       MY_STRING_METADATA::char_length= str->numchars();
     }
+    Metadata(my_repertoire_t repertoire_arg, size_t char_length_arg)
+    {
+      MY_STRING_METADATA::repertoire= repertoire_arg;
+      MY_STRING_METADATA::char_length= char_length_arg;
+    }
     my_repertoire_t repertoire() const
     {
       return MY_STRING_METADATA::repertoire;
@@ -4525,6 +4530,7 @@ public:
   bool add_as_clone(THD *thd);
   void sync_clones();
   bool register_clone(Item_param *i) { return m_clones.push_back(i); }
+  void set_stored_as_is() { m_stored_as_is= true; }
 
   void raise_error_not_evaluable() override
   {
@@ -4556,6 +4562,14 @@ private:
   Send_field *m_out_param_info;
   bool m_is_settable_routine_parameter;
   /*
+    The parameter is the whole value assigned to a column by INSERT,
+    REPLACE, UPDATE or LOAD DATA, to a user variable, to a variable of
+    a stored program, or to a procedure parameter by CALL. Its value is
+    stored as is, and nothing reads it as text, so neither its repertoire
+    nor its length in characters is used.
+  */
+  bool m_stored_as_is;
+  /*
     Array of all references of this parameter marker used in a CTE to its clones
     created for copies of this marker used the CTE's copies. It's used to
     synchronize the actual value of the parameter with the values of the clones.
@@ -4568,6 +4582,17 @@ protected:
   Item *shallow_copy(THD *thd) const override { return nullptr; }
   Item *deep_copy(THD *thd) const override { return nullptr; }
 };
+
+
+/*
+  Mark the item, if it is a parameter, as the whole value assigned to
+  a column or to a variable, see Item_param::m_stored_as_is.
+*/
+inline void set_param_stored_as_is(Item *item)
+{
+  if (item->type() == Item::PARAM_ITEM)
+    static_cast<Item_param*>(item)->set_stored_as_is();
+}
 
 
 class Item_int :public Item_num
