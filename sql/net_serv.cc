@@ -911,8 +911,7 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
   If proxy header is parsed, then THD and ACL structures and changed to indicate
   the new peer address and port.
 
-  Note, that proxy header can only be sent either when the connection is established,
-  or as the client reply packet to
+  Note, that proxy header can only be sent as the very first packet by the client.
 */
 #undef IGNORE                   /* for Windows */
 typedef enum { RETRY, ABORT, IGNORE} handle_proxy_header_result;
@@ -924,7 +923,7 @@ static handle_proxy_header_result handle_proxy_header(NET *net)
   THD *thd= (THD *)net->thd;
 
   if (!has_proxy_protocol_header(net) || !thd ||
-      thd->get_command() != COM_CONNECT)
+      thd->get_command() != COM_CONNECT || net->pkt_nr != 1)
     return IGNORE;
 
   /*
