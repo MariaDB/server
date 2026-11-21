@@ -19,7 +19,6 @@
 
 #ifdef _WIN32
 #include <direct.h> /* rmdir */
-static int my_win_unlink(const char *name);
 #endif
 
 CREATE_NOSYMLINK_FUNCTION(
@@ -35,7 +34,7 @@ int my_delete(const char *name, myf MyFlags)
   DBUG_PRINT("my",("name %s MyFlags %lu", name, MyFlags));
 
 #ifdef _WIN32
-  err = my_win_unlink(name);
+  err = my_win_unlink(name, MyFlags);
 #else
   if (MyFlags & MY_NOSYMLINKS)
     err= unlink_nosymlinks(name);
@@ -57,148 +56,6 @@ int my_delete(const char *name, myf MyFlags)
   DBUG_RETURN(err);
 } /* my_delete */
 
-
-#if defined (_WIN32)
-
-/* 
-  Delete file.
-
-  The function also makes best effort to minimize number of errors, 
-  where another program (or thread in the current program) has the the same file
-  open.
-
-  We're using several tricks to prevent the errors, such as
-
-  - Windows 10 "posix semantics" delete
-
-  - Avoid the error by using CreateFile() with FILE_FLAG_DELETE_ON_CLOSE, instead
-  of DeleteFile()
-
-  - If file which is deleted (delete on close) but has not entirely gone,
-  because it is still opened by some app, an attempt to trcreate file with the 
-  same name would  result in yet another error. The workaround here is renaming 
-  a file to unique name.
-
-  Symbolic link are deleted without renaming. Directories are not deleted.
-*/
-#include <my_rdtsc.h>
-
-static int my_win_unlink(const char *name)
-{
-  HANDLE handle= INVALID_HANDLE_VALUE;
-  DWORD attributes;
-  uint last_error;
-  char unique_filename[MAX_PATH + 35];
-  unsigned long long tsc; /* time stamp counter, for unique filename*/
-  int retries;
-  DBUG_ENTER("my_win_unlink");
-
-  DBUG_INJECT_FILE_SHARING_VIOLATION(name);
-
-  for (retries= FILE_SHARING_VIOLATION_RETRIES; ; retries--)
-  {
-    attributes= GetFileAttributes(name);
-    if (attributes == INVALID_FILE_ATTRIBUTES)
-    {
-      last_error= GetLastError();
-      DBUG_PRINT("error",
-                 ("GetFileAttributes(%s) failed with %u\n", name, last_error));
-      goto error;
-    }
-
-    if (attributes & FILE_ATTRIBUTE_DIRECTORY)
-    {
-      DBUG_PRINT("error", ("can't remove %s - it is a directory\n", name));
-      errno= EINVAL;
-      DBUG_RETURN(-1);
-    }
-
-    if (attributes & FILE_ATTRIBUTE_REPARSE_POINT)
-    {
-      /* Symbolic link. Delete link, the not target */
-      if (!DeleteFile(name))
-      {
-        last_error= GetLastError();
-        DBUG_PRINT("error",
-                   ("DeleteFile(%s) failed with %u\n", name, last_error));
-        goto error;
-      }
-      DBUG_RETURN(0);
-    }
-
-    /*
-      Try Windows 10 method, delete with "posix semantics" (file is not
-      visible, and creating a file with the same name won't fail, even if it
-      the file was open)
-    */
-    handle= CreateFile(name, DELETE,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL, OPEN_EXISTING, 0, NULL);
-    if (handle != INVALID_HANDLE_VALUE)
-    {
-      /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
-      struct {DWORD _Flags;} disp= {0x3};
-      BOOL ok= SetFileInformationByHandle(
-          handle, (FILE_INFO_BY_HANDLE_CLASS) 21, &disp, sizeof(disp));
-      CloseHandle(handle);
-      if (ok)
-        DBUG_RETURN(0);
-    }
-
-    handle= CreateFile(name, DELETE, 0, NULL, OPEN_EXISTING,
-                       FILE_FLAG_DELETE_ON_CLOSE, NULL);
-    if (handle != INVALID_HANDLE_VALUE)
-    {
-      /*
-        We opened file without sharing flags (exclusive), no one else has this
-        file opened, thus it is safe to close handle to remove it. No renaming
-        is necessary.
-      */
-      CloseHandle(handle);
-      DBUG_RETURN(0);
-    }
-
-    /*
-       Can't open file exclusively, hence the file must be already opened by
-       someone else. Open it for delete (with all FILE_SHARE flags set),
-       rename to unique name, close.
-    */
-    handle= CreateFile(name, DELETE,
-                       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                       NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-      last_error= GetLastError();
-      DBUG_PRINT(
-          "error",
-          ("CreateFile(%s) with FILE_FLAG_DELETE_ON_CLOSE failed with %u\n",
-           name, last_error));
-      goto error;
-    }
-
-    tsc= my_timer_cycles();
-    my_snprintf(unique_filename, sizeof(unique_filename), "%s.%llx.deleted",
-                name, tsc);
-    if (!MoveFile(name, unique_filename))
-    {
-      DBUG_PRINT("warning",
-                 ("moving %s to unique filename failed, error %lu\n", name,
-                  GetLastError()));
-    }
-    CloseHandle(handle);
-    DBUG_RETURN(0);
-
-error:
-    if (last_error != ERROR_SHARING_VIOLATION || retries == 0)
-    {
-      my_osmaperr(last_error);
-      DBUG_RETURN(-1);
-    }
-    DBUG_CLEAR_FILE_SHARING_VIOLATION();
-    Sleep(FILE_SHARING_VIOLATION_DELAY_MS);
-  }
-}
-#endif
 
 /*
    Remove directory recursively.
