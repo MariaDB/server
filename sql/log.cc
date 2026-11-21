@@ -6489,6 +6489,14 @@ bool THD::binlog_write_table_map(TABLE *table)
   DBUG_PRINT("enter", ("table: %p  (%s: #%llu)",
                        table, table->s->table_name.str,
                        table->s->table_map_id));
+#ifdef WITH_WSREP
+  if (wsrep_thd_is_applying(this)
+      && !wsrep_mark_table_mapped(table->s->table_map_id)) {
+      /* A table map event for this table is already recorded for this
+         transaction, skip writing the table map event. */
+      DBUG_RETURN(0);
+  }
+#endif
 
   /* Pre-conditions */
   DBUG_ASSERT((table->s->table_map_id & MAX_TABLE_MAP_ID) != UINT32_MAX &&
