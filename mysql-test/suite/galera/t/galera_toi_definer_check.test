@@ -1,0 +1,95 @@
+#
+# CREATE TRIGGER, CREATE VIEW and ALTER VIEW must do their privilege
+# checks (SET USER for the DEFINER, column privileges of a view) before
+# TOI replicates the statement. The applier runs with all privileges,
+# so a statement refused on the originating node must not be
+# replicated, otherwise the other nodes create the trigger or view.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE DATABASE d1;
+CREATE DATABASE d2;
+CREATE TABLE d1.t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE d2.secret (who VARCHAR(200)) ENGINE=InnoDB;
+CREATE DEFINER=root@localhost SQL SECURITY DEFINER VIEW d1.v_root AS SELECT a FROM d1.t1;
+CREATE USER u1@localhost;
+GRANT TRIGGER, SELECT, INSERT, CREATE VIEW, DROP ON d1.* TO u1@localhost;
+# Column privileges of a view, as in main.view_grant
+CREATE DATABASE d3;
+CREATE DATABASE d4;
+CREATE TABLE d3.t1 (c1 INT) ENGINE=InnoDB;
+CREATE TABLE d3.t2 (c2 INT) ENGINE=InnoDB;
+GRANT SELECT ON d3.t1 TO u1@localhost;
+GRANT INSERT ON d3.t2 TO u1@localhost;
+GRANT ALL PRIVILEGES ON d4.* TO u1@localhost;
+# Without SUPER, CREATE TRIGGER is refused earlier unless this is ON
+SET @save_trust = @@GLOBAL.log_bin_trust_function_creators;
+SET GLOBAL log_bin_trust_function_creators = ON;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.global_priv WHERE User = 'u1'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.VIEWS WHERE TABLE_NAME = 'v_root'
+--source include/wait_condition.inc
+
+--connect (con1,127.0.0.1,u1,,,$NODE_MYPORT_1)
+--connection con1
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO d2.secret VALUES ('direct');
+
+--echo # DEFINER other than the current user needs SET USER
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE DEFINER=root@localhost TRIGGER d1.tr BEFORE INSERT ON d1.t1
+  FOR EACH ROW INSERT INTO d2.secret VALUES (CURRENT_USER());
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE DEFINER=root@localhost SQL SECURITY DEFINER VIEW d1.v1 AS SELECT a FROM d1.t1;
+--echo # ALTER VIEW without DEFINER keeps the existing DEFINER (root)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+ALTER VIEW d1.v_root AS SELECT a + 1 AS a FROM d1.t1;
+
+--echo # The view would give more column privileges than u1 has on d3.t2
+--error ER_COLUMNACCESS_DENIED_ERROR
+CREATE VIEW d4.v12 AS SELECT c1, c2 FROM d3.t1, d3.t2;
+
+--echo # Allowed: own DEFINER
+CREATE TRIGGER d1.tr_own BEFORE INSERT ON d1.t1 FOR EACH ROW SET @x = 1;
+CREATE SQL SECURITY INVOKER VIEW d1.v_own AS SELECT a FROM d1.t1;
+
+--connection node_1
+--echo # ALTER VIEW without DEFINER by root keeps u1 as DEFINER and INVOKER
+ALTER VIEW d1.v_own AS SELECT a + 1 AS a FROM d1.t1;
+
+--let $i = 2
+while ($i)
+{
+  --connection node_$i
+  --echo # node_$i
+  --let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.VIEWS WHERE TABLE_NAME = 'v_own' AND VIEW_DEFINITION LIKE '%+ 1%'
+  --source include/wait_condition.inc
+  SELECT TRIGGER_NAME, DEFINER FROM information_schema.TRIGGERS
+    WHERE TRIGGER_SCHEMA = 'd1' ORDER BY TRIGGER_NAME;
+  SELECT TABLE_SCHEMA, TABLE_NAME, DEFINER, SECURITY_TYPE, VIEW_DEFINITION
+    FROM information_schema.VIEWS WHERE TABLE_SCHEMA IN ('d1', 'd4')
+    ORDER BY TABLE_SCHEMA, TABLE_NAME;
+  --dec $i
+}
+
+--echo # u1 inserts into d1.t1 on node_2, no trigger may write d2.secret
+--connect (con2,127.0.0.1,u1,,,$NODE_MYPORT_2)
+--connection con2
+INSERT INTO d1.t1 VALUES (1);
+
+--connection node_2
+SELECT * FROM d2.secret;
+
+--connection node_1
+--disconnect con1
+--disconnect con2
+SET GLOBAL log_bin_trust_function_creators = @save_trust;
+DROP USER u1@localhost;
+DROP DATABASE d1;
+DROP DATABASE d2;
+DROP DATABASE d3;
+DROP DATABASE d4;

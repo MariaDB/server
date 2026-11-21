@@ -1191,6 +1191,14 @@ static std::pair<fil_space_t*, uint32_t> buf_flush_space(const uint32_t id)
   return {nullptr, 0};
 }
 
+#ifdef UNIV_DEBUG
+/** The tablespace that is being discarded by DISCARD TABLESPACE (or 0) */
+Atomic_relaxed<uint32_t> buf_flush_discarded_space_id;
+/** Whether the page cleaner holds the latch of a page whose tablespace
+was discarded (look for DBUG_EXECUTE_IF "ib_flush_discarded_space_wait") */
+Atomic_relaxed<bool> buf_flush_discarded_space_held;
+#endif
+
 struct flush_counters_t
 {
   /** number of dirty pages flushed */
@@ -1200,20 +1208,26 @@ struct flush_counters_t
 };
 
 /** Discard a dirty page, and release buf_pool.flush_list_mutex.
-@param bpage      dirty page whose tablespace is not accessible */
-static void buf_flush_discard_page(buf_page_t *bpage) noexcept
+@param bpage      dirty page whose tablespace is not accessible
+@return whether the page was freed */
+static bool buf_flush_discard_page(buf_page_t *bpage) noexcept
 {
   ut_ad(bpage->in_file());
-  ut_ad(bpage->oldest_modification());
+  mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
 
-  buf_pool.delete_from_flush_list(bpage);
+  /* buf_flush_remove_pages() may have removed the page
+  from buf_pool.flush_list without acquiring the page latch.
+  In that case, page is already clean and must not be removed
+  from the flush list again */
+  if (bpage->oldest_modification())
+    buf_pool.delete_from_flush_list(bpage);
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   ut_d(const auto state= bpage->state());
   ut_ad(state == buf_page_t::FREED || state == buf_page_t::UNFIXED ||
         state == buf_page_t::IBUF_EXIST || state == buf_page_t::REINIT);
   bpage->lock.u_unlock(true);
-  buf_LRU_free_page(bpage, true);
+  return buf_LRU_free_page(bpage, true);
 }
 
 /** Adjust to_withdraw during buf_pool_t::shrink() */
@@ -1351,8 +1365,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
         space= nullptr;
       no_space:
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        buf_flush_discard_page(bpage);
-        ++n->evicted;
+        n->evicted+= buf_flush_discard_page(bpage);
         continue;
       }
 
@@ -1515,6 +1528,16 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn) noexcept
           auto p= buf_flush_space(space_id);
           space= p.first;
           last_space_id= space_id;
+          DBUG_EXECUTE_IF("ib_flush_discarded_space_wait",
+            if (!space && space_id == buf_flush_discarded_space_id)
+            {
+              /* bpage is U-latched and no buf_pool mutex is held. Let
+              buf_flush_remove_pages() run before we resume. */
+              buf_flush_discarded_space_held= true;
+              for (unsigned i= 6000; i-- && bpage->oldest_modification(); )
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+              buf_flush_discarded_space_held= false;
+            });
           mysql_mutex_lock(&buf_pool.mutex);
           buf_pool.stat.n_pages_written+= p.second;
           mysql_mutex_lock(&buf_pool.flush_list_mutex);

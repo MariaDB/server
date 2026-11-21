@@ -2378,6 +2378,17 @@ static void set_root(const char *path)
 #endif
 }
 
+#ifdef _WIN32
+/* Windows clamps a plain backlog; SOMAXCONN_HINT honors it from 200 up. */
+#define WIN_MIN_BACKLOG_HINT 200
+static inline int adjust_backlog(int backlog)
+{
+  return backlog >= WIN_MIN_BACKLOG_HINT ? SOMAXCONN_HINT(backlog) : backlog;
+}
+#else
+static inline int adjust_backlog(int backlog) { return backlog; }
+#endif
+
 /**
    Activate usage of a tcp port
 */
@@ -2578,7 +2589,7 @@ static void activate_tcp_port(uint port,
                         "port: %u ?", port);
         unireg_abort(1);
       }
-      if (mysql_socket_listen(ip_sock,(int) back_log) < 0)
+      if (mysql_socket_listen(ip_sock, adjust_backlog((int) back_log)) < 0)
       {
         sql_perror("Can't start server: listen() on TCP/IP port");
         sql_print_error("listen() on TCP/IP failed with error %d",

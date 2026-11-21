@@ -200,7 +200,9 @@ DROP TABLE t2,t1;
 --echo #Connection 2
 --connection node_2
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 set global wsrep_on=OFF;
 reset master;
 set global wsrep_on=ON;

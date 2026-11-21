@@ -340,7 +340,7 @@ struct st_connection
 
 #ifdef EMBEDDED_LIBRARY
   pthread_t tid;
-  const char *cur_query;
+  char *cur_query;
   int cur_query_len;
   int command, result;
   pthread_mutex_t query_mutex;
@@ -1294,6 +1294,8 @@ pthread_handler_t connection_thread(void *arg)
       case EMB_SEND_QUERY:
         cn->result= mysql_send_query(cn->mysql,
                                      cn->cur_query, cn->cur_query_len);
+        my_free(cn->cur_query);
+        cn->cur_query= nullptr;
         break;
       case EMB_READ_QUERY_RESULT:
         cn->result= mysql_read_query_result(cn->mysql);
@@ -1367,7 +1369,7 @@ static int do_send_query(struct st_connection *cn, const char *q, int q_len)
 {
   if (!cn->has_thread)
     return mysql_send_query(cn->mysql, q, q_len);
-  cn->cur_query= q;
+  cn->cur_query= my_strndup(PSI_NOT_INSTRUMENTED, q, q_len, MYF(MY_FAE));
   cn->cur_query_len= q_len;
   signal_connection_thd(cn, EMB_SEND_QUERY);
   return 0;
@@ -1388,7 +1390,7 @@ exit_func:
 }
 
 
-static int do_stmt_prepare(struct st_connection *cn, const char *q, int q_len)
+static int do_stmt_prepare(struct st_connection *cn, char *q, int q_len)
 {
   /* The cn->stmt is already set. */
   DBUG_ENTER("do_stmt_prepare");

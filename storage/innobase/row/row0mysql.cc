@@ -2480,6 +2480,15 @@ rollback:
     purge_sys.resume_FTS();
 
   ibuf_delete_for_discarded_space(space_id);
+  DBUG_EXECUTE_IF("ib_flush_discarded_space_wait",
+    buf_flush_discarded_space_id= space_id;);
+  DEBUG_SYNC_C("ib_discard_before_remove_pages");
+  DBUG_EXECUTE_IF("ib_flush_discarded_space_wait",
+    /* Wait for the page cleaner to latch a page of the discarded
+    tablespace, so that buf_flush_remove_pages() runs in its window. */
+    for (unsigned i= 6000; i-- && !buf_flush_discarded_space_held; )
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    buf_flush_discarded_space_id= 0;);
   buf_flush_remove_pages(space_id);
   trx->op_info= "";
   return err;

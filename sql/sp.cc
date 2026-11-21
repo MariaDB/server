@@ -872,6 +872,8 @@ static sp_head *sp_compile(THD *thd, String *defstr, sql_mode_t sql_mode,
   thd->push_internal_handler(&warning_handler);
   thd->spcont= 0;
 
+  DBUG_EXECUTE_IF("kill_before_sp_load", thd->set_killed(KILL_QUERY););
+
   if (parse_sql(thd, & parser_state, creation_ctx) || thd->lex == NULL)
   {
     sp= thd->lex->sphead;

@@ -1,0 +1,12 @@
+#
+# Server started with the default key cache disabled (key_buffer_size=0)
+#
+
+--echo #
+--echo # MDEV-40520: SHOW STATUS triggers MSAN use-of-uninitialized-value in get_one_variable()
+--echo #
+
+SELECT @@global.key_buffer_size;
+SHOW GLOBAL STATUS LIKE 'Key_blocks%';
+
+--echo # End of 10.11 tests

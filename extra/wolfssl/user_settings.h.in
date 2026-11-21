@@ -81,5 +81,6 @@
 #cmakedefine WOLFSSL_X86_64_BUILD
 #cmakedefine WOLFSSL_SP_X86_64
 #cmakedefine WOLFSSL_SP_X86_64_ASM
+#cmakedefine HAVE___UINT128_T
 
 #endif  /* WOLFSSL_USER_SETTINGS_H */
