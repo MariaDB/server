@@ -14,18 +14,13 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-ADD_DEFINITIONS(-DMYSQL_SERVER -DEMBEDDED_LIBRARY
- ${SSL_DEFINES})
+ADD_DEFINITIONS(-DMYSQL_SERVER -DEMBEDDED_LIBRARY)
 
 INCLUDE_DIRECTORIES(
-${CMAKE_SOURCE_DIR}/include 
+${CMAKE_SOURCE_DIR}/include
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
-${CMAKE_BINARY_DIR}/sql 
-${PCRE_INCLUDE_DIRS}
-${LIBFMT_INCLUDE_DIR}
-${ZLIB_INCLUDE_DIRS}
-${SSL_INCLUDE_DIRS}
+${CMAKE_BINARY_DIR}/sql
 ${SSL_INTERNAL_INCLUDE_DIRS}
 )
 
@@ -162,7 +157,8 @@ ENDIF()
 IF(TARGET libfmt)
   ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
-TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY} pcre2-8)
+TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY}
+  MariaDB::pcre2-8 MariaDB::fmt MariaDB::OpenSSL MariaDB::zlib)
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a
@@ -177,9 +173,9 @@ ELSE()
 ENDIF()
 
 
-SET(LIBS 
-  dbug strings mysys mysys_ssl pcre2-8 vio
-  ${ZLIB_LIBRARIES} ${SSL_LIBRARIES}
+SET(LIBS
+  dbug strings mysys mysys_ssl MariaDB::pcre2-8 vio
+  MariaDB::zlib MariaDB::OpenSSL
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
   ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
