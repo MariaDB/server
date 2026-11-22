@@ -1185,19 +1185,10 @@ struct buf_pool_stat_t{
 	};
 	ulint	n_pages_read;	/*!< number read operations */
 	ulint	n_pages_written;/*!< number write operations */
-	/* Make external buffer pool counters to be atomic for debug build to
-	avoid race conditions during MTR test case execution */
-#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
 	/** Number of pages, read from external buffer pool file */
-	Atomic_counter<ulint>	n_pages_read_from_ebp;
+	Atomic_counter<ulint>	n_pages_read_from_ebp{0};
 	/** Number of pages, written to external buffer pool file */
-	Atomic_counter<ulint>	n_pages_written_to_ebp;
-#else
-	/** Number of pages, read from external buffer pool file */
-	ulint	n_pages_read_from_ebp;
-	/** Number of pages, written to external buffer pool file */
-	ulint	n_pages_written_to_ebp;
-#endif
+	Atomic_counter<ulint>	n_pages_written_to_ebp{0};
 	ulint	n_pages_created;/*!< number of pages created
 				in the pool with no read */
 	ulint	n_ra_pages_read_rnd;/*!< number of pages read in
