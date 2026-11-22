@@ -2756,5 +2756,49 @@ SELECT CONV(18446744073709551615, 10, 62);
 SELECT CONV(-9223372036854775808, -10, -62);
 
 --echo #
+--echo # MDEV-42268 Preserve CHR in stored expressions
+--echo #
+CREATE DATABASE db_chr CHARACTER SET latin1 COLLATE latin1_bin;
+USE db_chr;
+SET @saved_collation= @@collation_connection;
+SET collation_connection= ucs2_general_ci;
+CREATE TABLE test.t1 (a INT, c VARBINARY(4) AS (CHR(a)));
+CREATE VIEW test.v1 AS SELECT CHR(a) AS c FROM test.t1;
+SET collation_connection= @saved_collation;
+USE test;
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES (NULL),(233);
+SELECT a, HEX(c), c IS NULL FROM t1 ORDER BY a;
+SELECT HEX(c), c IS NULL, COLLATION(c) FROM v1 ORDER BY c;
+INSERT INTO t1 (a) VALUES (66),(97);
+SELECT mariadb_schema.chr(a,'latin1_bin') AS letter FROM t1
+WHERE a IN (66,97) ORDER BY mariadb_schema.chr(a,'latin1_swedish_ci');
+CREATE SEQUENCE s1 START WITH 65;
+CREATE VIEW v2 AS SELECT HEX(CHR(NEXT VALUE FOR s1)) AS h;
+--disable_ps2_protocol
+SELECT h FROM v2;
+SELECT NEXT VALUE FOR s1;
+--enable_ps2_protocol
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+SELECT mariadb_schema.chr(65, NULL);
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+SELECT mariadb_schema.chr(65, 1);
+--error ER_UNKNOWN_COLLATION
+SELECT mariadb_schema.chr(65, 'nosuch');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT chr(65, 'latin1_bin');
+CREATE DATABASE db_uca CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE db_uca;
+CREATE VIEW test.v3 AS SELECT CHR(65) AS c, CHR(255) AS bad;
+USE test;
+SELECT HEX(c), COLLATION(c), COERCIBILITY(c), HEX(bad), bad IS NULL FROM v3;
+DROP VIEW v1, v2, v3;
+DROP SEQUENCE s1;
+DROP TABLE t1;
+DROP DATABASE db_chr;
+DROP DATABASE db_uca;
+
+--echo #
 --echo # End of 11.4 tests
 --echo #

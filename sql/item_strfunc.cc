@@ -3476,6 +3476,18 @@ void Item_func_char::append_char(String *str, int32 num)
 }
 
 
+void Item_func_chr::print(String *str, enum_query_type query_type)
+{
+  // Keep the collation of the database that was current at creation time.
+  str->append(STRING_WITH_LEN("mariadb_schema.chr("));
+  print_args(str, 0, query_type);
+  str->append(STRING_WITH_LEN(",_binary'"));
+  str->append(collation.collation->
+                get_collation_name(MY_COLLATION_NAME_MODE_FULL));
+  str->append(STRING_WITH_LEN("')"));
+}
+
+
 String *Item_func_chr::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
