@@ -4292,8 +4292,12 @@ btr_cur_compress_if_useful(
 			: NULL;
 		const buf_block_t* block = btr_cur_get_block(cursor);
 
-		/* Check whether page lock prevents the compression */
-		if (!lock_test_prdt_page_lock(trx, block->page.id())) {
+		/* Check whether a page lock or a pin by a non-locking
+		search prevents the compression */
+		if (!lock_test_prdt_page_lock(trx, block->page.id())
+		    || rtr_page_is_pinned(cursor->index(),
+					  block->page.id().page_no(),
+					  cursor->rtr_info)) {
 			return(false);
 		}
 	}

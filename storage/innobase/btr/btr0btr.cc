@@ -3377,9 +3377,13 @@ parent_corrupted:
 
 		lift_father_up = (n_blocks && page_level == 0);
 		if (lift_father_up && index->is_spatial()
-		    && !lock_test_prdt_page_lock(
-			    thr ? thr_get_trx(thr) : nullptr,
-			    father_block->page.id())) {
+		    && (!lock_test_prdt_page_lock(
+				thr ? thr_get_trx(thr) : nullptr,
+				father_block->page.id())
+			|| rtr_page_is_pinned(
+				index,
+				father_block->page.id().page_no(),
+				nullptr))) {
 			/* The father page would be freed, but another
 			search depends on it, like in
 			btr_cur_compress_if_useful(): the search has
@@ -4269,11 +4273,16 @@ btr_discard_page(
 				? cursor->rtr_info->thr : nullptr;
 
 			if (index->is_spatial()
-			    && !lock_test_prdt_page_lock(
-				    thr ? thr_get_trx(thr) : nullptr,
-				    merge_block->page.id())) {
-				/* Another search depends on the page,
-				like in btr_cur_compress_if_useful().
+			    && (!lock_test_prdt_page_lock(
+					thr ? thr_get_trx(thr) : nullptr,
+					merge_block->page.id())
+				|| rtr_page_is_pinned(
+					index,
+					merge_block->page.id().page_no(),
+					cursor->rtr_info))) {
+				/* Another search depends on the page
+				(page lock or pin of a non-locking
+				search), like in btr_cur_compress_if_useful().
 				A later btr_compress() can reduce the
 				height of the tree. */
 			} else {

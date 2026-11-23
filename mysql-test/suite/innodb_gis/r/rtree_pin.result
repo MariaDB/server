@@ -1,0 +1,51 @@
+#
+# MDEV-26123: a non-locking SPATIAL INDEX search must not acquire
+# locks, but it must keep the pages in its search path from being
+# merged away while it is suspended.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq * 10, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 200,200 200,200 -1,-1 -1))');
+BEGIN;
+INSERT INTO t1 SELECT seq * 10 + 1, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 2, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+COMMIT;
+connect  con1,localhost,root,,;
+SET @g = ST_GeomFromText('POLYGON((-1 -1,-1 200,200 200,200 -1,-1 -1))');
+SET DEBUG_SYNC = 'row_search_for_mysql_before_return SIGNAL scanning WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanning';
+SELECT trx_autocommit_non_locking, trx_is_read_only, trx_lock_structs
+FROM information_schema.innodb_trx WHERE trx_query LIKE 'SELECT COUNT%';
+trx_autocommit_non_locking	trx_is_read_only	trx_lock_structs
+1	1	0
+BEGIN;
+INSERT INTO t1 SELECT seq * 10 + 5, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 6, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 7, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+INSERT INTO t1 SELECT seq * 10 + 8, POINT(seq MOD 50, seq DIV 50)
+FROM seq_1_to_800;
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+COUNT(*)
+2400
+disconnect con1;
+connection default;
+SET DEBUG_SYNC = 'RESET';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @g);
+COUNT(*)
+2400
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests
