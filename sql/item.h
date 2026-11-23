@@ -1742,11 +1742,23 @@ public:
     return type_handler()->Item_val_bool(this);
   }
 
+  /*
+    Return boolean value of item, checking null_value as well.
+
+    RETURN
+      FALSE value is false or NULL
+      TRUE value is true and not NULL
+  */
+  bool val_bool_non_null()
+  {
+    return val_bool() && !null_value;
+  }
+
   bool eval_const_cond()
   {
     DBUG_ASSERT(const_item());
     DBUG_ASSERT(!is_expensive());
-    return val_bool();
+    return val_bool_non_null();
   }
   bool can_eval_in_optimize()
   {

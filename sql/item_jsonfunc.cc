@@ -635,16 +635,16 @@ bool Item_func_json_equals::val_bool()
 
   String *a= args[0]->val_json(&a_tmp);
   if ((null_value= a == nullptr || args[0]->null_value))
-    return 1;
+    return 0;
   String *b= args[1]->val_json(&b_tmp);
   if ((null_value= b == nullptr || args[1]->null_value))
-    return 1;
+    return 0;
 
   DYNAMIC_STRING a_res;
   if (init_dynamic_string(&a_res, NULL, 0, 0))
   {
     null_value= 1;
-    return 1;
+    return 0;
   }
 
   DYNAMIC_STRING b_res;
@@ -652,7 +652,7 @@ bool Item_func_json_equals::val_bool()
   {
     dynstr_free(&a_res);
     null_value= 1;
-    return 1;
+    return 0;
   }
 
   thd= current_thd;
