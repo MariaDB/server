@@ -453,6 +453,22 @@ public:
   Item_sum(THD *thd, Item_sum *item);
   enum Type type() const override { return SUM_FUNC_ITEM; }
   virtual enum Sumfunctype sum_func () const=0;
+  /**
+    Hook for stopping the scan early (MDEV-38303).
+
+    The HAVING conjunct is normalized to "<this aggregate> op c", where op is
+    one of =, <, <=, >, >=, and c is a literal. The caller has already made
+    sure the comparison is numeric, so overrides need not check that.
+
+    @return true if the conjunct, once FALSE, is guaranteed to stay FALSE as
+            more rows are added to the group. To support a new aggregate,
+            override this and report the (op, c) combinations that are
+            monotonic for it, e.g. MAX(..) < c or MIN(..) > c. It must
+            return false if the running value is not valid before the group
+            is complete (e.g. COUNT(DISTINCT), computed only at the end).
+  */
+  virtual bool having_false_is_final(scalar_comparison_op op, Item *c) const
+  { return false; }
   bool is_aggr_sum_func()
   {
     switch (sum_func()) {
@@ -1030,6 +1046,24 @@ public:
   bool supports_removal() const override
   {
     return true;
+  }
+  bool having_false_is_final(scalar_comparison_op op, Item *c) const override
+  {
+    if (has_with_distinct())    // Only known when the group is complete
+      return false;
+    switch (op) {
+    case SCALAR_CMP_LT:
+    case SCALAR_CMP_LE:         // The count never decreases
+      return true;
+    case SCALAR_CMP_EQ:    // COUNT(..) = 0 is false as soon as count > 0
+    {
+      Item_result type= c->cmp_type();
+      return (type == INT_RESULT || type == REAL_RESULT ||
+              type == DECIMAL_RESULT) && !c->val_real() && !c->null_value;
+    }
+    default:
+      return false;
+    }
   }
 
 protected:

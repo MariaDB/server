@@ -225,7 +225,7 @@ public:
     linkage(UNSPECIFIED_TYPE),
     is_lateral(false),
     message(NULL),
-    having(NULL), having_value(Item::COND_UNDEF),
+    having(NULL), having_value(Item::COND_UNDEF), having_shortcut(false),
     using_temporary(false), using_filesort(false),
     cost(0.0),
     time_tracker(is_analyze),
@@ -255,6 +255,8 @@ public:
   /* HAVING condition */
   Item *having;
   Item::cond_result having_value;
+  /* HAVING has conjuncts that can stop the scan early (MDEV-38303) */
+  bool having_shortcut;
 
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
@@ -936,7 +938,8 @@ public:
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
-                    bool using_temporary, bool using_filesort);
+                    bool using_temporary, bool using_filesort,
+                    bool using_having_shortcut= false);
   void print_explain_json(Explain_query *query, Json_writer *writer,
                           bool is_analyze);
 

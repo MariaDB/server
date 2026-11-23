@@ -1,0 +1,426 @@
+--source include/have_sequence.inc
+
+--let $show_found_rows= 0
+
+--echo #
+--echo # MDEV-38303: Stop the scan early when an aggregate HAVING conjunct
+--echo #             can no longer become true
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, c INT, d DECIMAL(5,1)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, seq, IF(seq > 900, seq, NULL), seq FROM seq_1_to_1000;
+CREATE TABLE t2 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_1000;
+CREATE TABLE t4 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t4 SELECT seq FROM seq_1_to_1000;
+ANALYZE TABLE t1, t2, t4 PERSISTENT FOR ALL;
+
+--echo # Statements run through having_early_stop.inc print "UNEXPECTED ..." only
+--echo # if the scan length is not what we expect.
+
+--echo #
+--echo # Section 1: must stop early, and the result must stay correct
+--echo #
+
+--echo # COUNT(col)=0: b is non-NULL from the very first row
+--let $query= SELECT COUNT(b) AS cnt_b FROM t1 HAVING COUNT(b)=0
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # COUNT(*) < const
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # COUNT(*) <= const
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Swapped operands
+--let $query= SELECT COUNT(b) AS cnt_b FROM t1 HAVING 0 = COUNT(b)
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING 10 > COUNT(*)
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING 10 >= COUNT(*)
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Stoppable conjunct together with other AND-parts
+--let $query= SELECT COUNT(*) AS cnt, SUM(b) AS sum_b FROM t1 WHERE a > 0 HAVING COUNT(*) < 5 AND SUM(b) > 1
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT COUNT(*) AS cnt, SUM(b) AS sum_b FROM t1 WHERE a > 0 HAVING SUM(b) > 1 AND COUNT(*) < 5
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # HAVING over an alias
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING cnt < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Join
+--let $query= SELECT COUNT(*) AS cnt FROM t2, t4 WHERE t2.a = t4.a HAVING COUNT(*) < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Stoppable conjunct with an extra non-stoppable one that is also false
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 AND MAX(b) < 0
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Uncorrelated subquery with a stoppable HAVING
+--let $query= SELECT (SELECT COUNT(*) AS cnt FROM t2 WHERE a > 0 HAVING COUNT(*) < 10) AS sub_cnt
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # Several stoppable conjuncts: the last one is the only false one and
+--echo # is still used
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000 AND COUNT(*) <= 1500 AND COUNT(*) < 3000 AND COUNT(*) < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # With LIMIT
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 LIMIT 1
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # SQL_CALC_FOUND_ROWS
+--let $query= SELECT SQL_CALC_FOUND_ROWS COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10
+--let $expect_stop= 1
+--let $show_found_rows= 1
+--disable_ps2_protocol
+--source having_early_stop.inc
+--enable_ps2_protocol
+--let $show_found_rows= 0
+
+--echo # Non-integer constant
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2.5
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo # NOT(COUNT(*) >= 10) is turned into COUNT(*) < 10 at parse time
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING NOT (COUNT(*) >= 10)
+--let $expect_stop= 1
+--source having_early_stop.inc
+
+--echo #
+--echo # Section 2: conditions are true, the scan must run to the end
+--echo #
+
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 1000
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # c is NULL on every row that passes WHERE, so COUNT(c)=0 stays true
+--let $query= SELECT COUNT(c) AS cnt_c FROM t1 WHERE a <= 900 HAVING COUNT(c)=0
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Empty input: COUNT(*)=0 over no rows still returns the row
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a < 0 HAVING COUNT(*) = 0
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo #
+--echo # Section 3: shapes that are NOT stoppable, result must be correct and
+--echo #            the scan must be complete
+--echo #
+
+--echo # Equality with non-zero constant is not monotonic
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 5
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 1000
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # COUNT(*) = 0.5 is never true, but only COUNT(*) = 0 is known to be final
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 0.5
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Temporal constant: COUNT is converted to a date, which is not monotonic
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < DATE'2000-01-01'
+--let $expect_stop= 0
+--source having_early_stop.inc
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= TIMESTAMP'2000-01-01 00:00:00'
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Opposite direction, and <>
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) > 10
+--let $expect_stop= 0
+--source having_early_stop.inc
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <> 0
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Top-level OR
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 OR COUNT(*) > 500
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # COUNT(DISTINCT) is computed only at the end
+--let $query= SELECT COUNT(DISTINCT b) AS cnt_dist_b FROM t1 WHERE a > 0 HAVING COUNT(DISTINCT b) < 10
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+
+--echo # Comparison against a non-constant
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < MAX(b) - 990
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Other aggregates (future work)
+--let $query= SELECT MAX(b) AS max_b FROM t1 WHERE a > 0 HAVING MAX(b) < 10
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # A constant expression is cached, not a literal, so it is not used
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 5 + 5
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # Constants that are not literals are not used: @v (also inside an
+--echo # expression, which becomes a <cache> filled on first read) is
+--echo # changed by a stored function while the rows are read, so the HAVING
+--echo # result depends on its final value (full scan, 1000 rows counted)
+DELIMITER $$;
+CREATE FUNCTION set_v(x INT) RETURNS INT
+BEGIN
+  SET @v= IF(x=1, 0, 5000);
+  RETURN 1;
+END
+$$
+DELIMITER ;$$
+SET @v= 5000;
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE set_v(a) HAVING COUNT(*) < @v
+--let $expect_stop= 0
+--source having_early_stop.inc
+SET @v= 5000;
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE set_v(a) HAVING COUNT(*) < @v + 0
+--let $expect_stop= 0
+--source having_early_stop.inc
+DROP FUNCTION set_v;
+
+--echo # NULL constant: HAVING is never TRUE, but the NULL is not used
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < NULL
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo # GROUP BY with several groups: a stop on one group must not hide the
+--echo # later group g=5 whose v is all NULL
+CREATE TABLE t3 (g INT, v INT) ENGINE=MyISAM;
+INSERT INTO t3 SELECT IF(seq <= 600, 3, 5), IF(seq <= 600, seq, NULL) FROM seq_1_to_1000;
+--let $expect_stop= 0
+--let $query= SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING g = 5 AND COUNT(v) = 0
+--source having_early_stop.inc
+--let $query= SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING g = 3 AND COUNT(v) < 10
+--source having_early_stop.inc
+--let $query= SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING COUNT(v) = 0
+--source having_early_stop.inc
+--let $query= SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g WITH ROLLUP HAVING COUNT(v) < 10
+--source having_early_stop.inc
+DROP TABLE t3;
+
+--echo # Window function with implicit grouping
+--let $query= SELECT COUNT(*) AS cnt, ROW_NUMBER() OVER () AS rn FROM t1 WHERE a > 0 HAVING COUNT(*) < 10
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo #
+--echo # Section 4: prepared statements, constant changes between executions
+--echo #
+PREPARE stmt FROM 'SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < ?';
+SET @lim= 10;
+--let $query= EXECUTE stmt USING @lim
+--let $expect_stop= 1
+--source having_early_stop.inc
+SET @lim= 1001;
+--let $query= EXECUTE stmt USING @lim
+--let $expect_stop= 0
+--source having_early_stop.inc
+SET @lim= 1000;
+--let $query= EXECUTE stmt USING @lim
+--let $expect_stop= 0
+--source having_early_stop.inc
+SET @lim= 5;
+--let $query= EXECUTE stmt USING @lim
+--let $expect_stop= 1
+--source having_early_stop.inc
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # Section 5: stored function in the aggregate argument sees fewer rows
+--echo #            but the result is unchanged
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(x INT) RETURNS INT DETERMINISTIC RETURN x;
+$$
+DELIMITER ;$$
+--let $query= SELECT COUNT(f1(b)) AS cnt_f1 FROM t1 HAVING COUNT(f1(b)) < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT COUNT(f1(b)) AS cnt_f1 FROM t1 HAVING COUNT(f1(b)) < 2000
+--let $expect_stop= 0
+--source having_early_stop.inc
+DROP FUNCTION f1;
+
+--echo #
+--echo # Section 6: ORDER BY / DISTINCT on the single result row
+--echo #
+--let $query= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 ORDER BY 1
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT DISTINCT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10
+--let $expect_stop= 1
+--source having_early_stop.inc
+--let $query= SELECT DISTINCT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000
+--let $expect_stop= 0
+--source having_early_stop.inc
+
+--echo #
+--echo # Section 7: other query shapes, the result must stay correct
+--echo #
+
+--echo # Derived table and view with the condition pushed into HAVING
+SELECT * FROM (SELECT COUNT(*) AS c FROM t1) dt WHERE c < 10;
+SELECT * FROM (SELECT COUNT(*) AS c FROM t1) dt WHERE c < 2000;
+CREATE VIEW v1 AS SELECT COUNT(*) AS c FROM t1;
+SELECT * FROM v1 WHERE c < 10;
+SELECT * FROM v1 WHERE c < 2000;
+DROP VIEW v1;
+
+--echo # IN subquery converted to EXISTS, HAVING with a stoppable conjunct
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='materialization=off,semijoin=off';
+SELECT 5 IN (SELECT COUNT(*) FROM t2 HAVING COUNT(*) < 10) AS in_res;
+SELECT 1000 IN (SELECT COUNT(*) FROM t2 HAVING COUNT(*) < 2000) AS in_res;
+SET optimizer_switch= @save_optimizer_switch;
+
+--echo # Large constants
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 18446744073709551615;
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 1e300;
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 123456789012345678901234567890.5;
+
+--echo # Prepared statement executed with a DATE parameter
+PREPARE stmt FROM 'SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < ?';
+SET @d= DATE'2000-01-01';
+EXECUTE stmt USING @d;
+DEALLOCATE PREPARE stmt;
+
+--echo # Correlated subquery, executed for several outer values
+SELECT a, (SELECT COUNT(*) FROM t2 WHERE t2.a <= t1.a HAVING COUNT(*) < 3) AS c
+FROM t1 WHERE a <= 5;
+
+--echo # Block nested loop join
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 2;
+SELECT COUNT(*) AS cnt FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 10;
+SELECT COUNT(*) AS cnt FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 2000;
+SET join_cache_level= @save_join_cache_level;
+
+--echo #
+--echo # Section 8: EXPLAIN (the optimizer trace is in having_early_stop_notembedded)
+--echo #
+--echo # The tabular format shows it in the Extra column
+EXPLAIN SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+--echo # and is not shown when it cannot be used
+EXPLAIN SELECT SUM(a) AS s FROM t1 HAVING SUM(a) < 10;
+--echo # With a join, it is shown on the first table only
+EXPLAIN SELECT COUNT(*) FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 10;
+--echo # The shortcut is shown in the JSON format
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+--echo # and is not shown when it cannot be used
+EXPLAIN FORMAT=JSON SELECT SUM(a) AS s FROM t1 HAVING SUM(a) < 10;
+
+--echo #
+--echo # Section 9: the plan shows having_shortcut, but the scan is not
+--echo #            stopped, or stopped late (and the NULL constant, which
+--echo #            has no having_shortcut)
+--echo #
+--echo # having_shortcut only says that the scan may stop. It does so only if
+--echo # the condition becomes FALSE before the last row is read.
+
+--echo # Exact row counts
+--disable_ps_protocol
+--disable_view_protocol
+--disable_cursor_protocol
+
+--let $q= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000
+--eval EXPLAIN FORMAT=JSON $q
+--echo # Never FALSE: all 1000 rows are read
+FLUSH STATUS;
+--eval $q
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+
+--let $q= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 1000
+--eval EXPLAIN FORMAT=JSON $q
+--echo # FALSE would need 1001 rows, there are 1000
+FLUSH STATUS;
+--eval $q
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+
+--let $q= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < NULL
+--eval EXPLAIN FORMAT=JSON $q
+--echo # A NULL constant is not used: no having_shortcut and no early stop
+FLUSH STATUS;
+--eval $q
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+
+--let $q= SELECT COUNT(c) AS cnt FROM t1 HAVING COUNT(c) < 50
+--eval EXPLAIN FORMAT=JSON $q
+--echo # c is NULL for 900 rows: the scan stops, but only at row 950
+FLUSH STATUS;
+--eval $q
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+
+--let $q= SELECT COUNT(*) AS cnt FROM t1 WHERE a > 990 HAVING COUNT(*) < 50
+--eval EXPLAIN FORMAT=JSON $q
+--echo # WHERE leaves 10 rows, all of them are scanned, HAVING stays TRUE
+FLUSH STATUS;
+--eval $q
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+
+--enable_cursor_protocol
+--enable_view_protocol
+--enable_ps_protocol
+
+--echo #
+--echo # Section 10: constants evaluated at optimize time, and errors
+--echo #
+
+--echo # EXPLAIN must not evaluate a scalar-subquery constant at optimize time
+--disable_ps_protocol
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a > 0 HAVING COUNT(*) = (SELECT a FROM t2) + 0;
+--error ER_SUBQUERY_NO_1_ROW
+SELECT COUNT(*) FROM t1 WHERE a > 0 HAVING COUNT(*) = (SELECT a FROM t2) + 0;
+--enable_ps_protocol
+
+--echo # An error raised on a row after the stop point is not seen, as with LIMIT
+DELIMITER $$;
+CREATE FUNCTION f_err(x INT) RETURNS INT
+BEGIN
+  IF x > 500 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row too far';
+  END IF;
+  RETURN 1;
+END
+$$
+DELIMITER ;$$
+SELECT COUNT(*) AS cnt FROM t1 WHERE f_err(a) HAVING COUNT(*) < 10;
+--error ER_SIGNAL_EXCEPTION
+SELECT COUNT(*) AS cnt FROM t1 WHERE f_err(a) HAVING COUNT(*) < 2000;
+DROP FUNCTION f_err;
+
+DROP TABLE t1, t2, t4;
+
+--echo # End of 13.3 tests

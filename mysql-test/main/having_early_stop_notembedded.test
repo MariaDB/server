@@ -1,0 +1,21 @@
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-38303: Stop the scan early when an aggregate HAVING conjunct
+--echo #             can no longer become true (optimizer trace)
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq FROM seq_1_to_1000;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SET optimizer_trace= 'enabled=on';
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.having_shortcut')) AS having_shortcut
+FROM information_schema.optimizer_trace;
+SET optimizer_trace= 'enabled=off';
+
+DROP TABLE t1;
+
+--echo # End of 13.3 tests
