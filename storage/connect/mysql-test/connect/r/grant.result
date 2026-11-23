@@ -602,3 +602,15 @@ DROP USER user@localhost;
 # End of grant.inc
 #
 set sql_mode=default;
+#
+# Discovery of a CSV table requires the FILE privilege
+#
+CREATE USER user@localhost;
+GRANT CREATE ON test.* TO user@localhost;
+connect user,localhost,user,,test;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='nonexistent.csv';
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+disconnect user;
+connection default;
+DROP USER user@localhost;
+# End of 10.11 tests

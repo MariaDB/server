@@ -63,6 +63,20 @@ source include/wait_until_count_sessions.inc;
 drop user test2@'%';
 
 --echo #
+--echo # MDEV-41491 parsec ASAN crash on manually modified mysql.global_priv table
+--echo #
+
+insert mysql.global_priv values ('localhost', 'u', '{"access":0,"plugin":"parsec"}');
+flush privileges;
+show create user u@localhost;
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error 2012
+connect u,localhost,u;
+drop user u@localhost;
+
+--echo # End of 11.8 tests
+
+--echo #
 --echo # MDEV-35254 PARSEC plugin should allow DBAs to specify number of iterations
 --echo #
 

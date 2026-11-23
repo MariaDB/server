@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2025, MariaDB plc
+  Copyright (c) 2025, 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -42,6 +42,8 @@ struct digest {
 
 #define ITERATION_MULTIPLIER 1000
 
+#define MAX_RSA_SIZE            512 /* enough up to 4096-bit keys */
+
 static unsigned char request_public_key = '\2';
 static unsigned char perform_full_authentication = '\4';
 
@@ -61,8 +63,8 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   unsigned char scramble[SCRAMBLE_LENGTH + 1], *pkt;
   int pkt_len;
   MYSQL_PLUGIN_VIO_INFO vio_info;
-  unsigned char plain_text[1025];
-  size_t plain_text_len= sizeof(plain_text)-1;
+  unsigned char plain_text[MAX_RSA_SIZE];
+  size_t plain_text_len= sizeof(plain_text);
 
   make_salt(scramble);
   scramble[SCRAMBLE_LENGTH]= 0;
@@ -117,6 +119,9 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
         return CR_ERROR;
     }
 
+    if (pkt_len > MAX_RSA_SIZE)
+      return CR_AUTH_HANDSHAKE;
+
     if (ssl_decrypt(private_key, pkt, pkt_len, plain_text, &plain_text_len))
       return CR_ERROR;
 
@@ -129,6 +134,9 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   }
   /* now pkt contains plaintext password */
 
+  if (pkt_len > MAX_RSA_SIZE)
+    return CR_AUTH_HANDSHAKE;
+
   authstr= (struct digest*)info->auth_string;
   sha256_crypt_r(pkt, pkt_len-1, authstr->salt, sizeof(authstr->salt),
                  to, authstr->iterations);
@@ -138,6 +146,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   return CR_OK;
 }
 
+#define MAX_PASSWORD_LEN (MAX_RSA_SIZE - 2*SHA_DIGEST_LENGTH - 2)
 static int password_hash(const char *password, size_t password_length,
                          char *hash, size_t *hash_length)
 {
@@ -145,6 +154,13 @@ static int password_hash(const char *password, size_t password_length,
 
   if (*hash_length < PASSWORD_LEN)
     return 1;
+
+  if (password_length > MAX_PASSWORD_LEN)
+  {
+    my_printf_error(ER_PASSWD_LENGTH, "Password should be "
+                    "no more than %u bytes long", 0, MAX_PASSWORD_LEN);
+    return 1;
+  }
 
   if (!password_length)
     return (int)(*hash_length= 0);
@@ -164,15 +180,20 @@ static int digest_to_binary(const char *hash, size_t hash_length,
                             unsigned char *out, size_t *out_length)
 {
   struct digest *authstr= (struct digest*)out;
-  assert(*out_length > sizeof(*authstr));
-  *out_length= sizeof(*authstr);
-  memset(out, 0, *out_length);
+  if (hash_length == 0)
+  {
+    *out_length= 0;
+    return 0;
+  }
   if (hash_length != PASSWORD_LEN)
   {
     my_printf_error(ER_PASSWD_LENGTH, "Password hash should be "
                     "%zu characters long", 0, PASSWORD_LEN);
     return 1;
   }
+  assert(*out_length >= sizeof(*authstr));
+  *out_length= sizeof(*authstr);
+  memset(out, 0, *out_length);
   if (sscanf(hash, "$A$%X$%20c%43c", &authstr->iterations, authstr->salt,
              authstr->crypted) < 3)
   {

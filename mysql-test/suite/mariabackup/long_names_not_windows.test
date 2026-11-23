@@ -1,0 +1,23 @@
+--source include/not_windows.inc
+
+--echo #
+--echo # MDEV-40862 mariadb-backup --backup crashes on database and table names that expand to nearly 255 bytes in the file system
+--echo #
+CREATE DATABASE `d..................................................aaaa`;
+CREATE VIEW `d..................................................aaaa`.`q` AS SELECT 1 AS id;
+CREATE VIEW `d..................................................aaaa`.`t................................................aaaaaaaa` AS SELECT 1 AS id;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log;
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backup_log 2>&1;
+
+let SEARCH_FILE=$backup_log;
+let SEARCH_PATTERN=Can.t create file .*File name too long;
+source include/search_pattern_in_file.inc;
+remove_file $backup_log;
+rmdir $targetdir;
+
+DROP DATABASE `d..................................................aaaa`;
+
+--echo # End of 10.11 tests

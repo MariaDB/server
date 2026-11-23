@@ -1,0 +1,61 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-40374 I_S.metadata_lock_info shows schema/table that user has no privileges on
+--echo #
+create database db1;
+create table db1.t1 (a int);
+create table t2 (b int);
+create user u1@localhost;
+grant select, execute on test.* to u1@localhost;
+create user u2@localhost;
+grant process on *.* to u2@localhost;
+create definer=u1@localhost function f1() returns int
+  sql security definer return get_lock('l1', 100);
+
+begin;
+select * from db1.t1;
+
+connect u1a,localhost,u1;
+begin;
+select * from t2;
+
+connect u1b,localhost,u1;
+--sorted_result
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+select get_lock('l1', 0);
+
+--echo # a thread in a routine of u1 does not belong to u1
+connection default;
+--send select f1()
+
+connect u2,localhost,u2;
+let $wait_condition= select count(*) = 1 from information_schema.processlist
+  where state = 'User lock';
+--source include/wait_condition.inc
+--sorted_result
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+disconnect u2;
+
+connection u1b;
+--sorted_result
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+select release_lock('l1');
+disconnect u1b;
+
+connection default;
+--reap
+
+connection u1a;
+commit;
+disconnect u1a;
+
+connection default;
+commit;
+drop function f1;
+drop user u1@localhost;
+drop user u2@localhost;
+drop table t2;
+drop database db1;
+
+--echo # End of 10.11 tests
