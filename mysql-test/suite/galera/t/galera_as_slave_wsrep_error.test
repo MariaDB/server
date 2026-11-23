@@ -97,4 +97,8 @@ CALL mtr.add_suppression("WSREP: transaction size limit");
 CALL mtr.add_suppression("WSREP: rbr write fail");
 
 --connection node_3
-RESET MASTER;
+--source include/reset_master.inc
+
+--connection node_1
+--source include/galera_end.inc
+
