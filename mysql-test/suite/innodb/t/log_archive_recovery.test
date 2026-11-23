@@ -1,0 +1,16 @@
+--source include/log_archive_recovery_setup.inc
+--source include/kill_mysqld.inc
+--perl
+truncate "$ENV{MARIADB_DATADIR}/ib_$ENV{FIRST_LSN}.log", $ENV{SIZE} or
+  die "ib_$ENV{FIRST_LSN}.log: $!";
+open(my $f, '>', "$ENV{MARIADB_DATADIR}/ib_$ENV{NEXT_LSN}.log") or
+  die "ib_$ENV{NEXT_LSN}.log: $!";
+truncate $f, 4<<20 or die "truncate: $!";
+close($f);
+EOF
+--source include/start_mysqld.inc
+SELECT COUNT(*) FROM t1;
+SET GLOBAL innodb_log_archive=OFF;
+--remove_files_wildcard $MARIADB_DATADIR ib_*.log
+evalp SET GLOBAL innodb_log_archive=$archive;
+DROP TABLE t1;
