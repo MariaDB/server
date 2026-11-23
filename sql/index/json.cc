@@ -354,7 +354,7 @@ int json_index::insert_row(TABLE *tbl, KEY *keyinfo)
   if (err == EOF || err == 0)
     return 0;
   if (err == HA_ERR_BAD_FIELD_VALUE)
-    tbl->file->lookup_errkey= keyinfo - tbl->key_info;
+    tbl->file->lookup_errkey= (uint) (keyinfo - tbl->key_info);
   return err;
 }
 
