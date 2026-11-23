@@ -1289,6 +1289,33 @@ public:
   /** Amount of pages in extended buffr pool file and the size of
   ext_buf_pages_array */
   size_t extended_pages;
+  /** innodb_extended_buffer_pool_admission_pct: percentage (0..100) of
+  clean pages evicted from the buffer pool that are admitted to (written
+  to) the extended buffer pool instead of just being freed;
+  protected by mutex */
+  uint ext_bp_admission_pct;
+  /** Error accumulator of the Bresenham-style selector that spreads
+  ext_bp_admission_pct admissions evenly over every 100 candidates;
+  always less than 100; protected by mutex */
+  uint ext_bp_admission_acc;
+
+  /** Decide whether the next evicted clean page should be admitted to
+  (written to) the extended buffer pool, so that ext_bp_admission_pct out
+  of every 100 calls return true, with the admissions evenly spread.
+  @return whether to admit the page to the extended buffer pool */
+  bool ext_bp_admit_next() noexcept
+  {
+    mysql_mutex_assert_owner(&mutex);
+    ut_ad(ext_bp_admission_acc < 100);
+    /* ext_bp_admission_pct is bounded to 0..100 by the sysvar, so
+    ext_bp_admission_acc stays below 100 after the subtraction. */
+    ut_ad(ext_bp_admission_pct <= 100);
+    ext_bp_admission_acc+= ext_bp_admission_pct;
+    if (ext_bp_admission_acc < 100)
+      return false;
+    ext_bp_admission_acc-= 100;
+    return true;
+  }
 #ifdef UNIV_DEBUG
   /** Shows if force LRU eviction to external buffer poll is currently on.
   Debug only. */

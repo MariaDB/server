@@ -1478,6 +1478,7 @@ bool buf_pool_t::create() noexcept
   n_blocks_to_withdraw= 0;
   UT_LIST_INIT(free, &buf_page_t::list);
   UT_LIST_INIT(ext_free, &ext_buf_page_t::free_list);
+  ext_bp_admission_acc= 0;
   ut_d(force_LRU_eviction_to_ebp= 0);
 
   const size_t ssize= srv_page_size_shift - UNIV_PAGE_SIZE_SHIFT_MIN;

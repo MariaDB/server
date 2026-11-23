@@ -30,6 +30,8 @@ SET @old_debug_dbug = @@debug_dbug;
 
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+SET @old_admission_pct = @@GLOBAL.innodb_extended_buffer_pool_admission_pct;
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 100;
 SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
 
 while($i) {

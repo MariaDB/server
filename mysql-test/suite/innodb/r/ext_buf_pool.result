@@ -3,6 +3,8 @@ connect  prevent_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+SET @old_admission_pct = @@GLOBAL.innodb_extended_buffer_pool_admission_pct;
+SET GLOBAL innodb_extended_buffer_pool_admission_pct = 100;
 SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
 SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
 ###################################################################
