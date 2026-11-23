@@ -86,7 +86,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.002040096,
+                        "cost": 0.007040096,
                         "chosen": true
                       }
                     ],
@@ -106,7 +106,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                       "ranges": ["(2) MEMBER OF (tags)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 0.002040096,
+                    "cost_for_plan": 0.007040096,
                     "chosen": true
                   }
                 }
@@ -150,7 +150,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                           "rows": 1,
                           "rows_after_filter": 1,
                           "rows_out": 1,
-                          "cost": 0.001835296,
+                          "cost": 0.006835296,
                           "chosen": true
                         }
                       ],
@@ -159,7 +159,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                         "index": "arr_idx",
                         "rows_read": 1,
                         "rows_out": 1,
-                        "cost": 0.001835296,
+                        "cost": 0.006835296,
                         "uses_join_buffering": false
                       }
                     }
@@ -170,14 +170,14 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags)	{
                 "plan_prefix": "",
                 "table": "t",
                 "rows_for_plan": 1,
-                "cost_for_plan": 0.001835296
+                "cost_for_plan": 0.006835296
               }
             ]
           },
           {
             "best_join_order": ["t"],
             "rows": 1,
-            "cost": 0.001835296
+            "cost": 0.006835296
           },
           {
             "substitute_best_equal": {
@@ -294,7 +294,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.002040096,
+                        "cost": 0.007040096,
                         "chosen": true
                       },
                       {
@@ -304,7 +304,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 1,
-                        "cost": 0.002040096,
+                        "cost": 0.007040096,
                         "chosen": false,
                         "cause": "cost"
                       }
@@ -325,7 +325,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                       "ranges": ["(2) MEMBER OF (tags)"]
                     },
                     "rows_for_plan": 1,
-                    "cost_for_plan": 0.002040096,
+                    "cost_for_plan": 0.007040096,
                     "chosen": true
                   }
                 }
@@ -369,7 +369,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                           "rows": 1,
                           "rows_after_filter": 1,
                           "rows_out": 1,
-                          "cost": 0.001835296,
+                          "cost": 0.006835296,
                           "chosen": true
                         }
                       ],
@@ -378,7 +378,7 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                         "index": "arr_idx",
                         "rows_read": 1,
                         "rows_out": 1,
-                        "cost": 0.001835296,
+                        "cost": 0.006835296,
                         "uses_join_buffering": false
                       }
                     }
@@ -389,14 +389,14 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags)	{
                 "plan_prefix": "",
                 "table": "t",
                 "rows_for_plan": 1,
-                "cost_for_plan": 0.001835296
+                "cost_for_plan": 0.006835296
               }
             ]
           },
           {
             "best_join_order": ["t"],
             "rows": 1,
-            "cost": 0.001835296
+            "cost": 0.006835296
           },
           {
             "substitute_best_equal": {
@@ -522,12 +522,12 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags)	{
                                 "using_mrr": false,
                                 "index_only": true,
                                 "rows": 1,
-                                "cost": 0.002040096,
+                                "cost": 0.007040096,
                                 "chosen": true
                               }
                             ],
                             "index_to_merge": "arr_idx",
-                            "cumulated_cost": 0.002040096
+                            "cumulated_cost": 0.007040096
                           },
                           {
                             "range_scan_alternatives": [
@@ -538,15 +538,15 @@ SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags)	{
                                 "using_mrr": false,
                                 "index_only": true,
                                 "rows": 1,
-                                "cost": 0.002040096,
+                                "cost": 0.007040096,
                                 "chosen": true
                               }
                             ],
                             "index_to_merge": "arr_idx",
-                            "cumulated_cost": 0.004080192
+                            "cumulated_cost": 0.014080192
                           }
                         ],
-                        "cost_of_reading_ranges": 0.004080192,
+                        "cost_of_reading_ranges": 0.014080192,
                         "chosen": false,
                         "cause": "cost"
                       }
