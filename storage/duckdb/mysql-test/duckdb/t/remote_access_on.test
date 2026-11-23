@@ -5,3 +5,5 @@
 --echo #
 SELECT @@GLOBAL.duckdb_allow_remote_access;
 SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
+
+SELECT run_in_duckdb('SELECT current_setting(''enable_external_access'')');

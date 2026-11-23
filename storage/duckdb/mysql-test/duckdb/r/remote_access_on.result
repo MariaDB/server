@@ -13,3 +13,11 @@ autoinstall_known_extensions	true
 autoload_known_extensions	true
 
 
+SELECT run_in_duckdb('SELECT current_setting(''enable_external_access'')');
+run_in_duckdb('SELECT current_setting(''enable_external_access'')')
+current_setting('enable_external_access')	
+BOOLEAN	
+[ Rows: 1]
+true
+
+

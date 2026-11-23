@@ -1570,8 +1570,10 @@ static MYSQL_SYSVAR_BOOL(use_double_for_decimal,
 
 static MYSQL_SYSVAR_BOOL(allow_remote_access, myduck::allow_remote_access,
                          PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-                         "Allow DuckDB to auto-install and load extensions "
-                         "such as httpfs (network access)",
+                         "Allow DuckDB external access: loading and auto-installing "
+                         "extensions such as httpfs (network access), and "
+                         "reading and writing files. If OFF, external access "
+                         "is switched off at startup",
                          NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(require_primary_key, myduck::require_primary_key,

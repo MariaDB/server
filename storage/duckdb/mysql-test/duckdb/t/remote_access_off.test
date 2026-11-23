@@ -7,3 +7,24 @@ SELECT @@GLOBAL.duckdb_allow_remote_access;
 SELECT run_in_duckdb('SELECT name, value FROM duckdb_settings() WHERE name IN (''autoinstall_known_extensions'', ''autoload_known_extensions'') ORDER BY name');
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SET GLOBAL duckdb_allow_remote_access = ON;
+
+--echo # A SUPER user cannot bring remote access back, or read and write files
+SELECT run_in_duckdb('LOAD httpfs');
+SELECT run_in_duckdb('LOAD ''/nonexistent/httpfs.duckdb_extension''');
+--replace_regex /(Cannot access directory ").*(" - )/\1<dir>\2/
+SELECT run_in_duckdb('INSTALL httpfs');
+SELECT run_in_duckdb('SELECT * FROM read_csv(''http://127.0.0.1:1/x.csv'')');
+SELECT run_in_duckdb('COPY (SELECT 1) TO ''/nonexistent/file.csv''');
+SELECT run_in_duckdb('ATTACH ''/nonexistent/file.db'' AS other');
+--echo # Autoload can be set, it changes nothing
+SELECT run_in_duckdb('SET autoload_known_extensions=true');
+SELECT run_in_duckdb('LOAD httpfs');
+SELECT run_in_duckdb('SET enable_external_access=true');
+
+--echo # The engine still works
+--disable_warnings
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1,'x'),(2,'y');
+SELECT * FROM t1 ORDER BY a;
+--enable_warnings
+DROP TABLE t1;

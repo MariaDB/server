@@ -15,3 +15,47 @@ autoload_known_extensions	false
 
 SET GLOBAL duckdb_allow_remote_access = ON;
 ERROR HY000: Variable 'duckdb_allow_remote_access' is a read only variable
+# A SUPER user cannot bring remote access back, or read and write files
+SELECT run_in_duckdb('LOAD httpfs');
+run_in_duckdb('LOAD httpfs')
+Permission Error: Loading external extensions is disabled through configuration
+SELECT run_in_duckdb('LOAD ''/nonexistent/httpfs.duckdb_extension''');
+run_in_duckdb('LOAD ''/nonexistent/httpfs.duckdb_extension''')
+Permission Error: Loading external extensions is disabled through configuration
+SELECT run_in_duckdb('INSTALL httpfs');
+run_in_duckdb('INSTALL httpfs')
+Permission Error: Cannot access directory "<dir>" - file system operations are disabled by configuration
+SELECT run_in_duckdb('SELECT * FROM read_csv(''http://127.0.0.1:1/x.csv'')');
+run_in_duckdb('SELECT * FROM read_csv(''http://127.0.0.1:1/x.csv'')')
+Permission Error: Cannot access file "http://127.0.0.1:1/x.csv" - file system operations are disabled by configuration
+
+LINE 1: SELECT * FROM read_csv('http://127.0.0.1:1/x.csv')
+                      ^
+SELECT run_in_duckdb('COPY (SELECT 1) TO ''/nonexistent/file.csv''');
+run_in_duckdb('COPY (SELECT 1) TO ''/nonexistent/file.csv''')
+Permission Error: Cannot access file "/nonexistent/file.csv" - file system operations are disabled by configuration
+SELECT run_in_duckdb('ATTACH ''/nonexistent/file.db'' AS other');
+run_in_duckdb('ATTACH ''/nonexistent/file.db'' AS other')
+Permission Error: Cannot access file "/nonexistent/file.db" - file system operations are disabled by configuration
+# Autoload can be set, it changes nothing
+SELECT run_in_duckdb('SET autoload_known_extensions=true');
+run_in_duckdb('SET autoload_known_extensions=true')
+Success	
+BOOLEAN	
+[ Rows: 0]
+
+
+SELECT run_in_duckdb('LOAD httpfs');
+run_in_duckdb('LOAD httpfs')
+Permission Error: Loading external extensions is disabled through configuration
+SELECT run_in_duckdb('SET enable_external_access=true');
+run_in_duckdb('SET enable_external_access=true')
+Invalid Input Error: Cannot enable external access while database is running
+# The engine still works
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=DuckDB;
+INSERT INTO t1 VALUES (1,'x'),(2,'y');
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	x
+2	y
+DROP TABLE t1;

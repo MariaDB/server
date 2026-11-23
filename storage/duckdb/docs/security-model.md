@@ -77,14 +77,20 @@ The shared instance is created in `DuckdbManager::Initialize()` with
 performance-oriented settings (memory limit, threads, temp directory,
 checkpoint threshold). Relevant to security:
 
-- `enable_external_access` is **left at its default (enabled)** — filesystem
-  access is permitted.
-- `autoload_known_extensions` and `autoinstall_known_extensions` follow the
-  read-only `duckdb_allow_remote_access` variable, **OFF by default**, so
-  extensions such as `httpfs` are not fetched or loaded on demand. Set it to ON
-  at startup to allow remote access.
+- `enable_external_access` is **left at its default (enabled)** only when
+  `duckdb_allow_remote_access` is ON — filesystem access is then permitted.
+- With the read-only `duckdb_allow_remote_access` variable **OFF (the default)**,
+  autoload and autoinstall are false and `enable_external_access` is switched
+  **off** at startup. DuckDB then refuses to `INSTALL` or `LOAD` any extension
+  (by name or path), to read or write any file or URL, and to `ATTACH` a file,
+  and it cannot be switched on again while the server runs. Turning only
+  autoload off is not enough: `SET autoload_known_extensions=true` or
+  `LOAD httpfs` brings the network back. With it ON, external access is on and
+  extensions autoload and autoinstall. `lock_configuration` is not used, the
+  engine sets session options such as `TimeZone` on every session.
 - No `allowed_directories`, `allow_community_extensions=false`, or
-  `lock_configuration` restrictions are applied.
+  `lock_configuration` restrictions are applied (`allowed_directories` cannot
+  be set once external access is off).
 
 These are reasonable defaults for a single-tenant analytical box, but they leave
 the DuckDB SQL surface fully open to anyone who can reach it via
@@ -105,10 +111,11 @@ user, on the shared instance, a caller can:
   `read_csv(...)`), enabling data exfiltration.
 - **Write arbitrary local files** as the server user
   (e.g. `COPY (...) TO '/path/file'`), which can corrupt data, fill disks, or
-  serve as a step toward code execution.
+  serve as a step toward code execution. Only with `duckdb_allow_remote_access`
+  ON, otherwise file access is refused.
 - **Reach the network** via extensions such as `httpfs`, enabling SSRF and
-  exfiltration to remote endpoints. Automatic install/load is off by default
-  (`duckdb_allow_remote_access`), but an explicit `INSTALL httpfs` still works.
+  exfiltration to remote endpoints. This is closed by default, see
+  `duckdb_allow_remote_access`; with it ON it is open.
 - **Attach external databases** (`ATTACH`) and read/modify their contents.
 - **Change global DuckDB settings** on the shared instance (e.g. `SET GLOBAL
   memory_limit`/`threads`), enabling resource-exhaustion / denial of service
@@ -151,7 +158,7 @@ For operators:
 (OFF by default) and the `SUPER` privilege. Further engine hardening remains
 unimplemented (out of scope for this document but worth tracking): applying and
 locking DuckDB security configuration at instance creation —
-`enable_external_access=false`, `allow_community_extensions=false`, `allowed_directories`, and
+`allow_community_extensions=false`, `allowed_directories`, and
 `lock_configuration=true` — and/or replacing the coarse `SUPER` check with a
 dedicated per-function privilege.
 
