@@ -3739,6 +3739,16 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
   buf_pool.resize(*static_cast<const size_t*>(save), thd);
 }
 
+/** Update a field that is protected by buf_pool.mutex */
+template<typename T>
+static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
+                                   void *val, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  *static_cast<T*>(val)= *static_cast<const T*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 static void innodb_extended_buffer_pool_size_update(THD *thd,
                                                     st_mysql_sys_var *, void *,
                                                     const void *save)
@@ -3823,6 +3833,15 @@ static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Directory for the extended buffer pool file (default: the data directory)",
   nullptr, nullptr, nullptr);
+
+static MYSQL_SYSVAR_UINT(extended_buffer_pool_admission_pct,
+  buf_pool.ext_bp_admission_pct,
+  PLUGIN_VAR_RQCMDARG,
+  "Percentage of clean pages evicted from the buffer pool that are"
+  " admitted to (written to) the extended buffer pool; 0 stops new"
+  " admissions, but pages already in the extended buffer pool can still"
+  " be read",
+  nullptr, innodb_buf_pool_update<uint>, 100, 0, 100, 0);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(force_LRU_eviction, buf_pool.force_LRU_eviction_to_ebp,
@@ -19327,16 +19346,6 @@ innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 	return(fts_retrieve_ranking(result, ft_prebuilt->fts_doc_id));
 }
 
-/** Update a field that is protected by buf_pool.mutex */
-template<typename T>
-static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
-                                   void *val, const void *save)
-{
-  mysql_mutex_lock(&buf_pool.mutex);
-  *static_cast<T*>(val)= *static_cast<const T*>(save);
-  mysql_mutex_unlock(&buf_pool.mutex);
-}
-
 static my_bool innodb_log_checkpoint_now;
 #ifdef UNIV_DEBUG
 static my_bool	innodb_buf_flush_list_now = TRUE;
@@ -20986,6 +20995,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_size_max),
   MYSQL_SYSVAR(extended_buffer_pool_size),
   MYSQL_SYSVAR(extended_buffer_pool_path),
+  MYSQL_SYSVAR(extended_buffer_pool_admission_pct),
 #ifdef UNIV_DEBUG
   MYSQL_SYSVAR(force_LRU_eviction),
 #endif

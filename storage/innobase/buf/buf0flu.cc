@@ -1402,7 +1402,6 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
   const size_t buf_lru_min_len=
     std::min((buf_pool.usable_size()) / 20 - 1, size_t{BUF_LRU_MIN_LEN});
 
-  ulint free_or_flush= 0;
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
        (ut_d(buf_pool.force_LRU_eviction_to_ebp ||)
@@ -1456,12 +1455,10 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
                 strncmp(space_name.data(), "test/t.ibd", space_name.size()))
               goto free_page;
           });
-      // FIXME: currently every second page is flushed, consider more
-      // suitable algorithm there
       if (state >= buf_page_t::UNFIXED &&
           !buf_pool.done_flush_list_waiters_count &&
           fil_system.ext_buf_pool_enabled() &&
-          (ut_d(buf_pool.force_LRU_eviction_to_ebp ||)((++free_or_flush) & 1)))
+          buf_pool.ext_bp_admit_next())
       {
         ut_ad(!opt_bootstrap);
         flush_to_ebp= true;

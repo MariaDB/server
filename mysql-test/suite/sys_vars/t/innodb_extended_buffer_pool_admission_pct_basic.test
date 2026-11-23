@@ -1,0 +1,49 @@
+############################################
+# Variable Name: innodb_extended_buffer_pool_admission_pct
+# Scope: GLOBAL
+# Access Type: Dynamic
+# Data Type: Integer
+# Default Value: 100
+# Range: 0-100
+############################################
+
+--source include/have_innodb.inc
+
+SET @orig = @@global.innodb_extended_buffer_pool_admission_pct;
+SELECT @orig;
+
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=20;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+# Lower boundary
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=0;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+# Upper boundary
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=100;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+# Beyond upper boundary is truncated to 100
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=101;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+# Beyond lower boundary is truncated to 0
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=-1;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=DEFAULT;
+SELECT @@global.innodb_extended_buffer_pool_admission_pct;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL innodb_extended_buffer_pool_admission_pct='foo';
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=1.5;
+
+--error ER_GLOBAL_VARIABLE
+SET innodb_extended_buffer_pool_admission_pct=50;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.innodb_extended_buffer_pool_admission_pct;
+
+SET GLOBAL innodb_extended_buffer_pool_admission_pct=@orig;
