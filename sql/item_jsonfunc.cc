@@ -5822,7 +5822,16 @@ String* Item_func_json_object_filter_keys::val_str(String *str)
   json_engine_t je1, res_je;
   String *js1= args[0]->val_json(&tmp_js1);
 
-  if (null_value || args[0]->null_value)
+  if (args[0]->null_value)
+    goto null_return;
+
+  if (parse_for_each_row)
+  {
+    /* The keys had no value when the statement was prepared */
+    if (create_keys_hash())
+      goto null_return;
+  }
+  else if (null_value)
     goto null_return;
 
   str->set_charset(js1->charset());
@@ -5863,21 +5872,31 @@ null_return:
 }
 
 
-bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
-{
-  String *js2= args[1]->val_json(&tmp_js2);
-  json_engine_t je2;
+/**
+  Build the hash of the keys from the JSON array in args[1].
 
-  if (args[1]->null_value)
-  {
-    null_value= 1;
-    return FALSE;
-  }
+  @return true if the result of the function is NULL: args[1] is NULL
+          or it is not a valid JSON array
+*/
+
+bool Item_func_json_object_filter_keys::create_keys_hash()
+{
+  json_engine_t je2;
+  String *js2= args[1]->val_json(&tmp_js2);
+
+  if (!js2 || args[1]->null_value)
+    return true;
 
   json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
                   (const uchar *) js2->ptr() + js2->length());
-  if (!root_inited)
-    init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
+
+  /* Drop the hash of the previous call, if any */
+  if (hash_inited)
+    my_hash_free(&items);
+  hash_inited= false;
+  if (root_inited)
+    free_root(&hash_root, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &hash_root, 1024, 0, MYF(0));
   root_inited= true;
 
   if (json_read_value(&je2) || je2.value_type != JSON_VALUE_ARRAY ||
@@ -5885,6 +5904,24 @@ bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
   {
     if (je2.s.error)
       report_json_error(js2, &je2, 0);
+    return true;
+  }
+  return false;
+}
+
+
+bool Item_func_json_object_filter_keys::fix_length_and_dec(THD *thd)
+{
+  /*
+    A constant is parsed once here. A parameter is not a constant when the
+    statement is prepared, but it is when the statement is executed and
+    this function is called again. Keys that change from row to row
+    are parsed by val_str().
+  */
+  null_value= 0;
+  parse_for_each_row= !args[1]->const_item();
+  if (!parse_for_each_row && create_keys_hash())
+  {
     null_value= 1;
     return FALSE;
   }

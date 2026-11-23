@@ -973,11 +973,15 @@ class Item_func_json_object_filter_keys: public Item_str_func
 protected:
   String tmp_js1, tmp_js2;
   bool hash_inited, root_inited;
+  /* The keys change from row to row: build the hash for each call */
+  bool parse_for_each_row;
   HASH items;
   MEM_ROOT hash_root;
+  bool create_keys_hash();
 public:
   Item_func_json_object_filter_keys(THD *thd, Item *a, Item *b):
-    Item_str_func(thd, a, b) { hash_inited= root_inited= false; }
+    Item_str_func(thd, a, b)
+  { hash_inited= root_inited= parse_for_each_row= false; }
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override

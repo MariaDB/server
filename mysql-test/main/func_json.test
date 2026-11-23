@@ -4480,4 +4480,12 @@ SELECT JSON_SCHEMA_VALID(@schema, @value);
 
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 
+--echo #
+--echo # MDEV-42361: Assertion `0' failed in Item_param::can_return_value()
+--echo # on PREPARE of JSON_OBJECT_FILTER_KEYS(1, ?)
+--echo #
+
+PREPARE s FROM 'SELECT JSON_OBJECT_FILTER_KEYS(1, ?)';
+DEALLOCATE PREPARE s;
+
 --echo # End of 11.4 tests
