@@ -1964,7 +1964,10 @@ dberr_t recv_sys_t::find_checkpoint()
           if (err == DB_SUCCESS)
           {
             last_checkpoint_no= log_sys.next_checkpoint_no;
-            ut_ad(last_checkpoint_no > uint16_t(4 * log_sys.is_encrypted()));
+            ut_ad(last_checkpoint_no > uint16_t(4 * log_sys.is_encrypted()) ||
+                  (lsn + SIZE_OF_FILE_CHECKPOINT +
+                   8 * log_sys.is_encrypted()) ==
+                  log_sys.get_first_lsn() + log_sys.capacity());
             ut_ad(last_checkpoint_no <= uint16_t{log_t::START_OFFSET});
             if (!recovery_start || i == found_recovery_start)
               return DB_SUCCESS;
@@ -5084,7 +5087,7 @@ recv_scan_log(const bool last_phase, const recv_sys_t::parser *parser) noexcept
     recv_sys.len= 0;
   }
 
-  if (log_sys.archive && log_sys.next_checkpoint_no)
+  if (log_sys.archive)
     log_sys.archived_switch_recovery_prepare(log_sys.get_first_lsn() +
                                              log_sys.capacity());
   lsn_t rewound_lsn= 0;
@@ -5777,7 +5780,11 @@ dberr_t recv_sys_t::find_checkpoint_archived(lsn_t first_lsn, bool silent)
     end_lsn= parse_start;
     if (end_lsn == recovery_start)
       recovery_start_checkpoint= checkpoint;
-    n_checkpoint++;
+    ut_ad(lsn >= log_sys.get_first_lsn());
+    if (UNIV_LIKELY(lsn != log_sys.get_first_lsn()))
+      n_checkpoint++;
+    else
+      n_checkpoint= 4 * log_sys.is_encrypted();
 
     if (first_lsn != log_sys.get_first_lsn())
     {
@@ -6068,8 +6075,26 @@ read_only_recovery:
 
 	if (log_sys.is_recoverable() && !srv_read_only_mode) {
 		log_sys.set_recovered();
-		if (UNIV_UNLIKELY(recv_sys.was_archive)
-		    && !log_sys.archive_rename()) {
+		if (UNIV_LIKELY(!recv_sys.was_archive)) {
+			ut_ad(!log_sys.archive
+			      || log_sys.next_checkpoint_no
+			      >= uint16_t(4 * log_sys.is_encrypted()));
+			if (log_sys.archive && log_sys.is_encrypted()
+			    && log_sys.next_checkpoint_no
+			    <= uint16_t(4 * log_sys.is_encrypted())) {
+				ut_ad(log_sys.next_checkpoint_no == 4);
+				log_sys.next_checkpoint_no = 4;
+				ut_ad(log_sys.get_first_lsn()
+				      == log_sys.get_lsn());
+				log_crypt_write_header(
+					log_sys.checkpoint_buf
+#ifdef HAVE_PMEM
+					? log_sys.checkpoint_buf
+					: log_sys.buf
+#endif
+					, true);
+			}
+		} else if (UNIV_UNLIKELY(!log_sys.archive_rename())) {
 			goto err_exit;
 		}
 	}
