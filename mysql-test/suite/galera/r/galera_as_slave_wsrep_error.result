@@ -34,4 +34,7 @@ CALL mtr.add_suppression("Slave SQL: wsrep applying failed");
 CALL mtr.add_suppression("WSREP: transaction size limit");
 CALL mtr.add_suppression("WSREP: rbr write fail");
 connection node_3;
-RESET MASTER;
+include/reset_master.inc
+connection node_1;
+disconnect node_2;
+disconnect node_1;
