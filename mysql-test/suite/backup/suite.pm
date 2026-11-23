@@ -23,6 +23,7 @@ sub skip_combinations {
   {
     my $needs= 'needs cat,tar,mariadb-backup-cat';
     $skip{'backup_stream.test'} = $needs;
+    $skip{'backup_stream_debug.test'} = $needs;
     $skip{'backup_aria_stream_concurrent.test'} = $needs;
     $skip{'backup_innodb_data_directory.test'} = $needs;
     $skip{'backup_rocksdb_stream.test'} = $needs;

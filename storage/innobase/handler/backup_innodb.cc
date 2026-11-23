@@ -604,6 +604,33 @@ private:
         }
 
         if (!fail)
+        {
+          uint64_t last_size{last_lsn - max_first_lsn + log_sys.START_OFFSET};
+          if (!(last_size & 4095) && last_size >= log_sys.FILE_SIZE_MIN)
+          {
+            std::string dst;
+            log_sys.append_archive_name(dst, last_lsn);
+            const char *name{dst.c_str()};
+            if (sink.stream == sink.NO_STREAM)
+            {
+              const my_native_file d{target->create_file(name)};
+              if (d == sink.NO_STREAM)
+                fail= -1;
+              else
+              {
+                fail= extend(d, log_sys.FILE_SIZE_MIN);
+                fail|= target->close(d);
+              }
+            }
+            else
+            {
+              const backup_chunk chunk[1]{{last_size, 0}};
+              fail= sink.create_file(name, 0666, 0, chunk, 1);
+            }
+          }
+        }
+
+        if (!fail)
           fail= write_config(*target, sink);
       }
       destroy(); /* unblock init() */
