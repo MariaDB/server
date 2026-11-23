@@ -251,5 +251,10 @@ SELECT min(bytes), format_bytes(min(bytes)) FROM memory_counts;
 DROP TABLE memory_counts;
 
 --echo #
+--echo # MDEV-42322 Preserve the unit for negative values with three-digit exponents
+--echo #
+SELECT FORMAT_BYTES(-1e125) AS bytes, LENGTH(FORMAT_BYTES(-1e125)) AS len;
+
+--echo #
 --echo # End of 11.8 tests
 --echo #

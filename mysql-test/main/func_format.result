@@ -428,5 +428,11 @@ min(bytes)	format_bytes(min(bytes))
 
 DROP TABLE memory_counts;
 #
+# MDEV-42322 Preserve the unit for negative values with three-digit exponents
+#
+SELECT FORMAT_BYTES(-1e125) AS bytes, LENGTH(FORMAT_BYTES(-1e125)) AS len;
+bytes	len
+-8.67e+106 EiB	14
+#
 # End of 11.8 tests
 #
