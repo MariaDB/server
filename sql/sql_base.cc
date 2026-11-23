@@ -10195,7 +10195,10 @@ int TABLE::hlindex_lock(uint nr)
   int res= hli->table->file->ha_external_lock(in_use,
              reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
   if (res == 0)
+  {
     hli->table->in_use= in_use;      // mark in use for this query
+    hli->table->file->set_optimizer_costs(in_use);
+  }
   if (hli->table->file->lock_count() > 0)
   {
     /*
