@@ -2905,3 +2905,23 @@ select XMLISVALID('<e>1</e>', @s) as enum_int_valid, XMLISVALID('<e>2</e>', @s) 
 set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 <xs:element name="e"><xs:simpleType><xs:restriction base="xs:boolean"><xs:enumeration value="true"/></xs:restriction></xs:simpleType></xs:element></xs:schema>';
 select XMLISVALID('<e>true</e>', @s) as enum_bool_valid, XMLISVALID('<e>false</e>', @s) as enum_bool_invalid;
+
+--echo
+--echo MDEV-41594 XMLISVALID crahes with XML sequence maxOccurs>1 loops over its elements.
+--echo
+
+set @s='
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <xs:element name="root">
+    <xs:complexType>
+      <xs:sequence maxOccurs="2">
+        <xs:element name="n" type="xs:int"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>';
+
+select XMLISVALID('<root><n>1</n></root>', @s) exp1;
+select XMLISVALID('<root><n>1</n><n>2</n></root>', @s) exp1;
+select XMLISVALID('<root><n>1</n><n>2</n><n>3</n></root>', @s) exp0;
+
