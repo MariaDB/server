@@ -51,4 +51,6 @@ set global old_mode= concat(@@global.old_mode, ',X509_LENIENT_COMPARE');
 --enable_abort_on_error
 set global old_mode= @old_mode_save;
 
+--disable_warnings
 drop user escaped_user@localhost, raw_user@localhost;
+--enable_warnings

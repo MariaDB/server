@@ -280,6 +280,8 @@ IF(WITH_WSREP)
     "MariaDB-server <= 12.3.2")
 ENDIF()
 
+SETA(CPACK_RPM_server_PACKAGE_REQUIRES "/usr/bin/ps")
+
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)
 SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postin.sh)

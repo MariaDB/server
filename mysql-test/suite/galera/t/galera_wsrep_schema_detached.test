@@ -1,5 +1,9 @@
 --source include/galera_cluster.inc
 
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.29
+source ../wsrep/include/check_galera_version.inc;
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2

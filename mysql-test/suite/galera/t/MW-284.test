@@ -65,6 +65,8 @@ DROP TABLE t1;
 --source include/wait_condition.inc
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 CALL mtr.add_suppression('failed registering on master');

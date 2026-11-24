@@ -27,8 +27,9 @@ openssl rsa -in server-key.pem -out server-key.pem
 # also create a password-protected server key
 echo MySecretPass > encrypted-server-key-password.txt
 openssl rsa -aes256 -in server-key.pem -out encrypted-server-key.pem -passout file:encrypted-server-key-password.txt
-# sign the server certificate with CA certificate
-openssl ca -keyfile cakey.pem -days 7300 -batch -cert cacert.pem -policy policy_anything -out server-cert.pem -in demoCA/server-req.pem
+# sign the server certificate with CA certificate. OpenSSL 4.1+ no longer matches the host against CN, so add a DNS SAN
+echo subjectAltName=DNS:localhost > demoCA/serverext.conf
+openssl ca -keyfile cakey.pem -extfile demoCA/serverext.conf -days 7300 -batch -cert cacert.pem -policy policy_anything -out server-cert.pem -in demoCA/server-req.pem
 
 # server certificate with different validity period (MDEV-16266) and unsafe for shell interpolation (MDEV-39413)
 openssl req -newkey rsa:4096 -keyout server-new-key.pem -out demoCA/server-new-req.pem -days 7301 -nodes -subj /CN="'\`touch A\`'"'-"`touch B`"/C=FI/ST=Helsinki/L=Helsinki/O=MariaDB'
