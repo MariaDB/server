@@ -118,6 +118,7 @@ SET (SQL_SOURCE
                ../sql-common/client_plugin.c
                opt_range.cc vector_mhnsw.cc
                opt_group_by_cardinality.cc
+               sql_parallel_workers.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
                opt_sargable_left.cc
