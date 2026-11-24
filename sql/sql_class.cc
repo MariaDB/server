@@ -6659,6 +6659,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool has_auto_increment_write_tables_not_first= FALSE;
     bool found_first_not_own_table= FALSE;
     bool has_write_tables_with_unsafe_statements= FALSE;
+    /* If a table with a non-deterministic virtual column may be read */
+    bool has_nondeterministic_vcol_reads= FALSE;
     bool blackhole_table_found= 0;
 
     /*
@@ -6779,6 +6781,20 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           has_unsafe_stmt_autoinc_lock_mode=
             table->file->autoinc_lock_mode_stmt_unsafe();
         }
+        /*
+          Reading a non-deterministic virtual column (in SELECT, or in
+          WHERE/SET of UPDATE/DELETE) may give different results on the slave.
+          The only case where this is not the case is where the non-det virtual
+          column is not read, is when the table is the target of a INSERT/REPLACE
+          /LOAD
+        */
+        if ((share->vcol_flags & (VCOL_NON_DETERMINISTIC | VCOL_SESSION_FUNC)) &&
+            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS) &&
+            !(tbl->top_table() == lex->query_tables &&
+              (sql_command_flags[lex->sql_command] & CF_INSERTS_DATA) &&
+              lex->duplicates != DUP_UPDATE &&
+              !table->triggers))
+          has_nondeterministic_vcol_reads= true;
       }
 
       if (tbl->lock_type >= TL_FIRST_WRITE)
@@ -6841,6 +6857,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         order in which the rows are fetched fron the select tables
         cannot be determined and may differ on master and slave.
       */
+      if (has_nondeterministic_vcol_reads)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
       if (has_auto_increment_write_tables && has_read_tables)
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
 

@@ -761,3 +761,68 @@ DROP TABLE create_replace_test;
 DROP TABLE insert_2_keys;
 
 --echo "End of tests"
+
+--echo #
+--echo # MDEV-10436 non-deterministic vcol does not force rbr
+--echo #
+--echo # Statements that may read a non-deterministic virtual column are
+--echo # unsafe. Each statement below should generate a warning.
+SET SESSION binlog_format = STATEMENT;
+CREATE TABLE t1 (a INT, b DOUBLE);
+CREATE TABLE t2 (a INT, b DOUBLE AS (RAND()) VIRTUAL);
+CREATE TABLE t3 (a INT PRIMARY KEY, b DOUBLE AS (RAND()) VIRTUAL, c DOUBLE);
+CREATE TABLE t5 (a INT);
+CREATE TABLE t6 (b DOUBLE);
+CREATE VIEW v2 AS SELECT a, b FROM t2;
+CREATE FUNCTION mdev10436_f() RETURNS DOUBLE READS SQL DATA
+  RETURN (SELECT MAX(b) FROM t2);
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+INSERT INTO t2 (a) VALUES (1), (2), (3);
+INSERT INTO t3 (a) VALUES (1), (2), (3);
+
+INSERT INTO t1 SELECT a, b FROM t2;
+UPDATE t1, t2 SET t1.b = t2.b WHERE t1.a = t2.a;
+INSERT INTO t1 SELECT a, b FROM v2;
+INSERT INTO t1 VALUES (4, mdev10436_f());
+INSERT INTO t1 SELECT a, b FROM t2 LOCK IN SHARE MODE;
+INSERT INTO t1 SELECT a, b FROM t2 FOR UPDATE;
+INSERT INTO t1 SELECT a, b FROM t2 FOR UPDATE SKIP LOCKED;
+CREATE TABLE t4 SELECT a, b FROM t2 FOR UPDATE;
+INSERT INTO t3 (a) VALUES (1) ON DUPLICATE KEY UPDATE c = b;
+
+CREATE TRIGGER mdev10436_tr1 AFTER INSERT ON t5 FOR EACH ROW
+  UPDATE t2 SET a = a + 1 WHERE b < 2;
+INSERT INTO t5 VALUES (1);
+
+CREATE TRIGGER mdev10436_tr2 AFTER INSERT ON t2 FOR EACH ROW
+  INSERT INTO t6 VALUES (NEW.b);
+INSERT INTO t2 (a) SELECT a FROM t1;
+DROP TRIGGER mdev10436_tr2;
+
+DELETE t1 FROM t1, t2 WHERE t1.a = t2.a AND t2.b < 0;
+UPDATE t2 SET a = a + 10 WHERE b < 2;
+DELETE FROM t2 WHERE b < 2;
+
+--echo # The following statements do not read a non-deterministic vcol,
+--echo # or read a vcol that depends only on the replicated TIMESTAMP,
+--echo # and should not generate a warning.
+INSERT INTO t2 (a) VALUES (4);
+INSERT INTO t2 (a) SELECT a FROM t1;
+INSERT INTO v2 (a) VALUES (5);
+REPLACE INTO t3 (a) VALUES (1);
+UPDATE t1 SET a = a + 1;
+CREATE TABLE t7 (a INT, c DATETIME AS (NOW()) VIRTUAL);
+INSERT INTO t7 (a) VALUES (1);
+INSERT INTO t1 (a) SELECT a FROM t7 WHERE c IS NOT NULL;
+
+SET SESSION binlog_format = MIXED;
+--echo # Check that the statement is logged in row format.
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+INSERT INTO t1 SELECT a, b FROM t2 FOR UPDATE;
+--source include/show_binlog_events.inc
+
+DROP FUNCTION mdev10436_f;
+DROP VIEW v2;
+DROP TABLE t1, t2, t3, t4, t5, t6, t7;
+
+--echo # End of 10.11 tests
