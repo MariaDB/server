@@ -1393,8 +1393,10 @@ dberr_t srv_start(bool create_new_db)
 	    && !fil_system.create_ext_file())
 		return(srv_init_abort(DB_ERROR));
 
-	size_t saved_ext_bp_size= fil_system.ext_bp_size;
-	fil_system.ext_buf_pool_disable();
+	/* Do not use the extended buffer pool before the startup is
+	complete. */
+	const size_t saved_ext_bp_size= fil_system.ext_bp_size;
+	fil_system.ext_bp_set_size(0);
 
 	srv_start_periodic_timer(buf_pool_clock_timer,
 				 buf_pool_clock_callback, 1000);
@@ -2071,7 +2073,7 @@ skip_monitors:
 	}
 
 	if (!opt_bootstrap)
-	  fil_system.ext_bp_size= saved_ext_bp_size;
+	  fil_system.ext_bp_set_size(saved_ext_bp_size);
 
 	return(DB_SUCCESS);
 }

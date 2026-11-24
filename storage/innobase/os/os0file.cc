@@ -71,6 +71,15 @@ Created 10/21/1995 Heikki Tuuri
 #include <thread>
 #include <chrono>
 
+/** @return the name of the file that an I/O request is for, for diagnostics.
+For the extended buffer pool, IORequest::node() is not valid. */
+static const char *os_io_file_name(const IORequest &type) noexcept
+{
+  if (type.ext_buf())
+    return ext_bp_file_name;
+  return type.node() ? type.node()->name : nullptr;
+}
+
 /* Per-IO operation environment*/
 class io_slots
 {
@@ -2561,8 +2570,8 @@ os_file_io(
 					  " Retrying.",
 					  n, type.is_read()
 					  ? "read" : "written", offset,
-					  type.node()
-					  ? type.node()->name
+					  os_io_file_name(type)
+					  ? os_io_file_name(type)
 					  : "(unknown file)", bytes_returned);
 		}
 
@@ -2728,13 +2737,11 @@ os_file_read_func(
   if (ulint(n_bytes) == n || err != DB_SUCCESS)
     return err;
 
-  const char *node_name= type.ext_buf()
-                             ? ext_bp_file_name
-                             : (type.node() ? type.node()->name : nullptr);
-  os_file_handle_error_no_exit(node_name, "read", false);
+  os_file_handle_error_no_exit(os_io_file_name(type), "read", false);
   sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
-                  n, offset, node_name ? node_name : "(unknown)",
+                  n, offset,
+                  os_io_file_name(type) ? os_io_file_name(type) : "(unknown)",
                   n_bytes);
 
   return err ? err : DB_IO_ERROR;
@@ -3042,7 +3049,13 @@ static void read_io_callback(void *c)
   ut_ad(read_slots->contains(cb));
   const IORequest &request= *static_cast<const IORequest*>
     (static_cast<const void*>(cb->m_userdata));
-  request.read_complete(cb->m_err);
+  int err= cb->m_err;
+  /* A read at the end of the file completes without an error, but with
+  fewer bytes. For the extended buffer pool, treat it as an I/O error, so
+  that the page is read from the data file instead. */
+  if (!err && request.ext_buf() && cb->m_ret_len != cb->m_len)
+    err= EIO;
+  request.read_complete(err);
   read_slots->release(cb);
 }
 
@@ -3058,7 +3071,8 @@ static void write_io_callback(void *c)
     ib::info () << "IO Error: " << cb->m_err
                 << " during write of "
                 << cb->m_len << " bytes, for file "
-                << request.node()->name << "(" << cb->m_fh << "), returned "
+                << os_io_file_name(request) << "(" << cb->m_fh
+                << "), returned "
                 << cb->m_ret_len;
 
   request.write_complete(cb->m_err);

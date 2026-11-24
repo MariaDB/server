@@ -374,6 +374,39 @@ inline void buf_pool_t::n_flush_dec() noexcept
     pthread_cond_broadcast(&done_flush_LRU);
 }
 
+/** Complete a successful write of a page that is evicted afterwards: a
+page of the temporary tablespace, or a page that was written to the
+extended buffer pool.
+@param bpage     the page that was written
+@param type      buf_page_t::TEMPORARY or buf_page_t::EXT_BUF
+@param state     the state of bpage before the write completed
+@param ext_page  the extended buffer pool copy of bpage, or nullptr */
+static void buf_page_write_complete_evict(buf_page_t *bpage,
+                                          buf_page_t::space_type type,
+                                          uint32_t state,
+                                          ext_buf_page_t *ext_page) noexcept
+{
+  ut_ad(type != buf_page_t::PERSISTENT);
+  ut_ad((type == buf_page_t::EXT_BUF) == !!ext_page);
+  /* We must hold buf_pool.mutex while releasing the block, so that
+  no other thread can access it before we have freed it. */
+  mysql_mutex_lock(&buf_pool.mutex);
+  bpage->write_complete(type, false, state);
+  if (ext_page && UNIV_UNLIKELY(!fil_system.ext_buf_pool_enabled()))
+  {
+    /* The extended buffer pool was disabled while the page was being
+    written. Do not register the copy in buf_pool.page_hash. */
+    buf_pool.free_ext_page(*ext_page);
+    buf_LRU_free_page(bpage, true);
+  }
+  else if (!buf_LRU_free_page(bpage, true, ext_page) && ext_page)
+    /* The page could not be evicted (for example, it was buffer-fixed
+    after we released the U-latch), so the copy was not registered in
+    buf_pool.page_hash. Discard it. */
+    buf_pool.free_ext_page(*ext_page);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 /** Complete write of a file page from buf_pool.
 @param request write request
 @param error   whether the write may have failed */
@@ -389,6 +422,13 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
   ut_ad(state >= buf_page_t::WRITE_FIX);
   ut_ad(!buf_dblwr.is_inside(bpage->id()));
   ut_ad(request.ext_buf() || request.node()->space->id == bpage->id().space());
+
+  if (UNIV_UNLIKELY(error) && request.ext_buf())
+  {
+    /* The copy is unusable. This also releases request.slot. */
+    buf_page_ext_write_discard(request, true);
+    return;
+  }
 
   if (request.slot)
     request.slot->release();
@@ -409,56 +449,18 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
     ? buf_page_t::TEMPORARY
     : buf_page_t::PERSISTENT;
 
-  if (UNIV_UNLIKELY(type != buf_page_t::PERSISTENT) && UNIV_LIKELY(!error))
+  if (type == buf_page_t::EXT_BUF)
   {
-    if (type == buf_page_t::EXT_BUF)
-    {
-      ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
-        if (fil_space_t *space= fil_space_t::get(bpage->id_.space()))
-        {
-          auto space_name= space->name();
-          if (space_name.data() &&
-              !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
-          {
-            ++buf_pool.stat.n_pages_written_to_ebp;
-          }
-          space->release();
-        }
-      } else)
-        ++buf_pool.stat.n_pages_written_to_ebp;
-    }
-    /* We must hold buf_pool.mutex while releasing the block, so that
-    no other thread can access it before we have freed it. */
-    mysql_mutex_lock(&buf_pool.mutex);
-    bpage->write_complete(type, error, state);
-    ext_buf_page_t *ext_page=
-      request.ext_buf() ? request.ext_buf_page() : nullptr;
-    if (!buf_LRU_free_page(bpage, true, ext_page) && ext_page)
-      /* The page could not be evicted (for example, it was buffer-fixed
-      after we released the U-latch), so the copy was not registered in
-      buf_pool.page_hash. Discard it. */
-      buf_pool.free_ext_page(*ext_page);
-    mysql_mutex_unlock(&buf_pool.mutex);
+    ut_ad(!error);
+    if (buf_page_ext_count_io(*bpage))
+      ++buf_pool.stat.n_pages_written_to_ebp;
+    buf_page_write_complete_evict(bpage, type, state, request.ext_buf_page());
   }
+  else if (UNIV_UNLIKELY(type == buf_page_t::TEMPORARY) && UNIV_LIKELY(!error))
+    buf_page_write_complete_evict(bpage, type, state, nullptr);
   else
   {
-    if (type == buf_page_t::EXT_BUF)
-    {
-      ut_ad(error);
-      if (fil_system.ext_buf_pool_enabled())
-      {
-        sql_print_warning("InnoDB: There was IO error during writing to "
-                          "external buffer pool file, external buffer pool "
-                          "is disabled.");
-        fil_system.ext_buf_pool_disable();
-      }
-      /* The copy is unusable; return its slot to the free list. */
-      mysql_mutex_lock(&buf_pool.mutex);
-      bpage->write_complete(type, error, state);
-      buf_pool.free_ext_page(*request.ext_buf_page());
-      mysql_mutex_unlock(&buf_pool.mutex);
-      return;
-    }
+    ut_ad(type == buf_page_t::PERSISTENT || error);
     bpage->write_complete(type, error, state);
     if (request.is_doublewritten())
     {
@@ -470,7 +472,7 @@ void buf_page_write_complete(const IORequest &request, bool error) noexcept
 }
 
 ATTRIBUTE_COLD
-void buf_page_ext_write_discard(const IORequest &request) noexcept
+void buf_page_ext_write_discard(const IORequest &request, bool error) noexcept
 {
   ut_ad(request.is_write());
   ut_ad(request.ext_buf());
@@ -486,11 +488,13 @@ void buf_page_ext_write_discard(const IORequest &request) noexcept
 
   mysql_mutex_assert_not_owner(&buf_pool.mutex);
   mysql_mutex_lock(&buf_pool.mutex);
+  if (UNIV_UNLIKELY(error))
+    buf_pool.ext_disable(buf_pool.EXT_WRITE_ERROR);
   /* Release the write-fix and the U-latch that buf_page_t::flush()
   acquired. */
   bpage->write_complete(buf_page_t::EXT_BUF, false, state);
-  /* The copy was never added to buf_pool.page_hash; nobody can look up
-  a page of a dropped tablespace, so just return it to the free list. */
+  /* The copy was never added to buf_pool.page_hash, so just return it
+  to the free list. */
   buf_pool.free_ext_page(*ext_page);
   buf_LRU_free_page(bpage, true);
   mysql_mutex_unlock(&buf_pool.mutex);
@@ -866,6 +870,8 @@ inline ext_buf_page_t *buf_pool_t::alloc_ext_page(page_id_t page_id) noexcept
   buf_page_t::flush(space, true) returns false without having write-fixed
   the page or released its U-latch. */
   DBUG_EXECUTE_IF("ib_ext_bp_alloc_fail", return nullptr;);
+  if (!fil_system.ext_buf_pool_enabled())
+    return nullptr;
   ext_buf_page_t *p;
   if ((p= UT_LIST_GET_FIRST(ext_free)))
     UT_LIST_REMOVE(ext_free, p);
@@ -1020,8 +1026,15 @@ bool buf_page_t::flush(fil_space_t *space, bool to_ext_buf) noexcept
   }
 
   if (ext_page)
-    fil_system.ext_bp_io(*this, *ext_page, IORequest::WRITE_ASYNC, slot, size,
-                         write_frame);
+  {
+    if (UNIV_UNLIKELY(fil_system.ext_bp_io(*this, *ext_page,
+                                           IORequest::WRITE_ASYNC, slot, size,
+                                           write_frame) != DB_SUCCESS))
+      /* The write could not be submitted, and no I/O completion callback
+      will be invoked for it. */
+      buf_page_ext_write_discard(IORequest{this, slot, ext_page,
+                                           IORequest::WRITE_ASYNC}, true);
+  }
   else if ((s & LRU_MASK) == REINIT || !space->use_doublewrite())
   {
     if (!space->is_temporary() && !space->is_being_imported() &&
@@ -1480,37 +1493,22 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       DBUG_EXECUTE_IF(
           "ib_ext_bp_disable_LRU_eviction_for_t",
           if (fil_space_t *space= fil_space_t::get(bpage->id_.space())) {
-            SCOPE_EXIT([space]() { space->release(); });
-            auto space_name= space->name();
-            if (space_name.data() &&
-                !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
-              skip_this_page= true;
+            skip_this_page= fil_space_is_test_t(*space);
+            space->release();
           });
 #if !defined(DBUG_OFF)
       if (skip_this_page)
         continue;
 #endif
       /* Offer to the extended buffer pool exactly the pages that
-      buf_page_write_complete() will count there, that is, the pages of the
-      current test/t. Any other page would consume an admission of
-      innodb_extended_buffer_pool_admission_pct without being counted, and
-      the tests that use this flag expect an exact count. In particular,
-      pages of a table that the test has already dropped can still be
-      resident here after its fil_space_t is gone, which is why a failed
-      lookup must not fall through to the admission. */
-      DBUG_EXECUTE_IF(
-          "ib_ext_bp_count_io_only_for_t", {
-            bool page_of_t= false;
-            if (fil_space_t *space= fil_space_t::get(bpage->id_.space()))
-            {
-              auto space_name= space->name();
-              page_of_t= space_name.data() &&
-                !strncmp(space_name.data(), "test/t.ibd", space_name.size());
-              space->release();
-            }
-            if (!page_of_t)
-              goto free_page;
-          });
+      buf_page_write_complete() will count there. With the debug flag
+      ib_ext_bp_count_io_only_for_t, any other page would consume an
+      admission of innodb_extended_buffer_pool_admission_pct without being
+      counted, and the tests that use the flag expect an exact count. This
+      includes the pages of a test.t that a test already dropped, which can
+      still be resident after their fil_space_t is gone. */
+      if (!buf_page_ext_count_io(*bpage))
+        goto free_page;
       if (state >= buf_page_t::UNFIXED &&
           !buf_pool.done_flush_list_waiters_count &&
           fil_system.ext_buf_pool_enabled() &&
@@ -1522,9 +1520,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n,
       }
       else
       {
-#if !defined(DBUG_OFF)
       free_page:
-#endif
         buf_LRU_free_page(bpage, true);
         ++n->evicted;
       }

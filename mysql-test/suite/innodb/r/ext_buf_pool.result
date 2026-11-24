@@ -1,7 +1,9 @@
-call mtr.add_suppression("InnoDB: There was IO error during writing to external buffer pool file");
+call mtr.add_suppression("InnoDB: Disabling the extended buffer pool after an I/O error while writing its file");
 connect  prevent_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+SET @old_debug_dbug = @@debug_dbug;
 SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
 SET @old_admission_pct = @@GLOBAL.innodb_extended_buffer_pool_admission_pct;
 SET GLOBAL innodb_extended_buffer_pool_admission_pct = 100;
@@ -750,13 +752,34 @@ DROP TABLE t;
 # while the page is still U-latched, so can_relocate() is false and the
 # free silently does nothing -- yet the page is counted in n->evicted.
 #
+CREATE TABLE t (`a` INT NOT NULL, PRIMARY KEY (`a`)) ENGINE=InnoDB;
+SET @start_val = 0;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
 # Write test/t's pages out without evicting them, so that the forced
 # batch below finds them as clean eviction candidates.
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
 # Now make every extended buffer pool slot allocation fail, so that
 # buf_page_t::flush(space, true) returns false with the page still
 # U-latched, and force LRU eviction.
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_alloc_fail';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
 # Pages counted as LRU-freed must really have left the buffer pool.
 # ok
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_alloc_fail';
+DROP TABLE t;
 ###################################################################
 # Testing for io error on write completion                        #
 ###################################################################
@@ -781,10 +804,10 @@ INSERT INTO t SET a = @start_val+9;
 INSERT INTO t SET a = @start_val+10;
 INSERT INTO t SET a = @start_val+11;
 INSERT INTO t SET a = @start_val+12;
-SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_write_io_error';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_write_error';
 SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
 SET GLOBAL innodb_force_LRU_eviction = TRUE;
-SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_write_io_error';
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_write_error';
 SELECT variable_value-@prev_flushed_gs
 FROM information_schema.global_status
 WHERE variable_name LIKE 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
@@ -796,7 +819,7 @@ PAGES_EXTERNALLY_WRITTEN-@prev_written_ps
 0
 SELECT @@GLOBAL.INNODB_EXTENDED_BUFFER_POOL_SIZE;
 @@GLOBAL.INNODB_EXTENDED_BUFFER_POOL_SIZE
-0
+1048576
 disconnect prevent_purge;
 # restart
 DROP TABLE t;

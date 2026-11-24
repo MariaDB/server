@@ -800,11 +800,17 @@ public:
   /** Complete a read of a page.
   @param node     data file
   @param recovery recv_recovery_is_on()
+  @param from_ext whether the page was read from the extended buffer pool
   @return whether the operation succeeded
   @retval DB_SUCCESS           if the read succeeded; caller must unfix()
   @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
-  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
-  dberr_t read_complete(const fil_node_t &node, bool recovery) noexcept;
+  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted
+  @retval DB_FAIL              if from_ext and the page failed validation;
+                               the page remains read-fixed and exclusively
+                               latched, and the caller must read it again
+                               from node */
+  dberr_t read_complete(const fil_node_t &node, bool recovery,
+                        bool from_ext= false) noexcept;
 
   /** Wait for read_complete() by invoking lock.s_lock_nospin().
   @param trx    transaction (for updating trx->active_handler_stats) */
@@ -838,7 +844,9 @@ public:
   /** Write a flushable page to a file or free a freeable block.
   @param space       tablespace
   @param to_ext_buf  wherher to write the page to external buffer pull file
-  @return whether a page write was initiated and buf_pool.mutex released */
+  @return whether buf_pool.mutex was released, because a page write was
+  initiated, or because a write to the extended buffer pool could not be
+  submitted and the page was discarded */
   bool flush(fil_space_t *space, bool to_ext_buf= false) noexcept;
 
   /** Notify that a page in a temporary tablespace has been modified. */
@@ -1347,6 +1355,21 @@ public:
     return &p >= ext_buf_pages_array &&
            &p < ext_buf_pages_array + extended_pages;
   }
+
+  /** Reasons for buf_pool_t::ext_disable() */
+  static constexpr const char *EXT_WRITE_ERROR=
+    "an I/O error while writing its file";
+  static constexpr const char *EXT_READ_ERROR=
+    "an I/O error while reading its file";
+  static constexpr const char *EXT_PAGE_CORRUPTED=
+    "reading a corrupted page from its file";
+
+  /** Permanently disable the extended buffer pool after an error on its
+  file. Discards all its pages from page_hash, so that no further reads
+  from the file will be initiated. Pages whose I/O is in progress are
+  freed by the I/O completion.
+  @param reason EXT_WRITE_ERROR, EXT_READ_ERROR or EXT_PAGE_CORRUPTED */
+  ATTRIBUTE_COLD void ext_disable(const char *reason) noexcept;
 
   /** Frees external buffer pool page. Pushes a page to the head of external
   buffer pool free list.
@@ -2156,6 +2179,37 @@ private:
 
 /** The InnoDB buffer pool */
 extern buf_pool_t buf_pool;
+
+#ifdef UNIV_DEBUG
+/** @return whether a tablespace belongs to the table test.t, which the
+debug flags ib_ext_bp_count_io_only_for_t and
+ib_ext_bp_disable_LRU_eviction_for_t apply to */
+bool fil_space_is_test_t(const fil_space_t &space) noexcept;
+/** @return whether a page belongs to test.t
+@param bpage  buffer page
+@param space  the tablespace of bpage, or nullptr to look it up */
+bool buf_page_is_test_t(const buf_page_t &bpage,
+                        const fil_space_t *space) noexcept;
+#endif
+
+/** Determine whether a read or write of a page in the extended buffer
+pool is counted in buf_pool.stat. In debug builds, the debug flag
+ib_ext_bp_count_io_only_for_t limits the counting to the pages of test.t,
+so that tests can expect exact counts. The admission of pages to
+the extended buffer pool in buf_flush_LRU_list_batch() uses the same
+function, so that every page that is written there is counted.
+@param bpage  buffer page
+@param space  the tablespace of bpage, or nullptr to look it up
+@return whether to count the I/O */
+inline bool buf_page_ext_count_io(const buf_page_t &bpage,
+                                  const fil_space_t *space= nullptr) noexcept
+{
+#ifdef UNIV_DEBUG
+  if (DBUG_IF("ib_ext_bp_count_io_only_for_t"))
+    return buf_page_is_test_t(bpage, space);
+#endif
+  return true;
+}
 
 template <bool show_ext_pages>
 inline buf_page_t *buf_pool_t::page_hash_table::get(const page_id_t id,

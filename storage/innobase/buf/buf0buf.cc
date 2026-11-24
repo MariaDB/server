@@ -442,11 +442,13 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 }
 
 /** Decrypt a page.
-@param[in,out]	bpage	Page control block
-@param[in]	node	data file
+@param[in,out]	bpage		Page control block
+@param[in]	node		data file
+@param[in]	file_name	name of the file that the page was read from
 @return whether the operation was successful */
 static bool buf_page_decrypt_after_read(buf_page_t *bpage,
-                                        const fil_node_t &node)
+                                        const fil_node_t &node,
+                                        const char *file_name)
 {
 	ut_ad(node.space->referenced());
 	ut_ad(node.space->id == bpage->id().space());
@@ -505,7 +507,7 @@ decompress_with_slot:
 		if (!buf_page_verify_crypt_checksum(dst_frame, flags)) {
 decrypt_failed:
 			ib::error() << "Encrypted page " << id
-				    << " in file " << node.name
+				    << " in file " << file_name
 				    << " looks corrupted; key_version="
 				    << key_version;
 			return false;
@@ -1296,6 +1298,57 @@ buf_block_t *buf_pool_t::allocate() noexcept
   }
 
   return nullptr;
+}
+
+#ifdef UNIV_DEBUG
+bool fil_space_is_test_t(const fil_space_t &space) noexcept
+{
+  static constexpr char test_t[]= "test/t";
+  const auto name= space.name();
+  return name.size() == sizeof test_t - 1 &&
+    !memcmp(name.data(), test_t, name.size());
+}
+
+bool buf_page_is_test_t(const buf_page_t &bpage,
+                        const fil_space_t *space) noexcept
+{
+  if (space)
+    return fil_space_is_test_t(*space);
+  /* The tablespace may have been dropped. */
+  fil_space_t *s= fil_space_t::get(bpage.id().space());
+  if (!s)
+    return false;
+  const bool is_test_t= fil_space_is_test_t(*s);
+  s->release();
+  return is_test_t;
+}
+#endif
+
+void buf_pool_t::ext_disable(const char *reason) noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
+  /* Even if SET GLOBAL innodb_extended_buffer_pool_size=0 stopped the use
+  of the extended buffer pool, it still has to be disabled for good, and
+  the pages that it kept must be discarded. */
+  if (!extended_pages || fil_system.ext_buf_pool_failed())
+    return;
+  sql_print_warning("InnoDB: Disabling the extended buffer pool after %s",
+                    reason);
+  fil_system.ext_bp_disabled= true;
+  /* Every ext_buf_page_t that is in page_hash is also in ext_LRU.
+  Pages that are being read or written are in neither; they will be
+  freed by the I/O completion. */
+  while (ext_buf_page_t *p= UT_LIST_GET_FIRST(ext_LRU))
+  {
+    ut_ad(p->in_page_hash);
+    hash_chain &chain= page_hash.cell_get(p->id_.fold());
+    page_hash_latch &hash_lock= page_hash.lock_get(chain);
+    hash_lock.lock();
+    page_hash.remove(chain, reinterpret_cast<buf_page_t *>(p));
+    hash_lock.unlock();
+    remove_ext_page_from_LRU(*p);
+    free_ext_page(*p);
+  }
 }
 
 /** Create the hash table.
@@ -3696,6 +3749,7 @@ corrupted page. Note that we can't be 100% sure if page is corrupted
 or decrypt/decompress just failed.
 @param[in,out]	bpage		page
 @param[in]	node		data file
+@param[in]	file_name	name of the file that the page was read from
 @return	whether the operation succeeded
 @retval	DB_SUCCESS		if page has been read and is not corrupted
 @retval	DB_PAGE_CORRUPTED	if page based on checksum check is corrupted
@@ -3703,7 +3757,8 @@ or decrypt/decompress just failed.
 @retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
 after decryption normal page checksum does not match. */
 static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
-                                      const fil_node_t &node)
+                                      const fil_node_t &node,
+                                      const char *file_name)
 {
 	ut_ad(node.space->referenced());
 
@@ -3755,7 +3810,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 
 		ib::error()
 			<< "The page " << bpage->id()
-			<< " in file '" << node.name
+			<< " in file '" << file_name
 			<< "' cannot be decrypted; key_version="
 			<< key_version;
 	}
@@ -3771,7 +3826,7 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
 @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
 dberr_t buf_page_t::read_complete(const fil_node_t &node,
-                                  bool recovery) noexcept
+                                  bool recovery, bool from_ext) noexcept
 {
   const page_id_t expected_id{id()};
   {
@@ -3789,8 +3844,10 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
   const byte *read_frame= zip.data ? zip.data : frame;
   ut_ad(read_frame);
 
+  /* The file that the page was read from, for diagnostics */
+  const char *const file_name= from_ext ? ext_bp_file_name : node.name;
   dberr_t err;
-  if (!buf_page_decrypt_after_read(this, node))
+  if (!buf_page_decrypt_after_read(this, node, file_name))
   {
     err= DB_DECRYPTION_FAILED;
     goto database_corrupted;
@@ -3822,6 +3879,11 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
     }
     else
     {
+      if (from_ext)
+      {
+        err= DB_FAIL;
+        goto release_page;
+      }
       sql_print_error("InnoDB: Space id and page no stored in the page,"
                       " read in from %s are "
                       "[page id: space=" UINT32PF ", page number=" UINT32PF
@@ -3849,7 +3911,7 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
     }
   }
 
-  err= buf_page_check_corrupt(this, node);
+  err= buf_page_check_corrupt(this, node, file_name);
   if (UNIV_UNLIKELY(err != DB_SUCCESS))
   {
   database_corrupted:
@@ -3858,6 +3920,18 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node,
       memset_aligned<UNIV_PAGE_SIZE_MIN>(frame, 0, srv_page_size);
 
   release_page:
+    if (UNIV_UNLIKELY(from_ext))
+    {
+      /* The data file may contain a valid copy of the page. */
+      sql_print_error("InnoDB: Page [page id: space=" UINT32PF
+                      ", page number=" UINT32PF "] read from the extended"
+                      " buffer pool file is corrupted (%s);"
+                      " reading the page from %s",
+                      expected_id.space(), expected_id.page_no(),
+                      err == DB_FAIL ? "wrong page id" : ut_strerr(err),
+                      node.name);
+      return DB_FAIL;
+    }
     if (recovery && node.space->full_crc32() && node.space->crypt_data &&
         recv_sys.dblwr.find_deferred_page(node, id().page_no(),
                                           const_cast<byte*>(read_frame)))
