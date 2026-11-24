@@ -10499,9 +10499,17 @@ int error_if_data_home_dir(const char *path, const char *what)
 }
 
 
-static bool check_no_nul_bytes(const LEX_CSTRING *str, uint err_msg)
+/*
+  In memory, account names are NUL-terminated and compared byte by byte,
+  while in privilege tables they are stored in CHAR columns, which drop
+  trailing spaces. A name with a NUL byte or a trailing space would refer
+  to different accounts in memory and in the table.
+*/
+
+static bool check_acl_name(const LEX_CSTRING *str, uint err_msg)
 {
-  if (!memchr(str->str, '\0', str->length))
+  if (!memchr(str->str, '\0', str->length) &&
+      system_charset_info->lengthsp(str->str, str->length) == str->length)
     return FALSE;
   ErrConvString err(str->str, str->length, &my_charset_bin);
   my_error(ER_WRONG_VALUE, MYF(0), ER(err_msg), err.ptr());
@@ -10523,7 +10531,7 @@ bool check_user_name(const LEX_CSTRING *str)
 {
   return check_string_char_length(str, ER_USERNAME, username_char_length,
                                   system_charset_info, 0) ||
-         check_no_nul_bytes(str, ER_USERNAME);
+         check_acl_name(str, ER_USERNAME);
 }
 
 
@@ -10543,7 +10551,7 @@ bool check_host_name(LEX_CSTRING *str)
   const char *name= str->str;
   const char *end= str->str + str->length;
   if (check_string_byte_length(str, ER_HOSTNAME, HOSTNAME_LENGTH) ||
-      check_no_nul_bytes(str, ER_HOSTNAME))
+      check_acl_name(str, ER_HOSTNAME))
     return TRUE;
 
   while (name != end)

@@ -2636,8 +2636,10 @@ static void push_new_user(const ACL_USER &user)
 /**
   Validate the name columns of a privilege table row
 
-  Names are loaded into memory as NUL-terminated strings, so a name
-  with a NUL byte would be truncated and match a different object.
+  Names are loaded into memory as NUL-terminated strings and compared
+  byte by byte, so a name with a NUL byte would be truncated and match
+  a different object, and a name with a trailing space would not match
+  the same name that the parser accepts and that CHAR columns store.
 
   @param table     privilege table, current row in record[0]
   @param n_fields  number of leading name columns (host, user, db, etc)
@@ -2653,12 +2655,13 @@ static bool acl_row_is_invalid(TABLE *table, uint n_fields)
     StringBuffer<MAX_FIELD_WIDTH> str;
     Field *field= table->field[i];
     field->val_str(&str);
-    if (memchr(str.ptr(), '\0', str.length()))
+    if (memchr(str.ptr(), '\0', str.length()) ||
+        field->charset()->lengthsp(str.ptr(), str.length()) != str.length())
     {
       ErrConvString err(str.ptr(), str.length(), &my_charset_bin);
-      sql_print_warning("'%s' entry with %s='%s' ignored: "
-                        "NUL byte in a name", table->s->table_name.str,
-                        field->field_name.str, err.ptr());
+      sql_print_warning("'%s' entry with %s='%s' ignored: invalid name",
+                        table->s->table_name.str, field->field_name.str,
+                        err.ptr());
       return true;
     }
   }
