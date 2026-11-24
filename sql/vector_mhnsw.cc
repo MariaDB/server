@@ -1163,10 +1163,113 @@ int FVectorNode::save(TABLE *graph)
   return err;
 }
 
+/*
+  Layer 0 stays strongly connected, so that a search with a large enough ef
+  finds every row from wherever it enters the layer: the first neighbor of
+  every node is its parent, an older node that never drops its link back to
+  it, and a node never drops its parent either. From any node the parents
+  lead to the oldest nodes, and the links back lead from there to any node.
+*/
+static bool is_child(const FVectorNode *node, const FVectorNode *parent)
+{
+  return node->neighbors[0].num && node->neighbors[0].links[0] == parent;
+}
+
+/* how many links `node` cannot drop on layer 0: to its parent and children */
+static int count_tree_links(TABLE *graph, FVectorNode *node, uint *count)
+{
+  *count= 0;
+  if (int err= node->load(graph))
+    return err;
+  Neighborhood &links= node->neighbors[0];
+  for (size_t i= 0; i < links.num; i++)
+  {
+    if (int err= links.links[i]->load(graph))
+      return err;
+    *count+= i == 0 || is_child(links.links[i], node);
+  }
+  return 0;
+}
+
+/*
+  Chooses the parent of a new node on layer 0, before it is saved: its
+  nearest neighbor that has room for one more link it cannot drop, moved to
+  the first place. If none of its neighbors has room, the nearest node that
+  has (breadth-first from them) takes the place of its farthest neighbor.
+*/
+static int choose_parent(MHNSW_Share *ctx, TABLE *graph, FVectorNode *node)
+{
+  const uint max_neighbors= ctx->max_neighbors(0);
+  Neighborhood &own= node->neighbors[0];
+  std::vector<FVectorNode*> seen(own.links, own.links + own.num);
+  for (size_t i= 0; i < seen.size(); i++)
+  {
+    uint count;
+    if (int err= count_tree_links(graph, seen[i], &count))
+      return err;
+    if (count < max_neighbors)
+    {
+      size_t pos= i;
+      if (i >= own.num)
+      {
+        if (own.num < max_neighbors)
+          own.num++;
+        pos= own.num - 1;
+        own.links[pos]= seen[i];
+      }
+      std::swap(own.links[0], own.links[pos]);
+      return 0;
+    }
+    Neighborhood &theirs= seen[i]->neighbors[0];
+    for (size_t j= 0; j < theirs.num; j++)
+      if (std::find(seen.begin(), seen.end(), theirs.links[j]) == seen.end())
+        seen.push_back(theirs.links[j]);
+  }
+  return 0;
+}
+
+/*
+  `neigh` chose its neighbors on layer 0 again, from `before` and `extra`
+  (the node being inserted). It keeps its parent first, and its children,
+  in place of its farthest other neighbors.
+*/
+static void keep_tree_links(FVectorNode *neigh, FVectorNode **before,
+                            size_t before_num, FVectorNode *extra)
+{
+  Neighborhood &neighbors= neigh->neighbors[0];
+  FVectorNode *parent= before[0];
+  auto keep= [&](FVectorNode *tree)
+  {
+    if (std::find(neighbors.links, neighbors.links + neighbors.num, tree) !=
+        neighbors.links + neighbors.num)
+      return;
+    for (size_t i= neighbors.num; i-- > 0; )
+      if (neighbors.links[i] != parent && !is_child(neighbors.links[i], neigh))
+      {
+        neighbors.links[i]= tree;
+        return;
+      }
+  };
+  keep(parent);
+  for (size_t b= 1; b < before_num; b++)
+    if (is_child(before[b], neigh))
+      keep(before[b]);
+  if (is_child(extra, neigh))
+    keep(extra);
+  for (size_t i= 1; i < neighbors.num; i++)
+    if (neighbors.links[i] == parent)
+      std::swap(neighbors.links[0], neighbors.links[i]);
+}
+
 static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
                                           size_t layer, FVectorNode *node)
 {
   const uint max_neighbors= ctx->max_neighbors(layer);
+  FVectorNode **before= (FVectorNode**)my_safe_alloca(sizeof(FVectorNode*) *
+                                                      max_neighbors);
+  SCOPE_EXIT([before, max_neighbors](){
+    my_safe_afree(before, sizeof(FVectorNode*) * max_neighbors);
+  });
   // it seems that one could update nodes in the gref order
   // to avoid InnoDB deadlocks, but it produces no noticeable effect
   for (size_t i=0; i < node->neighbors[layer].num; i++)
@@ -1176,9 +1279,15 @@ static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
     if (neighneighbors.num < max_neighbors)
       neigh->push_neighbor(layer, node);
     else
+    {
+      size_t before_num= neighneighbors.num;
+      memcpy(before, neighneighbors.links, sizeof(*before) * before_num);
       if (int err= select_neighbors(ctx, graph, layer, *neigh, neighneighbors,
                                     node, max_neighbors))
         return err;
+      if (layer == 0)
+        keep_tree_links(neigh, before, before_num, node);
+    }
     if (int err= neigh->save(graph))
       return err;
   }
@@ -1391,6 +1500,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
                                   0, max_neighbors))
       return err;
   }
+
+  if (int err= choose_parent(ctx, graph, target))
+    return err;
 
   if (int err= target->save(graph))
     return err;
