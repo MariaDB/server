@@ -2633,6 +2633,39 @@ static void push_new_user(const ACL_USER &user)
 }
 
 
+/**
+  Validate the name columns of a privilege table row
+
+  Names are loaded into memory as NUL-terminated strings, so a name
+  with a NUL byte would be truncated and match a different object.
+
+  @param table     privilege table, current row in record[0]
+  @param n_fields  number of leading name columns (host, user, db, etc)
+
+  @retval true     the row is invalid, a warning was logged
+  @retval false    the row is ok
+*/
+
+static bool acl_row_is_invalid(TABLE *table, uint n_fields)
+{
+  for (uint i= 0; i < n_fields; i++)
+  {
+    StringBuffer<MAX_FIELD_WIDTH> str;
+    Field *field= table->field[i];
+    field->val_str(&str);
+    if (memchr(str.ptr(), '\0', str.length()))
+    {
+      ErrConvString err(str.ptr(), str.length(), &my_charset_bin);
+      sql_print_warning("'%s' entry with %s='%s' ignored: "
+                        "NUL byte in a name", table->s->table_name.str,
+                        field->field_name.str, err.ptr());
+      return true;
+    }
+  }
+  return false;
+}
+
+
 /*
   Initialize structures responsible for user/db-level privilege checking
   and load information about grants from open privilege tables.
@@ -2666,6 +2699,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     while (!(read_record_info.read_record()))
     {
       ACL_HOST host;
+      if (acl_row_is_invalid(host_table.table(), 2))
+        continue;
       update_hostname(&host.host, get_field(&acl_memroot, host_table.host()));
       host.db= get_field(&acl_memroot, host_table.db());
       if (lower_case_table_names && host.db)
@@ -2725,6 +2760,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     ACL_USER user;
     bool is_role= FALSE;
+    if (acl_row_is_invalid(user_table.table(), 2))
+      continue;
     update_hostname(&user.host, user_table.get_host(&acl_memroot));
     char *username= safe_str(user_table.get_user(&acl_memroot));
     user.user.str= username;
@@ -2816,6 +2853,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
   {
     ACL_DB db;
     char *db_name;
+    if (acl_row_is_invalid(db_table.table(), 3))
+      continue;
     db.user=safe_str(get_field(&acl_memroot, db_table.user()));
     const char *hostname= get_field(&acl_memroot, db_table.host());
     if (!hostname && find_acl_role(db.user, true))
@@ -2881,6 +2920,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     while (!(read_record_info.read_record()))
     {
       ACL_PROXY_USER proxy;
+      if (acl_row_is_invalid(proxies_priv_table.table(), 4))
+        continue;
       proxy.init(proxies_priv_table, &acl_memroot);
       if (proxy.check_validity())
         continue;
@@ -2909,6 +2950,8 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     init_alloc_root(key_memory_acl_mem, &temp_root, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
     while (!(read_record_info.read_record()))
     {
+      if (acl_row_is_invalid(roles_mapping_table.table(), 3))
+        continue;
       char *hostname= safe_str(get_field(&temp_root, roles_mapping_table.host()));
       char *username= safe_str(get_field(&temp_root, roles_mapping_table.user()));
       char *rolename= safe_str(get_field(&temp_root, roles_mapping_table.role()));
@@ -8370,6 +8413,8 @@ static bool grant_load(THD *thd,
     do
     {
       GRANT_TABLE *mem_check;
+      if (acl_row_is_invalid(t_table, 4))
+        continue;
       /* TODO(cvicentiu) convert this to use tables_priv and columns_priv. */
       if (!(mem_check= new (&grant_memroot) GRANT_TABLE(t_table, c_table)))
       {
@@ -8415,6 +8460,8 @@ static bool grant_load(THD *thd,
       {
         GRANT_NAME *mem_check;
         HASH *hash;
+        if (acl_row_is_invalid(p_table, 4))
+          continue;
         if (!(mem_check= new (&grant_memroot) GRANT_NAME(p_table, TRUE)))
         {
           /* This could only happen if we are out memory */

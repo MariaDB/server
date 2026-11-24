@@ -72,6 +72,7 @@ RENAME TABLE mysql.temp TO mysql.procs_priv;
 --echo #
 --echo # MDEV-42407 usernames with embedded \0
 --echo #
+call mtr.add_suppression("ignored: NUL byte in a name");
 create user foo@localhost;
 --error ER_WRONG_VALUE
 drop user 'foo\0bar'@localhost;
@@ -86,5 +87,38 @@ grant 'foo\0bar' to foo@localhost;
 --error ER_WRONG_VALUE
 set role 'foo\0bar';
 select quote(user), quote(host) from mysql.global_priv where user like 'foo%';
+create role r1;
+insert mysql.global_priv (host, user, priv) values
+  ('localhost', 'foo\0bar', '{"access":1}'),
+  ('localhost\0bar', 'foo', '{"access":1}');
+insert mysql.db (host, db, user, select_priv) values
+  ('localhost', 'test', 'foo\0bar', 'Y'),
+  ('localhost', 'test\0bar', 'foo', 'Y');
+insert mysql.tables_priv (host, db, user, table_name, table_priv) values
+  ('localhost', 'test', 'foo\0bar', 't1', 'Select'),
+  ('localhost', 'test', 'foo', 't1\0bar', 'Select');
+insert mysql.procs_priv (host, db, user, routine_name, routine_type, proc_priv)
+  values ('localhost', 'test', 'foo\0bar', 'p1', 'PROCEDURE', 'Execute'),
+         ('localhost', 'test', 'foo', 'p1\0bar', 'PROCEDURE', 'Execute');
+insert mysql.proxies_priv (host, user, proxied_host, proxied_user, with_grant)
+  values ('localhost', 'foo\0bar', 'localhost', 'root', 1),
+         ('localhost', 'foo', 'localhost', 'root\0bar', 1);
+insert mysql.roles_mapping (host, user, role, admin_option) values
+  ('localhost', 'foo\0bar', 'r1', 'N'),
+  ('localhost', 'foo', 'r1\0bar', 'N');
+flush privileges;
+show grants for foo@localhost;
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \S+ entry with \S+ ignored: NUL byte in a name;
+let SEARCH_OUTPUT= matches;
+source include/search_pattern_in_file.inc;
+delete from mysql.global_priv where user like 'foo_bar' or host like 'localhost_bar';
+delete from mysql.db where user like 'foo_bar' or db like 'test_bar';
+delete from mysql.tables_priv where user like 'foo_bar' or table_name like 't1_bar';
+delete from mysql.procs_priv where user like 'foo_bar' or routine_name like 'p1_bar';
+delete from mysql.proxies_priv where user like 'foo_bar' or proxied_user like 'root_bar';
+delete from mysql.roles_mapping where user like 'foo_bar' or role like 'r1_bar';
+flush privileges;
 drop user foo@localhost;
+drop role r1;
 --echo # End of 10.11 tests
