@@ -1,0 +1,60 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_2;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_1;
+CREATE TABLE p (a VARCHAR(760) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+m VARBINARY(8) NOT NULL,
+c FLOAT NOT NULL,
+PRIMARY KEY (a,m,c)) ENGINE=InnoDB;
+CREATE TABLE ch (id INT AUTO_INCREMENT PRIMARY KEY,
+a VARCHAR(760) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+m VARBINARY(8) NOT NULL,
+c FLOAT NOT NULL,
+KEY k (a,m,c),
+FOREIGN KEY (a,m,c) REFERENCES p (a,m,c)) ENGINE=InnoDB;
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 582) COLLATE utf8mb4_unicode_ci;
+#
+# Under strict mode a cut key fails the statement
+#
+INSERT INTO p (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+ERROR 42000: WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# INSERT IGNORE turns the error back into a warning and the row goes in
+#
+INSERT IGNORE INTO p (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# The child row goes down the foreign key path and behaves the same.
+# Before the fix this statement took the server down with
+# "Assertion `len == sizeof(float)' failed."
+#
+INSERT INTO ch (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+ERROR 42000: WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT IGNORE INTO ch (a,m,c) VALUES (@v, 0x0102030405, 1.5);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+connection node_1;
+DROP TABLE ch, p;

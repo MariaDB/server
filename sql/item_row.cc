@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2020, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@
 */
 #include "sql_class.h"                          // THD, set_var.h: THD
 #include "set_var.h"
+#include "sql_parse.h"                          // check_stack_overrun
 
 void Item_row::illegal_method_call(const char *method)
 {
@@ -37,6 +38,9 @@ void Item_row::illegal_method_call(const char *method)
 bool Item_row::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
+  uchar buff[STACK_BUFF_ALLOC];
+  if (check_stack_overrun(thd, STACK_MIN_SIZE * 2, buff))
+    return TRUE;
   null_value= 0;
   base_flags&= ~item_base_t::MAYBE_NULL;
 

@@ -281,3 +281,11 @@ SELECT CONCAT_WS(' ', a, b, PASSWORD(c)) AS f FROM t1 GROUP BY f WITH ROLLUP;
 DROP TABLE t1;
 
 --echo # End of 10.5 tests
+
+--echo # Start of 10.11 tests
+--echo #
+--echo # MDEV-40673: Preserve the results of JSON_TYPE and GET_FORMAT in CONCAT
+--echo #
+SELECT CONCAT(JSON_TYPE('{"a":1}'),'X') AS json_type,
+       CONCAT(GET_FORMAT(DATE, 'USA'), 'X') AS get_format;
+--echo # End of 10.11 tests

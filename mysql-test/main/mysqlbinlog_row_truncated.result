@@ -1,0 +1,4 @@
+#
+# MDEV-41822 mariadb-binlog ASAN crash on corrupted binlog
+#
+# End of 10.11 tests

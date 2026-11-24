@@ -745,6 +745,9 @@ void ignore_db_dirs_append(const char *dirname_arg)
   LEX_STRING *new_entry;
   size_t len= strlen(dirname_arg);
 
+  if (plugins_are_initialized)
+    return; // cannot modify read-only sysvar at run-time
+
   if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(0),
                        &new_entry, sizeof(LEX_STRING),
                        &new_entry_buf, len + 1,
@@ -3333,6 +3336,13 @@ static my_bool processlist_callback(THD *tmp, processlist_callback_arg *arg)
   const char *val;
   ulonglong max_counter;
   bool got_thd_data;
+
+  /* Test hook: pause after tmp_sctx is captured, before it is read. */
+  DBUG_EXECUTE_IF("processlist_callback_pause_after_sctx_capture",
+                  if (tmp->system_thread == SYSTEM_THREAD_EVENT_WORKER &&
+                      tmp_sctx != &tmp->main_security_ctx)
+                    DEBUG_SYNC(arg->thd,
+                               "processlist_callback_captured_sctx"););
 
   if (!thd_visible_in_processlist(arg->thd->security_ctx, tmp))
     return 0;

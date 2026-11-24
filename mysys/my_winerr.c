@@ -73,7 +73,7 @@ static struct errentry errtable[]= {
   {  ERROR_MAX_THRDS_REACHED,      EAGAIN    },  /* 164 */
   {  ERROR_LOCK_FAILED,            EACCES    },  /* 167 */
   {  ERROR_ALREADY_EXISTS,         EEXIST    },  /* 183 */
-  {  ERROR_FILENAME_EXCED_RANGE,   ENOENT    },  /* 206 */
+  {  ERROR_FILENAME_EXCED_RANGE,   ENAMETOOLONG },  /* 206 */
   {  ERROR_NESTING_NOT_ALLOWED,    EAGAIN    },  /* 215 */
   {  ERROR_FILE_SYSTEM_LIMITATION, EFBIG     },  /* 665 */
   {  ERROR_NO_SYSTEM_RESOURCES,    ENOMEM    },  /* 1450 */

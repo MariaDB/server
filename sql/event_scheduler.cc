@@ -317,6 +317,9 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 
   res= job_data.execute(thd, event->dropped);
 
+  /* Test hook: execute() has returned, job_data is still alive. */
+  DEBUG_SYNC(thd, "event_worker_thread_after_execute_returned");
+
   print_warnings(thd, &job_data);
 
   if (res && global_system_variables.log_warnings > 2)
@@ -394,6 +397,19 @@ Event_scheduler::start(int *err_no)
   DBUG_PRINT("info", ("state before action %s", scheduler_states_names[state].str));
   if (state > INITIALIZED)
     goto end;
+
+  /*
+    Shutdown calls Events::stop() only once in close_connections(). The
+    scheduler thread started after that would never be stopped and
+    close_connections() would wait for it forever. No error needed:
+    the server is shutting down and @@event_scheduler staying ON without
+    the thread does not matter.
+  */
+  if (abort_loop)
+  {
+    DBUG_PRINT("info", ("Shutdown in progress, not starting the scheduler"));
+    goto end;
+  }
 
   if (!(new_thd= new THD(next_thread_id())))
   {

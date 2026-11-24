@@ -45,3 +45,18 @@ set statement DEBUG_DBUG="+d,btr_page_alloc_fail" for
 UPDATE t1 set f1= REPEAT('b', 12000);
 ERROR HY000: The table 't1' is full
 DROP TABLE t1;
+#
+# MDEV-40239 Simulate failure to add page to the undo log
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, 0 FROM seq_1_to_2000;
+BEGIN;
+SET STATEMENT DEBUG_DBUG='+d,ib_err_ins_undo_page_add_failure' FOR
+UPDATE t1 SET b=1;
+ERROR HY000: Undo Log error: No more space left over in <type> tablespace for allocating UNDO log pages. Please add new data file to the tablespace or check if filesystem is full or enable auto-extension for the tablespace
+UPDATE t1 SET b=2;
+ROLLBACK;
+SELECT COUNT(*) FROM t1 WHERE b=0;
+COUNT(*)
+2000
+DROP TABLE t1;

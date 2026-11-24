@@ -43,4 +43,6 @@ save_master_pos;
 sync_with_master;
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings

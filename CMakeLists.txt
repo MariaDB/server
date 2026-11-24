@@ -63,7 +63,7 @@ IF(UNIX AND NOT APPLE)
   # the empty CMAKE_BUILD_TYPE) and the build many times for
   # different build types without re-running cmake!
   # But we only care about WITH_PIC on Unix, where the check for
-  # CMAKE_BUILD_TYPE hapen to work.
+  # CMAKE_BUILD_TYPE happen to work.
   IF (CMAKE_BUILD_TYPE MATCHES "Debug")
     SET(WITH_PIC_DEFAULT ON)
   ELSE()

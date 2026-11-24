@@ -464,3 +464,36 @@ drop procedure user1_proc;
 drop procedure user1_proc2;
 drop procedure sensitive_proc;
 drop database rtest;
+use test;
+
+--echo #
+--echo # MDEV-41626 definer check in CREATE PROCEDURE is too lax
+--echo #
+create user foo@localhost;
+create schema foodb;
+grant all privileges on foodb.* to foo@localhost;
+create table foodb.t1 as select 100 as a;
+
+create user u@localhost;
+grant all privileges on test.* to u@localhost, foo@localhost;
+create role foo;
+grant foo to u@localhost;
+
+connect u,localhost,u;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from foodb.t1;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+create definer=foo@localhost procedure getfoo() select * from foodb.t1;
+set role foo;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+create definer=foo@localhost procedure getfoo() select * from foodb.t1;
+#call getfoo();
+disconnect u;
+connection default;
+
+drop procedure if exists getfoo;
+drop user foo@localhost, u@localhost;
+drop role foo;
+drop schema foodb;
+
+--echo # End of 10.11 tests

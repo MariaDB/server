@@ -1,0 +1,698 @@
+connection node_2;
+connection node_1;
+connection node_1;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_2;
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+connection node_1;
+CREATE TABLE p (a CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+b CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+c CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+d INT,
+PRIMARY KEY (a,b,c)) ENGINE=InnoDB;
+CREATE TABLE ch (id INT AUTO_INCREMENT PRIMARY KEY,
+a CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+b CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+c CHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+KEY k (a,b,c),
+FOREIGN KEY (a,b,c) REFERENCES p (a,b,c)) ENGINE=InnoDB;
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 255) COLLATE utf8mb4_unicode_ci;
+SET @v2 = CONCAT(REPEAT(_utf8mb4 0xEFAC84, 254),
+_utf8mb4 0xEFAC80) COLLATE utf8mb4_unicode_ci;
+#
+# Under strict mode a cut key fails the statement
+#
+INSERT INTO p (a,b,c,d) VALUES (@v, @v, @v, 1);
+ERROR 42000: WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# INSERT IGNORE turns the error back into a warning and the row goes in
+#
+INSERT IGNORE INTO p (a,b,c,d) VALUES (@v, @v, @v, 1);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# The child row goes down the foreign key path and behaves the same.
+# Before the fix this statement took the server down with
+# "[FATAL] InnoDB: Unknown error Generic error".
+#
+INSERT INTO ch (a,b,c) VALUES (@v, @v, @v);
+ERROR 42000: WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT IGNORE INTO ch (a,b,c) VALUES (@v, @v, @v);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# Without strict mode the client also only gets the warning
+#
+SET SESSION sql_mode = '';
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+EXPECT_1
+1
+#
+# A second parent row that differs only past the cut
+#
+connection node_1;
+INSERT INTO p (a,b,c,d) VALUES (@v, @v, @v2, 2);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SELECT COUNT(*) AS EXPECT_2 FROM p;
+EXPECT_2
+2
+connection node_2;
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 255) COLLATE utf8mb4_unicode_ci;
+SET @v2 = CONCAT(REPEAT(_utf8mb4 0xEFAC84, 254),
+_utf8mb4 0xEFAC80) COLLATE utf8mb4_unicode_ci;
+#
+# An UPDATE under strict mode fails with the same error
+#
+connection node_1;
+SET SESSION sql_mode = DEFAULT;
+UPDATE p SET d = 9 WHERE a = @v AND b = @v AND c = @v;
+ERROR 42000: WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# UPDATE IGNORE turns it back into a warning as well
+#
+UPDATE IGNORE p SET d = 9 WHERE a = @v AND b = @v AND c = @v;
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+#
+# Without strict mode the same statement gets the warning and runs.
+# False positive. The two rows are different rows, but their keys are
+# equal up to the cut, so the transaction on node_1 loses
+# certification against the one on node_2.
+#
+connection node_1;
+SET SESSION sql_mode = '';
+connection node_2;
+SET SESSION sql_mode = '';
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_slave_enter_sync';
+connection node_1;
+BEGIN;
+UPDATE p SET d = 10 WHERE a = @v AND b = @v AND c = @v;
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+connection node_2;
+UPDATE p SET d = 20 WHERE a = @v AND b = @v AND c = @v2;
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.p' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_slave_enter_sync';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# Only the update from node_2 is there
+connection node_1;
+SELECT d FROM p ORDER BY d;
+d
+9
+20
+#
+# Short values leave the key inside the buffer. The same pattern on
+# two different rows then commits.
+#
+connection node_1;
+CREATE TABLE p2 (a CHAR(8) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+d INT,
+PRIMARY KEY (a)) ENGINE=InnoDB;
+INSERT INTO p2 (a,d) VALUES ('aaaaaaaa', 1), ('aaaaaaab', 2);
+connection node_2;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_slave_enter_sync';
+connection node_1;
+BEGIN;
+UPDATE p2 SET d = 10 WHERE a = 'aaaaaaaa';
+connection node_2;
+UPDATE p2 SET d = 20 WHERE a = 'aaaaaaab';
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_slave_enter_sync';
+connection node_1;
+SELECT d FROM p2 ORDER BY d;
+d
+10
+20
+#
+# Foreign keys on the other string types. InnoDB needs the whole
+# column in a foreign key, so TEXT and BLOB cannot take part: they
+# can only be indexed by a prefix. That leaves VARCHAR, VARBINARY and
+# BINARY beside the CHAR columns above.
+#
+connection node_1;
+SET SESSION sql_mode = DEFAULT;
+CREATE TABLE fp_v (a VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+b VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+c VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+d INT,
+PRIMARY KEY (a,b,c)) ENGINE=InnoDB;
+CREATE TABLE fc_v (id INT AUTO_INCREMENT PRIMARY KEY,
+a VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+b VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+c VARCHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+KEY k (a,b,c),
+FOREIGN KEY (a,b,c) REFERENCES fp_v (a,b,c)) ENGINE=InnoDB;
+# VARCHAR parent, row key path
+INSERT INTO fp_v (a,b,c,d) VALUES (@v, @v, @v, 1);
+ERROR 42000: WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT IGNORE INTO fp_v (a,b,c,d) VALUES (@v, @v, @v, 1);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+# VARCHAR child, foreign key path
+INSERT INTO fc_v (a,b,c) VALUES (@v, @v, @v);
+ERROR 42000: WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT IGNORE INTO fc_v (a,b,c) VALUES (@v, @v, @v);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.fp_v' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+# BINARY and VARBINARY are not collated, so the key stays inside the
+# buffer and both statements run
+CREATE TABLE fp_b (a BINARY(255),
+b VARBINARY(1000),
+c VARBINARY(1000),
+d INT,
+PRIMARY KEY (a,b,c)) ENGINE=InnoDB;
+CREATE TABLE fc_b (id INT AUTO_INCREMENT PRIMARY KEY,
+a BINARY(255),
+b VARBINARY(1000),
+c VARBINARY(1000),
+KEY k (a,b,c),
+FOREIGN KEY (a,b,c) REFERENCES fp_b (a,b,c)) ENGINE=InnoDB;
+SET @b255 = REPEAT('a', 255);
+SET @b1000 = REPEAT('a', 1000);
+INSERT INTO fp_b (a,b,c,d) VALUES (@b255, @b1000, @b1000, 1);
+INSERT INTO fc_b (a,b,c) VALUES (@b255, @b1000, @b1000);
+# TEXT and BLOB can only be indexed by a prefix, and InnoDB refuses a
+# foreign key on such a column
+CREATE TABLE fc_t (id INT AUTO_INCREMENT PRIMARY KEY,
+a TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+KEY k (a(255)),
+FOREIGN KEY (a) REFERENCES fp_v (a)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`fc_t` (errno: 150 "Foreign key constraint is incorrectly formed")
+# BLOB behaves the same way
+CREATE TABLE fc_bl (id INT AUTO_INCREMENT PRIMARY KEY,
+a BLOB,
+KEY k (a(255)),
+FOREIGN KEY (a) REFERENCES fp_b (a)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`fc_bl` (errno: 150 "Foreign key constraint is incorrectly formed")
+# JSON is stored as LONGTEXT and behaves the same way
+CREATE TABLE fc_j (id INT AUTO_INCREMENT PRIMARY KEY,
+a JSON,
+KEY k (a(255)),
+FOREIGN KEY (a) REFERENCES fp_v (a)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`fc_j` (errno: 150 "Foreign key constraint is incorrectly formed")
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM fp_v;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM fc_v;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM fp_b;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM fc_b;
+EXPECT_1
+1
+#
+# Foreign keys on FLOAT, DOUBLE, TIMESTAMP, DATE and DATETIME. These
+# are fixed width and not collated, so wsrep_store_key_val_for_row()
+# and wsrep_rec_get_foreign_key() never cut the key for them; the
+# point is to show the same key-building code path used above still
+# produces a working, replicated foreign key for these types.
+#
+connection node_1;
+CREATE TABLE fp_num (a FLOAT,
+b DOUBLE,
+c TIMESTAMP,
+dt DATE,
+e DATETIME,
+f INT,
+PRIMARY KEY (a,b,c,dt,e)) ENGINE=InnoDB;
+CREATE TABLE fc_num (id INT AUTO_INCREMENT PRIMARY KEY,
+a FLOAT,
+b DOUBLE,
+c TIMESTAMP,
+dt DATE,
+e DATETIME,
+KEY k (a,b,c,dt,e),
+FOREIGN KEY (a,b,c,dt,e)
+REFERENCES fp_num (a,b,c,dt,e)) ENGINE=InnoDB;
+INSERT INTO fp_num (a,b,c,dt,e,f) VALUES
+(1.5, 2.25, '2026-01-01 10:00:00', '2026-01-01', '2026-01-01 10:00:00', 1);
+INSERT INTO fc_num (a,b,c,dt,e) VALUES
+(1.5, 2.25, '2026-01-01 10:00:00', '2026-01-01', '2026-01-01 10:00:00');
+# No matching parent row for this combination, the insert is rejected
+INSERT INTO fc_num (a,b,c,dt,e) VALUES
+(9.5, 9.25, '2026-01-01 10:00:00', '2026-01-01', '2026-01-01 10:00:00');
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`fc_num`, CONSTRAINT `fc_num_ibfk_1` FOREIGN KEY (`a`, `b`, `c`, `dt`, `e`) REFERENCES `fp_num` (`a`, `b`, `c`, `dt`, `e`))
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM fp_num;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM fc_num;
+EXPECT_1
+1
+#
+# Foreign key where part of the key is NULL. InnoDB foreign keys use
+# MATCH SIMPLE: when any column of a multi-column foreign key is
+# NULL, the row is not checked against the parent at all, whether or
+# not a matching parent row exists.
+#
+connection node_1;
+CREATE TABLE fp_n (a INT, b INT, c INT, d INT,
+PRIMARY KEY (a,b,c)) ENGINE=InnoDB;
+CREATE TABLE fc_n (id INT AUTO_INCREMENT PRIMARY KEY,
+a INT, b INT, c INT,
+KEY k (a,b,c),
+FOREIGN KEY (a,b,c) REFERENCES fp_n (a,b,c)) ENGINE=InnoDB;
+# No parent row for (1,2,3) at all, but c is NULL so the row is
+# accepted anyway
+INSERT INTO fc_n (a,b,c) VALUES (1,2,NULL);
+# A parent row exists for (10,20,30), but the child is still not
+# checked against it because c is NULL
+INSERT INTO fp_n (a,b,c,d) VALUES (10,20,30,1);
+INSERT INTO fc_n (a,b,c) VALUES (10,20,NULL);
+# A row with every foreign key column NULL is accepted the same way
+INSERT INTO fc_n (a,b,c) VALUES (NULL,NULL,NULL);
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM fp_n;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_3 FROM fc_n;
+EXPECT_3
+3
+#
+# The same MATCH SIMPLE rule with only the last column of the
+# foreign key nullable, the other columns NOT NULL. Position does
+# not matter: any NULL column, first, middle or last, is enough to
+# skip the check.
+#
+connection node_1;
+CREATE TABLE mfp (a INT, b INT, c INT, PRIMARY KEY (a,b,c)) ENGINE=InnoDB;
+CREATE TABLE mfc (id INT AUTO_INCREMENT PRIMARY KEY,
+a INT NOT NULL, b INT NOT NULL, c INT,
+KEY k (a,b,c),
+FOREIGN KEY (a,b,c) REFERENCES mfp (a,b,c)) ENGINE=InnoDB;
+INSERT INTO mfp VALUES (1,2,3);
+# Last column (c) is NULL: no matching parent row required
+INSERT INTO mfc (a,b,c) VALUES (9,9,NULL);
+# Last column (c) is non-NULL and matches: the constraint is
+# checked and passes
+INSERT INTO mfc (a,b,c) VALUES (1,2,3);
+# Last column (c) is non-NULL and does not match: the constraint is
+# checked and fails
+INSERT INTO mfc (a,b,c) VALUES (1,2,99);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`mfc`, CONSTRAINT `mfc_ibfk_1` FOREIGN KEY (`a`, `b`, `c`) REFERENCES `mfp` (`a`, `b`, `c`))
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM mfp;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_2 FROM mfc;
+EXPECT_2
+2
+#
+# Every remaining fixed width data type built into the server, in a
+# primary key, in a unique key, in a plain key on a table with no
+# primary key, and in a foreign key that references a primary key
+# and one that references a unique key. wsrep_store_key_val_for_row()
+# copies these types with a plain memcpy (TINYINT .. VARBINARY below)
+# or through the ENUM/SET branch that skips collation; FLOAT, DOUBLE,
+# TIMESTAMP, DATE and DATETIME were already covered above. UUID and
+# INET6 are in galera_ws_datatypes_plugin.test.
+#
+connection node_1;
+CREATE TABLE g1_pk (ti TINYINT, si SMALLINT, mi MEDIUMINT, ii INT,
+bi BIGINT, de DECIMAL(10,2), bt BIT(8),
+bn BINARY(4), vb VARBINARY(8), f INT,
+PRIMARY KEY (ti,si,mi,ii,bi,de,bt,bn,vb)) ENGINE=InnoDB;
+CREATE TABLE g1_pk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+ti TINYINT, si SMALLINT, mi MEDIUMINT, ii INT,
+bi BIGINT, de DECIMAL(10,2), bt BIT(8),
+bn BINARY(4), vb VARBINARY(8),
+KEY k (ti,si,mi,ii,bi,de,bt,bn,vb),
+FOREIGN KEY (ti,si,mi,ii,bi,de,bt,bn,vb)
+REFERENCES g1_pk (ti,si,mi,ii,bi,de,bt,bn,vb))
+ENGINE=InnoDB;
+CREATE TABLE g1_uk (id INT AUTO_INCREMENT PRIMARY KEY,
+ti TINYINT, si SMALLINT, mi MEDIUMINT, ii INT,
+bi BIGINT, de DECIMAL(10,2), bt BIT(8),
+bn BINARY(4), vb VARBINARY(8),
+UNIQUE KEY u (ti,si,mi,ii,bi,de,bt,bn,vb)) ENGINE=InnoDB;
+CREATE TABLE g1_uk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+ti TINYINT, si SMALLINT, mi MEDIUMINT, ii INT,
+bi BIGINT, de DECIMAL(10,2), bt BIT(8),
+bn BINARY(4), vb VARBINARY(8),
+KEY k (ti,si,mi,ii,bi,de,bt,bn,vb),
+FOREIGN KEY (ti,si,mi,ii,bi,de,bt,bn,vb)
+REFERENCES g1_uk (ti,si,mi,ii,bi,de,bt,bn,vb))
+ENGINE=InnoDB;
+CREATE TABLE g1_key (ti TINYINT, si SMALLINT, mi MEDIUMINT, ii INT,
+bi BIGINT, de DECIMAL(10,2), bt BIT(8),
+bn BINARY(4), vb VARBINARY(8),
+KEY k (ti,si,mi,ii,bi,de,bt,bn,vb)) ENGINE=InnoDB;
+# TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT, DECIMAL, BIT, BINARY,
+# VARBINARY together, in a primary key and a foreign key that
+# references it
+INSERT INTO g1_pk (ti,si,mi,ii,bi,de,bt,bn,vb,f)
+VALUES (1,2,3,4,5,6.50,5,'ab','abcdefgh',1);
+INSERT INTO g1_pk_child (ti,si,mi,ii,bi,de,bt,bn,vb)
+VALUES (1,2,3,4,5,6.50,5,'ab','abcdefgh');
+# The same types in a unique key and a foreign key that references it
+INSERT INTO g1_uk (ti,si,mi,ii,bi,de,bt,bn,vb)
+VALUES (1,2,3,4,5,6.50,5,'ab','abcdefgh');
+INSERT INTO g1_uk_child (ti,si,mi,ii,bi,de,bt,bn,vb)
+VALUES (1,2,3,4,5,6.50,5,'ab','abcdefgh');
+# The same types in a plain, non-unique key on a table with no
+# primary key
+INSERT INTO g1_key (ti,si,mi,ii,bi,de,bt,bn,vb)
+VALUES (1,2,3,4,5,6.50,5,'ab','abcdefgh');
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM g1_pk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g1_pk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g1_uk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g1_uk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g1_key;
+EXPECT_1
+1
+#
+# TIME, YEAR, ENUM and SET, the same way. UUID and INET6 are provided
+# by the mandatory type_uuid and type_inet plugins rather than being
+# built into the server proper; they are covered by
+# galera_ws_datatypes_plugin.test instead.
+#
+connection node_1;
+CREATE TABLE g2_pk (tm TIME, yr YEAR, en ENUM('a','b','c'),
+st SET('a','b','c'), f INT,
+PRIMARY KEY (tm,yr,en,st)) ENGINE=InnoDB;
+CREATE TABLE g2_pk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+tm TIME, yr YEAR, en ENUM('a','b','c'),
+st SET('a','b','c'),
+KEY k (tm,yr,en,st),
+FOREIGN KEY (tm,yr,en,st)
+REFERENCES g2_pk (tm,yr,en,st)) ENGINE=InnoDB;
+CREATE TABLE g2_uk (id INT AUTO_INCREMENT PRIMARY KEY,
+tm TIME, yr YEAR, en ENUM('a','b','c'),
+st SET('a','b','c'),
+UNIQUE KEY u (tm,yr,en,st)) ENGINE=InnoDB;
+CREATE TABLE g2_uk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+tm TIME, yr YEAR, en ENUM('a','b','c'),
+st SET('a','b','c'),
+KEY k (tm,yr,en,st),
+FOREIGN KEY (tm,yr,en,st)
+REFERENCES g2_uk (tm,yr,en,st)) ENGINE=InnoDB;
+CREATE TABLE g2_key (tm TIME, yr YEAR, en ENUM('a','b','c'),
+st SET('a','b','c'),
+KEY k (tm,yr,en,st)) ENGINE=InnoDB;
+INSERT INTO g2_pk (tm,yr,en,st,f)
+VALUES ('10:00:00',2026,'b','a,c',1);
+INSERT INTO g2_pk_child (tm,yr,en,st)
+VALUES ('10:00:00',2026,'b','a,c');
+INSERT INTO g2_uk (tm,yr,en,st)
+VALUES ('10:00:00',2026,'b','a,c');
+INSERT INTO g2_uk_child (tm,yr,en,st)
+VALUES ('10:00:00',2026,'b','a,c');
+INSERT INTO g2_key (tm,yr,en,st)
+VALUES ('10:00:00',2026,'b','a,c');
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM g2_pk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g2_pk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g2_uk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g2_uk_child;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g2_key;
+EXPECT_1
+1
+#
+# SERIAL, an alias for BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
+# as a primary key
+#
+connection node_1;
+CREATE TABLE g_serial (id SERIAL PRIMARY KEY, f INT) ENGINE=InnoDB;
+INSERT INTO g_serial (f) VALUES (1);
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM g_serial;
+EXPECT_1
+1
+#
+# Other string types and prefix indexes outside a foreign key. The
+# indexes are
+# unique because wsrep_append_keys() only builds a key for a unique
+# index, one referenced by a foreign key, or any index of a table
+# without a primary key. The key is cut when the collation weights of
+# the indexed bytes pass the buffer; the binary types are not
+# collated, so they never are.
+#
+connection node_1;
+SET SESSION sql_mode = DEFAULT;
+SET @c200 = REPEAT(_utf8mb4 0xEFAC84, 200) COLLATE utf8mb4_unicode_ci;
+SET @c768 = REPEAT(_utf8mb4 0xEFAC84, 768) COLLATE utf8mb4_unicode_ci;
+SET @bin255 = REPEAT('a', 255);
+SET @bin3000 = REPEAT('a', 3000);
+CREATE TABLE k1 (id INT AUTO_INCREMENT PRIMARY KEY,
+v VARCHAR(768) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (v)) ENGINE=InnoDB;
+CREATE TABLE k2 (id INT AUTO_INCREMENT PRIMARY KEY,
+t TEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (t(768))) ENGINE=InnoDB;
+CREATE TABLE k3 (id INT AUTO_INCREMENT PRIMARY KEY,
+c CHAR(255) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (c(200))) ENGINE=InnoDB;
+CREATE TABLE k4 (id INT AUTO_INCREMENT PRIMARY KEY,
+v VARCHAR(768) CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (v(700))) ENGINE=InnoDB;
+CREATE TABLE k5 (id INT AUTO_INCREMENT PRIMARY KEY,
+b BLOB,
+UNIQUE KEY (b(3000))) ENGINE=InnoDB;
+CREATE TABLE k6 (id INT AUTO_INCREMENT PRIMARY KEY,
+bn BINARY(255),
+vb VARBINARY(3000),
+UNIQUE KEY (bn),
+UNIQUE KEY (vb(3000))) ENGINE=InnoDB;
+CREATE TABLE k7 (id INT AUTO_INCREMENT PRIMARY KEY,
+t TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (t(50))) ENGINE=InnoDB;
+CREATE TABLE k8 (id INT AUTO_INCREMENT PRIMARY KEY,
+t MEDIUMTEXT CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (t(768))) ENGINE=InnoDB;
+CREATE TABLE k9 (id INT AUTO_INCREMENT PRIMARY KEY,
+t LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+UNIQUE KEY (t(768))) ENGINE=InnoDB;
+CREATE TABLE k10 (id INT AUTO_INCREMENT PRIMARY KEY,
+b TINYBLOB,
+UNIQUE KEY (b(50))) ENGINE=InnoDB;
+CREATE TABLE k11 (id INT AUTO_INCREMENT PRIMARY KEY,
+b MEDIUMBLOB,
+UNIQUE KEY (b(3000))) ENGINE=InnoDB;
+CREATE TABLE k12 (id INT AUTO_INCREMENT PRIMARY KEY,
+b LONGBLOB,
+UNIQUE KEY (b(3000))) ENGINE=InnoDB;
+CREATE TABLE k13 (id INT AUTO_INCREMENT PRIMARY KEY,
+j JSON,
+UNIQUE KEY (j(768))) ENGINE=InnoDB;
+# VARCHAR, whole column
+INSERT INTO k1 (v) VALUES (@c768);
+ERROR 42000: WSREP: Write set key for table 'test.k1' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+# TEXT, prefix
+INSERT INTO k2 (t) VALUES (@c768);
+ERROR 42000: WSREP: Write set key for table 'test.k2' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+# CHAR, prefix short enough to stay inside the buffer
+INSERT INTO k3 (c) VALUES (@c200);
+# VARCHAR, prefix
+INSERT INTO k4 (v) VALUES (@c768);
+ERROR 42000: WSREP: Write set key for table 'test.k4' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+# BLOB, prefix. Bytes are not collated, so nothing is cut
+INSERT INTO k5 (b) VALUES (@bin3000);
+# BINARY and VARBINARY, whole column and prefix
+INSERT INTO k6 (bn, vb) VALUES (@bin255, @bin3000);
+SET @tiny = REPEAT('a', 50);
+# TINYTEXT, prefix short enough to stay inside the buffer
+INSERT INTO k7 (t) VALUES (@tiny);
+# MEDIUMTEXT, prefix short enough to stay inside the buffer
+INSERT INTO k8 (t) VALUES (@c200);
+# LONGTEXT, prefix short enough to stay inside the buffer
+INSERT INTO k9 (t) VALUES (@c200);
+# TINYBLOB, prefix. Bytes are not collated, so nothing is cut
+INSERT INTO k10 (b) VALUES (@tiny);
+# MEDIUMBLOB, prefix
+INSERT INTO k11 (b) VALUES (@bin3000);
+# LONGBLOB, prefix
+INSERT INTO k12 (b) VALUES (@bin3000);
+# JSON, stored as LONGTEXT with a validity check, prefix
+INSERT INTO k13 (j) VALUES ('{"a":1}');
+# Without strict mode the cut ones go in with a warning
+SET SESSION sql_mode = '';
+INSERT INTO k1 (v) VALUES (@c768);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.k1' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.k1' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT INTO k2 (t) VALUES (@c768);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.k2' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.k2' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+INSERT INTO k4 (v) VALUES (@c768);
+Warnings:
+Warning	1071	WSREP: Write set key for table 'test.k4' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1071	WSREP: Write set key for table 'test.k4' was cut to 3500 bytes. Rows whose key values are equal up to that length produce the same key and conflict in certification.
+SET SESSION sql_mode = DEFAULT;
+# The rows the server accepted reach node_2
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM k1;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k2;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k3;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k4;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k5;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k6;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k7;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k8;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k9;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k10;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k11;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k12;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM k13;
+EXPECT_1
+1
+#
+# GEOMETRY is stored as BLOB and behaves the same way: a key needs an
+# explicit prefix length, and a foreign key is rejected regardless of
+# length. POINT is fixed length (an SRID plus one X/Y pair), so it can
+# be a whole-column primary or unique key without a prefix, but a
+# foreign key on it is still rejected.
+#
+connection node_1;
+CREATE TABLE g_pk (g GEOMETRY NOT NULL, PRIMARY KEY (g)) ENGINE=InnoDB;
+ERROR 42000: BLOB/TEXT column 'g' used in key specification without a key length
+CREATE TABLE g_uk (id INT AUTO_INCREMENT PRIMARY KEY,
+g GEOMETRY NOT NULL, UNIQUE KEY (g(25))) ENGINE=InnoDB;
+INSERT INTO g_uk (g) VALUES (ST_PointFromText('POINT(1 1)'));
+CREATE TABLE g_fk (id INT AUTO_INCREMENT PRIMARY KEY,
+g GEOMETRY,
+KEY k (g(25)),
+FOREIGN KEY (g) REFERENCES g_uk (g)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`g_fk` (errno: 150 "Foreign key constraint is incorrectly formed")
+CREATE TABLE g_pk2 (p POINT NOT NULL, PRIMARY KEY (p)) ENGINE=InnoDB;
+INSERT INTO g_pk2 (p) VALUES (ST_PointFromText('POINT(1 1)'));
+CREATE TABLE g_uk2 (id INT AUTO_INCREMENT PRIMARY KEY,
+p POINT NOT NULL, UNIQUE KEY (p)) ENGINE=InnoDB;
+INSERT INTO g_uk2 (p) VALUES (ST_PointFromText('POINT(1 1)'));
+CREATE TABLE g_fk2 (id INT AUTO_INCREMENT PRIMARY KEY,
+p POINT,
+KEY k (p),
+FOREIGN KEY (p) REFERENCES g_pk2 (p)) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`g_fk2` (errno: 150 "Foreign key constraint is incorrectly formed")
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1 FROM g_uk;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g_pk2;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_1 FROM g_uk2;
+EXPECT_1
+1
+connection node_1;
+DROP TABLE ch, p;
+DROP TABLE p2;
+DROP TABLE fc_v, fp_v;
+DROP TABLE fc_b, fp_b;
+DROP TABLE fc_num, fp_num;
+DROP TABLE fc_n, fp_n;
+DROP TABLE mfc, mfp;
+DROP TABLE g1_pk_child, g1_pk, g1_uk_child, g1_uk, g1_key;
+DROP TABLE g2_pk_child, g2_pk, g2_uk_child, g2_uk, g2_key;
+DROP TABLE g_serial;
+DROP TABLE g_uk, g_pk2, g_uk2;
+DROP TABLE k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13;
+disconnect node_1a;
+disconnect node_2;
+disconnect node_1;
+# End of test

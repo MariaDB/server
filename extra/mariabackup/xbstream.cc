@@ -320,11 +320,6 @@ file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen,
 	file_entry_t	*entry;
 	ds_file_t	*file;
 
-        if (*path == '.' || *path == '/' || strstr(path, "/../")) {
-		msg("%s: invalid filename %s", my_progname, path);
-                return NULL;
-        }
-
 	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
 	if (entry == NULL) {
@@ -384,6 +379,12 @@ file_entry_free(void *entry_)
   my_free(entry);
 }
 
+
+static bool invalid_path(const char *path)
+{
+  return *path == '.' || *path == '/' || strstr(path, "/../");
+}
+
 static
 void *
 extract_worker_thread_func(void *arg)
@@ -429,7 +430,8 @@ extract_worker_thread_func(void *arg)
 		}
 
 		if (chunk.type == XB_CHUNK_TYPE_REMOVE) {
-			if (ds_remove(ctxt->ds_ctxt, chunk.path)) {
+			if (invalid_path(chunk.path) ||
+                            ds_remove(ctxt->ds_ctxt, chunk.path)) {
 				msg("%s: error on file removing: %s", my_progname, chunk.path);
 				pthread_mutex_unlock(ctxt->mutex);
 				res = XB_STREAM_READ_ERROR;
@@ -447,10 +449,11 @@ extract_worker_thread_func(void *arg)
 				pthread_mutex_unlock(ctxt->mutex);
 				break;
 			}
-			if (ds_rename(ctxt->ds_ctxt, chunk.path,
-				reinterpret_cast<const char *>(chunk.data))) {
-				msg("%s: error on file renaming: %s to %s", my_progname,
-					reinterpret_cast<const char *>(chunk.data), chunk.path);
+                        auto new_path= reinterpret_cast<const char *>(chunk.data);
+			if (invalid_path(chunk.path) || invalid_path(new_path) ||
+                            ds_rename(ctxt->ds_ctxt, chunk.path, new_path)) {
+                                msg("%s: error on file renaming: %s to %s",
+                                    my_progname, chunk.path, new_path);
 				pthread_mutex_unlock(ctxt->mutex);
 				res = XB_STREAM_READ_ERROR;
 				break;
@@ -460,10 +463,11 @@ extract_worker_thread_func(void *arg)
 		}
 
 		if (entry == NULL) {
-			entry = file_entry_new(ctxt,
-					       chunk.path,
-					       chunk.pathlen,
-								 chunk.flags);
+                        if (invalid_path(chunk.path))
+                                msg("%s: invalid filename %s", my_progname, chunk.path);
+                        else
+                                entry = file_entry_new(ctxt, chunk.path,
+                                                       chunk.pathlen, chunk.flags);
 			if (entry == NULL) {
 				pthread_mutex_unlock(ctxt->mutex);
 				break;

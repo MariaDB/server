@@ -86,6 +86,8 @@ SET @@global.old_mode = NO_PROGRESS_INFO;
 SELECT @@global.old_mode;
 SET @@global.old_mode = NO_DUP_KEY_WARNINGS_WITH_IGNORE;
 SELECT @@global.old_mode;
+SET @@global.old_mode = X509_LENIENT_COMPARE;
+SELECT @@global.old_mode;
 
 --Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.old_mode = OFF;
@@ -94,6 +96,8 @@ SET @@global.old_mode = OFF;
 SET @@session.old_mode = NO_PROGRESS_INFO;
 SELECT @@session.old_mode;
 SET @@session.old_mode = NO_DUP_KEY_WARNINGS_WITH_IGNORE;
+SELECT @@session.old_mode;
+SET @@session.old_mode = X509_LENIENT_COMPARE;
 SELECT @@session.old_mode;
 
 --Error ER_WRONG_VALUE_FOR_VAR
@@ -171,8 +175,11 @@ SELECT @@global.old_mode;
 SET @@global.old_mode = 4;
 SELECT @@global.old_mode;
 
---Error ER_WRONG_VALUE_FOR_VAR
 SET @@global.old_mode = 128;
+SELECT @@global.old_mode;
+
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.old_mode = 256;
 SELECT @@global.old_mode;
 
 # use of decimal values

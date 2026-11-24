@@ -1202,6 +1202,8 @@ void purge_sys_t::stop()
     MONITOR_ATOMIC_INC(MONITOR_PURGE_STOP_COUNT);
     purge_coordinator_task.disable();
   }
+  DBUG_EXECUTE_IF("purge_stop_wait_truncation",
+                  purge_truncation_task.wait(););
 }
 
 /** Resume purge in data dictionary tables */

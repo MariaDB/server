@@ -1,0 +1,9 @@
+SET @save_min=@@GLOBAL.innodb_buffer_pool_size_auto_min;
+SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
+SET GLOBAL innodb_buffer_pool_size_auto_min=8388608;
+SET GLOBAL innodb_buffer_pool_size=25165824;
+SET STATEMENT debug_dbug='+d,trigger_garbage_collection,buf_shrink_fail' FOR
+SET GLOBAL innodb_buffer_pool_size=25165824;
+FOUND 1 /\[Note\] InnoDB: Memory pressure event failed to shrink innodb_buffer_pool_size=(16|24)m/ in mysqld.1.err
+SET GLOBAL innodb_buffer_pool_size_auto_min=@save_min;
+SET GLOBAL innodb_buffer_pool_size=@save_size;

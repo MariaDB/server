@@ -206,6 +206,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
 #define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 #define OLD_MODE_NO_NULL_COLLATION_IDS  (1 << 6)
+#define OLD_MODE_X509_LENIENT_COMPARE (1 << 7)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -3495,6 +3496,17 @@ public:
     if (first_successful_insert_id_in_cur_stmt == 0)
       first_successful_insert_id_in_cur_stmt= id_arg;
   }
+  void set_last_insert_id_from_cur_stmt()
+  {
+    if (first_successful_insert_id_in_cur_stmt > 0)
+    {
+      /* set what LAST_INSERT_ID() will return */
+      first_successful_insert_id_in_prev_stmt=
+        first_successful_insert_id_in_cur_stmt;
+      first_successful_insert_id_in_cur_stmt= 0;
+      substitute_null_with_insert_id= TRUE;
+    }
+  }
   inline ulonglong read_first_successful_insert_id_in_prev_stmt(void)
   {
     if (!stmt_depends_on_first_successful_insert_id_in_prev_stmt)
@@ -4005,6 +4017,7 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void set_thread_stack(void **stack_end= NULL);
   void reset_stack()
   {
     thread_stack= 0;
@@ -4656,6 +4669,14 @@ public:
   const Diagnostics_area *get_stmt_da() const
   { return m_stmt_da; }
 
+  /*
+    Bulk operation sums affected rows and warnings of all executions in
+    the diagnostics area, so statements of triggers and stored functions
+    called by it must not set the status
+  */
+  bool in_bulk_sub_stmt() const
+  { return in_sub_stmt && m_stmt_da->is_bulk_op(); }
+
   /// Sets Diagnostics-area for the current statement.
   void set_stmt_da(Diagnostics_area *da)
   { m_stmt_da= da; }
@@ -4811,13 +4832,15 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message()
+  /* Return true if the kill has an error and it was raised */
+  inline bool send_kill_message()
   {
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
       my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
+    return err != 0;
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
@@ -5091,6 +5114,9 @@ public:
   void parse_error(const char *err_text, const char *yytext)
   {
     Lex_input_stream *lip= &m_parser_state->m_lip;
+    /* The lexer reported the kill. */
+    if (lip->stopped_on_kill)
+      return;
     if (!yytext && !(yytext= lip->get_tok_start()))
         yytext= "";
     /* Push an error into the error stack */
@@ -5659,6 +5685,13 @@ public:
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  /*
+    True once a locking read (SELECT ... FOR UPDATE / LOCK IN SHARE MODE)
+    has executed in the current transaction. wsrep_has_changes(thd) only
+    reflects writes - a locking read takes row locks without appending any
+    certification key - so this covers the gap. See wsrep_must_sync_wait().
+  */
+  bool                      wsrep_trx_locking_read_done;
   uint64                    wsrep_last_written_gtid_seqno;
   uint64                    wsrep_current_gtid_seqno;
   ulong                     wsrep_affected_rows;
@@ -5998,6 +6031,8 @@ my_ok(THD *thd, ulonglong affected_rows_arg= 0, ulonglong id= 0,
 {
   thd->set_row_count_func(affected_rows_arg);
   thd->set_affected_rows(affected_rows_arg);
+  if (thd->in_bulk_sub_stmt())
+    return;
   thd->get_stmt_da()->set_ok_status(affected_rows_arg, id, message);
 }
 

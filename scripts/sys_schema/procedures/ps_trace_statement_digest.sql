@@ -155,8 +155,10 @@ BEGIN
     DECLARE v_runtime INT DEFAULT 0;
     DECLARE v_start INT DEFAULT 0;
     DECLARE v_found_stmts INT;
+    -- Not @log_bin: the sys procedures called below overwrite it
+    DECLARE v_log_bin BOOLEAN;
 
-    SET @log_bin := @@sql_log_bin;
+    SET v_log_bin = @@sql_log_bin;
     SET sql_log_bin = 0;
 
     -- Do not track the current thread, it will kill the stack
@@ -318,7 +320,7 @@ BEGIN
         CALL sys.ps_setup_enable_thread(CONNECTION_ID());
     END IF;
 
-    SET sql_log_bin = @log_bin;
+    SET sql_log_bin = v_log_bin;
 END$$
 
 DELIMITER ;

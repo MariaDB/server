@@ -3981,6 +3981,7 @@ static const char *old_mode_names[]=
   "IGNORE_INDEX_ONLY_FOR_JOIN",
   "COMPAT_5_1_CHECKSUM",
   "NO_NULL_COLLATION_IDS",
+  "X509_LENIENT_COMPARE",
   0
 };
 

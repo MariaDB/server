@@ -900,7 +900,7 @@ int stringcmp(const Binary_string *s, const Binary_string *t)
   then "to" is reallocated to fit "from_length" bytes, the value is copied
   from "from" to "to", then "to" is returned.
 */
-String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
+String *copy_if_not_alloced(String *to, String *from, size_t from_length)
 {
   DBUG_ASSERT(to);
   /*
@@ -1011,7 +1011,7 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
   }
   if (to->alloc(from_length))
     return from;				// Actually an error
-  if ((to->str_length=MY_MIN(from->str_length,from_length)))
+  if ((to->str_length=MY_MIN(from->str_length,(uint32)from_length)))
     memcpy(to->Ptr,from->Ptr,to->str_length);
   to->set_charset(*from);
   return to; // "from" was of types #a, #b, #e, or small #c.

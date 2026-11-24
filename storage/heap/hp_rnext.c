@@ -77,8 +77,9 @@ int heap_rnext(HP_INFO *info, uchar *record)
     else
     {
       /*
-        We enter this branch only for DELETE queries after heap_rkey(). E.g.
-        DELETE FROM t1 WHERE a=10. As last key position is not available
+        We enter this branch only for DELETE queries after a key was found by
+        heap_rkey() or heap_rnext(). E.g. DELETE FROM t1 WHERE a=10.
+        As last key position is not available
         (last key is removed by heap_delete()), we must restart search as it
         is done in heap_rkey().
       */
@@ -93,8 +94,7 @@ int heap_rnext(HP_INFO *info, uchar *record)
     if (pos)
     {
       info->lastkey_len= keyinfo->get_key_length(keyinfo, pos);
-      if ((keyinfo->flag & (HA_NOSAME | HA_NULL_PART_KEY)) != HA_NOSAME)
-        memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
+      memcpy(info->lastkey, pos, info->lastkey_len + sizeof(uchar*));
       memcpy(&pos, pos + info->lastkey_len, sizeof(uchar*));
       info->current_ptr= pos;
     }

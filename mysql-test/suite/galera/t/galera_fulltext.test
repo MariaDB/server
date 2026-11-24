@@ -4,6 +4,14 @@
 # InnoDB FULLTEXT indexes
 #
 
+# The oversized values below leave the write set key cut, on whichever
+# node builds it.
+--connection node_1
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+--connection node_2
+call mtr.add_suppression("WSREP: Write set key for table .* was cut to");
+--connection node_1
+
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 

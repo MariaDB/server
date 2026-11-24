@@ -304,3 +304,12 @@ f
 NULL
 DROP TABLE t1;
 # End of 10.5 tests
+# Start of 10.11 tests
+#
+# MDEV-40673: Preserve the results of JSON_TYPE and GET_FORMAT in CONCAT
+#
+SELECT CONCAT(JSON_TYPE('{"a":1}'),'X') AS json_type,
+CONCAT(GET_FORMAT(DATE, 'USA'), 'X') AS get_format;
+json_type	get_format
+OBJECTX	%m.%d.%YX
+# End of 10.11 tests

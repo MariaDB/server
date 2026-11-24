@@ -3053,7 +3053,8 @@ uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
 */
 inline key_part_map make_keypart_map(uint N)
 {
-  return ((key_part_map)2 << (N)) - 1;
+  DBUG_ASSERT(N < MAX_REF_PARTS);
+  return (key_part_map) my_set_bits(N + 1);
 }
 
 /*
@@ -3062,7 +3063,9 @@ inline key_part_map make_keypart_map(uint N)
 */
 inline key_part_map make_prev_keypart_map(uint N)
 {
-  return ((key_part_map)1 << (N)) - 1;
+  DBUG_ASSERT(N <= MAX_REF_PARTS);
+  // do NOT call my_set_bit(0), 1<<-1 is undefined/compiler/overflow dependent
+  return N ? (key_part_map) my_set_bits(N) : 0;
 }
 
 

@@ -1,0 +1,53 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# MDEV-41073 follow-up: a VARCHAR write set key cut at the wrong limit.
+#
+# wsrep_store_key_val_for_row() normalized a VARCHAR column's collation
+# weights up to REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes, while
+# wsrep_rec_get_foreign_key() normalized the same column up to
+# WSREP_MAX_SUPPORTED_KEY_LENGTH (3500) bytes, through
+# wsrep_store_string_key_val(). For a value whose normalized form falls
+# between 3072 and 3500 bytes, the two functions produced a different
+# key for the very same column value: one cut it, the other did not.
+#
+# CHAR does not have this problem: both functions normalize a CHAR
+# column through wsrep_store_string_key_val(), so both already agreed
+# at the 3500 byte limit.
+#
+# Column a below normalizes to exactly 550*6 = 3300 bytes (550 copies
+# of a ligature character that each normalize to 6 collation weight
+# bytes under utf8mb4_unicode_ci): past the old 3072 byte limit, but
+# under the 3500 byte one both functions now share.
+#
+
+--connection node_1
+CREATE TABLE p (a VARCHAR(550) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci PRIMARY KEY) ENGINE=InnoDB;
+
+CREATE TABLE ch (id INT AUTO_INCREMENT PRIMARY KEY,
+                 a VARCHAR(550) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+                 KEY k (a),
+                 FOREIGN KEY (a) REFERENCES p (a)) ENGINE=InnoDB;
+
+SET @v = REPEAT(_utf8mb4 0xEFAC84, 550) COLLATE utf8mb4_unicode_ci;
+
+INSERT INTO p (a) VALUES (@v);
+INSERT INTO ch (a) VALUES (@v);
+
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM ch;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM p;
+SELECT COUNT(*) AS EXPECT_1 FROM ch;
+
+UPDATE p SET a = a WHERE a = @v;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM p;
+--source include/wait_condition.inc
+
+DROP TABLE ch, p;

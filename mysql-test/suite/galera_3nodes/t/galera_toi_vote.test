@@ -57,7 +57,6 @@ SET SESSION wsrep_sync_wait=0;
 
 # reconnect node 3, since it failed
 --source include/kill_galera.inc
---source include/wait_until_disconnected.inc
 --source include/start_mysqld.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
 --source include/wait_condition.inc

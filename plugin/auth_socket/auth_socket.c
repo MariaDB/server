@@ -1,5 +1,6 @@
-/* Copyright (C) 2010 Sergei Golubchik and Monty Program Ab
+/* Copyright (c) 2010 Sergei Golubchik and Monty Program Ab
    Copyright (c) 2010, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc.
     
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -22,7 +23,9 @@
 
   Authentication is successful if the connection is done via a unix socket and
   the owner of the client process matches the user name that was used when
-  connecting to mysqld.
+  connecting to mysqld. Connections from the server process itself (storage
+  engines connecting to the local server) are rejected, where the platform
+  reports the peer pid.
 */
 #define _GNU_SOURCE 1 /* for struct ucred */
 
@@ -31,13 +34,16 @@
 #include <pwd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #ifdef HAVE_PEERCRED
 #define level SOL_SOCKET
+#define PEER_PID(S) cred.pid
 
 #elif defined HAVE_SOCKPEERCRED
 #define level SOL_SOCKET
 #define ucred sockpeercred
+#define PEER_PID(S) cred.pid
 
 #elif defined HAVE_XUCRED
 #include <sys/un.h>
@@ -46,6 +52,20 @@
 #define SO_PEERCRED LOCAL_PEERCRED
 #define uid cr_uid
 #define ucred xucred
+#ifdef HAVE_XUCRED_CR_PID
+#define PEER_PID(S) cred.cr_pid
+#elif defined HAVE_LOCAL_PEERPID
+static pid_t PEER_PID(int s)
+{
+  pid_t p;
+  socklen_t cred_len= sizeof(p);
+  if (getsockopt(s, SOL_LOCAL, LOCAL_PEERPID, &p, &cred_len))
+    return getpid(); /* getsockopt failed - disallow a connection */
+  return p;
+}
+#else
+#define PEER_PID(S) 0
+#endif
 
 #elif defined HAVE_UNPCBID
 #include <sys/un.h>
@@ -53,6 +73,7 @@
 #define SO_PEERCRED LOCAL_PEEREID
 #define uid unp_euid
 #define ucred unpcbid
+#define PEER_PID(S) cred.unp_pid
 
 #elif defined HAVE_GETPEERUCRED
 #include <ucred.h>
@@ -62,7 +83,8 @@
 #define SO_PEERCRED SO_PEERID
 #define uid euid
 #define ucred peercred_struct
- 
+#define PEER_PID(S) cred.pid
+
 #else
 #error impossible
 #endif
@@ -89,6 +111,7 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   struct passwd pwd_buf, *pwd;
   char buf[1024];
   uid_t u;
+  pid_t p;
 
   /* no user name yet ? read the client handshake packet with the user name */
   if (info->user_name == 0)
@@ -103,11 +126,12 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   if (vio_info.protocol != MYSQL_VIO_SOCKET)
     return CR_ERROR;
 
-  /* get the UID of the client process */
+  /* get the UID and the PID of the client process */
 #ifdef HAVE_GETPEERUCRED
   if (getpeerucred(vio_info.socket, &cred) != 0)
     return CR_ERROR;
   u = ucred_geteuid(cred);
+  p = ucred_getpid(cred);
   ucred_free(cred);
 #else
   if (getsockopt(vio_info.socket, level, SO_PEERCRED, &cred, &cred_len))
@@ -117,7 +141,15 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
     return CR_ERROR;
 
   u = cred.uid;
+  p = PEER_PID(vio_info.socket);
 #endif
+
+  /*
+    the server process itself must not authenticate as the OS user
+    it runs under
+  */
+  if (p == getpid())
+    return CR_ERROR;
 
   /* and find the username for this uid */
   getpwuid_r(u, &pwd_buf, buf, sizeof(buf), &pwd);

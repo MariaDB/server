@@ -768,3 +768,89 @@ DROP PROCEDURE p_definer;
 DROP PROCEDURE p_invoker;
 DROP PROCEDURE p_baddefiner;
 DROP USER user@localhost;
+#
+# MDEV-39615 CONNECT: Privilege validation gap
+#
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+CREATE TABLE db2.t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DOS;
+Warnings:
+Warning	1105	No file name. Table will use t1.dos
+INSERT INTO db2.t1 VALUES (1);
+CREATE TABLE db2.t2 (a INT) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='t2.dos';
+INSERT INTO db2.t2 VALUES (2);
+CREATE USER user@localhost;
+GRANT ALL PRIVILEGES ON db1.* TO user@localhost;
+GRANT SELECT ON db2.t2 TO user@localhost;
+connect u,localhost,user,,db1;
+CREATE TABLE p1 (a INT) ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='db2';
+CREATE TABLE p2 (a INT) ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t2' DBNAME='db2';
+CREATE TABLE pp (a INT) ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='p1';
+CREATE TABLE tb (a INT) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='db2.t1';
+connection default;
+CREATE SQL SECURITY DEFINER VIEW db1.v_definer AS SELECT * FROM db1.p1;
+CREATE SQL SECURITY INVOKER VIEW db1.v_invoker AS SELECT * FROM db1.p1;
+connection u;
+SELECT * FROM p1;
+ERROR 42000: SELECT command denied to user 'user'@'localhost' for table `db2`.`t1`
+INSERT INTO p1 VALUES (10);
+ERROR 42000: INSERT command denied to user 'user'@'localhost' for table `db2`.`t1`
+SELECT * FROM pp;
+ERROR 42000: SELECT command denied to user 'user'@'localhost' for table `db2`.`t1`
+SELECT * FROM tb;
+ERROR 42000: SELECT command denied to user 'user'@'localhost' for table `db2`.`t1`
+SELECT * FROM p2;
+ERROR 42000: Access denied; you need (at least one of) the FILE privilege(s) for this operation
+SELECT * FROM v_definer;
+a
+1
+SELECT * FROM v_invoker;
+ERROR 42000: SELECT command denied to user 'user'@'localhost' for table `db2`.`t1`
+SHOW TABLE STATUS LIKE 'p1';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+p1	CONNECT	10	Fixed	0	0	0	#	0	0	NULL	#	#	#	#	#	`TABLE_TYPE`='PROXY' `TABNAME`='t1' `DBNAME`='db2'		0	N
+ALTER TABLE p1 ENGINE=MyISAM;
+ERROR 42000: SELECT command denied to user 'user'@'localhost' for table `db2`.`t1`
+connection default;
+GRANT SELECT ON db2.t1 TO user@localhost;
+connection u;
+SELECT * FROM p1;
+a
+1
+SELECT * FROM pp;
+a
+1
+SELECT * FROM tb;
+a
+1
+SELECT * FROM v_invoker;
+a
+1
+CREATE TABLE p3 (a INT) ENGINE=CONNECT TABLE_TYPE=PROXY TABNAME='t1' DBNAME='db2';
+ALTER TABLE p3 ENGINE=MyISAM;
+SELECT * FROM p3;
+a
+1
+INSERT INTO p1 VALUES (10);
+ERROR 42000: INSERT command denied to user 'user'@'localhost' for table `db2`.`t1`
+UPDATE p1 SET a=10;
+ERROR 42000: UPDATE command denied to user 'user'@'localhost' for table `db2`.`t1`
+DELETE FROM p1;
+ERROR 42000: DELETE command denied to user 'user'@'localhost' for table `db2`.`t1`
+connection default;
+GRANT INSERT, UPDATE ON db2.t1 TO user@localhost;
+connection u;
+INSERT INTO p1 VALUES (10);
+UPDATE p1 SET a=11 WHERE a=10;
+DELETE FROM p1;
+ERROR 42000: DELETE command denied to user 'user'@'localhost' for table `db2`.`t1`
+SELECT * FROM p1;
+a
+1
+11
+disconnect u;
+connection default;
+DROP USER user@localhost;
+DROP DATABASE db1;
+DROP DATABASE db2;
+# End of 10.11 tests

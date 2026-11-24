@@ -1159,7 +1159,6 @@ struct interval_range
 
 class Item_func_interval :public Item_long_func
 {
-  Item_row *row;
   bool use_decimal_comparison;
   interval_range *intervals;
   bool check_arguments() const override
@@ -1168,8 +1167,9 @@ class Item_func_interval :public Item_long_func
   }
 public:
   Item_func_interval(THD *thd, Item_row *a):
-    Item_long_func(thd, a), row(a), intervals(0)
+    Item_long_func(thd, a), intervals(0)
   { }
+  Item_row *row() const { return static_cast<Item_row*>(args[0]); }
   longlong val_int() override;
   bool fix_length_and_dec(THD *thd) override;
   LEX_CSTRING func_name_cstring() const override

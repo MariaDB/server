@@ -2,6 +2,7 @@
 /*  Name: TABUTIL.CPP   Version 1.2                                    */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2013 - 2017  */
+/*  Copyright (c) 2013, 2026, MariaDB plc.                             */
 /*                                                                     */
 /*  Utility function used by the PROXY, XCOL, OCCUR, and TBL tables.   */
 /***********************************************************************/
@@ -453,7 +454,14 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
       tdbp->SetName(Name);      // For Make_Command
 
   } else {
-    // Sub-table is a CONNECT table
+    // Sub-table is a CONNECT table, accessed with the user's privileges
+    if (hc->check_subtable_privileges(thd, s, Mode)) {
+      snprintf(g->Message, sizeof(g->Message), "Access denied to %s.%s",
+               db, name);
+      hc->tshp = NULL;
+      goto err;
+      } // endif check_subtable_privileges
+
     tabp->Next = To_Table;          // For loop checking
     tdbp = cat->GetTable(g, tabp, Mode);
   } // endif mysql

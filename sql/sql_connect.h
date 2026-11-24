@@ -97,9 +97,20 @@ bool thd_init_client_charset(THD *thd, uint cs_number);
 void setup_connection_thread_globals(THD *thd);
 bool thd_prepare_connection(THD *thd);
 bool thd_is_connection_alive(THD *thd);
+enum host_check_mode
+{
+  /* An address in proxy_protocol_networks is exempt (the real check
+     happens later, on the client address from its PROXY header);
+     failure is raised immediately. */
+  HOST_CHECK_MODE_DEFAULT,
+  /* Checking the real client address learned from a parsed PROXY
+     header: failure is deferred until the client's handshake response
+     is parsed, completing SSL first if requested. */
+  HOST_CHECK_MODE_PROXY_PROTOCOL_CLIENT_IP
+};
 int thd_set_peer_addr(THD *thd, sockaddr_storage *addr,
                       const char *ip, uint port,
-                      bool check_proxy_networks,
+                      host_check_mode mode,
                       uint *host_errors);
 
 bool login_connection(THD *thd);

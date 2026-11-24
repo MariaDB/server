@@ -1200,6 +1200,7 @@ dynamic_column_decimal_read(DYNAMIC_COLUMN_VALUE *store_it_here,
                             uchar *data, size_t length)
 {
   size_t intg_len, frac_len;
+  ulonglong u_intg, u_frac;
   int intg, frac, precision, scale;
 
   dynamic_column_prepare_decimal(store_it_here);
@@ -1207,18 +1208,27 @@ dynamic_column_decimal_read(DYNAMIC_COLUMN_VALUE *store_it_here,
   if (length == 0)
     return ER_DYNCOL_OK;                        /* value contains zero */
 
-  intg= (int)dynamic_column_var_uint_get(data, length, &intg_len);
+  u_intg= dynamic_column_var_uint_get(data, length, &intg_len);
   data+= intg_len;
-  frac= (int)dynamic_column_var_uint_get(data, length - intg_len, &frac_len);
+  u_frac= dynamic_column_var_uint_get(data, length - intg_len, &frac_len);
   data+= frac_len;
+
+  /* Reject before narrowing to int, so a wrap-around can't hide a bad value */
+  if (intg_len == 0 || frac_len == 0 ||
+      u_intg > DECIMAL_MAX_POSSIBLE_PRECISION ||
+      u_frac > DECIMAL_MAX_POSSIBLE_PRECISION)
+    return ER_DYNCOL_FORMAT;
+  intg= (int) u_intg;
+  frac= (int) u_frac;
 
   /* Check the size of data is correct */
   precision= intg + frac;
   scale=     frac;
-  if (scale < 0 || precision <= 0 || scale > precision ||
+  if (precision <= 0 || scale > precision ||
+      precision > DECIMAL_MAX_POSSIBLE_PRECISION ||
       (length - intg_len - frac_len) >
       (size_t) (DECIMAL_BUFF_LENGTH*sizeof(decimal_digit_t)) ||
-      decimal_bin_size(intg + frac, frac) !=
+      decimal_bin_size(precision, scale) !=
       (uint) (length - intg_len - frac_len))
     return ER_DYNCOL_FORMAT;
 

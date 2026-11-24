@@ -63,6 +63,12 @@ SELECT name, body_utf8, body FROM mysql.event;
 
 --echo # mysql_upgrade changes columns from utf8mb4 to utf8mb3
 
+# =========================================================================
+# THE FIX: Turn off the event scheduler so it gracefully finishes its 
+# current run and stops hammering mysql.event with MDL_SHARED_WRITE locks.
+# =========================================================================
+SET GLOBAL event_scheduler=OFF;
+
 --exec $MYSQL_UPGRADE --force 2>&1
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
@@ -71,7 +77,7 @@ SELECT name, body_utf8, body FROM mysql.event;
 SHOW CREATE TABLE mysql.proc;
 SHOW CREATE TABLE mysql.event;
 
-SET GLOBAL event_scheduler=OFF;
+# Clean up resources safely
 DROP EVENT ev1;
 DROP PROCEDURE sp1;
 DROP TABLE t1;

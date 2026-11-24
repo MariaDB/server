@@ -447,15 +447,6 @@ void clear_opt_noacl()
   }
 }
 
-/**
-   @brief 'grant_option' is used to indicate if privileges needs
-   to be checked, in which case the lock, LOCK_grant, is used
-   to protect access to the grant table.
-   @note This flag is dropped in 5.1
-   @see grant_init()
- */
-bool volatile grant_option;
-
 my_bool opt_skip_slave_start = 0; ///< If set, slave is not autostarted
 my_bool opt_reckless_slave = 0;
 READ_ONLY_SYSVAR my_bool opt_enable_named_pipe= 0;
@@ -2387,6 +2378,17 @@ static void set_root(const char *path)
 #endif
 }
 
+#ifdef _WIN32
+/* Windows clamps a plain backlog; SOMAXCONN_HINT honors it from 200 up. */
+#define WIN_MIN_BACKLOG_HINT 200
+static inline int adjust_backlog(int backlog)
+{
+  return backlog >= WIN_MIN_BACKLOG_HINT ? SOMAXCONN_HINT(backlog) : backlog;
+}
+#else
+static inline int adjust_backlog(int backlog) { return backlog; }
+#endif
+
 /**
    Activate usage of a tcp port
 */
@@ -2587,7 +2589,7 @@ static void activate_tcp_port(uint port,
                         "port: %u ?", port);
         unireg_abort(1);
       }
-      if (mysql_socket_listen(ip_sock,(int) back_log) < 0)
+      if (mysql_socket_listen(ip_sock, adjust_backlog((int) back_log)) < 0)
       {
         sql_perror("Can't start server: listen() on TCP/IP port");
         sql_print_error("listen() on TCP/IP failed with error %d",
@@ -4088,14 +4090,6 @@ static int init_common_variables()
     sql_perror("Could not allocate replication and binlog filters");
     exit(1);
   }
-
-#ifdef HAVE_OPENSSL
-  if (check_openssl_compatibility())
-  {
-    sql_print_error("Incompatible OpenSSL version. Cannot continue...");
-    exit(1);
-  }
-#endif
 
   if (init_thread_environment() || mysql_init_variables())
     exit(1);
@@ -6034,6 +6028,7 @@ int mysqld_main(int argc, char **argv)
   my_report_svc_status(SERVICE_START_PENDING, NO_ERROR, slow_start_timeout);
 #endif
 
+  vio_check_ssl_init();
   if (init_server_components())
     unireg_abort(1);
 
@@ -7987,6 +7982,7 @@ static void usage(void)
     puts("\nTo see what variables a running server is using, type"
          "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.");
   }
+  fflush(stdout);
   DBUG_VOID_RETURN;
 }
 #endif /*!EMBEDDED_LIBRARY*/
@@ -8033,7 +8029,6 @@ static int mysql_init_variables(void)
   opt_endinfo= using_udf_functions= 0;
   opt_using_transactions= 0;
   abort_loop= select_thread_in_use= signal_thread_in_use= 0;
-  grant_option= 0;
   aborted_threads= aborted_connects= aborted_connects_preauth= 0;
   malloc_calls= 0;
   subquery_cache_miss= subquery_cache_hit= 0;

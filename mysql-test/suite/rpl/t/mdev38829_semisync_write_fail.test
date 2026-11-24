@@ -1,0 +1,36 @@
+#
+# MDEV-38829: Assertion `rpl_semi_sync_master_off_times >
+# thd->expected_semi_sync_offs' failed in Repl_semi_sync_master::commit_trx()
+#
+# A failed direct binlog write (write_gtid_event()/write_event() returning an
+# error) left semisync registration skipped, but the semisync wait
+# (wait_after_sync() -> commit_trx()) still ran unconditionally. commit_trx()
+# then found no entry for the transaction and asserted that the only
+# possible cause was a concurrent switch_off()/switch_on(), which is false
+# here -- the entry was simply never registered.
+#
+# Verify that a failed direct binlog write no longer triggers a semisync
+# wait for a transaction that was never registered: the query should just
+# return a clean write error, and the server must remain fully responsive
+# (in particular, no assertion failure / crash).
+#
+--source include/have_debug.inc
+--source include/have_binlog_format_mixed_or_statement.inc
+
+call mtr.add_suppression("Write to binary log failed*");
+
+SET GLOBAL rpl_semi_sync_master_enabled = 1;
+SET GLOBAL rpl_semi_sync_master_wait_point = 'AFTER_SYNC';
+
+--let $query= CREATE TABLE t1 (i INT)
+--source include/binlog_inject_error.inc
+
+# The server must still be fully alive and responsive here -- this is the
+# actual regression check: pre-fix, the statement above aborts the
+# (debug-build) server via DBUG_ASSERT instead of returning cleanly.
+SELECT 1;
+SHOW STATUS LIKE 'Rpl_semi_sync_master_status';
+
+SET GLOBAL rpl_semi_sync_master_enabled = 0;
+SET GLOBAL rpl_semi_sync_master_wait_point = DEFAULT;
+DROP TABLE IF EXISTS t1;

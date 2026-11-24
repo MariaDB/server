@@ -7769,8 +7769,8 @@ int spider_mbase_handler::append_key_column_types(
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
 
   if (!start_key_part_map)
     DBUG_RETURN(0);
@@ -7836,8 +7836,8 @@ int spider_mbase_handler::append_key_join_columns_for_bka(
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
 
   if (!start_key_part_map)
     DBUG_RETURN(0);
@@ -9495,8 +9495,8 @@ int spider_mbase_handler::append_key_column_values(
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
 
   if (!start_key_part_map)
     DBUG_RETURN(0);
@@ -9574,8 +9574,8 @@ int spider_mbase_handler::append_key_column_values_with_name(
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
-  DBUG_PRINT("info", ("spider full_key_part_map=%lu", full_key_part_map));
-  DBUG_PRINT("info", ("spider start_key_part_map=%lu", start_key_part_map));
+  DBUG_PRINT("info", ("spider full_key_part_map=%u", full_key_part_map));
+  DBUG_PRINT("info", ("spider start_key_part_map=%u", start_key_part_map));
 
   if (!start_key_part_map)
     DBUG_RETURN(0);

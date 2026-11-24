@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2021, MariaDB Corporation.
+   Copyright (c) 2011, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -482,19 +482,28 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 #endif
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+  /*
+    Complete the view definition (ALTER VIEW inherits DEFINER, ALGORITHM
+    and SQL SECURITY from the existing view) and check that the user may
+    use the DEFINER. TOI is begun only after all checks, see below.
+  */
+  if (mode == VIEW_ALTER && fill_defined_view_parts(thd, view))
+  {
+    res= TRUE;
+    goto err_no_relink;
+  }
+
+  if (sp_process_definer(thd))
+  {
+    res= TRUE;
+    goto err_no_relink;
+  }
 
   view= lex->unlink_first_table(&link_to_local);
 
   if (check_db_dir_existence(view->db.str))
   {
     my_error(ER_BAD_DB_ERROR, MYF(0), view->db.str);
-    res= TRUE;
-    goto err;
-  }
-
-  if (mode == VIEW_ALTER && fill_defined_view_parts(thd, view))
-  {
     res= TRUE;
     goto err;
   }
@@ -511,8 +520,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
   sp_cache_invalidate();
-  if (sp_process_definer(thd))
-    goto err;
 
   /*
     check that tables are not temporary  and this VIEW do not used in query
@@ -668,6 +675,31 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 #endif
 
+#ifdef WITH_WSREP
+  /*
+    Begin TOI only now, after all checks, privilege checks included: the
+    applier runs with all privileges, so a statement refused on this node
+    after TOI had begun would still be applied by the other nodes.
+
+    TOI expects the view to be the first table in the table list, as it
+    was before unlink_first_table() above, so link it back for the call.
+  */
+  if (WSREP(thd))
+  {
+    TABLE_LIST *save_table_list= select_lex->context.table_list;
+    TABLE_LIST *save_first_name_resolution_table=
+      select_lex->context.first_name_resolution_table;
+
+    lex->link_first_table_back(view, link_to_local);
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+    view= lex->unlink_first_table(&link_to_local);
+
+    select_lex->context.table_list= save_table_list;
+    select_lex->context.first_name_resolution_table=
+      save_first_name_resolution_table;
+  }
+#endif /* WITH_WSREP */
+
   res= mysql_register_view(thd, &ddl_log_state, view, mode, backup_file_name);
 
   /*
@@ -822,7 +854,7 @@ static File_option view_parameters[]=
   FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("md5")},
   my_offsetof(TABLE_LIST, md5),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{ STRING_WITH_LEN("updatable")},
   my_offsetof(TABLE_LIST, updatable_view),
   FILE_OPTIONS_ULONGLONG},
@@ -852,10 +884,10 @@ static File_option view_parameters[]=
   FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("client_cs_name")},
   my_offsetof(TABLE_LIST, view_client_cs_name),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("connection_cl_name")},
   my_offsetof(TABLE_LIST, view_connection_cl_name),
-  FILE_OPTIONS_STRING},
+  FILE_OPTIONS_ESTRING},
  {{(char*) STRING_WITH_LEN("view_body_utf8")},
   my_offsetof(TABLE_LIST, view_body_utf8),
   FILE_OPTIONS_ESTRING},
@@ -863,7 +895,7 @@ static File_option view_parameters[]=
   my_offsetof(TABLE_LIST, mariadb_version),
   FILE_OPTIONS_ULONGLONG},
  {{NullS, 0},			0,
-  FILE_OPTIONS_STRING}
+  FILE_OPTIONS_ESTRING}
 };
 
 
@@ -871,7 +903,7 @@ static File_option view_timestamp_parameters[]=
 {
 
  {{ C_STRING_WITH_LEN("timestamp")}, 0, FILE_OPTIONS_TIMESTAMP},
- {{NullS, 0}, 0, FILE_OPTIONS_STRING}
+ {{NullS, 0}, 0, FILE_OPTIONS_ESTRING}
 };
 
 
@@ -1020,6 +1052,11 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
                                                QT_WITHOUT_INTRODUCERS |
                                                QT_ITEM_ORIGINAL_FUNC_NULLIF |
                                                QT_NO_WRAPPERS_FOR_TVC_IN_VIEW));
+  }
+  if (thd->is_error())
+  {
+    error= -1;
+    goto err;
   }
   DBUG_PRINT("info", ("View: %.*s", view_query.length(), view_query.ptr()));
 

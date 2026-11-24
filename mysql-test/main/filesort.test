@@ -1,0 +1,190 @@
+--echo #
+--echo # MDEV-41540 filesort assert crash on a huge sort key
+--echo #
+
+# wraparound in sortlength
+create table t1 ( c1 longblob, c2 longblob, c3 longblob, c4 longblob, c5
+  longblob, c6 longblob, c7 longblob, c8 longblob, c9 longblob, c10 longblob,
+  c11 longblob, c12 longblob, c13 longblob, c14 longblob, c15 longblob, c16
+  longblob, c17 longblob, c18 longblob, c19 longblob, c20 longblob, c21
+  longblob, c22 longblob, c23 longblob, c24 longblob, c25 longblob, c26
+  longblob, c27 longblob, c28 longblob, c29 longblob, c30 longblob, c31
+  longblob, c32 longblob, c33 longblob, c34 longblob, c35 longblob, c36
+  longblob, c37 longblob, c38 longblob, c39 longblob, c40 longblob, c41
+  longblob, c42 longblob, c43 longblob, c44 longblob, c45 longblob, c46
+  longblob, c47 longblob, c48 longblob, c49 longblob, c50 longblob, c51
+  longblob, c52 longblob, c53 longblob, c54 longblob, c55 longblob, c56
+  longblob, c57 longblob, c58 longblob, c59 longblob, c60 longblob, c61
+  longblob, c62 longblob, c63 longblob, c64 longblob, c65 longblob, c66
+  longblob, c67 longblob, c68 longblob, c69 longblob, c70 longblob, c71
+  longblob, c72 longblob, c73 longblob, c74 longblob, c75 longblob, c76
+  longblob, c77 longblob, c78 longblob, c79 longblob, c80 longblob, c81
+  longblob, c82 longblob, c83 longblob, c84 longblob, c85 longblob, c86
+  longblob, c87 longblob, c88 longblob, c89 longblob, c90 longblob, c91
+  longblob, c92 longblob, c93 longblob, c94 longblob, c95 longblob, c96
+  longblob, c97 longblob, c98 longblob, c99 longblob, c100 longblob, c101
+  longblob, c102 longblob, c103 longblob, c104 longblob, c105 longblob, c106
+  longblob, c107 longblob, c108 longblob, c109 longblob, c110 longblob, c111
+  longblob, c112 longblob, c113 longblob, c114 longblob, c115 longblob, c116
+  longblob, c117 longblob, c118 longblob, c119 longblob, c120 longblob, c121
+  longblob, c122 longblob, c123 longblob, c124 longblob, c125 longblob, c126
+  longblob, c127 longblob, c128 longblob, c129 longblob, c130 longblob, c131
+  longblob, c132 longblob, c133 longblob, c134 longblob, c135 longblob, c136
+  longblob, c137 longblob, c138 longblob, c139 longblob, c140 longblob, c141
+  longblob, c142 longblob, c143 longblob, c144 longblob, c145 longblob, c146
+  longblob, c147 longblob, c148 longblob, c149 longblob, c150 longblob, c151
+  longblob, c152 longblob, c153 longblob, c154 longblob, c155 longblob, c156
+  longblob, c157 longblob, c158 longblob, c159 longblob, c160 longblob, c161
+  longblob, c162 longblob, c163 longblob, c164 longblob, c165 longblob, c166
+  longblob, c167 longblob, c168 longblob, c169 longblob, c170 longblob, c171
+  longblob, c172 longblob, c173 longblob, c174 longblob, c175 longblob, c176
+  longblob, c177 longblob, c178 longblob, c179 longblob, c180 longblob, c181
+  longblob, c182 longblob, c183 longblob, c184 longblob, c185 longblob, c186
+  longblob, c187 longblob, c188 longblob, c189 longblob, c190 longblob, c191
+  longblob, c192 longblob, c193 longblob, c194 longblob, c195 longblob, c196
+  longblob, c197 longblob, c198 longblob, c199 longblob, c200 longblob, c201
+  longblob, c202 longblob, c203 longblob, c204 longblob, c205 longblob, c206
+  longblob, c207 longblob, c208 longblob, c209 longblob, c210 longblob, c211
+  longblob, c212 longblob, c213 longblob, c214 longblob, c215 longblob, c216
+  longblob, c217 longblob, c218 longblob, c219 longblob, c220 longblob, c221
+  longblob, c222 longblob, c223 longblob, c224 longblob, c225 longblob, c226
+  longblob, c227 longblob, c228 longblob, c229 longblob, c230 longblob, c231
+  longblob, c232 longblob, c233 longblob, c234 longblob, c235 longblob, c236
+  longblob, c237 longblob, c238 longblob, c239 longblob, c240 longblob, c241
+  longblob, c242 longblob, c243 longblob, c244 longblob, c245 longblob, c246
+  longblob, c247 longblob, c248 longblob, c249 longblob, c250 longblob, c251
+  longblob, c252 longblob, c253 longblob, c254 longblob, c255 longblob, c256
+  longblob, c257 longblob, c258 longblob, c259 longblob, c260 longblob, c261
+  longblob, c262 longblob, c263 longblob, c264 longblob, c265 longblob, c266
+  longblob, c267 longblob, c268 longblob, c269 longblob, c270 longblob, c271
+  longblob, c272 longblob, c273 longblob, c274 longblob, c275 longblob, c276
+  longblob, c277 longblob, c278 longblob, c279 longblob, c280 longblob, c281
+  longblob, c282 longblob, c283 longblob, c284 longblob, c285 longblob, c286
+  longblob, c287 longblob, c288 longblob, c289 longblob, c290 longblob, c291
+  longblob, c292 longblob, c293 longblob, c294 longblob, c295 longblob, c296
+  longblob, c297 longblob, c298 longblob, c299 longblob, c300 longblob, c301
+  longblob, c302 longblob, c303 longblob, c304 longblob, c305 longblob, c306
+  longblob, c307 longblob, c308 longblob, c309 longblob, c310 longblob, c311
+  longblob, c312 longblob, c313 longblob, c314 longblob, c315 longblob, c316
+  longblob, c317 longblob, c318 longblob, c319 longblob, c320 longblob, c321
+  longblob, c322 longblob, c323 longblob, c324 longblob, c325 longblob, c326
+  longblob, c327 longblob, c328 longblob, c329 longblob, c330 longblob, c331
+  longblob, c332 longblob, c333 longblob, c334 longblob, c335 longblob, c336
+  longblob, c337 longblob, c338 longblob, c339 longblob, c340 longblob, c341
+  longblob, c342 longblob, c343 longblob, c344 longblob, c345 longblob, c346
+  longblob, c347 longblob, c348 longblob, c349 longblob, c350 longblob, c351
+  longblob, c352 longblob, c353 longblob, c354 longblob, c355 longblob, c356
+  longblob, c357 longblob, c358 longblob, c359 longblob, c360 longblob, c361
+  longblob, c362 longblob, c363 longblob, c364 longblob, c365 longblob, c366
+  longblob, c367 longblob, c368 longblob, c369 longblob, c370 longblob, c371
+  longblob, c372 longblob, c373 longblob, c374 longblob, c375 longblob, c376
+  longblob, c377 longblob, c378 longblob, c379 longblob, c380 longblob, c381
+  longblob, c382 longblob, c383 longblob, c384 longblob, c385 longblob, c386
+  longblob, c387 longblob, c388 longblob, c389 longblob, c390 longblob, c391
+  longblob, c392 longblob, c393 longblob, c394 longblob, c395 longblob, c396
+  longblob, c397 longblob, c398 longblob, c399 longblob, c400 longblob, c401
+  longblob, c402 longblob, c403 longblob, c404 longblob, c405 longblob, c406
+  longblob, c407 longblob, c408 longblob, c409 longblob, c410 longblob, c411
+  longblob, c412 longblob, c413 longblob, c414 longblob, c415 longblob, c416
+  longblob, c417 longblob, c418 longblob, c419 longblob, c420 longblob, c421
+  longblob, c422 longblob, c423 longblob, c424 longblob, c425 longblob, c426
+  longblob, c427 longblob, c428 longblob, c429 longblob, c430 longblob, c431
+  longblob, c432 longblob, c433 longblob, c434 longblob, c435 longblob, c436
+  longblob, c437 longblob, c438 longblob, c439 longblob, c440 longblob, c441
+  longblob, c442 longblob, c443 longblob, c444 longblob, c445 longblob, c446
+  longblob, c447 longblob, c448 longblob, c449 longblob, c450 longblob, c451
+  longblob, c452 longblob, c453 longblob, c454 longblob, c455 longblob, c456
+  longblob, c457 longblob, c458 longblob, c459 longblob, c460 longblob, c461
+  longblob, c462 longblob, c463 longblob, c464 longblob, c465 longblob, c466
+  longblob, c467 longblob, c468 longblob, c469 longblob, c470 longblob, c471
+  longblob, c472 longblob, c473 longblob, c474 longblob, c475 longblob, c476
+  longblob, c477 longblob, c478 longblob, c479 longblob, c480 longblob, c481
+  longblob, c482 longblob, c483 longblob, c484 longblob, c485 longblob, c486
+  longblob, c487 longblob, c488 longblob, c489 longblob, c490 longblob, c491
+  longblob, c492 longblob, c493 longblob, c494 longblob, c495 longblob, c496
+  longblob, c497 longblob, c498 longblob, c499 longblob, c500 longblob, c501
+  longblob, c502 longblob, c503 longblob, c504 longblob, c505 longblob, c506
+  longblob, c507 longblob, c508 longblob, c509 longblob, c510 longblob, c511
+  longblob, c512 longblob) engine=myisam;
+
+set max_sort_length = 8388608;
+insert into t1 (c1) values (repeat(0x41, 64));
+insert into t1 (c1) values (repeat(0x42, 64));
+insert into t1 (c1) values (repeat(0x43, 64));
+--error ER_OUT_OF_SORTMEMORY
+select c1 from t1 order by c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11,
+  c12, c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26,
+  c27, c28, c29, c30, c31, c32, c33, c34, c35, c36, c37, c38, c39, c40, c41,
+  c42, c43, c44, c45, c46, c47, c48, c49, c50, c51, c52, c53, c54, c55, c56,
+  c57, c58, c59, c60, c61, c62, c63, c64, c65, c66, c67, c68, c69, c70, c71,
+  c72, c73, c74, c75, c76, c77, c78, c79, c80, c81, c82, c83, c84, c85, c86,
+  c87, c88, c89, c90, c91, c92, c93, c94, c95, c96, c97, c98, c99, c100, c101,
+  c102, c103, c104, c105, c106, c107, c108, c109, c110, c111, c112, c113, c114,
+  c115, c116, c117, c118, c119, c120, c121, c122, c123, c124, c125, c126, c127,
+  c128, c129, c130, c131, c132, c133, c134, c135, c136, c137, c138, c139, c140,
+  c141, c142, c143, c144, c145, c146, c147, c148, c149, c150, c151, c152, c153,
+  c154, c155, c156, c157, c158, c159, c160, c161, c162, c163, c164, c165, c166,
+  c167, c168, c169, c170, c171, c172, c173, c174, c175, c176, c177, c178, c179,
+  c180, c181, c182, c183, c184, c185, c186, c187, c188, c189, c190, c191, c192,
+  c193, c194, c195, c196, c197, c198, c199, c200, c201, c202, c203, c204, c205,
+  c206, c207, c208, c209, c210, c211, c212, c213, c214, c215, c216, c217, c218,
+  c219, c220, c221, c222, c223, c224, c225, c226, c227, c228, c229, c230, c231,
+  c232, c233, c234, c235, c236, c237, c238, c239, c240, c241, c242, c243, c244,
+  c245, c246, c247, c248, c249, c250, c251, c252, c253, c254, c255, c256, c257,
+  c258, c259, c260, c261, c262, c263, c264, c265, c266, c267, c268, c269, c270,
+  c271, c272, c273, c274, c275, c276, c277, c278, c279, c280, c281, c282, c283,
+  c284, c285, c286, c287, c288, c289, c290, c291, c292, c293, c294, c295, c296,
+  c297, c298, c299, c300, c301, c302, c303, c304, c305, c306, c307, c308, c309,
+  c310, c311, c312, c313, c314, c315, c316, c317, c318, c319, c320, c321, c322,
+  c323, c324, c325, c326, c327, c328, c329, c330, c331, c332, c333, c334, c335,
+  c336, c337, c338, c339, c340, c341, c342, c343, c344, c345, c346, c347, c348,
+  c349, c350, c351, c352, c353, c354, c355, c356, c357, c358, c359, c360, c361,
+  c362, c363, c364, c365, c366, c367, c368, c369, c370, c371, c372, c373, c374,
+  c375, c376, c377, c378, c379, c380, c381, c382, c383, c384, c385, c386, c387,
+  c388, c389, c390, c391, c392, c393, c394, c395, c396, c397, c398, c399, c400,
+  c401, c402, c403, c404, c405, c406, c407, c408, c409, c410, c411, c412, c413,
+  c414, c415, c416, c417, c418, c419, c420, c421, c422, c423, c424, c425, c426,
+  c427, c428, c429, c430, c431, c432, c433, c434, c435, c436, c437, c438, c439,
+  c440, c441, c442, c443, c444, c445, c446, c447, c448, c449, c450, c451, c452,
+  c453, c454, c455, c456, c457, c458, c459, c460, c461, c462, c463, c464, c465,
+  c466, c467, c468, c469, c470, c471, c472, c473, c474, c475, c476, c477, c478,
+  c479, c480, c481, c482, c483, c484, c485, c486, c487, c488, c489, c490, c491,
+  c492, c493, c494, c495, c496, c497, c498, c499, c500, c501, c502, c503, c504,
+  c505, c506, c507, c508, c509, c510, c511, c512 LIMIT 1;
+drop table t1;
+
+# wraparound in min_sort_memory
+create table t1 (c1 longblob, c2 longblob, c3 longblob, c4 longblob, c5
+  longblob, c6 longblob, c7 longblob, c8 longblob, c9 longblob, c10 longblob,
+  c11 longblob, c12 longblob, c13 longblob, c14 longblob, c15 longblob, c16
+  longblob, c17 longblob, c18 longblob, c19 longblob, c20 longblob, c21
+  longblob, c22 longblob, c23 longblob, c24 longblob, c25 longblob, c26
+  longblob, c27 longblob, c28 longblob, c29 longblob, c30 longblob, c31
+  longblob, c32 longblob, c33 longblob, c34 longblob, c35 longblob)
+engine=myisam;
+insert into t1 (c1) values ('c'),('a'),('b');
+
+set max_sort_length= 8181747;
+set sort_buffer_size= 1048576;
+
+--disable_abort_on_error
+SELECT c1 FROM t1 ORDER BY c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12,
+  c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27,
+  c28, c29, c30, c31, c32, c33, c34;
+SELECT c1 FROM t1 ORDER BY c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12,
+  c13, c14, c15, c16, c17, c18, c19, c20, c21, c22, c23, c24, c25, c26, c27,
+  c28, c29, c30, c31, c32, c33, c34, c35;
+--enable_abort_on_error
+
+select variable_value < 1024*1024*1024 from information_schema.session_status where variable_name='max_memory_used';
+if (`select variable_value > 1024*1024*1024 from information_schema.session_status where variable_name='max_memory_used'`) {
+  select sformat('{:.2f} MB', @@sort_buffer_size/1024/1024), sformat('{:.2f} MB', variable_value/1024/1024) from information_schema.session_status where variable_name='max_memory_used';
+}
+
+set max_sort_length= default;
+set sort_buffer_size= default;
+drop table t1;
+
+call mtr.add_suppression("Out of sort memory");
+
+--echo # End of 10.11 tests

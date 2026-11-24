@@ -148,16 +148,26 @@ innobase_basename(
 	const char*	path_name);
 
 #ifdef WITH_WSREP
+/** Normalize a column value into its collation weights.
+out_str must hold buf_length + 1 bytes: one byte over the limit is asked
+from strnxfrm() so that a value whose weights do not fit can be told apart
+from one that fills the room exactly. The extra byte is never part of the
+key, the result is cut back to buf_length.
+@param truncated  set to true if the weights did not fit buf_length, left
+                  alone otherwise; may be NULL */
 size_t wsrep_normalize_string(int mysql_type,
 			      uint charset_number,
 			      const unsigned char* str,
 			      unsigned char* out_str,
 			      ulint str_length,
-			      ulint buf_length);
+			      ulint buf_length,
+			      bool* truncated= NULL);
 
 /** Store the write set key value of a string column. Used by both write set
 key paths, so that one and the same column value always produces one and the
-same key. See the definition in ha_innodb.cc. */
+same key. See the definition in ha_innodb.cc.
+@param truncated  set to true if the normalized value did not fit out_str,
+                  left alone otherwise; may be NULL */
 size_t wsrep_store_string_key_val(int mysql_type,
 				  uint charset_number,
 				  size_t n_chars,
@@ -165,7 +175,15 @@ size_t wsrep_store_string_key_val(int mysql_type,
 				  size_t str_length,
 				  unsigned char* out_str,
 				  ulint out_length,
-				  bool mysql_format);
+				  bool mysql_format,
+				  bool* truncated= NULL);
+
+/** Tell the client that a write set key was cut to the key buffer size.
+Two rows whose key values are equal up to the cut produce the same key and
+conflict in certification although they are different rows.
+@param thd         session the key belongs to
+@param table_name  table the key was built for */
+void wsrep_warn_key_truncated(THD* thd, const char* table_name);
 #endif /* WITH_WSREP */
 
 /** Get high resolution timestamp for the current query start time.

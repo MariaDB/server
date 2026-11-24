@@ -271,7 +271,9 @@ drop table t1;
 
 --connection replica
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 --connection primary
 RESET MASTER;

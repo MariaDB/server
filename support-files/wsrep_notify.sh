@@ -4,40 +4,44 @@
 # It will create 'wsrep' schema and two tables in it: 'membeship' and 'status'
 # and fill them on every membership or node status change.
 #
-# Edit parameters below to specify the address and login to server:
+# Edit parameters below to specify the address and login to server.
+# Each can also be set via a WSREP_NOTIFY_* environment variable (used by
+# the test suite so it can drive this same script instead of a copy of it).
 #
-USER='root'
-PSWD='rootpass'
+USER="${WSREP_NOTIFY_USER-root}"
+PSWD="${WSREP_NOTIFY_PSWD-rootpass}"
 #
 # If these parameters are not set, then the values
 # passed by the server are taken:
 #
-HOST="127.0.0.1"
-PORT=3306
+HOST="${WSREP_NOTIFY_HOST-127.0.0.1}"
+PORT="${WSREP_NOTIFY_PORT-3306}"
 #
 # Edit parameters below to specify SSL parameters:
 #
-ssl_cert=""
-ssl_key=""
-ssl_ca=""
-ssl_capath=""
-ssl_cipher=""
-ssl_crl=""
-ssl_crlpath=""
-ssl_verify_server_cert=0
+ssl_cert="${WSREP_NOTIFY_SSL_CERT-}"
+ssl_key="${WSREP_NOTIFY_SSL_KEY-}"
+ssl_ca="${WSREP_NOTIFY_SSL_CA-}"
+ssl_capath="${WSREP_NOTIFY_SSL_CAPATH-}"
+ssl_cipher="${WSREP_NOTIFY_SSL_CIPHER-}"
+ssl_crl="${WSREP_NOTIFY_SSL_CRL-}"
+ssl_crlpath="${WSREP_NOTIFY_SSL_CRLPATH-}"
+ssl_verify_server_cert="${WSREP_NOTIFY_SSL_VERIFY_SERVER_CERT-0}"
 #
 # Client executable path:
 #
-CLIENT="mysql"
+CLIENT="${WSREP_NOTIFY_CLIENT-mysql}"
 #
 # Name of schema and tables:
 #
-SCHEMA="wsrep"
+SCHEMA="${WSREP_NOTIFY_SCHEMA-wsrep}"
 MEMB_TABLE="$SCHEMA.membership"
 STATUS_TABLE="$SCHEMA.status"
 
 WSREP_ON='SET wsrep_on=ON'
 WSREP_OFF='SET wsrep_on=OFF'
+# quote_sql() output relies on backslash escapes being honoured
+SQL_MODE="SET SESSION sql_mode=REPLACE(@@sql_mode,'NO_BACKSLASH_ESCAPES','')"
 
 BEGIN="CREATE SCHEMA IF NOT EXISTS $SCHEMA;
 CREATE TABLE IF NOT EXISTS $MEMB_TABLE (
@@ -58,27 +62,31 @@ END="COMMIT; $WSREP_ON"
 
 configuration_change()
 {
-    echo "$WSREP_OFF; DROP SCHEMA IF EXISTS $SCHEMA; $BEGIN;"
+    printf '%s\n' "$SQL_MODE; $WSREP_OFF; DROP SCHEMA IF EXISTS $SCHEMA; $BEGIN;"
 
-    local idx=0
+    local idx=0 id rest name addr IFS=','
 
-    for NODE in $(echo "$MEMBERS" | sed s/,/\ /g)
+    # MEMBERS is "id/name/addr,..."; addr may itself contain '/' or '[]'
+    set -f
+    for NODE in $MEMBERS
     do
-        echo "INSERT INTO $MEMB_TABLE VALUES ( $idx, "
-        # Don't forget to properly quote string values
-        echo "'$NODE'" | sed  s/\\//\',\'/g
-        echo ");"
+        id=${NODE%%/*}
+        rest=${NODE#*/}
+        name=${rest%%/*}
+        addr=${rest#*/}
+        printf '%s\n' "INSERT INTO $MEMB_TABLE VALUES ($idx, '$(quote_sql "$id")', '$(quote_sql "$name")', '$(quote_sql "$addr")');"
         idx=$(( $idx+1 ))
     done
+    set +f
 
-    echo "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$STATUS', '$CLUSTER_UUID', $PRIMARY);"
+    printf '%s\n' "INSERT INTO $STATUS_TABLE VALUES($idx, $INDEX, '$(quote_sql "$STATUS")', '$(quote_sql "$CLUSTER_UUID")', $PRIMARY);"
 
-    echo "$END;"
+    printf '%s\n' "$END;"
 }
 
 status_update()
 {
-    echo "$WSREP_OFF; $BEGIN; UPDATE $STATUS_TABLE SET status='$STATUS'; $END;"
+    printf '%s\n' "$SQL_MODE; $WSREP_OFF; $BEGIN; UPDATE $STATUS_TABLE SET status='$(quote_sql "$STATUS")'; $END;"
 }
 
 trim_string()
@@ -99,8 +107,17 @@ trim_string()
         fi
     else
         local pattern="[[:space:]${2:-}]"
-        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
+        printf '%s\n' "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
     fi
+}
+
+# Escape a value for embedding in a single-quoted SQL string literal.
+# Backslash must be escaped first, or a trailing backslash would swallow
+# the closing quote. Quotes are doubled so even with NO_BACKSLASH_ESCAPES
+# they can't end the literal early.
+quote_sql()
+{
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e "s/'/''/g"
 }
 
 COM='status_update' # not a configuration change by default
@@ -168,31 +185,30 @@ ssl_crl=$(trim_string "$ssl_crl");
 ssl_crlpath=$(trim_string "$ssl_crlpath");
 ssl_verify_server_cert=$(trim_string "$ssl_verify_server_cert");
 
-SSL_PARAM=""
-
-if [ -n "$ssl_key$ssl_cert$ssl_ca$ssl_capath$ssl_cipher$ssl_crl$ssl_crlpath" ]
-then
-    SSL_PARAM=' --ssl'
-    [ -n "$ssl_key" ]     && SSL_PARAM="$SSL_PARAM --ssl-key='$ssl_key'"
-    [ -n "$ssl_cert" ]    && SSL_PARAM="$SSL_PARAM --ssl-cert='$ssl_cert'"
-    [ -n "$ssl_ca" ]      && SSL_PARAM="$SSL_PARAM --ssl-ca='$ssl_ca'"
-    [ -n "$ssl_capath" ]  && SSL_PARAM="$SSL_PARAM --ssl-capath='$ssl_capath'"
-    [ -n "$ssl_cipher" ]  && SSL_PARAM="$SSL_PARAM --ssl-cipher='$ssl_cipher'"
-    [ -n "$ssl_crl" ]     && SSL_PARAM="$SSL_PARAM --ssl-crl='$ssl_crl'"
-    [ -n "$ssl_crlpath" ] && SSL_PARAM="$SSL_PARAM --ssl-crlpath='$ssl_crlpath'"
-    if [ -n "$ssl_verify_server_cert" ]; then
-        if [ "$ssl_verify_server_cert" != "0" -o \
-             "$ssl_verify_server_cert" = "on" ]
-        then
-            SSL_PARAM="$SSL_PARAM --ssl-verify-server-cert"
-        fi
-    fi
-fi
-
 case "$STATUS" in
     'joined' | 'donor' | 'synced')
-        "$COM" | eval "$CLIENT" -B "-u'$USER'"${PSWD:+" -p'$PSWD'"}\
-                      "-h'$HOST'" "-P$PORT"$SSL_PARAM
+        set -- -B -u"$USER" -h"$HOST" -P"$PORT"
+
+        if [ -n "$ssl_key$ssl_cert$ssl_ca$ssl_capath$ssl_cipher$ssl_crl$ssl_crlpath" ]
+        then
+            set -- "$@" --ssl
+            [ -n "$ssl_key" ]     && set -- "$@" --ssl-key="$ssl_key"
+            [ -n "$ssl_cert" ]    && set -- "$@" --ssl-cert="$ssl_cert"
+            [ -n "$ssl_ca" ]      && set -- "$@" --ssl-ca="$ssl_ca"
+            [ -n "$ssl_capath" ]  && set -- "$@" --ssl-capath="$ssl_capath"
+            [ -n "$ssl_cipher" ]  && set -- "$@" --ssl-cipher="$ssl_cipher"
+            [ -n "$ssl_crl" ]     && set -- "$@" --ssl-crl="$ssl_crl"
+            [ -n "$ssl_crlpath" ] && set -- "$@" --ssl-crlpath="$ssl_crlpath"
+            if [ -n "$ssl_verify_server_cert" ]; then
+                if [ "$ssl_verify_server_cert" != "0" -o \
+                     "$ssl_verify_server_cert" = "on" ]
+                then
+                    set -- "$@" --ssl-verify-server-cert
+                fi
+            fi
+        fi
+
+        "$COM" | MYSQL_PWD="$PSWD" exec "$CLIENT" "$@"
         ;;
     *)
         # The node might be shutting down or not initialized

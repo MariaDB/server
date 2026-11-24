@@ -1,0 +1,27 @@
+# Logging of ddl's with long special-character identifiers under backup
+# stages. Not on Windows: the file paths of these identifiers exceed MAX_PATH.
+
+--source include/not_embedded.inc
+--source include/not_windows.inc
+
+connect (con1,localhost,root,,);
+BACKUP STAGE START;
+connection default;
+
+--echo #
+--echo # MDEV-41175 ASAN stack-buffer-overflow in add_str_to_buffer/add_name_to_buffer
+--echo #
+CREATE DATABASE `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`;
+CREATE TABLE `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.`@@@@@@@@@@@@@@@@@@@@` (id INT) ENGINE=MyISAM;
+RENAME TABLE `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.`@@@@@@@@@@@@@@@@@@@@` TO `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.`%%%%%%%%%%%%%%%%%%%%`;
+DROP TABLE `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`.`%%%%%%%%%%%%%%%%%%%%`;
+DROP DATABASE `!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!`;
+
+--source include/print_ddl_log.inc
+
+connection con1;
+BACKUP STAGE END;
+disconnect con1;
+connection default;
+
+--echo # End of 10.11 tests

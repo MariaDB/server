@@ -985,6 +985,102 @@ parse_cnf()
 }
 
 #
+# ignore-db-dirs is repeatable: each occurrence adds a directory, and an
+# empty value resets the list accumulated so far (mysqld.cc,
+# OPT_IGNORE_DB_DIRECTORY). parse_cnf() keeps only the last occurrence,
+# so it cannot be used here; read every occurrence, in order, and replay
+# the same accumulate/reset rule.
+#
+# The server does not restrict the characters a directory name may
+# contain (sql_show.cc, push_ignored_db_dir() only checks its length).
+# wsrep_sst_rsync splices each name, unescaped, into an eval'd rsync
+# filter, so a name is kept only if it is made up solely of letters,
+# digits, '.', '_', '+' and '-'; anything else is logged as an error and
+# left out of the result instead of being allowed to break out of that
+# context. '.' and '+' are find -regex operators, so a caller that
+# splices a name into a regex (wsrep_sst_mariabackup's cpat) must still
+# escape those two itself; this function only guarantees the eval-safe
+# character set, not regex-safety.
+#
+# 1st parameter: group (config file section), or a my_print_defaults
+#                flag such as --mysqld (which already reads every group
+#                and group-suffix combination the server itself does,
+#                in the file's own order); '|'-separated group names are
+#                also accepted, each queried in the same call so cross-
+#                group ordering is preserved, but a plain group name
+#                does not get the server's group-suffix handling that
+#                --mysqld does.
+#
+# Limitation: this only reads option files (via my_print_defaults).
+# --datadir, --innodb-data-home-dir and the other directory options
+# this script cares about are also captured from --mysqld-args further
+# up, so a command-line-only value still reaches the script; ignore-db-
+# dirs has no such second path, so a value given purely on the server's
+# command line, with no matching file entry, is not seen here and is
+# not excluded from SST.
+#
+# Returns the resulting directory names as a comma-separated list.
+#
+get_ignore_db_dirs()
+{
+    local groups="$1"
+    local ignore_db_dirs=""
+    local group
+    local group_args=""
+    local line
+    local dir
+
+    # Pass every group to a single my_print_defaults call, so entries
+    # are returned in the file's own order across all of them, the same
+    # order the server itself would see them in (a separate call per
+    # group would instead group all of one section's entries together,
+    # regardless of where they actually sit relative to the others):
+    while [ -n "$groups" ]; do
+        group="${groups%%\|*}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
+        group_args="$group_args $group"
+    done
+
+    while IFS= read -r line; do
+        line="${line#--loose-}"
+        line="${line#--}"
+        case "$line" in
+        ignore[-_]db[-_]dir*=*)
+            dir="${line#*=}"
+            if [ -z "$dir" ]; then
+                ignore_db_dirs=""
+            else
+                case "$dir" in
+                *[!A-Za-z0-9._+-]*)
+                    wsrep_log_error \
+                        "ignore_db_dirs: '$dir' is not a safe" \
+                        "directory name (only letters, digits," \
+                        "'.', '_', '+' and '-' are allowed); SST" \
+                        "will not exclude it"
+                    ;;
+                *)
+                    ignore_db_dirs="$ignore_db_dirs${ignore_db_dirs:+,}$dir"
+                    ;;
+                esac
+            fi
+            ;;
+        esac
+    done <<EOF
+$("$MY_PRINT_DEFAULTS" \
+      ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+      ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+      ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+      $group_args)
+EOF
+
+    echo "$ignore_db_dirs"
+}
+
+#
 # This function simply checks for the presence of the parameter
 # in the config file, but does not return its value. It returns "1"
 # (true) even if the parameter is present in the configuration file
@@ -1295,10 +1391,80 @@ check_sockets_utils()
 }
 
 #
+# Is $1 the pid $2 itself, or a descendant of it (however many
+# generations removed)? Used by check_port() below to confirm a
+# listener found by name and port actually belongs to this script's
+# own invocation, rather than some unrelated process that happens to
+# share the same utility name and port number (e.g. a separate,
+# concurrent SST on a busy host, between one SST's listener closing
+# and the port being reused). Bounded against any unexpected ppid
+# cycle.
+#
+is_descendant_of()
+{
+    local pid="$1"
+    local ancestor="$2"
+    local depth=0
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
+        [ "$pid" = "$ancestor" ] && return 0
+        pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+        depth=$((depth + 1))
+        [ $depth -gt 50 ] && break
+    done
+    return 1
+}
+
+#
+# Returns success if any of the candidate PIDs (whitespace-separated,
+# as produced by a command substitution) is this script's own process
+# or a descendant of it.
+#
+any_pid_is_ours()
+{
+    local cand
+    for cand in $1; do
+        is_descendant_of "$cand" "$$" && return 0
+    done
+    return 1
+}
+
+#
+# Shared by check_port()'s sockstat/lsof backends below, which all
+# report one listener per line in "name ... pid ... state" column
+# form, differing only in column layout and exact wording:
+#   $1 - that utility's full raw output for the port being checked.
+#   $2 - regex matching a line for $utils owned by the exact PID we
+#        were asked to confirm ($pid), used when the caller already
+#        knows which PID should hold the port.
+#   $3 - regex matching a line for $utils owned by any PID, used
+#        instead when the caller only gave a name to look for; $4
+#        (an awk field number) then picks the PID out of such a line,
+#        and every one found is checked via any_pid_is_ours().
+#
+pid_matches()
+{
+    local out="$1"
+    local exact_re="$2"
+    local cand_re="$3"
+    local cand_field="$4"
+
+    if [ $verify_ancestry -eq 0 ]; then
+        echo "$out" | grep -q -E "$exact_re"
+    else
+        any_pid_is_ours "$(echo "$out" | grep -E "$cand_re" | \
+                awk -v f="$cand_field" '{print $f}')"
+    fi
+}
+
+#
 # Check if the port is in the "listen" state.
 # The first parameter is the PID of the process that should
 # listen on the port - if it is not known, you can specify
-# an empty string or zero.
+# an empty string or zero, in which case every candidate listener
+# found by port and utility name is additionally required to be this
+# script's own process (or a descendant of it), so an unrelated
+# process that merely shares the same utility name and port number
+# is not mistaken for our own.
 # The second parameter is the port number.
 # The third parameter is a list of the names of utilities
 # (via "|") that can listen on this port during the state
@@ -1309,18 +1475,48 @@ check_port()
     local pid="${1:-0}"
     local port="$2"
     local utils="$3"
+    local verify_ancestry=0
 
-    [ $pid -le 0 ] && pid='[0-9]+'
+    if [ $pid -le 0 ]; then
+        pid='[0-9]+'
+        verify_ancestry=1
+    fi
 
     local rc=2 # ENOENT
 
     if [ $raw_socket_check -ne 0 ]; then
-        for key in $(awk -v p="$port" 'BEGIN { hex_port = sprintf(":%04X", p) } $2 ~ hex_port && $4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6); do
-            return 0
+        # Not utility output at all -- walks /proc/net/tcp{,6} for a
+        # socket on $port, then /proc/*/fd for the inode that socket
+        # maps to, to learn who holds it. Doesn't fit pid_matches()
+        # below, which is built around column-based utility output.
+        local inode
+        for inode in $(awk -v p="$port" 'BEGIN { hex_port = sprintf(":%04X", p) } $2 ~ hex_port && $4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6); do
+            if [ $verify_ancestry -eq 0 ]; then
+                return 0
+            fi
+            local owner
+            owner=$(find /proc/[0-9]*/fd -lname "socket:\\[$inode\\]" 2>/dev/null | \
+                    awk -F/ '{print $3; exit}')
+            if [ -n "$owner" ] && is_descendant_of "$owner" "$$"; then
+                return 0
+            fi
         done
     elif [ $ss_available -ne 0 ]; then
-        $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
-            grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+        # ss's own candidate PID isn't in a fixed column: it sits as
+        # "pid=N" inside a users:((...)) cluster that pid_matches()'s
+        # plain awk-by-field extraction can't pick out, so this branch
+        # extracts it itself (grep -oE down to the "pid=N" substring,
+        # then down to N) instead of going through that helper.
+        local out
+        out=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null) || :
+        if [ $verify_ancestry -eq 0 ]; then
+            echo "$out" | \
+                grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+        else
+            any_pid_is_ours "$(echo "$out" | \
+                    grep -oE "\\(\"($utils)[^\"]*\"[^)]*,pid=[0-9]+" | \
+                    grep -oE '[0-9]+$')" && rc=0
+        fi
     elif [ $sockstat_available -ne 0 ]; then
         if [ $sockstat_available -gt 1 ]; then
             # The sockstat command on FreeBSD does not return
@@ -1334,15 +1530,32 @@ check_port()
             if [ $rc -eq 16 -o -z "$out" ]; then
                 return 16 # EBUSY
             fi
-            echo "$out" | \
-                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
+            # name is field 2, pid is field 3; no LISTEN state column
+            # on FreeBSD without extra options (sockstat_opts already
+            # restricts to that state here).
+            pid_matches "$out" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]]|\$)" \
+                3 && rc=0
         else
-            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
-                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
+            # name is field 2, pid is field 3, state is "LISTEN" later
+            # in the line.
+            local out
+            out=$($socket_utility $sockstat_opts "$port" 2>/dev/null) || :
+            pid_matches "$out" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" \
+                3 && rc=0
         fi
     elif [ $lsof_available -ne 0 ]; then
-        $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
-            grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" && rc=0
+        # name is field 1, pid is field 2, state is "(LISTEN)" later
+        # in the line.
+        local out
+        out=$($socket_utility $lsof_opts -i ":$port" 2>/dev/null) || :
+        pid_matches "$out" \
+            "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" \
+            "^($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" \
+            2 && rc=0
     else
         wsrep_log_error "Unknown sockets utility"
         exit 2 # ENOENT

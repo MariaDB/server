@@ -1462,10 +1462,9 @@ yyreduce:
 /* Line 1806 of yacc.c  */
     {
 		(yyval.node) = (yyvsp[(1) - (2)].node);
-		(yyval.node) = fts_ast_create_node_list(state, (yyvsp[(1) - (2)].node));
 
 		if (!(yyval.node)) {
-			(yyval.node) = (yyvsp[(2) - (2)].node);
+			(yyval.node) = fts_ast_create_node_list(state, (yyvsp[(2) - (2)].node));
 		} else {
 			fts_ast_add_node((yyval.node), (yyvsp[(2) - (2)].node));
 		}

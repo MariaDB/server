@@ -1,5 +1,6 @@
 /******************************************************
 Copyright (c) 2011-2013 Percona LLC and/or its affiliates.
+Copyright (c) 2026, MariaDB plc.
 
 Local datasink implementation for XtraBackup.
 
@@ -107,7 +108,11 @@ local_open(ds_ctxt_t *ctxt, const char *path,
 	ds_file_t	*file;
 	File 		fd;
 
-	fn_format(fullpath, path, ctxt->root, "", MYF(MY_RELATIVE_PATH));
+	if (!fn_format(fullpath, path, ctxt->root, "",
+		       MYF(MY_RELATIVE_PATH | MY_SAFE_PATH))) {
+		my_error(EE_CANTCREATEFILE, MYF(0), path, my_errno);
+		return NULL;
+	}
 
 	/* Create the directory if needed */
 	dirname_part(dirpath, fullpath, &dirpath_len);

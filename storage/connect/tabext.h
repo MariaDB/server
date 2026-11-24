@@ -46,6 +46,8 @@ class CONDFIL : public BLOCK {
 	bool  Hv;
 	char *Body;
 	char *Having;
+	size_t Blen;              // Usable size of the Body buffer
+	size_t Hlen;              // Usable size of the Having buffer
 }; // end of class CONDFIL
 
 /***********************************************************************/

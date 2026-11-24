@@ -49,6 +49,7 @@ while ($rpl_server_number)
   --let $condition= =4
   --source include/wait_show_condition.inc
 
+  --sorted_result
   --replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3 $SERVER_MYPORT_4 SERVER_MYPORT_4
   SHOW SLAVE HOSTS;
 

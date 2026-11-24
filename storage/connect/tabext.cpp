@@ -48,6 +48,8 @@ CONDFIL::CONDFIL(uint idx, AMT type)
 	Hv = false;
 	Body = NULL, 
 	Having = NULL;
+	Blen = 0;
+	Hlen = 0;
 }	// end of CONDFIL constructor
 
 /***********************************************************************/

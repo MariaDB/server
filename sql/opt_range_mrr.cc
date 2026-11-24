@@ -50,7 +50,7 @@ typedef struct st_sel_arg_range_seq
   KEY_PART *key_parts; 
   SEL_ARG *start; /* Root node of the traversed SEL_ARG* graph */
   
-  RANGE_SEQ_ENTRY stack[MAX_REF_PARTS];
+  RANGE_SEQ_ENTRY stack[MAX_REF_PARTS+1];
   int i; /* Index of last used element in the above array */
   
   bool at_start; /* TRUE <=> The traversal has just started */

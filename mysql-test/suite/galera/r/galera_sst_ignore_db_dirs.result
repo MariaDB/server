@@ -1,0 +1,26 @@
+#
+# MDEV-41490: ignore_db_dirs must stop SST from touching a directory
+# the server itself never treats as a schema.
+#
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+Shutting down node_2 ...
+connection node_2;
+connection node_1;
+Clearing node_2's server state to force a full SST on restart ...
+connection node_2;
+Starting node_2, expecting SST ...
+The directory ignore_db_dirs names must survive SST unchanged on both nodes
+connection node_1;
+donor
+connection node_2;
+joiner
+connection node_1;
+connection node_2;
+disconnect node_2;
+disconnect node_1;
+# End of 10.11 tests

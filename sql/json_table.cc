@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2020, MariaDB Corporation
+  Copyright (c) 2020, 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -360,7 +360,7 @@ int ha_json_table::rnd_init(bool scan)
 /*
   @brief
      Store JSON value in an SQL field, doing necessary special conversions
-     for JSON's null, true, and false.
+     for JSON's null, true, false, and numeric values.
 */
 
 static void store_json_in_field(Field *f, const json_engine_t *je)
@@ -388,7 +388,10 @@ static void store_json_in_field(Field *f, const json_engine_t *je)
     break;
   };
   st_append_json(&res_tmp, je->s.cs, je->value, je->value_len);
-  f->store((const char *) res_tmp.ptr(), (uint32) res_tmp.length(), je->s.cs);
+  if (je->value_type == JSON_VALUE_NUMBER)
+    f->store_numeric(res_tmp.ptr(), res_tmp.length(), je->s.cs);
+  else
+    f->store(res_tmp.ptr(), res_tmp.length(), je->s.cs);
 }
 
 
@@ -1254,6 +1257,9 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   Json_table_nested_path *c_nested= m_nested;
   Json_table_column *jc= *last_column;
   bool first_column= TRUE;
+
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, NULL))
+    return 1;
 
   if (str->append(STRING_WITH_LEN("COLUMNS (")))
     return 1;

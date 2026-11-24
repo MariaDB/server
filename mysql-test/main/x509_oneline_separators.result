@@ -1,0 +1,25 @@
+create user escaped_user@localhost
+require subject '/CN=a\\/b\\+c';
+create user raw_user@localhost
+require subject '/CN=a/b+c';
+#
+# Default old_mode: only one grant matches, library-dependent
+#
+# connect as escaped_user
+connect_test
+escaped_user@localhost connected
+# connect as raw_user
+ERROR 1045 (28000): Access denied for user 'raw_user'@'localhost' (using password: NO)
+#
+# old_mode=X509_LENIENT_COMPARE: both grants now match
+#
+set @old_mode_save= @@global.old_mode;
+set global old_mode= concat(@@global.old_mode, ',X509_LENIENT_COMPARE');
+# connect as escaped_user
+connect_test
+escaped_user@localhost connected
+# connect as raw_user
+connect_test
+raw_user@localhost connected
+set global old_mode= @old_mode_save;
+drop user escaped_user@localhost, raw_user@localhost;

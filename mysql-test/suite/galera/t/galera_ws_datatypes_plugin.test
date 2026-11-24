@@ -1,0 +1,66 @@
+#
+# Galera write set keys for the data types that come from a plugin rather
+# than the server proper: UUID and INET6, from the mandatory type_uuid and
+# type_inet plugins. See galera_ws_datatypes.test for every type built into
+# the server.
+#
+# wsrep_store_key_val_for_row() and wsrep_rec_get_foreign_key() skip
+# collation for these types (MDEV-41012): Field_fbt based types report
+# type() == MYSQL_TYPE_STRING and a numeric (non-collated) charset, but
+# store plain binary bytes, which InnoDB maps to DATA_FIXBINARY. This walks
+# both types through a primary key, a unique key, a plain key on a table
+# with no primary key, a foreign key referencing a primary key, and a
+# foreign key referencing a unique key.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE gp_pk (uu UUID, i6 INET6, f INT,
+                    PRIMARY KEY (uu,i6)) ENGINE=InnoDB;
+CREATE TABLE gp_pk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+                    uu UUID, i6 INET6,
+                    KEY k (uu,i6),
+                    FOREIGN KEY (uu,i6) REFERENCES gp_pk (uu,i6))
+                    ENGINE=InnoDB;
+CREATE TABLE gp_uk (id INT AUTO_INCREMENT PRIMARY KEY,
+                    uu UUID, i6 INET6,
+                    UNIQUE KEY u (uu,i6)) ENGINE=InnoDB;
+CREATE TABLE gp_uk_child (id INT AUTO_INCREMENT PRIMARY KEY,
+                    uu UUID, i6 INET6,
+                    KEY k (uu,i6),
+                    FOREIGN KEY (uu,i6) REFERENCES gp_uk (uu,i6))
+                    ENGINE=InnoDB;
+CREATE TABLE gp_key (uu UUID, i6 INET6,
+                    KEY k (uu,i6)) ENGINE=InnoDB;
+
+SET @uu = '11111111-1111-1111-1111-111111111111';
+SET @i6 = '2001:db8::1';
+
+--echo # UUID and INET6 together, in a primary key and a foreign key that
+--echo # references it
+INSERT INTO gp_pk (uu,i6,f) VALUES (@uu,@i6,1);
+INSERT INTO gp_pk_child (uu,i6) VALUES (@uu,@i6);
+
+--echo # The same types in a unique key and a foreign key that references it
+INSERT INTO gp_uk (uu,i6) VALUES (@uu,@i6);
+INSERT INTO gp_uk_child (uu,i6) VALUES (@uu,@i6);
+
+--echo # The same types in a plain, non-unique key on a table with no
+--echo # primary key
+INSERT INTO gp_key (uu,i6) VALUES (@uu,@i6);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM gp_key;
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM gp_pk;
+SELECT COUNT(*) AS EXPECT_1 FROM gp_pk_child;
+SELECT COUNT(*) AS EXPECT_1 FROM gp_uk;
+SELECT COUNT(*) AS EXPECT_1 FROM gp_uk_child;
+SELECT COUNT(*) AS EXPECT_1 FROM gp_key;
+
+--connection node_1
+DROP TABLE gp_pk_child, gp_pk, gp_uk_child, gp_uk, gp_key;
+
+--source include/galera_end.inc
+--echo # End of test

@@ -11,6 +11,7 @@ wsrep_node_incoming_address='[::1]:@mysqld.1.port'
 wsrep_node_address=[::1]:@mysqld.1.#galera_port
 wsrep_sst_receive_address='[::1]:@mysqld.1.#sst_port'
 bind-address=::
+wsrep_notify_cmd=@ENV.WSREP_NOTIFY_CMD
 
 [mysqld.2]
 wsrep_cluster_address='gcomm://[::1]:@mysqld.1.#galera_port'
@@ -19,3 +20,13 @@ wsrep_node_incoming_address='[::1]:@mysqld.2.port'
 wsrep_node_address=[::1]:@mysqld.2.#galera_port
 wsrep_sst_receive_address='[::1]:@mysqld.2.#sst_port'
 bind-address=::
+
+[ENV]
+WSREP_NOTIFY_CLIENT= @ENV.EXE_MYSQL
+WSREP_NOTIFY_SCHEMA= mtr_wsrep_notify
+WSREP_NOTIFY_PSWD=
+WSREP_NOTIFY_HOST= ::1
+WSREP_NOTIFY_PORT= @mysqld.1.port
+WSREP_NOTIFY_SSL_CERT= @ENV.MYSQL_TEST_DIR/std_data/client-cert.pem
+WSREP_NOTIFY_SSL_KEY= @ENV.MYSQL_TEST_DIR/std_data/client-key.pem
+WSREP_NOTIFY_SSL_CA= @ENV.MYSQL_TEST_DIR/std_data/cacert.pem

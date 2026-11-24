@@ -2,6 +2,7 @@
 # including crashing tests.
 
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/have_partition.inc
 # Don't test this under valgrind, memory leaks will occur
 --source include/not_valgrind.inc
@@ -161,3 +162,36 @@ set session debug_dbug=@save_dbug;
 show create table tp2;
 select * from tp2;
 drop table tp2;
+
+--echo #
+--echo # MDEV-41545 Unchecked get_clone() in ALTER of partitioned table
+--echo #            crashes on out-of-memory
+--echo #
+create table t1 (x int) partition by range (x)
+(partition p0 values less than (10));
+insert t1 values (1);
+lock tables t1 write;
+set @save_dbug= @@debug_dbug;
+set debug_dbug= '+d,prep_alter_part_table_get_clone_oom';
+--error ER_OUT_OF_RESOURCES
+alter table t1 add partition (partition p1 values less than (20));
+set debug_dbug= @save_dbug;
+select * from t1;
+unlock tables;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+--echo #            virtual column expressions
+--echo #
+create table t1 (a int) partition by hash (a) partitions 2;
+insert into t1 values (1);
+flush tables;
+
+let $sync_point= TABLE_after_field_clone;
+let $query= select * from t1;
+--source main/kill_debug.inc
+drop table t1;
+
+--echo # End of 10.11 tests

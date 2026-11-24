@@ -309,6 +309,7 @@ our $opt_testcase_timeout= $ENV{MTR_TESTCASE_TIMEOUT} ||  15; # minutes
 our $opt_suite_timeout   = $ENV{MTR_SUITE_TIMEOUT}    || 360; # minutes
 our $opt_shutdown_timeout= $ENV{MTR_SHUTDOWN_TIMEOUT} ||  10; # seconds
 our $opt_start_timeout   = $ENV{MTR_START_TIMEOUT}    || 180; # seconds
+our $opt_dump_core_timeout= $ENV{MTR_DUMP_CORE_TIMEOUT} || 120; # seconds
 
 sub suite_timeout { return $opt_suite_timeout * 60; };
 
@@ -616,6 +617,7 @@ my %running;
 my $result;
 my $exe_mysqld; # Used as hint to CoreDump
 my %names;
+my %bye; # Workers that were told to exit
 
 sub parse_protocol($$) {
   my $sock= shift;
@@ -678,6 +680,7 @@ sub parse_protocol($$) {
         {
           mtr_verbose2("${line}: saying BYE to ". $names{$sock});
           print $sock "BYE\n";
+          $bye{$sock}= 1;
           return 2;
         }
         return ["Failure", 1, $completed, $extra_warnings];
@@ -769,7 +772,9 @@ sub parse_protocol($$) {
       mtr_verbose2("Socket loop exiting 3");
       return ["Warnings in log", 1, $completed, $extra_warnings];
     }
-    return 1;
+    # A worker told to exit does not send anything after this, do not read
+    # from it again. Otherwise it goes on and sends TESTRESULT.
+    return $bye{$sock} ? 2 : 1;
   }
   elsif ($line =~ /^SPENT/) {
     main::add_total_times($line);
@@ -936,6 +941,7 @@ sub run ($$$) {
 	  # No more test, tell child to exit
 	  mtr_verbose2("Saying BYE to ". $names{$sock});
 	  print $sock "BYE\n";
+	  $bye{$sock}= 1;
 	} # else (!$next)
       } # else ($sock != $server)
     } # foreach my $sock (@ready)
@@ -2307,6 +2313,19 @@ sub environment_setup {
   }
 
   # ----------------------------------------------------
+  # wsrep_notify (shipped example wsrep_notify_cmd script; tests point
+  # wsrep_notify_cmd at this instead of keeping a private std_data copy)
+  # ----------------------------------------------------
+  my $wsrep_notify=
+    mtr_pl_maybe_exists("$bindir/support-files/wsrep_notify") ||
+    mtr_pl_maybe_exists("$bindir/share/mariadb/wsrep_notify") ||
+    mtr_pl_maybe_exists("$bindir/share/mysql/wsrep_notify");
+  if ($wsrep_notify)
+  {
+    $ENV{'WSREP_NOTIFY_CMD'}= $wsrep_notify;
+  }
+
+  # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
   my $exe_perror= mtr_exe_exists("$bindir/extra$multiconfig/perror",
@@ -2870,7 +2889,8 @@ sub mysql_server_wait {
                                 $opt_start_timeout, $mysqld->{'proc'},
                                 $warn_seconds))
   {
-    $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
+    $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n" .
+      get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
     return 1;
   }
 
@@ -4077,7 +4097,13 @@ sub run_testcase ($$) {
     }
     if (!%keep_waiting_proc && !$proc)
     {
-      if ($test_timeout > $print_timeout)
+      # Wake up when a server restarted by the test is overdue
+      my $wait_timeout= $test_timeout;
+      my $restart_deadline= hung_restarted_servers(1);
+      $wait_timeout= $restart_deadline
+        if $restart_deadline && $restart_deadline < $wait_timeout;
+
+      if ($wait_timeout > $print_timeout)
       {
         $proc= My::SafeProcess->wait_any_timeout($print_timeout);
         if ($proc->{timeout})
@@ -4091,8 +4117,27 @@ sub run_testcase ($$) {
       }
       else
       {
-        $proc= My::SafeProcess->wait_any_timeout($test_timeout);
+        $proc= My::SafeProcess->wait_any_timeout($wait_timeout);
       }
+    }
+
+    if ($proc and $proc->{timeout} and !has_expired($test_timeout))
+    {
+      # Not the test case timeout, a restarted server may be hung
+      my @hung= hung_restarted_servers();
+      next unless @hung;
+
+      $tinfo->{comment}= "";
+      foreach my $mysqld (@hung)
+      {
+        dump_core_for_hung_server($mysqld->{proc});
+        $tinfo->{comment}.= "Failed to restart " . $mysqld->name() .
+          ", no pid file after $opt_start_timeout seconds\n" .
+          get_log_from_proc($mysqld->{proc}, $tinfo->{name});
+      }
+      $test->kill();
+      report_failure_and_restart($tinfo);
+      return 1;
     }
 
     if ($proc and $proc eq $test) # mysqltest itself exited
@@ -4268,7 +4313,7 @@ sub run_testcase ($$) {
       mtr_print("Trying to dump core for $proc");
       if ($proc->dump_core())
       {
-	$proc->wait_one(20);
+	$proc->wait_one($opt_dump_core_timeout);
       }
     }
 
@@ -4798,6 +4843,33 @@ sub check_warnings_post_shutdown {
   }
 }
 
+# Servers that were restarted by the test, and did not create
+# their pid file in $opt_start_timeout seconds.
+# If $first is set, return the earliest deadline of the servers
+# that are still starting up instead (0 if there is none).
+sub hung_restarted_servers {
+  my ($first)= @_;
+  my @hung;
+  my $deadline= 0;
+  foreach my $mysqld (mysqlds())
+  {
+    my $d= $mysqld->{'start_deadline'} or next;
+    my $proc= $mysqld->{proc};
+    my $pid_file= $mysqld->if_exist('pid-file');
+    if (!defined $proc || !$proc->wait_one(0, 1) ||
+        (defined $pid_file && -e $pid_file))
+    {
+      # It is up, or it is gone
+      delete $mysqld->{'start_deadline'};
+      next;
+    }
+    push @hung, $mysqld if has_expired($d);
+    $deadline= $d if !$deadline || $d < $deadline;
+  }
+  return $first ? $deadline : @hung;
+}
+
+
 #
 # Check for the file indicating expected crash and restart it.
 #
@@ -4848,7 +4920,11 @@ sub check_expected_crash_and_restart {
       unlink($expect_file);
 
       # Start server with same settings as last time
-      return mysqld_start($mysqld, $mysqld->{'started_opts'});
+      my $rc= mysqld_start($mysqld, $mysqld->{'started_opts'});
+      # mtr does not wait for the pid file here, mysqltest does.
+      # Remember when the server must be up, see hung_restarted_servers()
+      $mysqld->{'start_deadline'}= start_timer($opt_start_timeout) if $rc;
+      return $rc;
     }
     # Loop ran through: we should keep waiting after a re-check
     return 2;

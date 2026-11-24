@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connect primary, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+connection node_2;
+connection node_1;
+START SLAVE;
+# Many foreign-domain DDLs, each applied as TOI on node_2
+connection primary;
+connection node_2;
+SELECT COUNT(*) AS EXPECT_150 FROM base;
+EXPECT_150
+150
+connection node_1;
+connection primary;
+DROP TABLE base;
+connection node_1;
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+SET GLOBAL gtid_slave_pos = "";
+connection node_2;
+SET GLOBAL wsrep_on = OFF;
+RESET MASTER;
+SET GLOBAL wsrep_on = ON;
+SET GLOBAL gtid_slave_pos = "";
+connection primary;
+RESET MASTER;
+connection node_1;
+disconnect primary;
+disconnect node_2;
+disconnect node_1;
+# End of test

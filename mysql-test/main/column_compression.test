@@ -594,3 +594,37 @@ UPDATE t SET c=MID(c,2,4);
 DROP TABLE t;
 
 --echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-40417 A column with compression enabled automatically adds DEFAULT ''
+--echo #
+
+CREATE TABLE t (
+  c1 LONGTEXT COMPRESSED NOT NULL,
+  nc1 LONGTEXT NOT NULL,
+  c2 LONGTEXT COMPRESSED NOT NULL DEFAULT '',
+  nc2 LONGTEXT NOT NULL DEFAULT '',
+  c3 VARCHAR(100) COMPRESSED NOT NULL,
+  nc3 VARCHAR(100) NOT NULL
+) ENGINE=InnoDB;
+SHOW CREATE TABLE t;
+SELECT COLUMN_NAME, COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t' ORDER BY ORDINAL_POSITION;
+
+--echo # A compressed column must be as mandatory as an uncompressed one
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t (nc1) VALUES ('x');
+--error ER_NO_DEFAULT_FOR_FIELD
+INSERT INTO t (c1, nc1, nc3) VALUES ('x', 'x', 'x');
+INSERT INTO t (c1, nc1, c3, nc3) VALUES ('x', 'x', 'x', 'x');
+SELECT * FROM t;
+DROP TABLE t;
+
+--echo # ALTER TABLE must not add an implicit default either
+CREATE TABLE t (c LONGTEXT COMPRESSED NOT NULL DEFAULT 'x') ENGINE=InnoDB;
+ALTER TABLE t MODIFY c LONGTEXT COMPRESSED NOT NULL;
+ALTER TABLE t ADD c2 VARCHAR(100) COMPRESSED NOT NULL;
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+--echo # End of 10.11 tests

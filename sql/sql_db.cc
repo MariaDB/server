@@ -428,7 +428,9 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
 
   if (create->schema_comment)
   {
-    strmov(opt->comment.str, create->schema_comment->str);
+    DBUG_ASSERT(create->schema_comment->length <= DATABASE_COMMENT_MAXLEN);
+    strmake(opt->comment.str, create->schema_comment->str,
+            create->schema_comment->length);
     opt->comment.length= create->schema_comment->length;
   }
 
@@ -479,6 +481,12 @@ static bool write_db_opt(THD *thd, const char *path,
                                 ER_TOO_LONG_DATABASE_COMMENT,
                                 thd->lex->name.str))
       return error;
+
+    const size_t byte_len= MY_MIN(create->schema_comment->length,
+                                  (size_t) DATABASE_COMMENT_MAXLEN);
+    create->schema_comment->length=
+      Well_formed_prefix(system_charset_info, create->schema_comment->str,
+                         byte_len).length();
   }
 
   if (thd->lex->sql_command == SQLCOM_ALTER_DB &&
@@ -514,9 +522,14 @@ static bool write_db_opt(THD *thd, const char *path,
                               "\n", NullS) - buf);
 
     if (create->schema_comment)
-      length= (ulong) (strxnmov(buf+length, sizeof(buf)-1-length,
-                                "comment=", create->schema_comment->str,
-                                "\n", NullS) - buf);
+    {
+      DBUG_ASSERT(create->schema_comment->length <= DATABASE_COMMENT_MAXLEN);
+      char *pos= strmov(buf+length, "comment=");
+      pos= strmake(pos, create->schema_comment->str,
+                   create->schema_comment->length);
+      *pos++= '\n';
+      length= (ulong) (pos - buf);
+    }
 
     /* Error is written by mysql_file_write */
     if (!mysql_file_write(file, (uchar*) buf, length, MYF(MY_NABP+MY_WME)))
@@ -591,6 +604,7 @@ int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
     while (pos > buf && !my_isgraph(&my_charset_latin1, pos[-1]))
       pos--;
     *pos=0;
+    char const *line_end= pos;
     if ((pos= strchr(buf, '=')))
     {
       if (!strncmp(buf,"default-character-set", (pos-buf)))
@@ -622,7 +636,25 @@ int load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
         }
       }
       else if (!strncmp(buf, "comment", (pos-buf)))
-        create->schema_comment= thd->make_clex_string(pos+1, strlen(pos+1));
+      {
+        const LEX_CSTRING raw_comment= {pos + 1,
+                                        (size_t) (line_end - (pos + 1))};
+        const size_t byte_len= MY_MIN(raw_comment.length,
+                                      (size_t) DATABASE_COMMENT_MAXLEN);
+        const size_t comment_len=
+          Well_formed_prefix(system_charset_info, raw_comment.str,
+                             byte_len).length();
+        if (comment_len < raw_comment.length)
+        {
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_TOO_LONG_DATABASE_COMMENT,
+                              "Comment in database options file '%-.256s' "
+                              "is too long (max = %u), truncated",
+                              path, (uint) DATABASE_COMMENT_MAXLEN);
+        }
+        create->schema_comment= thd->make_clex_string(raw_comment.str,
+                                                       comment_len);
+      }
     }
   }
   /*

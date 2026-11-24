@@ -1,0 +1,117 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # An old read view must not see a table whose data was replaced
+--echo # by DDL, also after the table was evicted from the InnoDB data
+--echo # dictionary cache. Each case starts a read view, commits an
+--echo # UPDATE that sets b to 11 and 12, runs the DDL, and then reads
+--echo # the table in the old read view. A correct read returns b=1,2
+--echo # or fails with ER_TABLE_DEF_CHANGED. The combination evict
+--echo # evicts the table before the read.
+--echo #
+
+call mtr.add_suppression("InnoDB: Tablespace for table `test`.`t` is set as discarded");
+
+let $datadir= `SELECT @@datadir`;
+SET @save_evict= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+
+--connect mvcc,localhost,root
+--connect evict,localhost,root
+--connection default
+
+# The DDL of each case, and the index to read with FORCE INDEX.
+# IMPORT without .cfg needs a table without secondary indexes.
+let $ddl_list= ALTER TABLE t FORCE, ALGORITHM=COPY|
+ALTER TABLE t FORCE, ALGORITHM=INPLACE|
+ALTER TABLE t ADD INDEX(b), ALGORITHM=INPLACE|
+ALTER TABLE t ADD COLUMN c INT DEFAULT 42, ALGORITHM=INSTANT|
+ALTER TABLE t DROP COLUMN b, ALGORITHM=INSTANT|
+ALTER TABLE t RENAME INDEX k TO k2|
+TRUNCATE TABLE t|
+ALTER TABLE t DISCARD TABLESPACE|
+ALTER TABLE t ADD INDEX(b), ALGORITHM=INPLACE|
+ALTER TABLE t IMPORT TABLESPACE|
+ALTER TABLE t IMPORT TABLESPACE;
+let $index_list= ,,b,,,k2,,,b,k,;
+
+let $n= 0;
+while ($n < 11)
+{
+  inc $n;
+  let $ddl= `SELECT TRIM(LEADING '\n' FROM SUBSTRING_INDEX(SUBSTRING_INDEX('$ddl_list','|',$n),'|',-1))`;
+  let $index= `SELECT SUBSTRING_INDEX(SUBSTRING_INDEX('$index_list',',',$n),',',-1)`;
+  let $key= `SELECT IF($n < 11, ', KEY k(d)', '')`;
+  eval CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT$key) ENGINE=InnoDB STATS_PERSISTENT=0;
+  INSERT INTO t VALUES(1,1,1),(2,2,2);
+  --connection mvcc
+  START TRANSACTION WITH CONSISTENT SNAPSHOT;
+  --connection default
+  UPDATE t SET b = b + 10;
+  if ($n > 9)
+  {
+    CREATE TABLE src LIKE t;
+    INSERT INTO src SELECT * FROM t;
+    ALTER TABLE t DISCARD TABLESPACE;
+    FLUSH TABLES src FOR EXPORT;
+    --copy_file $datadir/test/src.ibd $datadir/test/t.ibd
+    if ($n == 10)
+    {
+      --copy_file $datadir/test/src.cfg $datadir/test/t.cfg
+    }
+    UNLOCK TABLES;
+    DROP TABLE src;
+  }
+  --disable_warnings
+  eval $ddl;
+  --enable_warnings
+  if ($n == 9)
+  {
+    ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;
+  }
+  # Evict test.t at XA COMMIT. XA PREPARE keeps the transaction
+  # open while FLUSH TABLES closes the handles of test.t.
+  # A discarded tablespace cannot be modified, so case 8 is not evicted.
+  if (`SELECT '$MTR_COMBINATION_EVICT' AND $n != 8`)
+  {
+    --disable_query_log
+    XA START 'x';
+    INSERT INTO t(a) VALUES(3);
+    XA END 'x';
+    XA PREPARE 'x';
+    --connection evict
+    FLUSH TABLES;
+    --connection default
+    SET GLOBAL innodb_evict_tables_on_commit_debug=ON;
+    XA COMMIT 'x';
+    SET GLOBAL innodb_evict_tables_on_commit_debug=OFF;
+    --enable_query_log
+  }
+  --connection mvcc
+  --error 0,ER_TABLE_DEF_CHANGED,ER_TABLESPACE_DISCARDED
+  SELECT * FROM t;
+  --let $outcome= success
+  if ($mysql_errname)
+  {
+    --let $outcome= errname: $mysql_errname
+  }
+  --echo # $outcome
+  if ($index)
+  {
+    --error 0,ER_TABLE_DEF_CHANGED
+    eval SELECT a FROM t FORCE INDEX($index);
+    --let $outcome= success
+    if ($mysql_errname)
+    {
+      --let $outcome= errname: $mysql_errname
+    }
+    --echo # $outcome
+  }
+  COMMIT;
+  --connection default
+  DROP TABLE t;
+}
+
+--disconnect mvcc
+--disconnect evict
+SET GLOBAL innodb_evict_tables_on_commit_debug= @save_evict;

@@ -2051,13 +2051,15 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
       break;
     /*
       We have name + wildcard in packet, separated by endzero
-      (The packet is guaranteed to end with an end zero)
+      (The packet is guaranteed to end with an end zero, but it is not
+      part of packet_length, a packet without a separator is malformed)
     */
     arg_end= strend(packet);
     uint arg_length= (uint)(arg_end - packet);
 
     /* Check given table name length. */
-    if (packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
+    if (arg_length >= packet_length ||
+        packet_length - arg_length > NAME_LEN + 1 || arg_length > SAFE_NAME_LEN)
     {
       my_message(ER_UNKNOWN_COM_ERROR, ER_THD(thd, ER_UNKNOWN_COM_ERROR),
                  MYF(0));
@@ -2880,7 +2882,8 @@ bool sp_process_definer(THD *thd)
       SUPER privilege).
     */
     bool curuser= thd->security_ctx->is_priv_user(d->user.str, d->host.str);
-    bool currole= !curuser && !strcmp(d->user.str, thd->security_ctx->priv_role);
+    bool currole= !curuser && !d->host.length &&
+                  !strcmp(d->user.str, thd->security_ctx->priv_role);
     if (!curuser && !currole &&
         check_global_access(thd, PRIV_DEFINER_CLAUSE, false))
       DBUG_RETURN(TRUE);
@@ -3284,6 +3287,11 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 bool Sql_cmd_show_routine_code::execute(THD *thd)
 {
   sp_head *sp;
+#ifdef WITH_WSREP
+  if (WSREP_CLIENT(thd) &&
+      wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_SHOW))
+    return true;
+#endif /* WITH_WSREP */
   if (m_handler->sp_cache_routine(thd, m_name, &sp))
     return true;
   if (!sp || sp->show_routine_code(thd))
@@ -5593,8 +5601,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   case SQLCOM_REVOKE_ROLE:
   case SQLCOM_GRANT_ROLE:
   {
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-
+    /* TOI replication check is inside mysql_grant_role() */
     if (!(res= mysql_grant_role(thd, lex->users_list,
                                 lex->sql_command != SQLCOM_GRANT_ROLE)))
       my_ok(thd);
@@ -5808,6 +5815,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
       There is no need to check for table permissions here, because
       if a user has no permissions to read a table, he won't be
       able to open it (with SQLCOM_HA_OPEN) in the first place.
+      On implicit reopen mysql_ha_open() checks privileges again.
     */
     unit->set_limit(select_lex);
 
@@ -6416,8 +6424,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
               mysqld_show_warnings().
             */
             lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
-            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                         ER_YES, str.c_ptr_safe());
+            if (!thd->is_error())
+              push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                           ER_YES, str.c_ptr_safe());
           }
         }
       }
@@ -10584,6 +10593,9 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
                            ? ORAparse(thd) : MYSQLparse(thd);
+
+  if (parser_state->m_lip.fail_if_stopped_on_kill())
+    mysql_parse_status= true;
 
   if (mysql_parse_status)
     /*

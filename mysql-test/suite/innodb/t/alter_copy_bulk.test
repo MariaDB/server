@@ -2,9 +2,10 @@
 --source include/have_partition.inc
 --source include/have_sequence.inc
 
-SET @default_stats_persistent= @@global.innodb_stats_persistent;
-SET GLOBAL innodb_stats_persistent= 0;
-CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
+SET @save_fill_factor=@@GLOBAL.innodb_fill_factor;
+SET GLOBAL innodb_fill_factor=100;
+
+CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB STATS_PERSISTENT=1;
 INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
 # Buffer fits in the memory
 ALTER TABLE t1 ALGORITHM=COPY, FORCE;
@@ -13,6 +14,11 @@ ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
 # Alter should use temporary file for sorting
 ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+
+--sorted_result
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
 
 # Error while buffering the insert operation
 --error ER_DUP_ENTRY
@@ -25,6 +31,19 @@ ALTER TABLE t1 ADD UNIQUE KEY(f2);
 
 # Ignore shouldn't go through bulk operation
 ALTER IGNORE TABLE t1 MODIFY f1 CHAR(200) NOT NULL;
+
+--sorted_result
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
+
+OPTIMIZE TABLE t1;
+--sorted_result
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
+
+SET GLOBAL innodb_fill_factor=@save_fill_factor;
 
 CREATE TABLE t2(f1 INT NOT NULL,
 		FOREIGN KEY(f1) REFERENCES t1(f2))ENGINE=InnoDB;
@@ -108,7 +127,6 @@ INSERT INTO t1 VALUES
  (REPEAT('x',65535),'dd');
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
-SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
 
 --echo #
 --echo #  MDEV-36504 Memory leak after insert into empty table
@@ -120,13 +138,12 @@ INSERT INTO t1 SET k= 2;
 SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
 
 connect(con1,localhost,root,,,);
-SET innodb_lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
+SET STATEMENT innodb_lock_wait_timeout=0 FOR
 CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
   STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
 disconnect con1;
 connection default;
-SET innodb_lock_wait_timeout=default;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
 --source include/restart_mysqld.inc

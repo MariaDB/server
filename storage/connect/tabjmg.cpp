@@ -1,6 +1,7 @@
 /************** tabjmg C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: tabjmg     Version 1.3                                */
 /*  (C) Copyright to the author Olivier BERTRAND          2021         */
+/*  Copyright (c) 2017, 2026, MariaDB plc.                             */
 /*  This file contains the MongoDB classes using the Java Driver.      */
 /***********************************************************************/
 
@@ -77,7 +78,6 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 	char    colname[65];
 	char    fmt[129];
 	bool    rc = true;
-	size_t  z;
 	jint   *n = nullptr;
 	jstring jkey;
 	jobject jres;
@@ -107,21 +107,13 @@ bool JMGDISC::ColDesc(PGLOBAL g, jobject obj, char *pcn, char *pfmt,
 		Jcp->env->ReleaseStringUTFChars(jkey, utf);
 		Jcp->env->DeleteLocalRef(jkey);
 
-		if (pcn) {
-			strncpy(colname, pcn, 64);
-			colname[64] = 0;
-			z = 65 - strlen(colname);
-			strncat(strncat(colname, "_", z), key, z - 1);
-		} else
-			snprintf(colname, sizeof(colname), "%s", key);
-
-		if (pfmt) {
-			strncpy(fmt, pfmt, 128);
-			fmt[128] = 0;
-			z = 129 - strlen(fmt);
-			strncat(strncat(fmt, ".", z), key, z - 1);
-		} else
-			snprintf(fmt, sizeof(fmt), "%s", key);
+		if ((pcn ? PlugFmtName(g, colname, sizeof(colname), colname,
+		                       "%s_%s", pcn, key)
+		         : PlugFmtName(g, colname, sizeof(colname), colname,
+		                       "%s", key)) ||
+		    (pfmt ? PlugFmtName(g, fmt, sizeof(fmt), fmt, "%s.%s", pfmt, key)
+		          : PlugFmtName(g, fmt, sizeof(fmt), fmt, "%s", key)))
+			goto err;
 
 		if (!jres) {
 			bcol.Type = n[0];

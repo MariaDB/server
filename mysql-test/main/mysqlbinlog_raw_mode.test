@@ -4,9 +4,6 @@ reset master;
 # we need this for getting fixed timestamps inside of this test
 set timestamp=1000000000;
 
---disable_warnings
-drop table if exists t1;
---enable_warnings
 CREATE TABLE t1 (c01 BIT);
 INSERT INTO t1 VALUES (0);
 INSERT INTO t1 VALUES (1);
@@ -385,3 +382,31 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --remove_file $MYSQLTEST_VARDIR/tmp/server1-master-bin.000001
 
 --echo End of tests
+
+--echo #
+--echo # MDEV-41803 mariadb-binlog --raw takes the output file name from Rotate events without checking it
+--echo #
+
+# mdev41803.000001 is a crafted binlog that, in one file, holds a format
+# description event, a rotate event naming the next log "../zztraversed_42",
+# and a second format description event.
+reset master;
+--source include/shutdown_mysqld.inc
+--remove_file $MARIADB_DATADIR/master-bin.000001
+--copy_file $MYSQL_TEST_DIR/std_data/mdev41803.000001 $MARIADB_DATADIR/master-bin.000001
+--source include/start_mysqld.inc
+
+--mkdir $MYSQLTEST_VARDIR/tmp/raw_rotate
+--error 1
+--exec $MYSQL_BINLOG --raw --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT --result-file=$MYSQLTEST_VARDIR/tmp/raw_rotate/ master-bin.000001 >$MYSQLTEST_VARDIR/tmp/raw_rotate.out 2>&1
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/raw_rotate.out
+--let SEARCH_PATTERN= Invalid log file name in rotate event
+--source include/search_pattern_in_file.inc
+# nothing was written one directory above --result-file
+--list_files $MYSQLTEST_VARDIR/tmp zztraversed_42
+--remove_files_wildcard $MYSQLTEST_VARDIR/tmp/raw_rotate
+--rmdir $MYSQLTEST_VARDIR/tmp/raw_rotate
+--remove_file $MYSQLTEST_VARDIR/tmp/raw_rotate.out
+reset master;
+
+--echo # End of 10.11 tests

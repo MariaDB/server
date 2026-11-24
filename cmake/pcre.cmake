@@ -33,7 +33,7 @@ MACRO(BUNDLE_PCRE2)
     SET(file ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}${CMAKE_STATIC_LIBRARY_SUFFIX})
 
     IF(WIN32)
-      # Debug libary name.
+      # Debug library name.
       # Same condition as in pcre2 CMakeLists.txt that adds "d"
       SET(file_d ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}d${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${file_d})
@@ -65,8 +65,8 @@ MACRO(BUNDLE_PCRE2)
   ExternalProject_Add(
     pcre2
     PREFIX   "${dir}"
-    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.47/pcre2-10.47.zip"
-    URL_MD5 7906aec38f872b74f1b925122dde9069
+    URL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.49/pcre2-10.49.zip"
+    URL_MD5 11e0345ad037d7b3f9342aa3251ac4a7
     INSTALL_COMMAND ""
     CMAKE_ARGS
       "-DCMAKE_WARN_DEPRECATED=FALSE"
