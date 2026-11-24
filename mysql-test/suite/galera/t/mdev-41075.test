@@ -52,7 +52,9 @@ DROP TABLE base;
 --let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='base';
 --source include/wait_condition.inc
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 SET GLOBAL wsrep_on = OFF;
 RESET MASTER;
 SET GLOBAL wsrep_on = ON;

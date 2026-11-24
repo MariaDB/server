@@ -42,7 +42,9 @@ SET DEBUG_SYNC = "now SIGNAL sql_thread_continue";
 SET DEBUG_SYNC = "RESET";
 SET GLOBAL DEBUG_DBUG = "";
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE;
+--enable_warnings
 
 # Now try to restart the node: it should not hang in a shutdown
 --source include/restart_mysqld.inc

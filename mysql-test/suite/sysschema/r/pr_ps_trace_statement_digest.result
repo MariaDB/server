@@ -28,3 +28,17 @@ SET @threadid      = NULL,
 @digest.insert = NULL,
 @digest.select = NULL,
 @digest.show   = NULL;
+#
+# MDEV-42005 sys.diagnostics(), sys.ps_trace_thread() and sys.ps_trace_statement_digest() leave session sql_log_bin disabled
+#
+connect  con1,localhost,root,,;
+select @@sql_log_bin;
+@@sql_log_bin
+1
+call sys.ps_trace_statement_digest('00000000000000000000000000000000', 0, 0.1, FALSE, TRUE);
+select @@sql_log_bin;
+@@sql_log_bin
+1
+disconnect con1;
+connection default;
+# End of 10.11 tests

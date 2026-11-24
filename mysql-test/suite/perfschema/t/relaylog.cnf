@@ -1,0 +1,8 @@
+!include suite/rpl/my.cnf
+
+# Exercise log-name patterns in parent directories as well as in filenames.
+[mysqld.1]
+datadir= @ENV.MYSQLTEST_VARDIR/mysqld.1/master-slave-relay-bin.000003
+
+[mysqld.2]
+datadir= @ENV.MYSQLTEST_VARDIR/mysqld.2/master-slave-relay-bin.000003

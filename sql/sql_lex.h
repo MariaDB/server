@@ -2914,6 +2914,17 @@ public:
     TRUE if we should allow multi-statements.
   */
   bool multi_statements:1;
+  /**
+    Set by the caller: the lexer reads the whole text even if the thread
+    is killed.
+  */
+  bool ignore_kill:1;
+  /**
+    true if the lexer stopped on kill: the parsed text may be cut short.
+  */
+  bool stopped_on_kill:1;
+
+  bool fail_if_stopped_on_kill() const;
 
   /**
     TRUE if hint comments should be returned as a token.

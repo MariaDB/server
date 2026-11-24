@@ -1,0 +1,92 @@
+--source include/not_embedded.inc
+
+#
+# MDEV-42004: STOP SLAVE must not wait for slave_net_timeout when the master
+# is unreachable.
+#
+# The "master" here is a socket that is listening, but never accepts and
+# never sends the server greeting: the kernel completes the TCP handshake, so
+# the IO thread connects, and then waits for the greeting. This is what a
+# frozen or unresponsive host looks like. It works the same on all platforms.
+#
+# STOP SLAVE has to interrupt that wait, by shutting down the connection's
+# vio (see slave_io_vio_callback()), and not wait for slave_net_timeout.
+#
+
+# MTR reserves 30 ports from the base; 20 above the first is not used by the
+# servers.
+--let $port= `SELECT $MASTER_MYPORT + 20`
+--let $ready= $MYSQL_TMP_DIR/silent_listener.ready
+
+# --connection "unresponsive_master"
+#   start me;
+--write_file $MYSQL_TMP_DIR/silent_listener.pl
+use strict;
+use IO::Socket::INET;
+my ($port, $ready)= @ARGV;
+my $s= IO::Socket::INET->new(Listen => 5, LocalAddr => '127.0.0.1',
+                             LocalPort => $port, ReuseAddr => 1) or die "$!";
+open(my $f, '>', $ready) or die "$!";
+close($f);
+# Never accept(). Live until the test removes the ready file.
+sleep 1 while (-e $ready);
+EOF
+
+--perl
+use File::Spec;
+my ($tmp, $port)= ($ENV{MYSQL_TMP_DIR}, $ENV{MASTER_MYPORT} + 20);
+my $ready= "$tmp/silent_listener.ready";
+my @cmd= ($^X, "$tmp/silent_listener.pl", $port, $ready);
+# The listener must not inherit the pipe mysqltest reads this block's output
+# from, or mysqltest would wait for the listener to exit.
+open(STDIN, '<', File::Spec->devnull);
+open(STDOUT, '>', File::Spec->devnull);
+open(STDERR, '>', File::Spec->devnull);
+if ($^O eq 'MSWin32')
+{
+  system(1, @cmd) != -1 or die "cannot start the listener: $!";
+}
+else
+{
+  system(join(' ', map { "'$_'" } @cmd) . ' &');
+}
+for (1..100) { last if -e $ready; select(undef, undef, undef, 0.1); }
+die "listener did not start" unless -e $ready;
+EOF
+
+# --connection "to_be_stopped_at_connecting_slave"
+SET @old_slave_net_timeout= @@GLOBAL.slave_net_timeout;
+SET GLOBAL slave_net_timeout= 60;
+--let $net= `SELECT @@global.slave_net_timeout`
+
+--replace_result $port PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$port,
+  MASTER_USER='root', MASTER_CONNECT_RETRY=1;
+START SLAVE IO_THREAD;
+
+# Let the IO thread connect and block waiting for the greeting.
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE user = 'system user' AND state LIKE 'Connecting to master%'
+--source include/wait_condition.inc
+# Within a little sleep time the initiated connection has a great chance
+# to reach polling.
+--sleep 1
+
+--let $t0= `SELECT UNIX_TIMESTAMP(NOW(6))`
+STOP SLAVE IO_THREAD;
+--let $e= `SELECT ROUND(UNIX_TIMESTAMP(NOW(6)) - $t0, 1)`
+
+# Without the fix STOP SLAVE waits for the rest of slave_net_timeout, i.e.
+# about $net seconds. With the fix it shuts the handshake socket down at once.
+# Half of slave_net_timeout leaves a wide margin on both sides.
+--let $quick= `SELECT $e < $net / 2`
+--echo # STOP SLAVE returned before slave_net_timeout/2 elapsed: $quick
+if (!$quick)
+{
+  --echo # STOP SLAVE took suspiciously $e sec, while slave_net_timeout=$net
+}
+
+# Cleanup
+--remove_file $ready
+RESET SLAVE ALL;
+SET GLOBAL slave_net_timeout= @old_slave_net_timeout;
+--remove_file $MYSQL_TMP_DIR/silent_listener.pl

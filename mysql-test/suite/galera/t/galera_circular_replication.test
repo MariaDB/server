@@ -216,10 +216,13 @@ drop table t1;
 
 --connection replica1
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 --connection replica2
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
 --source include/reset_master.inc
 

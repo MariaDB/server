@@ -1,0 +1,48 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-42037 Assertion failure bpage->oldest_modification()
+--echo # when ALTER TABLE … DISCARD TABLESPACE races with the
+--echo # page cleaner
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2),(3);
+
+SET @save_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,ib_flush_discarded_space_wait';
+
+--connect (con1,localhost,root)
+SET DEBUG_SYNC= 'ib_discard_before_remove_pages SIGNAL discarded WAIT_FOR go';
+--send ALTER TABLE t1 DISCARD TABLESPACE
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR discarded';
+
+# The tablespace is gone, but its dirty pages are in buf_pool.flush_list.
+# Make the page cleaner process them.
+--connect (con2,localhost,root)
+--send SET GLOBAL innodb_log_checkpoint_now= ON
+
+--connection default
+# DISCARD TABLESPACE waits until the page cleaner holds a page of t1 (see
+# ib_flush_discarded_space_wait), and then runs buf_flush_remove_pages().
+SET DEBUG_SYNC= 'now SIGNAL go';
+
+--connection con1
+--reap
+--disconnect con1
+
+--connection con2
+--reap
+--disconnect con2
+
+--connection default
+SET GLOBAL debug_dbug= @save_dbug;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
