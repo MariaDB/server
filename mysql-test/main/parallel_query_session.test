@@ -79,9 +79,9 @@ SET SESSION default_week_format=default;
 --echo #
 SET SESSION parallel_worker_threads=4;
 SET SESSION sql_log_bin=0;
+FLUSH STATUS;
 SET AUTOCOMMIT=0;
 START TRANSACTION;
-FLUSH STATUS;
 --disable_result_log
 SELECT a, b FROM t1 WHERE c > 3;
 --enable_result_log

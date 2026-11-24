@@ -54,9 +54,9 @@ SET SESSION default_week_format=default;
 #
 SET SESSION parallel_worker_threads=4;
 SET SESSION sql_log_bin=0;
+FLUSH STATUS;
 SET AUTOCOMMIT=0;
 START TRANSACTION;
-FLUSH STATUS;
 SELECT a, b FROM t1 WHERE c > 3;
 all_rows	ran_in_the_workers	session_untouched
 1	1	1

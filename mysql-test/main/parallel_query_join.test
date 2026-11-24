@@ -83,21 +83,25 @@ SELECT STRAIGHT_JOIN f.id, f.dim1, d1.name, d2.label
 --echo #
 SET @ot= @@optimizer_trace;
 SET optimizer_trace='enabled=on';
+--disable_view_protocol
 --disable_result_log
 SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
 --enable_result_log
 --echo # expect 1
 SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
   FROM information_schema.optimizer_trace;
---disable_result_log
-CREATE TEMPORARY TABLE ctas ENGINE=InnoDB AS
+CREATE TEMPORARY TABLE ins (id INT, name VARCHAR(20)) ENGINE=InnoDB;
+FLUSH STATUS;
+INSERT INTO ins
   SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
---enable_result_log
-# CTAS: chosen by the optimizer, then declined at execution (locking read)
---echo # CTAS chosen by the optimizer (expect 1); it runs serially, see parallel_query_fallback
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_chosen
+--echo # INSERT ... SELECT chosen by the optimizer (expect 1), then run serially
+--echo # (expect 0): see parallel_query_fallback
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ins_chosen
   FROM information_schema.optimizer_trace;
-DROP TEMPORARY TABLE ctas;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+SELECT COUNT(*) FROM ins;
+DROP TEMPORARY TABLE ins;
+--enable_view_protocol
 SET optimizer_trace= @ot;
 
 --echo #

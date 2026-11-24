@@ -91,11 +91,13 @@ SET optimizer_switch='firstmatch=off,materialization=off,loosescan=off';
 EXPLAIN SELECT COUNT(*) FROM fact f
   WHERE f.val < 50 AND f.id IN (SELECT o.id FROM other o WHERE o.flag = 1);
 SET SESSION optimizer_trace=1;
+--disable_view_protocol
 --disable_result_log
 SELECT COUNT(*) FROM fact f
   WHERE f.val < 50 AND f.id IN (SELECT o.id FROM other o WHERE o.flag = 1);
 --source include/parallel_query_why.inc
 --enable_result_log
+--enable_view_protocol
 SET SESSION optimizer_trace=@save_trace;
 SET optimizer_switch=@save_switch;
 

@@ -126,14 +126,23 @@ SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS chosen
 FROM information_schema.optimizer_trace;
 chosen
 1
-CREATE TEMPORARY TABLE ctas ENGINE=InnoDB AS
+CREATE TEMPORARY TABLE ins (id INT, name VARCHAR(20)) ENGINE=InnoDB;
+FLUSH STATUS;
+INSERT INTO ins
 SELECT STRAIGHT_JOIN f.id, d1.name FROM fact f, d1 WHERE d1.id=f.dim1;
-# CTAS chosen by the optimizer (expect 1); it runs serially, see parallel_query_fallback
-SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ctas_chosen
+# INSERT ... SELECT chosen by the optimizer (expect 1), then run serially
+# (expect 0): see parallel_query_fallback
+SELECT JSON_EXTRACT(trace, '$**.chosen_for_parallel_scan') IS NOT NULL AS ins_chosen
 FROM information_schema.optimizer_trace;
-ctas_chosen
+ins_chosen
 1
-DROP TEMPORARY TABLE ctas;
+SHOW SESSION STATUS LIKE 'Parallel_queries_executed';
+Variable_name	Value
+Parallel_queries_executed	0
+SELECT COUNT(*) FROM ins;
+COUNT(*)
+5000
+DROP TEMPORARY TABLE ins;
 SET optimizer_trace= @ot;
 #
 # an inner table whose condition was partly pushed into the index
