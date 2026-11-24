@@ -22,8 +22,8 @@ SET @old_debug_dbug = @@debug_dbug;
 
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
-# Only pages of test/t are subject to the admit-or-free decision;
-# all other evicted pages are simply freed.
+# Only the pages of the current test/t are subject to the
+# admit-or-free decision; all other evicted pages are simply freed.
 SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
 
 # With innodb_limit_optimistic_insert_debug=3, inserting 9 rows makes

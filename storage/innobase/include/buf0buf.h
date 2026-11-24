@@ -1319,6 +1319,9 @@ public:
   /** Shows if force LRU eviction to external buffer poll is currently on.
   Debug only. */
   my_bool force_LRU_eviction_to_ebp;
+  /** Number of buf_flush_LRU() batches that the page cleaner has completed;
+  used by innodb_force_LRU_eviction to wait for whole batches */
+  Atomic_relaxed<size_t> n_LRU_batches;
 #endif
   /** Hash cell chain in page_hash_table */
   struct hash_chain
@@ -1353,6 +1356,9 @@ public:
     mysql_mutex_assert_owner(&mutex);
     UT_LIST_ADD_FIRST(ext_free, &ext_page);
     ut_d(ext_page.in_free_list= true);
+    /* A page from alloc_ext_page() may be freed without having been
+    inserted into page_hash */
+    ut_d(ext_page.in_page_hash= false);
   }
 
   /** Pushes external buffer pool page to the head of external buffer pool LRU

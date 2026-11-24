@@ -1558,8 +1558,11 @@ public:
   ulonglong tablespace_size_warning_threshold;
 
   /** Create external buffer pool file.
-  @return whether the creation failed */
+  @return whether the file was successfully created */
   bool create_ext_file() noexcept;
+
+  /** Close the external buffer pool file, if it is open. */
+  void close_ext_file() noexcept;
 
   /** External bufer pool os_aio() wrapper.
   @param bpage           buffer pool page for read/write
