@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2004, 2014, Oracle and/or its affiliates
    Copyright (c) 2010, 2014, SkySQL Ab.
+   Copyright (c) 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -899,10 +900,12 @@ int ha_archive::real_write_row(const uchar *buf, azio_stream *writer)
 {
   my_off_t written;
   unsigned int r_pack_length;
+  int error;
   DBUG_ENTER("ha_archive::real_write_row");
 
   /* We pack the row for writing */
-  r_pack_length= pack_row(buf, writer);
+  if ((error= pack_row(buf, writer, &r_pack_length)))
+    DBUG_RETURN(error);
 
   written= azwrite(writer, record_buffer->buffer, r_pack_length);
   if (written != r_pack_length)
@@ -925,9 +928,9 @@ int ha_archive::real_write_row(const uchar *buf, azio_stream *writer)
   the bytes required for the length in the header.
 */
 
-uint32 ha_archive::max_row_length(const uchar *record)
+ulonglong ha_archive::max_row_length(const uchar *record)
 {
-  uint32 length= (uint32)(table->s->reclength + table->s->fields*2);
+  ulonglong length= table->s->reclength + table->s->fields*2;
   length+= ARCHIVE_ROW_HEADER_SIZE;
   my_ptrdiff_t const rec_offset= record - table->record[0];
 
@@ -944,23 +947,32 @@ uint32 ha_archive::max_row_length(const uchar *record)
 }
 
 
-unsigned int ha_archive::pack_row(const uchar *record, azio_stream *writer)
+int ha_archive::pack_row(const uchar *record, azio_stream *writer,
+                         uint *packed_len)
 {
   uchar *ptr;
-  uint32 max_len;
+  ulonglong max_len;
   my_ptrdiff_t const rec_offset= record - table->record[0];
   DBUG_ENTER("ha_archive::pack_row");
 
   max_len= max_row_length(record);
 
+  /*
+    The row length is stored in a four byte header, so a row whose packed
+    length does not fit in uint32 cannot be represented in the archive format.
+  */
+  if (max_len + ARCHIVE_ROW_HEADER_SIZE > UINT_MAX32)
+    DBUG_RETURN(HA_ERR_TO_BIG_ROW);
+
   if (writer->version == 1)
   {
-    if (fix_rec_buff(max_len))
+    if (fix_rec_buff((uint) max_len))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
-    DBUG_RETURN(pack_row_v1(record));
+    *packed_len= pack_row_v1(record);
+    DBUG_RETURN(0);
   }
 
-  if (fix_rec_buff(max_len + ARCHIVE_ROW_HEADER_SIZE))
+  if (fix_rec_buff((uint) (max_len + ARCHIVE_ROW_HEADER_SIZE)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   /* Copy null bits */
@@ -980,7 +992,8 @@ unsigned int ha_archive::pack_row(const uchar *record, azio_stream *writer)
                            (ptr - record_buffer->buffer - 
                              ARCHIVE_ROW_HEADER_SIZE)));
 
-  DBUG_RETURN((unsigned int) (ptr - record_buffer->buffer));
+  *packed_len= (uint) (ptr - record_buffer->buffer);
+  DBUG_RETURN(0);
 }
 
 
@@ -1086,8 +1099,9 @@ int ha_archive::write_row(const uchar *buf)
     Notice that the global auto_increment has been increased.
     In case of a failed row write, we will never try to reuse the value.
   */
-  share->rows_recorded++;
   rc= real_write_row(buf,  &(share->archive_write));
+  if (!rc)
+    share->rows_recorded++;
 error:
   mysql_mutex_unlock(&share->mutex);
   my_free(read_buf);

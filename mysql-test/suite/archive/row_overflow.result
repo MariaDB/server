@@ -1,0 +1,14 @@
+SET @old_max_allowed_packet= @@global.max_allowed_packet;
+SET @@global.max_allowed_packet= 1024*1024*1024;
+connect  con1,localhost,root,,;
+CREATE TABLE t1 (c0 LONGBLOB, c1 LONGBLOB, c2 LONGBLOB, c3 LONGBLOB, c4 LONGBLOB, c5 LONGBLOB, c6 LONGBLOB, c7 LONGBLOB, c8 LONGBLOB, c9 LONGBLOB, c10 LONGBLOB) ENGINE=ARCHIVE;
+SET @x= REPEAT('a', 400*1024*1024);
+INSERT INTO t1 VALUES (@x, @x, @x, @x, @x, @x, @x, @x, @x, @x, @x);
+ERROR HY000: Got error 139 "Too big row" from storage engine ARCHIVE
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+0
+DROP TABLE t1;
+disconnect con1;
+connection default;
+SET @@global.max_allowed_packet= @old_max_allowed_packet;

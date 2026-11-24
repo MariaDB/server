@@ -1,4 +1,5 @@
 /* Copyright (c) 2003, 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -151,10 +152,10 @@ public:
   bool is_crashed() const override;
   int check(THD* thd, HA_CHECK_OPT* check_opt) override;
   bool check_and_repair(THD *thd) override;
-  uint32 max_row_length(const uchar *buf);
+  ulonglong max_row_length(const uchar *buf);
   bool fix_rec_buff(unsigned int length);
   int unpack_row(azio_stream *file_to_read, uchar *record);
-  unsigned int pack_row(const uchar *record, azio_stream *writer);
+  int pack_row(const uchar *record, azio_stream *writer, uint *packed_len);
   bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes) override;
   int external_lock(THD *thd, int lock_type) override;
 private:
