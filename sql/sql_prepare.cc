@@ -247,13 +247,19 @@ private:
   sql_mode_t m_sql_mode;
   THD::used_t m_prepare_time_thd_used_flags;
   uint m_prepare_time_charset_collation_map_version;
+  bool charset_collation_map_changed(THD *thd) const
+  {
+    return (m_prepare_time_thd_used_flags &
+            THD::CHARACTER_SET_COLLATIONS_USED) &&
+           m_prepare_time_charset_collation_map_version !=
+           thd->variables.character_set_collations.version();
+  }
   bool check_charset_collation_map_version(THD *thd,
                                            Reprepare_observer *observer)
   {
-    if ((m_prepare_time_thd_used_flags & THD::CHARACTER_SET_COLLATIONS_USED) &&
-        m_prepare_time_charset_collation_map_version !=
-        thd->variables.character_set_collations.version())
+    if (charset_collation_map_changed(thd))
     {
+      DBUG_ASSERT(observer);
       observer->report_error(thd);
       return true;
     }
@@ -4483,11 +4489,14 @@ Prepared_statement::execute_loop(String *expanded_query,
   */
   DBUG_ASSERT(thd->free_list == NULL);
 
-  if (lex->needs_reprepare && state != Query_arena::STMT_ERROR)
+  if ((lex->needs_reprepare || charset_collation_map_changed(thd)) &&
+      state != Query_arena::STMT_ERROR)
   {
     /*
       Something has happened on previous execution that requires us to
-      re-prepare before we try to execute.
+      re-prepare before we try to execute. A changed
+      @@character_set_collations also needs a re-prepare, even for
+      statements without a Reprepare_observer (e.g. ALTER TABLE).
     */
     goto start_with_reprepare;
   }

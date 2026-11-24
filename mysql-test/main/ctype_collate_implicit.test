@@ -244,4 +244,21 @@ SET @@session.character_set_collations='AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 --error ER_WRONG_VALUE_FOR_VAR
 SET @@session.character_set_collations='utf8mb3=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
+--echo #
+--echo # MDEV-31844 Server crashes when executing PS having ALTER statement after setting empty character_set_collations, UBSAN: member call on null pointer of type 'struct Reprepare_observer'
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET @@character_set_collations='';
+PREPARE stmt FROM 'ALTER TABLE t1 MODIFY a TEXT CHARACTER SET utf8mb3';
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+SET @@character_set_collations='';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+SET @@character_set_collations=DEFAULT;
+
 --echo # End of 11.4 tests
