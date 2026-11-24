@@ -12447,3 +12447,13 @@ ER_OPERATION_INVALIDATES_CONFIGURED_SLAVE
         eng "This operation leaves replication connection '%s' with an invalid configuration: %s"
 ER_CANT_SET_IN_SUBSTATEMENT
         eng "Cannot set %s within a trigger or stored program"
+ER_SQL_EXTENSION_PREFIX_OVERLAP
+        eng "SQL extension prefix '%-.100sT' of plugin '%-.192s' overlaps prefix '%-.100sT' of plugin '%-.192s'"
+ER_SQL_EXTENSION_BAD_DESCRIPTOR
+        eng "Invalid SQL extension descriptor in plugin '%-.192s': %s"
+ER_SQL_EXTENSION_FAILED
+        eng "SQL extension plugin '%-.192s' failed without reporting an error"
+ER_SQL_EXTENSION_INVALID_RESULT
+        eng "SQL extension plugin '%-.192s' sent an invalid result: %s"
+ER_SQL_EXTENSION_NESTED
+        eng "Cannot execute a statement of SQL extension plugin '%-.192s' from the handler of plugin '%-.192s'"

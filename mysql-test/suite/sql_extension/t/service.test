@@ -1,0 +1,121 @@
+--echo #
+--echo # MDEV-41962 SQL extension service: access checks
+--echo #
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+INSTALL PLUGIN test_sql_extension SONAME 'test_sql_extension';
+
+--echo #
+--echo # Access checks
+--echo #
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE db1.t2 (a INT);
+INSERT INTO db1.t1 VALUES (1);
+CREATE USER u1@localhost;
+GRANT SELECT ON db1.t1 TO u1@localhost;
+
+connect (u1, localhost, u1,,);
+TEST SQLEXT ACCESS db1 t1;
+--echo # An invalid call names the argument
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS;
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS db1 '';
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS NOPRIV db1;
+--error ER_STD_INVALID_ARGUMENT
+TEST SQLEXT ACCESS BADBIT db1;
+--echo # Names are checked as a statement's would be
+--error ER_WRONG_DB_NAME
+TEST SQLEXT ACCESS SELECT a2345678901234567890123456789012345678901234567890123456789012345;
+--error ER_WRONG_TABLE_NAME
+TEST SQLEXT ACCESS SELECT db1 b2345678901234567890123456789012345678901234567890123456789012345;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS db1 t2;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS db1;
+--echo # Every privilege GRANT accepts on a database can be checked
+connection default;
+GRANT LOCK TABLES, EVENT ON db1.* TO u1@localhost;
+GRANT REFERENCES ON db1.t1 TO u1@localhost;
+connection u1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+TEST SQLEXT ACCESS EVENT db1;
+TEST SQLEXT ACCESS REFERENCES db1 t1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SHOW_CREATE_ROUTINE db1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS DELETE_HISTORY db1 t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS GRANT_OPTION db1 t1;
+--echo # A database name is checked as a name, not as a GRANT pattern
+connection default;
+CREATE DATABASE my_db;
+GRANT SELECT ON `my\_db`.* TO u1@localhost WITH GRANT OPTION;
+connection u1;
+TEST SQLEXT ACCESS SELECT my_db;
+TEST SQLEXT ACCESS GRANT_OPTION my_db;
+--echo # Databases with built-in access rules
+TEST SQLEXT ACCESS SELECT information_schema;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT information_schema;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT performance_schema;
+--echo # The current database is checked through the privileges cached for it
+USE db1;
+TEST SQLEXT ACCESS LOCK_TABLES db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS CREATE_TEMPORARY_TABLES db1;
+--echo # Global grants count
+connection default;
+CREATE USER u2@localhost;
+GRANT SELECT ON *.* TO u2@localhost;
+connect (u2, localhost, u2,,);
+TEST SQLEXT ACCESS SELECT db1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT db1;
+disconnect u2;
+--echo # Grants of the active role and of PUBLIC count
+connection default;
+CREATE ROLE r1;
+GRANT SELECT ON db1.t2 TO r1;
+GRANT r1 TO u1@localhost;
+GRANT INSERT ON db1.* TO PUBLIC;
+connection u1;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE r1;
+TEST SQLEXT ACCESS SELECT db1 t2;
+SET ROLE NONE;
+--error ER_TABLEACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS SELECT db1 t2;
+TEST SQLEXT ACCESS INSERT db1;
+TEST SQLEXT ACCESS INSERT db1 t2;
+connection default;
+REVOKE INSERT ON db1.* FROM PUBLIC;
+# The GRANT made a row for PUBLIC that the REVOKE leaves
+DELETE FROM mysql.global_priv WHERE user = 'PUBLIC';
+FLUSH PRIVILEGES;
+DROP ROLE r1;
+connection u1;
+--echo # The current database's grants are cached until the next USE, as
+--echo # for any statement
+TEST SQLEXT ACCESS INSERT db1;
+USE db1;
+--error ER_DBACCESS_DENIED_ERROR
+TEST SQLEXT ACCESS INSERT db1;
+disconnect u1;
+connection default;
+
+DROP USER u1@localhost;
+DROP USER u2@localhost;
+DROP DATABASE my_db;
+DROP DATABASE db1;
+UNINSTALL PLUGIN test_sql_extension;
+--source include/wait_until_count_sessions.inc
