@@ -203,3 +203,48 @@ connection default;
 COMMIT;
 DROP TABLE t1;
 disconnect con1;
+#
+# MDEV-37347 Skip locked errors with "Operation not permitted" during COMMIT
+#
+# With innodb_lock_wait_timeout=0, SKIP LOCKED inside a transaction
+# must skip the locked rows without failing the end of the statement
+# or rolling back the earlier changes of the transaction.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, k INT, name VARCHAR(255), KEY(k))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1,'a'), (2,2,'b'), (3,3,'c');
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+SELECT name FROM t1 WHERE id=1 FOR UPDATE;
+name
+a
+connect  con1,localhost,root,,;
+SET SESSION innodb_lock_wait_timeout=0;
+BEGIN;
+INSERT INTO t2 VALUES (10),(20);
+# point lookup on the primary key
+SELECT name FROM t1 WHERE id=1 FOR UPDATE SKIP LOCKED;
+name
+SHOW WARNINGS;
+Level	Code	Message
+# range scan on the primary key
+SELECT id, name FROM t1 WHERE id<3 FOR UPDATE SKIP LOCKED;
+id	name
+2	b
+SHOW WARNINGS;
+Level	Code	Message
+# secondary index scan that locks the clustered index record
+SELECT id, name FROM t1 FORCE INDEX(k) WHERE k<3 FOR UPDATE SKIP LOCKED;
+id	name
+2	b
+SHOW WARNINGS;
+Level	Code	Message
+COMMIT;
+disconnect con1;
+connection default;
+COMMIT;
+SELECT * FROM t2;
+a
+10
+20
+DROP TABLE t1, t2;
