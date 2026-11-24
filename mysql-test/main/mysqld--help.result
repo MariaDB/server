@@ -1378,7 +1378,8 @@ The following specify which files/extra groups are read (specified before remain
  The timeout value (in ms) for semi-synchronous
  replication in the master
  --rpl-semi-sync-master-trace-level=# 
- The tracing level for semi-sync replication
+ The tracing level for semi-sync replication. Deprecated,
+ will be removed in a future release.
  --rpl-semi-sync-master-wait-no-slave 
  Wait until timeout when no semi-synchronous replication
  slave is available
@@ -1397,7 +1398,8 @@ The following specify which files/extra groups are read (specified before remain
  io_thread's connection on master. This timeout comes into
  play when stop slave is executed
  --rpl-semi-sync-slave-trace-level=# 
- The tracing level for semi-sync replication
+ The tracing level for semi-sync replication. Deprecated,
+ will be removed in a future release.
  --safe-mode         Skip some optimize stages (for testing). Deprecated, will
  be removed in a future release.
  --safe-user-create  Don't allow new user creation by the user who has no
