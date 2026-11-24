@@ -6717,6 +6717,11 @@ loc_read_rows(MYSQL *mysql, MYSQL_FIELD *mysql_fields __attribute__((unused)),
   ((Protocol_local *)mysql->thd)->cur_data= 0;
   if (result->embedded_info->last_errno)
   {
+    /*
+      Failed after the metadata or some rows (e.g. killed). embedded_get_error()
+      frees the dataset but not the fields and rows in its memory root.
+    */
+    free_root(&result->alloc, MYF(0));
     embedded_get_error(mysql, result);
     return NULL;
   }
@@ -6762,6 +6767,11 @@ static void loc_on_close_free(MYSQL *mysql)
 {
   Protocol_local *p= (Protocol_local *) mysql->thd;
   THD *thd= p->new_thd;
+  /*
+    The results not read, e.g. the OK that ends a CALL whose rows were
+    read: only the next command on the connection would free them
+  */
+  p->clear_data_list();
   delete p;
   if (thd)
   {
