@@ -139,7 +139,7 @@ let $MYSQLD_DATADIR= `SELECT @@datadir`;
     my (%per_txn, $xid, %out);
     $xid = 0;
     while (my $line = <$fh>) {
-      $xid++ if $line =~ /^(?:COMMIT|Xid =)/;
+      $xid++ if $line =~ /^COMMIT|Xid =/;
       next unless $line =~ /Table_map:\s*`[^`]+`\.`([^`]+)`/;
       $per_txn{$xid}{$1}++;
     }
