@@ -24,6 +24,10 @@
 #include "sql_class.h"                   /* THD */
 #include "log_event.h"
 #include "rpl_parallel.h"
+#ifdef WITH_WSREP
+#include <algorithm>
+#include <vector>
+#endif
 
 struct RPL_TABLE_LIST;
 class Master_info;
@@ -1053,6 +1057,26 @@ struct rpl_group_info
     finish_event_group_called= value;
   }
 
+#ifdef WITH_WSREP
+  /*
+    Galera applier: table ids that already have a Table_map event written
+    to the binlog for the current transaction. A transaction touches only
+    a few tables, so a plain vector with linear search is sufficient.
+  */
+  std::vector<ulonglong> wsrep_table_maps;
+
+  void wsrep_clear_table_maps() { wsrep_table_maps.clear(); }
+
+  /** @return true if the table id was not marked before, false otherwise */
+  bool wsrep_mark_table_mapped(ulonglong table_id)
+  {
+    if (std::find(wsrep_table_maps.begin(), wsrep_table_maps.end(), table_id)
+        != wsrep_table_maps.end())
+      return false;
+    wsrep_table_maps.push_back(table_id);
+    return true;
+  }
+#endif /* WITH_WSREP */
 };
 
 
