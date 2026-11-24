@@ -257,6 +257,9 @@ walk_up_n_right:
     range->start_key.length= min_key_length;
     range->start_key.keypart_map= make_prev_keypart_map(cur->min_key_parts);
     range->start_key.flag=  (ha_rkey_function) (cur->min_key_flag ^ GEOM_FLAG);
+    range->end_key.key= NULL;
+    range->end_key.length= 0;
+    range->end_key.keypart_map= 0;
     max_key_parts= cur->min_key_parts;
   }
   else
