@@ -4183,7 +4183,9 @@ static int validate_schema(const String *xml,
 
   /* Prepare XML parser */
   my_xml_parser_create(&p);
-  p.flags= MY_XML_FLAG_RELATIVE_NAMES | MY_XML_FLAG_SKIP_TEXT_NORMALIZATION;
+  p.flags= MY_XML_FLAG_RELATIVE_NAMES |
+           MY_XML_FLAG_SKIP_TEXT_NORMALIZATION |
+           MY_XML_FLAG_ASSERT_WELL_FORMED;
 
   my_xml_set_enter_handler(&p, validation_enter);
   my_xml_set_value_handler(&p, validation_value);

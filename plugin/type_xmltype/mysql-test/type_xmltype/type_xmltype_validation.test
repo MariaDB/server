@@ -1722,7 +1722,6 @@ set @schema= '<?xml version="1.0"?>
 select XMLISVALID(@xml, @schema);
 
 set @xml= '<?xml version="1.0"?>
-<?xml version="1.0"?>
 <library>
   <book id="b001">
     <title>War and peace. Volume1</title>
@@ -2924,4 +2923,23 @@ set @s='
 select XMLISVALID('<root><n>1</n></root>', @s) exp1;
 select XMLISVALID('<root><n>1</n><n>2</n></root>', @s) exp1;
 select XMLISVALID('<root><n>1</n><n>2</n><n>3</n></root>', @s) exp0;
+
+--echo
+--echo MDEV-41750 XMLISVALID should be 0 returns 1 for strings that are not a single well-formed XML document.
+--echo
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="r"><xs:complexType><xs:sequence><xs:element name="a" type="xs:int"/></xs:sequence></xs:complexType></xs:element></xs:schema>';
+create table t1 (name varchar(20), doc text);
+insert into t1 values
+  ('empty', ''),
+  ('whitespace only', '   '),
+  ('text only', 'abc'),
+  ('comment only', '<!--c-->'),
+  ('two roots', '<r><a>1</a></r><r><a>1</a></r>'),
+  ('leading text', 'x<r><a>1</a></r>'),
+  ('trailing text', '<r><a>1</a></r>x'),
+  ('unclosed', '<r><a>1</a>'),
+  ('valid', '<r><a>1</a></r>');
+select name, doc, XMLISVALID(doc, @s), CAST(doc AS XMLTYPE)  from t1;
+drop table t1;
 

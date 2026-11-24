@@ -1640,7 +1640,6 @@ select XMLISVALID(@xml, @schema);
 XMLISVALID(@xml, @schema)
 0
 set @xml= '<?xml version="1.0"?>
-<?xml version="1.0"?>
 <library>
   <book id="b001">
     <title>War and peace. Volume1</title>
@@ -2929,3 +2928,40 @@ exp1
 select XMLISVALID('<root><n>1</n><n>2</n><n>3</n></root>', @s) exp0;
 exp0
 0
+
+MDEV-41750 XMLISVALID should be 0 returns 1 for strings that are not a single well-formed XML document.
+
+set @s='<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:element name="r"><xs:complexType><xs:sequence><xs:element name="a" type="xs:int"/></xs:sequence></xs:complexType></xs:element></xs:schema>';
+create table t1 (name varchar(20), doc text);
+insert into t1 values
+('empty', ''),
+('whitespace only', '   '),
+('text only', 'abc'),
+('comment only', '<!--c-->'),
+('two roots', '<r><a>1</a></r><r><a>1</a></r>'),
+('leading text', 'x<r><a>1</a></r>'),
+('trailing text', '<r><a>1</a></r>x'),
+('unclosed', '<r><a>1</a>'),
+('valid', '<r><a>1</a></r>');
+select name, doc, XMLISVALID(doc, @s), CAST(doc AS XMLTYPE)  from t1;
+name	doc	XMLISVALID(doc, @s)	CAST(doc AS XMLTYPE)
+empty		0	NULL
+whitespace only	   	0	NULL
+text only	abc	0	NULL
+comment only	<!--c-->	0	NULL
+two roots	<r><a>1</a></r><r><a>1</a></r>	0	NULL
+leading text	x<r><a>1</a></r>	0	NULL
+trailing text	<r><a>1</a></r>x	0	NULL
+unclosed	<r><a>1</a>	0	NULL
+valid	<r><a>1</a></r>	1	<r><a>1</a></r>
+Warnings:
+Warning	1292	Truncated incorrect xmltype value: ''
+Warning	1292	Truncated incorrect xmltype value: '   '
+Warning	1292	Truncated incorrect xmltype value: 'abc'
+Warning	1292	Truncated incorrect xmltype value: '<!--c-->'
+Warning	1292	Truncated incorrect xmltype value: '<r><a>1</a></r><r><a>1</a></r>'
+Warning	1292	Truncated incorrect xmltype value: 'x<r><a>1</a></r>'
+Warning	1292	Truncated incorrect xmltype value: '<r><a>1</a></r>x'
+Warning	1292	Truncated incorrect xmltype value: '<r><a>1</a>'
+drop table t1;
