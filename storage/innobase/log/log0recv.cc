@@ -6102,7 +6102,8 @@ read_only_recovery:
 			ut_ad(!log_sys.archive
 			      || log_sys.next_checkpoint_no
 			      >= uint16_t(4 * log_sys.is_encrypted()));
-			if (log_sys.archive && log_sys.is_encrypted()
+			if (!recv_sys.rpo
+			    && log_sys.archive && log_sys.is_encrypted()
 			    && log_sys.next_checkpoint_no
 			    <= uint16_t(4 * log_sys.is_encrypted())) {
 				ut_ad(log_sys.next_checkpoint_no == 4);
