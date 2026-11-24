@@ -430,7 +430,7 @@ public:
   mysql_rwlock_t commit_lock;
   size_t vec_len= 0;
   size_t byte_len= 0;
-  Atomic_relaxed<double> ef_power{0.6}; // for the bloom filter size heuristic
+  Atomic_relaxed<double> ef_power{0.6}; // for the visited set size heuristic
   Atomic_relaxed<float>  diameter{0};   // for the generosity heuristic
   FVectorNode *start= 0;
   const uint tref_len;
@@ -948,39 +948,80 @@ struct Visited : public Sql_alloc
 /*
   a factory to create Visited and keep track of already seen nodes
 
-  note that PatternedSimdBloomFilter works in blocks of 8 elements,
-  so on insert they're accumulated in nodes[], on search the caller
-  provides 8 addresses at once. we record 0x0 as "seen" so that
-  the caller could pad the input with nullptr's
+  the seen nodes are an open addressing hash set of their addresses. it is
+  exact: a Bloom filter sometimes says a node was seen when it was not, and
+  the search then skips it and every node reachable only through it. the set
+  starts with room for the expected number of nodes and doubles when it is
+  half full. nullptr is always seen, so that the caller can pass the padding
+  at the end of a neighbor list
 */
 class VisitedSet
 {
   MEM_ROOT *root;
   const FVector *target;
-  PatternedSimdBloomFilter<FVectorNode> map;
-  const FVectorNode *nodes[8]= {0,0,0,0,0,0,0,0};
-  size_t idx= 1; // to record 0 in the filter
+  std::vector<const FVectorNode*> slots; // the size is a power of two
+  uint shift; // 64 - log2(slots.size())
+
+  size_t slot(const FVectorNode *node) const
+  { // Fibonacci hashing: the high bits of the product
+    return static_cast<size_t>((static_cast<ulonglong>(
+             reinterpret_cast<size_t>(node)) * 0x9E3779B97F4A7C15ULL) >> shift);
+  }
+  void insert(const FVectorNode *node)
+  {
+    const size_t mask= slots.size() - 1;
+    size_t i= slot(node);
+    for (; slots[i]; i= (i + 1) & mask)
+      if (slots[i] == node)
+        return;
+    slots[i]= node;
+  }
+  bool contains(const FVectorNode *node) const
+  {
+    const size_t mask= slots.size() - 1;
+    for (size_t i= slot(node); slots[i]; i= (i + 1) & mask)
+      if (slots[i] == node)
+        return true;
+    return false;
+  }
+  void resize(size_t size)
+  {
+    std::vector<const FVectorNode*> old(size, nullptr);
+    old.swap(slots);
+    shift= 64;
+    for (size_t s= size; s > 1; s>>= 1)
+      shift--;
+    for (const FVectorNode *node : old)
+      if (node)
+        insert(node);
+  }
   public:
   uint count= 0;
   VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
-    root(root), target(target), map(size, 0.01f) {}
+    root(root), target(target)
+  {
+    size_t slots_num= 16;
+    while (slots_num < 2 * static_cast<size_t>(size))
+      slots_num*= 2;
+    resize(slots_num);
+  }
   Visited *create(FVectorNode *node)
   {
     auto *v= new (root) Visited(node, node->distance_to(target));
+    if (2 * (count + 1) > slots.size())
+      resize(2 * slots.size());
     insert(node);
     count++;
     return v;
   }
-  void insert(const FVectorNode *n)
+  uint8_t seen(FVectorNode **nodes) const
   {
-    nodes[idx++]= n;
-    if (idx == 8) flush();
+    uint8_t res= 0;
+    for (size_t i= 0; i < 8; i++)
+      if (!nodes[i] || contains(nodes[i]))
+        res|= 1 << i;
+    return res;
   }
-  void flush() {
-    if (idx) map.Insert(nodes);
-    idx=0;
-  }
-  uint8_t seen(FVectorNode **nodes) { return map.Query(nodes); }
 };
 
 
@@ -1182,8 +1223,6 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
     const Visited &cur= *candidates.pop();
     if (cur.distance_to_target > furthest_best && best.is_full())
       break; // All possible candidates are worse than what we have
-
-    visited.flush();
 
     Neighborhood &neighbors= cur.node->neighbors[layer];
     FVectorNode **links= neighbors.links, **end= links + neighbors.num;
