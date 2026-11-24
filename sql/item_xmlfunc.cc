@@ -50,18 +50,6 @@
 */
 
 
-/* Structure to store a parsed XML tree */
-typedef struct my_xml_node_st
-{
-  uint level;                 /* level in XML tree, 0 means root node   */
-  enum my_xml_node_type type; /* node type: node, or attribute, or text */
-  uint parent;                /* link to the parent                     */
-  const char *beg;            /* beginning of the name or text          */
-  const char *end;            /* end of the name or text                */
-  const char *tagend;         /* where this tag ends                    */
-} MY_XML_NODE;
-
-
 /* Lexical analyzer token */
 typedef struct my_xpath_lex_st
 {

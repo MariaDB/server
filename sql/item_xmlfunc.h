@@ -20,8 +20,19 @@
 
 /* This file defines all XML functions */
 
+#include "my_xml.h"
 
-typedef struct my_xml_node_st MY_XML_NODE;
+
+/* Structure to store a parsed XML tree */
+typedef struct my_xml_node_st
+{
+  uint level;                 /* level in XML tree, 0 means root node   */
+  enum my_xml_node_type type; /* node type: node, or attribute, or text */
+  uint parent;                /* link to the parent                     */
+  const char *beg;            /* beginning of the name or text          */
+  const char *end;            /* end of the name or text                */
+  const char *tagend;         /* where this tag ends                    */
+} MY_XML_NODE;
 
 
 /* Structure to store nodeset elements */

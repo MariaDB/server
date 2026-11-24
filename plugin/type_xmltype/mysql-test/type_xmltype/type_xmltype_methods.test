@@ -221,4 +221,52 @@ BEGIN
 END;
 $$
 
+--echo # existsNode
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="aa1"><b ba1="ba1">b1<c>c1</c></b></a>';
+  SELECT x.existsNode('/a/b/c');
+  SELECT x.existsNode('/a/b/d');
+  SELECT x.existsNode('/a/b[@ba1="ba1"]');
+  SELECT x.existsNode('//c') + 10;
+  x:= NULL;
+  SELECT x.existsNode('/a');
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a/>';
+  SELECT x.existsNode();
+END;
+$$
+
+--echo # extract
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a aa1="v1"><b ba1="ba1">b1<c>c1</c><c/></b><b>b2</b></a>';
+  SELECT x.extract('/a/b/c');
+  SELECT x.extract('/a/b[@ba1="ba1"]');
+  SELECT x.extract('/a/@aa1');
+  SELECT x.extract('/a/d');
+  SELECT x.extract('/');
+  SELECT x.extract('//b');
+  x:= NULL;
+  SELECT x.extract('/a');
+END;
+$$
+
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  x XMLTYPE;
+BEGIN
+  x:= '<a/>';
+  SELECT x.extract();
+END;
+$$
+
 --delimiter ;

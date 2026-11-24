@@ -20,6 +20,7 @@
 #include "sql_class.h"
 #include "sql_lex.h"
 #include "sp_rcontext.h"
+#include "item_xmlfunc.h"
 #include "sql_type_xmltype.h"
 
 
@@ -389,6 +390,90 @@ public:
 };
 
 
+/*
+  Variable value getter that is never treated as a constant, so the
+  containing item doesn't try to evaluate it at the fix_fields() time.
+*/
+class Item_func_xml_method_var_value :public Item_func_xml_method_getClobVal
+{
+public:
+  Item_func_xml_method_var_value(THD *thd, uint var_idx,
+       const Sp_rcontext_handler *rcontext_handler):
+    Item_func_xml_method_getClobVal(thd, var_idx, rcontext_handler) {}
+  bool const_item() const override { return false; }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_var_value>(thd, this); }
+};
+
+
+class Item_func_xml_method_existsNode :public Item_xml_str_func
+{
+public:
+  static LEX_CSTRING m_func_name;
+  Item_func_xml_method_existsNode(THD *thd, Item *xml, Item *xpath):
+    Item_xml_str_func(thd, xml, xpath) {}
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_slonglong; }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    /* Keep the (character) collation: it's used to parse the XPath. */
+    bool res= Item_xml_str_func::fix_length_and_dec(thd);
+    max_length= 1;
+    decimals= 0;
+    return res;
+  }
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  longlong val_int() override;
+  String *val_str(String *str) override
+  {
+    longlong nr= val_int();
+    if (null_value)
+      return NULL;
+    str->set_int(nr, false, &my_charset_numeric);
+    return str;
+  }
+  double val_real() override
+  { return (double) val_int(); }
+  my_decimal *val_decimal(my_decimal *dec) override
+  { return val_decimal_from_int(dec); }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  { return get_date_from_int(thd, ltime, fuzzydate); }
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_existsNode>(thd, this); }
+};
+
+
+class Item_func_xml_method_extract :public Item_xml_str_func
+{
+public:
+  static LEX_CSTRING m_func_name;
+  Item_func_xml_method_extract(THD *thd, Item *xml, Item *xpath):
+    Item_xml_str_func(thd, xml, xpath) {}
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_xmltype; }
+  bool check_arguments() const override
+  {
+    return false;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    return m_func_name;
+  }
+  String *val_str(String *str) override;
+  Item *shallow_copy(THD *thd) const override
+  { return get_item_copy<Item_func_xml_method_extract>(thd, this); }
+};
+
+
 class Item_func_xml_method_getNamespace
   :public Item_func_xml_method_str
 {
@@ -530,6 +615,36 @@ Item *Type_handler_xmltype::create_item_method(
       spvar == NULL)
     return NULL;
 
+  if (b.length == 7 &&
+      Lex_ident_routine(b).streq(Item_func_xml_method_extract::m_func_name))
+  {
+    if (!args || args->elements != 1)
+    {
+      my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+          Item_func_xml_method_extract::m_func_name.str,
+          "", 1, args ? args->elements : 0);
+      return NULL;
+    }
+    Item *xml= new (thd->mem_root) Item_func_xml_method_var_value(
+                                     thd, spvar->offset, rcontext_handler);
+    return new (thd->mem_root) Item_func_xml_method_extract(
+                                 thd, xml, args->head());
+  }
+  if (b.length == 10 &&
+      Lex_ident_routine(b).streq(Item_func_xml_method_existsNode::m_func_name))
+  {
+    if (!args || args->elements != 1)
+    {
+      my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0),
+          Item_func_xml_method_existsNode::m_func_name.str,
+          "", 1, args ? args->elements : 0);
+      return NULL;
+    }
+    Item *xml= new (thd->mem_root) Item_func_xml_method_var_value(
+                                     thd, spvar->offset, rcontext_handler);
+    return new (thd->mem_root) Item_func_xml_method_existsNode(
+                                 thd, xml, args->head());
+  }
   if (b.length == 10)
   {
     if (Lex_ident_routine(b).streq(
@@ -863,6 +978,120 @@ String *Item_func_xml_method_getRootElement::val_str(String *str)
   return str;
 
 err_ret:
+  null_value= 1;
+  return NULL;
+}
+
+
+LEX_CSTRING Item_func_xml_method_existsNode::m_func_name=
+  {STRING_WITH_LEN("existsNode") };
+
+longlong Item_func_xml_method_existsNode::val_int()
+{
+  NativeNodesetBuffer nodes;
+  null_value= 1;
+
+  if (!nodeset_func || get_xml(&xml))
+    return 0;
+
+  /*
+    Only node-set XPath expressions are meaningful here.
+    The node-set type handler is a private instance of LONGBLOB handler.
+  */
+  const Type_handler *th= nodeset_func->type_handler();
+  if (th == &type_handler_long_blob || th->field_type() != MYSQL_TYPE_LONG_BLOB)
+  {
+    my_error(ER_UNKNOWN_ERROR, MYF(0),
+             "existsNode requires an XPath expression returning nodes");
+    return 0;
+  }
+
+  if (nodeset_func->val_native(current_thd, &nodes))
+    return 0;
+
+  null_value= 0;
+  return nodes.elements() > 0 ? 1 : 0;
+}
+
+
+LEX_CSTRING Item_func_xml_method_extract::m_func_name=
+  {STRING_WITH_LEN("extract") };
+
+/*
+  Returns the concatenation of the XML fragments selected by the XPath.
+  NULL is returned if nothing is selected.
+*/
+String *Item_func_xml_method_extract::val_str(String *str)
+{
+  NativeNodesetBuffer nodes;
+  null_value= 1;
+
+  if (!nodeset_func || get_xml(&xml))
+    return NULL;
+
+  const Type_handler *th= nodeset_func->type_handler();
+  if (th == &type_handler_long_blob || th->field_type() != MYSQL_TYPE_LONG_BLOB)
+  {
+    my_error(ER_UNKNOWN_ERROR, MYF(0),
+             "extract requires an XPath expression returning nodes");
+    return NULL;
+  }
+
+  if (nodeset_func->val_native(current_thd, &nodes) || !nodes.elements())
+    return NULL;
+
+  const String *raw= xml.raw();
+  const char *raw_beg= raw->ptr();
+  const char *raw_end= raw_beg + raw->length();
+  const uint n_nodes= xml.parsed()->length() / (uint) sizeof(MY_XML_NODE);
+  str->length(0);
+  str->set_charset(collation.collation);
+  for (uint i= 0; i < nodes.elements(); i++)
+  {
+    const uint num= nodes.element(i).num;
+    if (num >= n_nodes)
+      goto err;
+    const MY_XML_NODE *node= xml.node(num);
+    const char *beg, *end;
+    switch (node->type) {
+    case MY_XML_NODE_TAG:
+      if (!node->level)                 /* The document node: '/' */
+      {
+        beg= raw_beg;
+        end= raw_end;
+      }
+      else
+      {
+        beg= node->beg - 1;             /* Include '<' */
+        end= node->tagend + 1;          /* Include '>' */
+      }
+      break;
+    case MY_XML_NODE_ATTR:              /* The attribute value */
+      if (num + 1 < n_nodes &&
+          xml.node(num + 1)->type == MY_XML_NODE_TEXT &&
+          xml.node(num + 1)->parent == num)
+      {
+        beg= xml.node(num + 1)->beg;
+        end= xml.node(num + 1)->end;
+      }
+      else
+        beg= end= node->end;            /* Empty value */
+      break;
+    default:                            /* Text */
+      beg= node->beg;
+      end= node->end;
+      break;
+    }
+    /* Never copy anything outside of the source XML text */
+    if (beg < raw_beg || end > raw_end || beg > end)
+      goto err;
+    if (str->append(beg, (uint32) (end - beg)))
+      goto err;
+  }
+  null_value= 0;
+  return str;
+
+err:
   null_value= 1;
   return NULL;
 }

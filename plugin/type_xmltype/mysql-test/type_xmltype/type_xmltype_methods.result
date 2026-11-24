@@ -226,3 +226,71 @@ SELECT x.getNamespace(1);
 END;
 $$
 ERROR 42000: Incorrect number of arguments for getNamespace ; expected 0, got 1
+# existsNode
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="aa1"><b ba1="ba1">b1<c>c1</c></b></a>';
+SELECT x.existsNode('/a/b/c');
+SELECT x.existsNode('/a/b/d');
+SELECT x.existsNode('/a/b[@ba1="ba1"]');
+SELECT x.existsNode('//c') + 10;
+x:= NULL;
+SELECT x.existsNode('/a');
+END;
+$$
+x.existsNode('/a/b/c')
+1
+x.existsNode('/a/b/d')
+0
+x.existsNode('/a/b[@ba1="ba1"]')
+1
+x.existsNode('//c') + 10
+11
+x.existsNode('/a')
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a/>';
+SELECT x.existsNode();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for existsNode ; expected 1, got 0
+# extract
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a aa1="v1"><b ba1="ba1">b1<c>c1</c><c/></b><b>b2</b></a>';
+SELECT x.extract('/a/b/c');
+SELECT x.extract('/a/b[@ba1="ba1"]');
+SELECT x.extract('/a/@aa1');
+SELECT x.extract('/a/d');
+SELECT x.extract('/');
+SELECT x.extract('//b');
+x:= NULL;
+SELECT x.extract('/a');
+END;
+$$
+x.extract('/a/b/c')
+<c>c1</c><c/>
+x.extract('/a/b[@ba1="ba1"]')
+<b ba1="ba1">b1<c>c1</c><c/></b>
+x.extract('/a/@aa1')
+v1
+x.extract('/a/d')
+NULL
+x.extract('/')
+<a aa1="v1"><b ba1="ba1">b1<c>c1</c><c/></b><b>b2</b></a>
+x.extract('//b')
+<b ba1="ba1">b1<c>c1</c><c/></b><b>b2</b>
+x.extract('/a')
+NULL
+DECLARE
+x XMLTYPE;
+BEGIN
+x:= '<a/>';
+SELECT x.extract();
+END;
+$$
+ERROR 42000: Incorrect number of arguments for extract ; expected 1, got 0
