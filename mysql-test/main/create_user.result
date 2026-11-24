@@ -79,3 +79,24 @@ CREATE USER a IDENTIFIED WITH 'a';
 ERROR HY000: Plugin 'a' is not loaded
 RENAME TABLE mysql.temp TO mysql.procs_priv;
 # End of 10.5 tests
+#
+# MDEV-42407 usernames with embedded \0
+#
+create user foo@localhost;
+drop user 'foo\0bar'@localhost;
+ERROR HY000: Incorrect user name value: 'foo\x00bar'
+create user 'foo\0bar'@localhost;
+ERROR HY000: Incorrect user name value: 'foo\x00bar'
+create user foo@'localhost\0bar';
+ERROR HY000: Incorrect host name value: 'localhost\x00bar'
+create role 'foo\0bar';
+ERROR HY000: Incorrect user name value: 'foo\x00bar'
+grant 'foo\0bar' to foo@localhost;
+ERROR HY000: Incorrect user name value: 'foo\x00bar'
+set role 'foo\0bar';
+ERROR HY000: Incorrect user name value: 'foo\x00bar'
+select quote(user), quote(host) from mysql.global_priv where user like 'foo%';
+quote(user)	quote(host)
+'foo'	'localhost'
+drop user foo@localhost;
+# End of 10.11 tests

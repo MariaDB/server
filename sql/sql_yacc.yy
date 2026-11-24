@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2023, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15553,9 +15553,7 @@ user_maybe_role:
               MYSQL_YYABORT;
             $$->user = $1;
 
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                  system_charset_info, 0)))
+            if (check_user_name(&$$->user))
               MYSQL_YYABORT;
           }
         | ident_or_text '@' ident_or_text
@@ -15564,9 +15562,7 @@ user_maybe_role:
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
 
-            if (unlikely(check_string_char_length(&$$->user, ER_USERNAME,
-                                                  username_char_length,
-                                                 system_charset_info, 0)) ||
+            if (check_user_name(&$$->user) ||
                 unlikely(check_host_name(&$$->host)))
               MYSQL_YYABORT;
             if ($$->host.str[0])
@@ -17301,8 +17297,7 @@ role_name: ident_or_text
                $$->user= none;
              else if (lex_string_eq(&$1, &public_name))
                $$->user= public_name;
-             else if (check_string_char_length(&($$->user= $1), ER_USERNAME,
-                                               username_char_length, cs, 0))
+             else if (check_user_name(&($$->user= $1)))
                MYSQL_YYABORT;
              $$->host= empty_clex_str;
            }

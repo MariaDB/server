@@ -68,3 +68,23 @@ CREATE USER a IDENTIFIED WITH 'a';
 RENAME TABLE mysql.temp TO mysql.procs_priv;
 
 --echo # End of 10.5 tests
+
+--echo #
+--echo # MDEV-42407 usernames with embedded \0
+--echo #
+create user foo@localhost;
+--error ER_WRONG_VALUE
+drop user 'foo\0bar'@localhost;
+--error ER_WRONG_VALUE
+create user 'foo\0bar'@localhost;
+--error ER_WRONG_VALUE
+create user foo@'localhost\0bar';
+--error ER_WRONG_VALUE
+create role 'foo\0bar';
+--error ER_WRONG_VALUE
+grant 'foo\0bar' to foo@localhost;
+--error ER_WRONG_VALUE
+set role 'foo\0bar';
+select quote(user), quote(host) from mysql.global_priv where user like 'foo%';
+drop user foo@localhost;
+--echo # End of 10.11 tests

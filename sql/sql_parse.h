@@ -78,6 +78,7 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               size_t max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 bool check_ident_length(const LEX_CSTRING *ident);
+bool check_user_name(const LEX_CSTRING *str);
 bool check_host_name(LEX_CSTRING *str);
 bool check_identifier_name(LEX_CSTRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
