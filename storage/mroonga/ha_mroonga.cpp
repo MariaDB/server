@@ -528,6 +528,9 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
   case HA_EXTRA_WRITE_IS_REPLACE:
     inspected = "HA_EXTRA_WRITE_IS_REPLACE";
     break;
+  case HA_EXTRA_FLUSH_BULK_INSERT:
+    inspected = "HA_EXTRA_FLUSH_BULK_INSERT";
+    break;
   case HA_EXTRA_DELETE_CANNOT_BATCH:
     inspected = "HA_EXTRA_DELETE_CANNOT_BATCH";
     break;

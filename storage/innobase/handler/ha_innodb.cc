@@ -16223,6 +16223,12 @@ ha_innobase::extra(
 		trx = check_trx_exists(thd);
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
+	case HA_EXTRA_FLUSH_BULK_INSERT:
+		/* The replication applier is going to search for rows
+		that earlier row events of the statement may have
+		buffered. */
+		trx = check_trx_exists(thd);
+		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
 		trx = check_trx_exists(thd);
 		trx->duplicates &= ~TRX_DUP_REPLACE;

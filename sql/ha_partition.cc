@@ -9446,6 +9446,7 @@ int ha_partition::extra(enum ha_extra_function operation)
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
   }
   case HA_EXTRA_WRITE_IS_REPLACE:
+  case HA_EXTRA_FLUSH_BULK_INSERT:
     DBUG_RETURN(loop_partitions(extra_cb, &operation));
     /* Category 7), used by federated handlers */
   case HA_EXTRA_INSERT_WITH_UPDATE:

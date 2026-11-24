@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-37708 Assertion `!trx->is_bulk_insert()' failed
+--echo #            or HA_ERR_KEY_NOT_FOUND
+--echo #
+
+SET foreign_key_checks=0, unique_checks=0;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+                 UNIQUE KEY uidx(col_text(9))) ENGINE=InnoDB;
+REPLACE INTO t1 VALUES (49, NULL), (49, NULL);
+SELECT * FROM t1;
+sync_slave_with_master;
+SELECT * FROM t1;
+
+connection master;
+DROP TABLE t1;
+SET foreign_key_checks=1, unique_checks=1;
+
+--source include/rpl_end.inc

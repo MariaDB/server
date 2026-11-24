@@ -233,7 +233,11 @@ enum ha_extra_function {
   HA_EXTRA_ABORT_COPY,
   /** REPLACE on a table with DELETE triggers,
   where HA_EXTRA_WRITE_CAN_REPLACE is not given. */
-  HA_EXTRA_WRITE_IS_REPLACE
+  HA_EXTRA_WRITE_IS_REPLACE,
+  /** Replication applier: a delete/update event is going to look
+  for rows that earlier events of the same statement may have
+  inserted. Make them visible. */
+  HA_EXTRA_FLUSH_BULK_INSERT
 };
 
 /* Compatible option, to be deleted in 6.0 */
