@@ -4103,8 +4103,9 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 			start_lsn = 0;
 			continue;
 		case log_phys_t::APPLIED_YES:
-		case log_phys_t::APPLIED_CORRUPTED:
 			goto set_start_lsn;
+		case log_phys_t::APPLIED_CORRUPTED:
+			goto set_corrupted;
 		case log_phys_t::APPLIED_TO_FSP_HEADER:
 		case log_phys_t::APPLIED_TO_ENCRYPTION:
 			break;
@@ -4157,8 +4158,10 @@ static buf_block_t *recv_recover_page(buf_block_t *block, mtr_t &mtr,
 		}
 
 set_start_lsn:
-		if ((a == log_phys_t::APPLIED_CORRUPTED
-		     || recv_sys.is_corrupt_log()) && !srv_force_recovery) {
+		ut_ad(a != log_phys_t::APPLIED_CORRUPTED);
+
+		if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
+set_corrupted:
 			mtr.discard_modifications();
 			mtr.commit();
 
@@ -4203,6 +4206,9 @@ set_start_lsn:
 	lsn values of page */
 
 	mtr.discard_modifications();
+	ut_d(const auto f=) block->page.fix();
+	ut_ad(f == buf_page_t::FREED + 1 || f == buf_page_t::UNFIXED + 1 ||
+	      f == buf_page_t::REINIT + 1);
 	mtr.commit();
 
 	return block;
@@ -4291,6 +4297,10 @@ bool recv_recover_page(fil_space_t* space, buf_page_t* bpage)
   }
 
   mysql_mutex_unlock(&recv_sys.mutex);
+  {
+    ut_d(const auto f=) bpage->fix();
+    ut_ad(f == buf_page_t::UNFIXED + 1 || f == buf_page_t::REINIT + 1);
+  }
   mtr.commit();
 func_exit:
   ut_ad(mtr.has_committed());
@@ -4328,8 +4338,15 @@ void IORequest::fake_read_complete(os_offset_t offset) const noexcept
                         mtr, recs, node->space, init_lsn))
   {
     ut_ad(bpage->oldest_modification() || bpage->is_freed());
+    ut_d(const auto f=) bpage->unfix();
+    ut_ad(f == buf_page_t::FREED ||
+          f == buf_page_t::UNFIXED || f == buf_page_t::REINIT);
     bpage->lock.x_unlock(true);
   }
+  else
+    /* The page was evicted. Prevent the completion of recovery,
+    so that a checkpoint will not discard the log. */
+    log_set_corrupt();
   recs.being_processed= -1;
   ut_ad(mtr.has_committed());
 
@@ -4601,12 +4618,18 @@ inline buf_block_t *recv_sys_t::recover_low(const map::iterator &p, mtr_t &mtr,
   ut_ad(mtr.has_committed());
 
   if (space)
-  {
     space->release();
-    if (block)
-      block->page.lock.x_unlock();
-  }
-  return block ? block : reinterpret_cast<buf_block_t*>(-1);
+
+  if (!block)
+    return reinterpret_cast<buf_block_t*>(-1);
+
+  ut_d(const auto f=) block->page.unfix();
+  ut_ad(f == buf_page_t::REINIT);
+
+  if (space)
+    block->page.lock.x_unlock();
+
+  return block;
 }
 
 /** Read a page or recover it based on redo log records.

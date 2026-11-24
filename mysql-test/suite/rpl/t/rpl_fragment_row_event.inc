@@ -367,13 +367,16 @@ if ($test_multi_table_trx)
 {
   drop table t2;
 }
+--source include/wait_for_binlog_checkpoint.inc
 flush logs;
 --source include/save_master_gtid.inc
 
 --connection server_2
 --source include/sync_with_master_gtid.inc
+--source include/wait_for_binlog_checkpoint.inc
 flush logs;
 
 --connection server_3
 --source include/sync_with_master_gtid.inc
+--source include/wait_for_binlog_checkpoint.inc
 flush logs;

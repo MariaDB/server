@@ -1,0 +1,67 @@
+#
+# MDEV-40150: a receiver thread waits in gcs_vote() for the result of the
+# inconsistency vote, but the GCS receive thread exits without a self-leave.
+# Nothing wakes the voter, so the applier and close() hang.
+#
+# The Galera dbug point gcs_recv_exit_on_vote_wait makes the GCS receive
+# thread on node_2 exit the way a core error does, as soon as a message
+# arrives while an applier waits for the vote result. The waiting applier
+# must be woken and the node must leave the cluster.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.30
+source ../wsrep/include/check_galera_version.inc;
+
+CALL mtr.add_suppression("Event .* Update_rows.* apply failed");
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Failed to apply write set.*");
+CALL mtr.add_suppression("Inconsistency detected");
+# The injected exit leaves the GCS core open until the provider is destroyed.
+CALL mtr.add_suppression("Calling destroy\\(\\) before close");
+CALL mtr.add_suppression("GCS core destructor failed");
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+# Make the next UPDATE fail on node_2 so that its applier starts a vote.
+SET SESSION wsrep_on = OFF;
+DELETE FROM t1;
+SET SESSION wsrep_on = ON;
+SET GLOBAL wsrep_applier_retry_count = 1;
+
+--let $galera_sync_point = gcs_recv_exit_on_vote_wait
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+UPDATE t1 SET f1 = f1 + 1;
+
+# The applier must be woken, find the vote failed and leave the cluster.
+# Without the fix the applier waits for the vote forever and wsrep_ready
+# stays ON.
+--connection node_2
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+# Restart node_2.
+--source include/shutdown_mysqld.inc
+--source include/wait_until_disconnected.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/start_mysqld.inc
+
+--connection node_1
+SET wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+DROP TABLE t1;

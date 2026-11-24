@@ -65,4 +65,30 @@ let $count_sessions= 1;
 --source include/wait_until_count_sessions.inc
 DROP USER definer@localhost;
 
+--echo #
+--echo # MDEV-41849 Killed query reports ER_NOT_FORM_FILE for a table with
+--echo #            virtual column expressions
+--echo #
+--echo # Kill before the event body is parsed
+call mtr.add_suppression("Event Scheduler: \\[.*\\]\\[test.e1\\] Query execution was interrupted");
+create table t1 (a int);
+set @save_dbug= @@global.debug_dbug;
+set global debug_dbug= '+d,kill_before_event_parse';
+set global event_scheduler= on;
+create event e1 on schedule at current_timestamp on completion preserve
+do insert into t1 values (1);
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= \[test\.e1\] Query execution was interrupted;
+let SEARCH_WAIT= FOUND;
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN= error during compilation of test\.e1;
+let SEARCH_WAIT=;
+--source include/search_pattern_in_file.inc
+set global event_scheduler= off;
+--source include/check_events_off.inc
+set global debug_dbug= @save_dbug;
+select * from t1;
+drop event e1;
+drop table t1;
+
 --echo # End of 10.11 tests

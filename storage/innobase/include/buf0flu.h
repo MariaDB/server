@@ -46,6 +46,14 @@ the list as they age towards the tail of the LRU.
 @param id    tablespace identifier */
 void buf_flush_remove_pages(uint32_t id) noexcept;
 
+#ifdef UNIV_DEBUG
+/** The tablespace that is being discarded by DISCARD TABLESPACE (or 0) */
+extern Atomic_relaxed<uint32_t> buf_flush_discarded_space_id;
+/** Whether the page cleaner holds the latch of a page whose tablespace
+was discarded (look for DBUG_EXECUTE_IF "ib_flush_discarded_space_wait") */
+extern Atomic_relaxed<bool> buf_flush_discarded_space_held;
+#endif
+
 /** Relocate a buffer control block in buf_pool.flush_list.
 @param bpage   control block being moved
 @param dpage   destination block; the page contents has already been copied */

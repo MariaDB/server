@@ -1,0 +1,75 @@
+#
+# MDEV-40150: close() hangs in wait_for_CLOSED() when the last receiver
+# thread exits on an inconsistency error while close() is already running.
+#
+# The Galera dbug point async_recv_force_inconsistency makes the only
+# receiver thread on node_2 exit with the inconsistency error, the same exit
+# the provider takes on GCS_ACT_INCONSISTENCY. The sync point
+# async_recv_exit_before_closing_check holds the receiver just before it
+# checks closing_. A concurrent close() sets closing_ and waits for S_CLOSED.
+# The receiver must then move the provider to S_CLOSED itself, else close()
+# never returns.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# Make sure that the test is operating on the right version of galera library.
+--let $galera_version=26.4.30
+source ../wsrep/include/check_galera_version.inc;
+
+CALL mtr.add_suppression("Inconsistency detected");
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER);
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+# The next action received by node_2 makes its receiver exit on inconsistency.
+--let $galera_sync_point = async_recv_force_inconsistency,async_recv_exit_before_closing_check
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'async_recv_exit_before_closing_check' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_debug_sync_waiters'
+--source include/wait_condition.inc
+
+# Start close() while the receiver is held. It sets closing_ and waits.
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+SET SESSION wsrep_on = OFF;
+--send SET GLOBAL wsrep_cluster_address = ''
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE 'SET GLOBAL wsrep_cluster_address%'
+--source include/wait_condition.inc
+--sleep 2
+--let $galera_sync_point = async_recv_exit_before_closing_check
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# close() must return. Without the fix this hangs.
+--connection node_2a
+--reap
+--disconnect node_2a
+
+# Restart node_2 and clean up.
+--connection node_2
+SET SESSION wsrep_on = OFF;
+--source include/shutdown_mysqld.inc
+--source include/wait_until_disconnected.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--source include/start_mysqld.inc
+
+--connection node_1
+SET wsrep_sync_wait = 0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+DROP TABLE t1;

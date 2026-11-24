@@ -136,7 +136,9 @@ DROP TABLE t1;
 --connection node_4
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE;
+--enable_warnings
 SET GLOBAL wsrep_on = OFF;
 --source include/reset_master.inc
 SET GLOBAL wsrep_on = ON;

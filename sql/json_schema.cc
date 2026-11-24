@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2022, MariaDB Corporation.
+/* Copyright (c) 2016, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2609,6 +2609,9 @@ bool Json_schema_keyword::validate_schema_items(const json_engine_t *je,
   json_engine_t curr_je= *je;
   List_iterator<Json_schema_keyword> it1(*schema_items);
   Json_schema_keyword *curr_schema= NULL;
+
+  if (check_stack_overrun(current_thd, STACK_MIN_SIZE, NULL))
+    return true;
 
   while((curr_schema= it1++))
   {
