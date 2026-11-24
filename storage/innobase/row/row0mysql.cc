@@ -1318,7 +1318,17 @@ error_exit:
 		static_assert(TRX_DML_BULK & 2, "");
 		static_assert(TRX_DDL_BULK & 2, "");
 		static_assert(dict_table_t::IGNORE_UNDO == 2, "");
-		if ((trx->bulk_insert | table->skip_alter_undo) & 2) {
+		if (trx->bulk_insert & 2) {
+			savept = 0;
+		} else if (table->skip_alter_undo == dict_table_t::IGNORE_UNDO
+			   && !trx->error_info->is_clust()) {
+			/* A duplicate key error in a secondary index is
+			reported after the clustered index record and its
+			undo log record were written for this row: roll it
+			back. A duplicate in the clustered index is detected
+			before any undo log record is written, so the
+			surviving record belongs to the previous row and
+			must be kept. */
 			savept = 0;
 		}
 
