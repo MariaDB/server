@@ -9675,6 +9675,8 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
   */
   if (!field->real_maybe_null())
     DBUG_RETURN(type == ISNULL_FUNC ? &null_element : NULL);
+  if (key_part->image_type == Field::itMVI)
+    DBUG_RETURN(0);
   SEL_ARG *tree;
   if (!(tree= new (alloc) SEL_ARG(field, is_null_string, is_null_string)))
     DBUG_RETURN(0);
