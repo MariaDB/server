@@ -1288,14 +1288,7 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
-    if (ext_bp_file != OS_FILE_CLOSED)
-    {
-      int res= mysql_file_close(
-          IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
-          MYF(MY_WME));
-      ut_a(res != -1);
-      ext_bp_file= OS_FILE_CLOSED;
-    }
+    close_ext_file();
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -2933,11 +2926,62 @@ func_exit:
 	return {err, node};
 }
 
+void fil_system_t::close_ext_file() noexcept
+{
+  if (ext_bp_file == OS_FILE_CLOSED)
+    return;
+#ifdef _WIN32
+  /* The file was created by create_ext_file() with CreateFile(), not
+  through mysys; this also unbinds it from srv_thread_pool. */
+  ut_a(os_file_close_func(ext_bp_file.m_file));
+#else
+  int res= mysql_file_close(ext_bp_file, MYF(MY_WME));
+  ut_a(res != -1);
+#endif
+  ext_bp_file= OS_FILE_CLOSED;
+}
+
 bool fil_system_t::create_ext_file() {
-  bool ret;
-  ext_bp_file= pfs_create_temp_file(
-      ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
-      "/Extended buffer pool file", "ext_buf_", 0);
+  const char *dir= ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir;
+#ifdef _WIN32
+  /* ext_bp_io() submits asynchronous I/O for this file. On Windows, that
+  requires a handle that was opened with FILE_FLAG_OVERLAPPED and bound to
+  srv_thread_pool, which pfs_create_temp_file() (mysys) does not provide.
+  FILE_FLAG_DELETE_ON_CLOSE makes the operating system remove the file
+  when the handle is closed, including when the process is terminated. */
+  char name[MAX_PATH];
+  /* GetTempFileName() creates an empty file and uses at most the first
+  3 characters of the prefix. */
+  if (!GetTempFileName(dir, "ebp", 0, name))
+  {
+    sql_print_error("Cannot create extended buffer pool file in %s", dir);
+    (void) os_file_get_last_error(true, false);
+    return false;
+  }
+  HANDLE h= CreateFile(name, GENERIC_READ | GENERIC_WRITE,
+                       FILE_SHARE_READ | FILE_SHARE_DELETE,
+                       my_win_file_secattr(), TRUNCATE_EXISTING,
+                       FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE |
+                       FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    sql_print_error("Cannot open extended buffer pool file %s", name);
+    (void) os_file_get_last_error(true, false);
+    DeleteFile(name);
+    return false;
+  }
+  ext_bp_file= os_file_t{h};
+  if (srv_thread_pool && srv_thread_pool->bind(ext_bp_file.m_file))
+  {
+    sql_print_error("Cannot bind extended buffer pool file %s to"
+                    " the I/O thread pool", name);
+    CloseHandle(h);
+    ext_bp_file= OS_FILE_CLOSED;
+    return false;
+  }
+#else
+  ext_bp_file= pfs_create_temp_file(dir, "/Extended buffer pool file",
+                                    "ext_buf_", 0);
   if (ext_bp_file == OS_FILE_CLOSED)
   {
     sql_print_error("Cannot open/create extended buffer pool file");
@@ -2945,10 +2989,10 @@ bool fil_system_t::create_ext_file() {
     (void)os_file_get_last_error(true, false);
     return false;
   }
-  ret= os_file_set_size(ext_bp_file_name, ext_bp_file.m_file, ext_bp_size);
-  if (!ret)
+#endif
+  if (!os_file_set_size(ext_bp_file_name, ext_bp_file.m_file, ext_bp_size))
   {
-    os_file_close_func(ext_bp_file.m_file);
+    close_ext_file();
     sql_print_error("Cannot set extended buffer pool file size to %zum",
                     ext_bp_size);
     return false;
@@ -2986,9 +3030,8 @@ void IORequest::write_complete(int io_error) const noexcept
     space= fil_space_t::get(buf_page->id().space());
     if (!space)
     {
-      buf_page->lock.x_unlock(true);
-      // TODO: should we update the statistics here?
-      //++buf_pool.stat.n_pages_written_to_ebp;
+      /* The tablespace was dropped while the page was being written. */
+      buf_page_ext_write_discard(*this);
       return;
     }
   }

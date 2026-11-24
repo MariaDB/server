@@ -22,13 +22,14 @@ SET @old_debug_dbug = @@debug_dbug;
 
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
-# Only pages of test/t are subject to the admit-or-free decision;
-# all other evicted pages are simply freed.
+# Only the index pages of the current test/t are subject to the
+# admit-or-free decision; all other evicted pages are simply freed.
 SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
 
 # With innodb_limit_optimistic_insert_debug=3, inserting 15 rows makes
-# test/t occupy 10 pages, so each run below offers exactly 10 candidate
-# pages to the admission selector (14 to 16 rows all give 10 pages).
+# test/t occupy 10 index pages, so each run below offers exactly 10
+# candidate pages to the admission selector (14 to 16 rows all give 10
+# index pages).
 #
 # Over N candidates at pct, the selector admits
 #   (acc_start + N * pct - acc_end) / 100

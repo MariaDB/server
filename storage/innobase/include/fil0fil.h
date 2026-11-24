@@ -1495,8 +1495,10 @@ public:
   size_t ext_bp_size;
 
   /** Create external buffer pool file.
-  @return whether the creation failed */
+  @return whether the file was successfully created */
   bool create_ext_file();
+  /** Close the external buffer pool file, if it is open. */
+  void close_ext_file() noexcept;
   dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
                     IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
                     size_t len, void *buf) noexcept;

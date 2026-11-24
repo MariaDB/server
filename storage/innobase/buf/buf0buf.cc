@@ -1301,6 +1301,10 @@ buf_block_t *buf_pool_t::allocate() noexcept
 ext_buf_page_t *buf_pool_t::alloc_ext_page(page_id_t page_id) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
+  /* Simulate an exhausted extended buffer pool, so that
+  buf_page_t::flush(space, true) returns false without having write-fixed
+  the page or released its U-latch. */
+  DBUG_EXECUTE_IF("ib_ext_bp_alloc_fail", return nullptr;);
   ext_buf_page_t *p;
   if ((p= UT_LIST_GET_FIRST(ext_free)))
     UT_LIST_REMOVE(ext_free, p);

@@ -163,7 +163,86 @@ while($i) {
   --dec $i
 }
 
+--echo #
+--echo # MDEV-31956: a clean page that could not be written to the extended
+--echo # buffer pool must still be evicted. In buf_flush_LRU_list_batch(), the
+--echo # buf_page_t::flush(space, true) failure path calls buf_LRU_free_page()
+--echo # while the page is still U-latched, so can_relocate() is false and the
+--echo # free silently does nothing -- yet the page is counted in n->evicted.
+--echo #
+
 --disable_query_log
+CREATE TABLE t (`a` INT NOT NULL, PRIMARY KEY (`a`)) ENGINE=InnoDB;
+SET @start_val = 0;
+INSERT INTO t SET a = @start_val+1;
+INSERT INTO t SET a = @start_val+2;
+INSERT INTO t SET a = @start_val+3;
+INSERT INTO t SET a = @start_val+4;
+INSERT INTO t SET a = @start_val+5;
+INSERT INTO t SET a = @start_val+6;
+INSERT INTO t SET a = @start_val+7;
+INSERT INTO t SET a = @start_val+8;
+INSERT INTO t SET a = @start_val+9;
+INSERT INTO t SET a = @start_val+10;
+INSERT INTO t SET a = @start_val+11;
+INSERT INTO t SET a = @start_val+12;
+--enable_query_log
+
+--let $space_id= `SELECT SPACE FROM information_schema.innodb_sys_tables WHERE NAME = 'test/t'`
+
+--echo # Write test/t's pages out without evicting them, so that the forced
+--echo # batch below finds them as clean eviction candidates.
+--disable_query_log
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+--enable_query_log
+
+--let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_buffer_page WHERE SPACE = $space_id AND PAGE_STATE = 'FILE_PAGE' AND OLDEST_MODIFICATION > 0
+--source include/wait_condition.inc
+
+--disable_query_log
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+--enable_query_log
+
+--let $resident_before= `SELECT COUNT(*) FROM information_schema.innodb_buffer_page WHERE SPACE = $space_id AND PAGE_STATE = 'FILE_PAGE'`
+if (!$resident_before)
+{
+  --die test/t has no clean resident pages; the scenario did not set up
+}
+
+--echo # Now make every extended buffer pool slot allocation fail, so that
+--echo # buf_page_t::flush(space, true) returns false with the page still
+--echo # U-latched, and force LRU eviction.
+--disable_query_log
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_alloc_fail';
+--enable_query_log
+
+--let $freed_before= `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_LRU_FREED'`
+
+--disable_query_log
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+--enable_query_log
+
+--let $freed_after= `SELECT variable_value FROM information_schema.global_status WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_LRU_FREED'`
+--let $resident_after= `SELECT COUNT(*) FROM information_schema.innodb_buffer_page WHERE SPACE = $space_id AND PAGE_STATE = 'FILE_PAGE'`
+
+if ($freed_after == $freed_before)
+{
+  --die the batch reported no LRU evictions at all; the scenario did not run
+}
+
+--echo # Pages counted as LRU-freed must really have left the buffer pool.
+if ($resident_after >= $resident_before)
+{
+  --echo # resident pages of test/t: before=$resident_before after=$resident_after
+  --die MDEV-31956: pages counted in n->evicted were not actually freed
+}
+--echo # ok
+
+--disable_query_log
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_alloc_fail';
+DROP TABLE t;
+
 SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;

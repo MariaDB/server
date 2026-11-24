@@ -56,6 +56,12 @@ void buf_flush_relocate_on_flush_list(buf_page_t *bpage, buf_page_t *dpage)
 @param request write request
 @param error   whether the write may have failed */
 void buf_page_write_complete(const IORequest &request, bool error) noexcept;
+/** Complete a write of a page to the extended buffer pool whose tablespace
+was dropped while the write was in progress: release the page, discard the
+written copy and try to evict the page from buf_pool.
+@param request extended buffer pool write request */
+ATTRIBUTE_COLD
+void buf_page_ext_write_discard(const IORequest &request) noexcept;
 
 /** Assign the full crc32 checksum for non-compressed page.
 @param[in,out]	page	page to be updated */
