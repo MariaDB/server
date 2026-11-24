@@ -214,6 +214,10 @@ select 1;
 --echo #
 --echo # MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
 --echo #
+# Compact-frame ABIs (for instance: armhf) cannot reach the default 292K stack
+# limit before the Bison parser hits MY_YACC_MAX (~5330 NESTED PATH levels).
+--let $restart_parameters= --thread-stack=192K
+--source include/restart_mysqld.inc
 let $n=5000;
 --disable_result_log
 --error ER_STACK_OVERRUN_NEED_MORE
@@ -228,5 +232,7 @@ evalp create or replace view v1 as select * from json_table('[{}]', '\$[*]' colu
 --enable_result_log
 select * from v1;
 drop view v1;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
 
 --echo # End of 10.11 tests
