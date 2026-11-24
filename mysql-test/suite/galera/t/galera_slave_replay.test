@@ -187,7 +187,9 @@ SELECT COUNT(*) = 1 FROM test.t1 WHERE f2 = 'e';
 set session wsrep_sync_wait=0;
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE;
+--enable_warnings
 # RESET SLAVE does not clear gtid_slave_pos. node_3 resets its binlog
 # (RESET MASTER) below, so without clearing the slave position here node_2
 # would skip the next run's events (e.g. with --repeat) and time out waiting

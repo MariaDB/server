@@ -125,6 +125,7 @@ bool trans_begin(THD *thd, uint flags)
     if (was_in_trans)
       trans_reset_one_shot_chistics(thd);
 #ifdef WITH_WSREP
+    thd->wsrep_trx_locking_read_done= false;
     if (wsrep_thd_is_local(thd))
     {
       res= res || wsrep_after_statement(thd);
@@ -266,6 +267,9 @@ bool trans_commit(THD *thd)
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+#ifdef WITH_WSREP
+  thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
   res= ha_commit_trans(thd, TRUE);
 
   mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
@@ -334,6 +338,9 @@ bool trans_commit_implicit(THD *thd)
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+#ifdef WITH_WSREP
+    thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
     res= MY_TEST(ha_commit_trans(thd, TRUE));
 
     THD_STAGE_INFO(thd, org_stage);
@@ -383,6 +390,9 @@ bool trans_rollback(THD *thd)
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+#ifdef WITH_WSREP
+  thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
   res= ha_rollback_trans(thd, TRUE);
 #ifdef HAVE_REPLICATION
   repl_semisync_master.wait_after_rollback(thd, FALSE);
@@ -437,6 +447,9 @@ bool trans_rollback_implicit(THD *thd)
 
   thd->server_status&= ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
+#ifdef WITH_WSREP
+  thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
   res= ha_rollback_trans(thd, true);
   /*
     Implicit rollback should reset OPTION_BEGIN flag to avoid starting a
@@ -497,6 +510,9 @@ bool trans_commit_stmt(THD *thd)
     if (! thd->in_active_multi_stmt_transaction())
     {
       trans_reset_one_shot_chistics(thd);
+#ifdef WITH_WSREP
+      thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
     }
 
     THD_STAGE_INFO(thd, org_stage);
@@ -564,7 +580,12 @@ bool trans_rollback_stmt(THD *thd)
 
     ha_rollback_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
+    {
       trans_reset_one_shot_chistics(thd);
+#ifdef WITH_WSREP
+      thd->wsrep_trx_locking_read_done= false;
+#endif /* WITH_WSREP */
+    }
 
     THD_STAGE_INFO(thd, org_stage);
   }

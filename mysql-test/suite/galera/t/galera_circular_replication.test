@@ -216,11 +216,15 @@ drop table t1;
 
 --connection replica1
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 --connection replica2
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 RESET MASTER;
 
 --source include/auto_increment_offset_restore.inc

@@ -3194,7 +3194,6 @@ Create_func_geometry_from_text::create_native(THD *thd,
   {
     Item *param_1= item_list->pop();
     func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 2:
@@ -3244,7 +3243,6 @@ Create_func_geometry_from_wkb::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 2:
@@ -3295,7 +3293,6 @@ Create_func_geometry_from_json::create_native(THD *thd,
   {
     Item *json= item_list->pop();
     func= new (thd->mem_root) Item_func_geometry_from_json(thd, json);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 2:
@@ -3354,7 +3351,6 @@ Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
   {
     Item *geom= item_list->pop();
     func= new (thd->mem_root) Item_func_as_geojson(thd, geom);
-    thd->lex->uncacheable(UNCACHEABLE_RAND);
     break;
   }
   case 2:

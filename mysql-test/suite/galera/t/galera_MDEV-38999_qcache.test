@@ -1,0 +1,53 @@
+#
+# MDEV-38999: the query cache's own, independent call to
+# wsrep_must_sync_wait() (sql/sql_cache.cc) must honour the same
+# wsrep_has_changes(thd)-based gate as the main statement-dispatch path: a
+# cached read hit before this transaction's first write must still wait.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+--source include/have_query_cache.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_init.inc
+
+--connection node_2
+BEGIN;
+# First run: a cache miss, goes through the normal (non-query-cache)
+# wsrep_sync_wait path and populates the cache.
+SELECT COUNT(*) FROM t1;
+
+--source include/galera_mdev38999_pause_applier.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (2, 200);
+
+--source include/galera_mdev38999_wait_applier_paused.inc
+
+--connection node_2
+# Same query again: this time it's a cache hit, served via sql_cache.cc's
+# own wsrep_must_sync_wait() call. Nothing has been written in this
+# transaction yet, so it must still wait - and time out here, same as a
+# normal (non-cached) read would.
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT COUNT(*) FROM t1;
+ROLLBACK;
+
+--source include/galera_mdev38999_resume_applier.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_cleanup.inc
