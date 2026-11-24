@@ -955,7 +955,7 @@ COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	EVENT_SCHEDULER
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Enable the event scheduler. Possible values are ON, OFF, and DISABLED (keep the event scheduler completely deactivated, it cannot be activated run-time)
+VARIABLE_COMMENT	Enable the event scheduler. Possible values are ON, OFF, DISABLED (keep the event scheduler completely deactivated, it cannot be activated run-time), and ORIGINAL (reset to the value the server was started with)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
