@@ -596,4 +596,90 @@ SELECT * FROM t1;
 f1
 1
 DROP TABLE t1;
+#
+# MDEV-37708 Assertion `!trx->is_bulk_insert()' failed
+#        or HA_ERR_KEY_NOT_FOUND
+#
+SET foreign_key_checks=0, unique_checks=0;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+col1	col_text
+49	NULL
+SELECT @count;
+@count
+1
+DROP TABLE t1;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+col1	col_text
+49	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY)ENGINE=InnoDB;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+BEGIN;
+REPLACE INTO t1 VALUES (1),(1);
+INSERT INTO t2 VALUES (1),(2),(3);
+COMMIT;
+SELECT * FROM t1;
+a
+1
+SELECT * FROM t2;
+a
+1
+2
+3
+SELECT @count;
+@count
+1
+DROP TABLE t1, t2;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+CREATE TABLE t2 (col1 INT, col_text TEXT)ENGINE=InnoDB;
+INSERT INTO t2 VALUES (49,NULL),(49,NULL);
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+REPLACE INTO t1 SELECT * FROM t2;
+SELECT * FROM t1;
+col1	col_text
+49	NULL
+SELECT @count;
+@count
+1
+DROP TABLE t1, t2;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text VARCHAR(20),
+UNIQUE KEY uidx(col_text))ENGINE=InnoDB;
+CREATE TABLE t2 (col1 INT, col_text VARCHAR(20))ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,'a'),(1,'b');
+SELECT * INTO OUTFILE 'VARDIR/tmp/t.replace' FROM t2;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+LOAD DATA INFILE 'VARDIR/tmp/t.replace' REPLACE INTO TABLE t1;
+SELECT * FROM t1;
+col1	col_text
+1	b
+SELECT @count;
+@count
+1
+DROP TABLE t1, t2;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+UNIQUE KEY uidx(col1, col_text(9)))ENGINE=InnoDB
+PARTITION BY HASH(col1) PARTITIONS 2;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+col1	col_text
+49	NULL
+SELECT @count;
+@count
+1
+DROP TABLE t1;
 # End of 10.11 tests

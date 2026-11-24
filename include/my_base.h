@@ -230,7 +230,10 @@ enum ha_extra_function {
   /** Finish HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
   HA_EXTRA_END_COPY,
   /** Abort HA_EXTRA_BEGIN_COPY or HA_EXTRA_BEGIN_ALTER_IGNORE_COPY */
-  HA_EXTRA_ABORT_COPY
+  HA_EXTRA_ABORT_COPY,
+  /** REPLACE on a table with DELETE triggers,
+  where HA_EXTRA_WRITE_CAN_REPLACE is not given. */
+  HA_EXTRA_WRITE_IS_REPLACE
 };
 
 /* Compatible option, to be deleted in 6.0 */

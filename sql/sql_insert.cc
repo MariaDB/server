@@ -717,6 +717,25 @@ int finalize_replace(TABLE *table, enum_duplicates handle_duplicates,
   return table->file->inited ? table->file->ha_rnd_end() : 0;
 }
 
+/**
+  Tell the storage engine that the statement is REPLACE.
+
+  HA_EXTRA_WRITE_CAN_REPLACE lets the engine replace a conflicting row
+  by itself, which would skip the DELETE triggers. So it is not sent if the
+  table has DELETE triggers. HA_EXTRA_WRITE_IS_REPLACE is sent instead: the
+  engine must report duplicate key errors immediately.
+  HA_EXTRA_WRITE_CANNOT_REPLACE ends the state in both cases.
+*/
+void set_replace_mode(TABLE *table, enum_duplicates handle_duplicates)
+{
+  if (handle_duplicates != DUP_REPLACE)
+    return;
+  if (!table->triggers || !table->triggers->has_delete_triggers())
+    table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
+  else
+    table->file->extra(HA_EXTRA_WRITE_IS_REPLACE);
+}
+
 
 /**
   INSERT statement implementation
@@ -951,9 +970,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 #endif
 
   error=0;
-  if (duplic == DUP_REPLACE &&
-      (!table->triggers || !table->triggers->has_delete_triggers()))
-    table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
+  set_replace_mode(table, duplic);
   if (duplic == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   /*
@@ -1386,8 +1403,7 @@ values_loop_end:
   table->next_number_field=0;
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;
   table->auto_increment_field_not_null= FALSE;
-  if (duplic == DUP_REPLACE &&
-      (!table->triggers || !table->triggers->has_delete_triggers()))
+  if (duplic == DUP_REPLACE)
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 
   if (unlikely(error))
@@ -4376,9 +4392,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
     DBUG_RETURN(1);
 
-  if (info.handle_duplicates == DUP_REPLACE &&
-      (!table->triggers || !table->triggers->has_delete_triggers()))
-    table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
+  set_replace_mode(table, info.handle_duplicates);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   thd->abort_on_warning= !info.ignore && thd->is_strict_mode();
@@ -5189,9 +5203,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   thd->cuted_fields=0;
   if (prepare_for_replace(table, info.handle_duplicates, info.ignore))
     DBUG_RETURN(1);
-  if (info.handle_duplicates == DUP_REPLACE &&
-      (!table->triggers || !table->triggers->has_delete_triggers()))
-    table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
+  set_replace_mode(table, info.handle_duplicates);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
