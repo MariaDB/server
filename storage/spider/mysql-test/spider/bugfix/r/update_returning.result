@@ -1,0 +1,21 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= on;
+set global spider_same_server_link= on;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t1 (a int primary key, b int);
+insert into t1 values (1,1),(2,2);
+create table t2 (a int primary key, b int) engine=Spider
+comment='wrapper "mysql", srv "srv", table "t1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+update t2 set b=b+10 where a=1 returning b;
+b
+11
+drop table t1, t2;
+drop server srv;
+for master_1
+for child2
+for child3
