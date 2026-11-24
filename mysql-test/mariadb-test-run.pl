@@ -619,6 +619,7 @@ my %running;
 my $result;
 my $exe_mysqld; # Used as hint to CoreDump
 my %names;
+my %bye; # Workers that were told to exit
 
 sub parse_protocol($$) {
   my $sock= shift;
@@ -681,6 +682,7 @@ sub parse_protocol($$) {
         {
           mtr_verbose2("${line}: saying BYE to ". $names{$sock});
           print $sock "BYE\n";
+          $bye{$sock}= 1;
           return 2;
         }
         return ["Failure", 1, $completed, $extra_warnings];
@@ -772,7 +774,9 @@ sub parse_protocol($$) {
       mtr_verbose2("Socket loop exiting 3");
       return ["Warnings in log", 1, $completed, $extra_warnings];
     }
-    return 1;
+    # A worker told to exit does not send anything after this, do not read
+    # from it again. Otherwise it goes on and sends TESTRESULT.
+    return $bye{$sock} ? 2 : 1;
   }
   elsif ($line =~ /^SPENT/) {
     main::add_total_times($line);
@@ -939,6 +943,7 @@ sub run ($$$) {
 	  # No more test, tell child to exit
 	  mtr_verbose2("Saying BYE to ". $names{$sock});
 	  print $sock "BYE\n";
+	  $bye{$sock}= 1;
 	} # else (!$next)
       } # else ($sock != $server)
     } # foreach my $sock (@ready)

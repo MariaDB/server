@@ -1391,10 +1391,80 @@ check_sockets_utils()
 }
 
 #
+# Is $1 the pid $2 itself, or a descendant of it (however many
+# generations removed)? Used by check_port() below to confirm a
+# listener found by name and port actually belongs to this script's
+# own invocation, rather than some unrelated process that happens to
+# share the same utility name and port number (e.g. a separate,
+# concurrent SST on a busy host, between one SST's listener closing
+# and the port being reused). Bounded against any unexpected ppid
+# cycle.
+#
+is_descendant_of()
+{
+    local pid="$1"
+    local ancestor="$2"
+    local depth=0
+    while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
+        [ "$pid" = "$ancestor" ] && return 0
+        pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+        depth=$((depth + 1))
+        [ $depth -gt 50 ] && break
+    done
+    return 1
+}
+
+#
+# Returns success if any of the candidate PIDs (whitespace-separated,
+# as produced by a command substitution) is this script's own process
+# or a descendant of it.
+#
+any_pid_is_ours()
+{
+    local cand
+    for cand in $1; do
+        is_descendant_of "$cand" "$$" && return 0
+    done
+    return 1
+}
+
+#
+# Shared by check_port()'s sockstat/lsof backends below, which all
+# report one listener per line in "name ... pid ... state" column
+# form, differing only in column layout and exact wording:
+#   $1 - that utility's full raw output for the port being checked.
+#   $2 - regex matching a line for $utils owned by the exact PID we
+#        were asked to confirm ($pid), used when the caller already
+#        knows which PID should hold the port.
+#   $3 - regex matching a line for $utils owned by any PID, used
+#        instead when the caller only gave a name to look for; $4
+#        (an awk field number) then picks the PID out of such a line,
+#        and every one found is checked via any_pid_is_ours().
+#
+pid_matches()
+{
+    local out="$1"
+    local exact_re="$2"
+    local cand_re="$3"
+    local cand_field="$4"
+
+    if [ $verify_ancestry -eq 0 ]; then
+        echo "$out" | grep -q -E "$exact_re"
+    else
+        any_pid_is_ours "$(echo "$out" | grep -E "$cand_re" | \
+                awk -v f="$cand_field" '{print $f}')"
+    fi
+}
+
+#
 # Check if the port is in the "listen" state.
 # The first parameter is the PID of the process that should
 # listen on the port - if it is not known, you can specify
-# an empty string or zero.
+# an empty string or zero, in which case every candidate listener
+# found by port and utility name is additionally required to be this
+# script's own process (or a descendant of it), so an unrelated
+# process that merely shares the same utility name and port number
+# is not mistaken for our own.
 # The second parameter is the port number.
 # The third parameter is a list of the names of utilities
 # (via "|") that can listen on this port during the state
@@ -1405,18 +1475,48 @@ check_port()
     local pid="${1:-0}"
     local port="$2"
     local utils="$3"
+    local verify_ancestry=0
 
-    [ $pid -le 0 ] && pid='[0-9]+'
+    if [ $pid -le 0 ]; then
+        pid='[0-9]+'
+        verify_ancestry=1
+    fi
 
     local rc=2 # ENOENT
 
     if [ $raw_socket_check -ne 0 ]; then
-        for key in $(awk -v p="$port" 'BEGIN { hex_port = sprintf(":%04X", p) } $2 ~ hex_port && $4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6); do
-            return 0
+        # Not utility output at all -- walks /proc/net/tcp{,6} for a
+        # socket on $port, then /proc/*/fd for the inode that socket
+        # maps to, to learn who holds it. Doesn't fit pid_matches()
+        # below, which is built around column-based utility output.
+        local inode
+        for inode in $(awk -v p="$port" 'BEGIN { hex_port = sprintf(":%04X", p) } $2 ~ hex_port && $4 == "0A" { print $10 }' /proc/net/tcp /proc/net/tcp6); do
+            if [ $verify_ancestry -eq 0 ]; then
+                return 0
+            fi
+            local owner
+            owner=$(find /proc/[0-9]*/fd -lname "socket:\\[$inode\\]" 2>/dev/null | \
+                    awk -F/ '{print $3; exit}')
+            if [ -n "$owner" ] && is_descendant_of "$owner" "$$"; then
+                return 0
+            fi
         done
     elif [ $ss_available -ne 0 ]; then
-        $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
-            grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+        # ss's own candidate PID isn't in a fixed column: it sits as
+        # "pid=N" inside a users:((...)) cluster that pid_matches()'s
+        # plain awk-by-field extraction can't pick out, so this branch
+        # extracts it itself (grep -oE down to the "pid=N" substring,
+        # then down to N) instead of going through that helper.
+        local out
+        out=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null) || :
+        if [ $verify_ancestry -eq 0 ]; then
+            echo "$out" | \
+                grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+        else
+            any_pid_is_ours "$(echo "$out" | \
+                    grep -oE "\\(\"($utils)[^\"]*\"[^)]*,pid=[0-9]+" | \
+                    grep -oE '[0-9]+$')" && rc=0
+        fi
     elif [ $sockstat_available -ne 0 ]; then
         if [ $sockstat_available -gt 1 ]; then
             # The sockstat command on FreeBSD does not return
@@ -1430,15 +1530,32 @@ check_port()
             if [ $rc -eq 16 -o -z "$out" ]; then
                 return 16 # EBUSY
             fi
-            echo "$out" | \
-                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
+            # name is field 2, pid is field 3; no LISTEN state column
+            # on FreeBSD without extra options (sockstat_opts already
+            # restricts to that state here).
+            pid_matches "$out" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]]|\$)" \
+                3 && rc=0
         else
-            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
-                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
+            # name is field 2, pid is field 3, state is "LISTEN" later
+            # in the line.
+            local out
+            out=$($socket_utility $sockstat_opts "$port" 2>/dev/null) || :
+            pid_matches "$out" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" \
+                "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" \
+                3 && rc=0
         fi
     elif [ $lsof_available -ne 0 ]; then
-        $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
-            grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" && rc=0
+        # name is field 1, pid is field 2, state is "(LISTEN)" later
+        # in the line.
+        local out
+        out=$($socket_utility $lsof_opts -i ":$port" 2>/dev/null) || :
+        pid_matches "$out" \
+            "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" \
+            "^($utils)[^[:space:]]*[[:space:]]+[0-9]+([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" \
+            2 && rc=0
     else
         wsrep_log_error "Unknown sockets utility"
         exit 2 # ENOENT

@@ -1,0 +1,82 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE DATABASE d1;
+CREATE DATABASE d2;
+CREATE TABLE d1.t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE d2.secret (who VARCHAR(200)) ENGINE=InnoDB;
+CREATE DEFINER=root@localhost SQL SECURITY DEFINER VIEW d1.v_root AS SELECT a FROM d1.t1;
+CREATE USER u1@localhost;
+GRANT TRIGGER, SELECT, INSERT, CREATE VIEW, DROP ON d1.* TO u1@localhost;
+CREATE DATABASE d3;
+CREATE DATABASE d4;
+CREATE TABLE d3.t1 (c1 INT) ENGINE=InnoDB;
+CREATE TABLE d3.t2 (c2 INT) ENGINE=InnoDB;
+GRANT SELECT ON d3.t1 TO u1@localhost;
+GRANT INSERT ON d3.t2 TO u1@localhost;
+GRANT ALL PRIVILEGES ON d4.* TO u1@localhost;
+SET @save_trust = @@GLOBAL.log_bin_trust_function_creators;
+SET GLOBAL log_bin_trust_function_creators = ON;
+connection node_2;
+connect  con1,127.0.0.1,u1,,,$NODE_MYPORT_1;
+connection con1;
+INSERT INTO d2.secret VALUES ('direct');
+ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `d2`.`secret`
+# DEFINER other than the current user needs SET USER
+CREATE DEFINER=root@localhost TRIGGER d1.tr BEFORE INSERT ON d1.t1
+FOR EACH ROW INSERT INTO d2.secret VALUES (CURRENT_USER());
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+CREATE DEFINER=root@localhost SQL SECURITY DEFINER VIEW d1.v1 AS SELECT a FROM d1.t1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+# ALTER VIEW without DEFINER keeps the existing DEFINER (root)
+ALTER VIEW d1.v_root AS SELECT a + 1 AS a FROM d1.t1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+# The view would give more column privileges than u1 has on d3.t2
+CREATE VIEW d4.v12 AS SELECT c1, c2 FROM d3.t1, d3.t2;
+ERROR 42000: create view command denied to user 'u1'@'localhost' for column 'c2' in table 'v12'
+# Allowed: own DEFINER
+CREATE TRIGGER d1.tr_own BEFORE INSERT ON d1.t1 FOR EACH ROW SET @x = 1;
+CREATE SQL SECURITY INVOKER VIEW d1.v_own AS SELECT a FROM d1.t1;
+connection node_1;
+# ALTER VIEW without DEFINER by root keeps u1 as DEFINER and INVOKER
+ALTER VIEW d1.v_own AS SELECT a + 1 AS a FROM d1.t1;
+connection node_2;
+# node_2
+SELECT TRIGGER_NAME, DEFINER FROM information_schema.TRIGGERS
+WHERE TRIGGER_SCHEMA = 'd1' ORDER BY TRIGGER_NAME;
+TRIGGER_NAME	DEFINER
+tr_own	u1@localhost
+SELECT TABLE_SCHEMA, TABLE_NAME, DEFINER, SECURITY_TYPE, VIEW_DEFINITION
+FROM information_schema.VIEWS WHERE TABLE_SCHEMA IN ('d1', 'd4')
+ORDER BY TABLE_SCHEMA, TABLE_NAME;
+TABLE_SCHEMA	TABLE_NAME	DEFINER	SECURITY_TYPE	VIEW_DEFINITION
+d1	v_own	u1@localhost	INVOKER	select `d1`.`t1`.`a` + 1 AS `a` from `d1`.`t1`
+d1	v_root	root@localhost	DEFINER	select `d1`.`t1`.`a` AS `a` from `d1`.`t1`
+connection node_1;
+# node_1
+SELECT TRIGGER_NAME, DEFINER FROM information_schema.TRIGGERS
+WHERE TRIGGER_SCHEMA = 'd1' ORDER BY TRIGGER_NAME;
+TRIGGER_NAME	DEFINER
+tr_own	u1@localhost
+SELECT TABLE_SCHEMA, TABLE_NAME, DEFINER, SECURITY_TYPE, VIEW_DEFINITION
+FROM information_schema.VIEWS WHERE TABLE_SCHEMA IN ('d1', 'd4')
+ORDER BY TABLE_SCHEMA, TABLE_NAME;
+TABLE_SCHEMA	TABLE_NAME	DEFINER	SECURITY_TYPE	VIEW_DEFINITION
+d1	v_own	u1@localhost	INVOKER	select `d1`.`t1`.`a` + 1 AS `a` from `d1`.`t1`
+d1	v_root	root@localhost	DEFINER	select `d1`.`t1`.`a` AS `a` from `d1`.`t1`
+# u1 inserts into d1.t1 on node_2, no trigger may write d2.secret
+connect  con2,127.0.0.1,u1,,,$NODE_MYPORT_2;
+connection con2;
+INSERT INTO d1.t1 VALUES (1);
+connection node_2;
+SELECT * FROM d2.secret;
+who
+connection node_1;
+disconnect con1;
+disconnect con2;
+SET GLOBAL log_bin_trust_function_creators = @save_trust;
+DROP USER u1@localhost;
+DROP DATABASE d1;
+DROP DATABASE d2;
+DROP DATABASE d3;
+DROP DATABASE d4;

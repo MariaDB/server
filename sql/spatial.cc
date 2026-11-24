@@ -1024,6 +1024,8 @@ static int read_point_from_json(json_engine_t *je, bool er_on_3D,
 
   if (je->s.error != 0)
     return 1;
+  if (n_coord < 2)     // a position needs x and y
+    goto bad_coordinates;
   if (n_coord <= 2 || !er_on_3D)
     return 0;
   je->s.error= Geometry::GEOJ_DIMENSION_NOT_SUPPORTED;

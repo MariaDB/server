@@ -737,7 +737,7 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,
       */
       rli->calc_master_bug_bitmask(fdev);
     }
-    my_b_seek(rli->cur_log,(off_t)pos);
+    my_b_seek(rli->cur_log,(my_off_t)pos);
     DBUG_PRINT("info", ("my_b_tell(rli->cur_log)=%llu rli->event_relay_log_pos=%llu",
                         my_b_tell(rli->cur_log), rli->event_relay_log_pos));
 

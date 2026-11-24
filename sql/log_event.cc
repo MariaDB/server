@@ -2755,8 +2755,7 @@ XA_prepare_log_event(const uchar *buf, size_t event_len)
   if (unlikely(event_len < needed_len))
     return;
   buf+= header_len;
-  static_assert(sizeof(bool) == 1, "Code assumes sizeof(bool)==1");
-  one_phase= * (bool *) buf;
+  one_phase= (bool)*buf;
   buf+= 1;
   long loc_formatID= uint4korr(buf);
   buf+= 4;

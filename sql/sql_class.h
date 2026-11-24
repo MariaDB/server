@@ -4963,13 +4963,15 @@ public:
       mysys_var->abort= 0;
     }
   }
-  inline void send_kill_message()
+  /* Return true if the kill has an error and it was raised */
+  inline bool send_kill_message()
   {
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
       my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
+    return err != 0;
   }
   /* return TRUE if we will abort query if we make a warning now */
   inline bool really_abort_on_warning()
@@ -5243,6 +5245,9 @@ public:
   void parse_error(const char *err_text, const char *yytext)
   {
     Lex_input_stream *lip= &m_parser_state->m_lip;
+    /* The lexer reported the kill. */
+    if (lip->stopped_on_kill)
+      return;
     if (!yytext && !(yytext= lip->get_tok_start()))
         yytext= "";
     /* Push an error into the error stack */
@@ -5813,6 +5818,13 @@ public:
   void                      *wsrep_apply_format;
   uchar*                    wsrep_rbr_buf;
   wsrep_gtid_t              wsrep_sync_wait_gtid;
+  /*
+    True once a locking read (SELECT ... FOR UPDATE / LOCK IN SHARE MODE)
+    has executed in the current transaction. wsrep_has_changes(thd) only
+    reflects writes - a locking read takes row locks without appending any
+    certification key - so this covers the gap. See wsrep_must_sync_wait().
+  */
+  bool                      wsrep_trx_locking_read_done;
   uint64                    wsrep_last_written_gtid_seqno;
   uint64                    wsrep_current_gtid_seqno;
   ulong                     wsrep_affected_rows;
