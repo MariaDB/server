@@ -1,0 +1,42 @@
+#
+# MDEV-42375 MHNSW: search misses rows when the graph is larger than mhnsw_max_cache_size
+#
+# A graph larger than mhnsw_max_cache_size resets its cache after almost
+# every search. What the searches learned about the graph must survive
+# the reset: the same searches return the same rows with any cache size.
+#
+create table t1 (
+id int unsigned auto_increment primary key,
+v vector(16) not null,
+vector index (v) m=4 distance=cosine
+) engine=innodb;
+set rand_seed1=1234567890, rand_seed2=3;
+insert t1 (v) select vec_fromtext(json_arrayagg((d.seq % 16 = r.seq % 16) + rand()/2 order by d.seq))
+from seq_1_to_16 d, seq_1_to_1000 r group by r.seq;
+create procedure search_all(out checksum bigint unsigned)
+begin
+declare i int default 1000;
+declare c bigint unsigned;
+set checksum= 0;
+while i > 0 do
+select sum(crc32(concat(i, ':', id))) into c from (
+select id from t1
+order by vec_distance_cosine(v, (select v from t1 where id = i)) limit 20) x;
+set checksum= checksum + c;
+set i= i - 1;
+end while;
+end//
+set @cache_size= @@global.mhnsw_max_cache_size;
+set global mhnsw_max_cache_size= 1024*1024*1024;
+flush tables;
+call search_all(@large);
+set global mhnsw_max_cache_size= 1024*1024;
+flush tables;
+call search_all(@small);
+select @large = @small as same_rows;
+same_rows
+1
+set global mhnsw_max_cache_size= @cache_size;
+drop procedure search_all;
+drop table t1;
+# End of 11.8 tests

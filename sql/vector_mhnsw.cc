@@ -444,6 +444,24 @@ public:
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
       metric(t->s->key_info[t->s->keys].option_struct->metric)
   {
+    init();
+  }
+
+  /*
+    An empty cache of the same graph that starts from what the searches of
+    `prev` learned about it: ef_power and diameter describe the graph, not
+    the cache.
+  */
+  MHNSW_Share(MHNSW_Share &prev)
+    : version(prev.version), ef_power(prev.ef_power),
+      diameter(prev.diameter), tref_len(prev.tref_len),
+      gref_len(prev.gref_len), M(prev.M), metric(prev.metric)
+  {
+    init();
+  }
+
+  void init()
+  {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
     for (uint i=0; i < array_elements(node_lock); i++)
@@ -488,12 +506,23 @@ public:
   static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
   static MHNSW_Share *get_from_share(TABLE_SHARE *share, TABLE *table);
 
+  /*
+    Drop the cached graph. The share that replaces this one keeps what the
+    searches learned about the graph: a graph larger than
+    mhnsw_max_cache_size resets its cache after nearly every query, and
+    with the defaults each of those searches sized its visited set for far
+    fewer nodes than it visits and stopped early (diameter 0), missing rows,
+    even a row equal to the query.
+  */
   virtual void reset(TABLE_SHARE *share)
   {
     share->lock_share();
     if (static_cast<MHNSW_Share*>(share->hlindex->hlindex_data) == this)
     {
-      share->hlindex->hlindex_data= nullptr;
+      MHNSW_Share *next= new (&share->hlindex->mem_root) MHNSW_Share(*this);
+      if (next)
+        next->refcnt++;
+      share->hlindex->hlindex_data= next;
       --refcnt;
     }
     share->unlock_share();
