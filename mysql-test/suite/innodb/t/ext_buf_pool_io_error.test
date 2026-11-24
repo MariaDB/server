@@ -1,0 +1,287 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+# The extended buffer pool is left disabled; do not reuse the server.
+--source include/force_restart.inc
+
+--echo #
+--echo # MDEV-31956: an I/O error on the extended buffer pool file, or a
+--echo # corrupted page read from it, permanently disables the extended buffer
+--echo # pool; no further reads from it are made, and the pages are read from
+--echo # the data file instead.
+--echo #
+
+call mtr.add_suppression("InnoDB: Disabling the extended buffer pool after ");
+call mtr.add_suppression("InnoDB: Read error \\d+ of page \\d+ in the extended buffer pool file");
+call mtr.add_suppression("InnoDB: Page \\[page id: space=\\d+, page number=\\d+\\] read from the extended buffer pool file is corrupted");
+call mtr.add_suppression("InnoDB: \\d+ bytes should have been read at \\d+ from ext_buffer_pool, but got only 0");
+call mtr.add_suppression("InnoDB: Retry attempts for reading partial data failed");
+
+--echo # The server was started with --innodb-extended-buffer-pool-size=4M
+--echo # (see ext_buf_pool_io_error.opt)
+--let $ebp_size= 4194304
+--let $assert_text= innodb_extended_buffer_pool_size is the startup size
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = $ebp_size
+--source include/assert.inc
+
+--echo # Only 0 and the startup size are valid. As at startup, a value is
+--echo # rounded down to a multiple of innodb_page_size.
+--let $page_size= `SELECT @@GLOBAL.innodb_page_size`
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size DIV 2
+SHOW WARNINGS;
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size * 2
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size + $page_size
+--error ER_WRONG_VALUE_FOR_VAR
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size - 1
+--let $assert_text= Rejected values leave innodb_extended_buffer_pool_size unchanged
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = $ebp_size
+--source include/assert.inc
+
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+--let $assert_text= innodb_extended_buffer_pool_size can be set to 0
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = 0
+--source include/assert.inc
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size
+--let $assert_text= innodb_extended_buffer_pool_size can be set back to the startup size
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = $ebp_size
+--source include/assert.inc
+
+--echo # A value that rounds down to the startup size is accepted with a
+--echo # warning, and stored rounded down
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size + 1
+--let $assert_text= innodb_extended_buffer_pool_size was rounded down to the startup size
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = $ebp_size
+--source include/assert.inc
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size + $page_size - 1
+--let $assert_text= innodb_extended_buffer_pool_size was rounded down to the startup size
+--let $assert_cond= @@GLOBAL.innodb_extended_buffer_pool_size = $ebp_size
+--source include/assert.inc
+
+--echo # While the size is 0, nothing is written to or read from the
+--echo # extended buffer pool, and the pages are read from the data file
+--connect (prevent_purge,localhost,root)
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+--connection default
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+--let $space_id= `SELECT SPACE FROM information_schema.innodb_sys_tables WHERE NAME = 'test/t'`
+--let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_buffer_page WHERE SPACE = $space_id AND PAGE_STATE = 'FILE_PAGE' AND OLDEST_MODIFICATION > 0
+--source include/wait_condition.inc
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+SELECT variable_value - @written0 AS ebp_writes
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+
+--echo # Setting the startup size again resumes it
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @written0 > 0 AS written
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+--echo # The pages that it holds are not read while the size is 0
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SELECT COUNT(*), SUM(a) FROM t;
+SELECT variable_value - @read0 AS ebp_reads
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+--eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+SELECT variable_value - @read0 > 0 AS read_from_ebp
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+--disconnect prevent_purge
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+
+# Each mode disables the extended buffer pool for good, so the server is
+# restarted between them.
+#   read:          synchronous reads fail (ib_ext_bp_read_error)
+#   async_read:    asynchronous (read-ahead) reads fail in
+#                  IORequest::read_complete() (ib_ext_bp_async_read_error)
+#   write:         writes fail (ib_ext_bp_write_error)
+#   write_submit:  writes cannot be submitted
+#                  (ib_ext_bp_write_submit_error)
+#   corrupt:       synchronous reads return a corrupted page
+#                  (ib_ext_bp_read_corrupt)
+#   async_corrupt: asynchronous reads return a corrupted page
+#                  (ib_ext_bp_async_read_corrupt)
+#   eof:           synchronous reads hit the end of the file
+#                  (ib_ext_bp_read_eof)
+#   async_eof:     asynchronous reads hit the end of the file
+#                  (ib_ext_bp_async_read_eof)
+--let $test_mode= read
+while ($test_mode)
+{
+  --echo # Error mode: $test_mode
+  --let $async= 0
+  --let $write_mode= 0
+  --let $reason= an I/O error while reading its file
+  if ($test_mode == read)
+  {
+    --let $error_dbug= ib_ext_bp_read_error
+    --let $next_mode= async_read
+  }
+  if ($test_mode == async_read)
+  {
+    --let $error_dbug= ib_ext_bp_async_read_error
+    --let $async= 1
+    --let $next_mode= write
+  }
+  if ($test_mode == write)
+  {
+    --let $error_dbug= ib_ext_bp_write_error
+    --let $reason= an I/O error while writing its file
+    --let $write_mode= 1
+    --let $next_mode= write_submit
+  }
+  if ($test_mode == write_submit)
+  {
+    --let $error_dbug= ib_ext_bp_write_submit_error
+    --let $reason= an I/O error while writing its file
+    --let $write_mode= 1
+    --let $next_mode= corrupt
+  }
+  if ($test_mode == corrupt)
+  {
+    --let $error_dbug= ib_ext_bp_read_corrupt
+    --let $reason= reading a corrupted page from its file
+    --let $next_mode= async_corrupt
+  }
+  if ($test_mode == async_corrupt)
+  {
+    --let $error_dbug= ib_ext_bp_async_read_corrupt
+    --let $reason= reading a corrupted page from its file
+    --let $async= 1
+    --let $next_mode= eof
+  }
+  if ($test_mode == eof)
+  {
+    --let $error_dbug= ib_ext_bp_read_eof
+    --let $next_mode= async_eof
+  }
+  if ($test_mode == async_eof)
+  {
+    --let $error_dbug= ib_ext_bp_async_read_eof
+    --let $async= 1
+    --let $next_mode=
+  }
+  if ($async)
+  {
+    # Make the scan trigger linear read-ahead of the next extent.
+    SET @old_read_ahead_threshold = @@GLOBAL.innodb_read_ahead_threshold;
+    SET GLOBAL innodb_read_ahead_threshold = 1;
+  }
+
+  --connect (prevent_purge,localhost,root)
+  START TRANSACTION WITH CONSISTENT SNAPSHOT;
+  --connection default
+
+  SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+  SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+  SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+  CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+  ENGINE=InnoDB;
+  INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+  # Only clean pages are admitted to the extended buffer pool on eviction.
+  SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+  SET GLOBAL innodb_max_dirty_pages_pct = 0;
+  --let $space_id= `SELECT SPACE FROM information_schema.innodb_sys_tables WHERE NAME = 'test/t'`
+  --let $wait_condition= SELECT COUNT(*) = 0 FROM information_schema.innodb_buffer_page WHERE SPACE = $space_id AND PAGE_STATE = 'FILE_PAGE' AND OLDEST_MODIFICATION > 0
+  --source include/wait_condition.inc
+  SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+  SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+  SELECT variable_value INTO @written0 FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT variable_value INTO @read0 FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+
+  if ($write_mode)
+  {
+    --eval SET GLOBAL DEBUG_DBUG='+d,$error_dbug'
+  }
+  SET GLOBAL innodb_force_LRU_eviction = TRUE;
+  if (!$write_mode)
+  {
+    --echo # The pages of t were written to the extended buffer pool
+    SELECT variable_value - @written0 > 0 AS written
+      FROM information_schema.global_status
+      WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+    --eval SET GLOBAL DEBUG_DBUG='+d,$error_dbug'
+  }
+  --echo # Failed reads fall back to the data file
+  SELECT COUNT(*), SUM(a) FROM t;
+  --eval SET GLOBAL DEBUG_DBUG='-d,$error_dbug'
+  --echo # The data file was not flagged as corrupted
+  CHECK TABLE t;
+
+  --let SEARCH_PATTERN= Disabling the extended buffer pool after $reason
+  --source include/search_pattern_in_file.inc
+
+  SELECT variable_value INTO @read1 FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+  if (!$async)
+  {
+    # Asynchronous read-ahead may read some pages successfully before
+    # the first failure.
+    SELECT @read1 - @read0 AS ebp_reads;
+  }
+  SELECT variable_value INTO @written1 FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+
+  --echo # After disabling, nothing is written to or read from it
+  SET GLOBAL innodb_force_LRU_eviction = TRUE;
+  SELECT COUNT(*), SUM(a) FROM t;
+  SELECT variable_value - @written1 AS ebp_writes
+    FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+  SELECT variable_value - @read1 AS ebp_reads
+    FROM information_schema.global_status
+    WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+  SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+  --echo # It cannot be enabled again
+  --error ER_WRONG_VALUE_FOR_VAR
+  --eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size
+  SHOW WARNINGS;
+  SET GLOBAL innodb_extended_buffer_pool_size = 0;
+  --error ER_WRONG_VALUE_FOR_VAR
+  --eval SET GLOBAL innodb_extended_buffer_pool_size = $ebp_size
+  SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+
+  if ($async)
+  {
+    SET GLOBAL innodb_read_ahead_threshold = @old_read_ahead_threshold;
+  }
+  --disconnect prevent_purge
+  DROP TABLE t;
+  SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+
+  --let $test_mode= $next_mode
+  if ($test_mode)
+  {
+    --echo # Restart to re-enable the extended buffer pool
+    --source include/restart_mysqld.inc
+  }
+}

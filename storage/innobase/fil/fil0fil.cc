@@ -2992,7 +2992,7 @@ bool fil_system_t::create_ext_file() noexcept
   {
     close_ext_file();
     sql_print_error("InnoDB: Cannot set the extended buffer pool file"
-                    " size to %zu bytes", ext_bp_size_non_atomic);
+                    " size to %zu bytes", ext_bp_size);
     return false;
   }
   return true;
@@ -3007,10 +3007,36 @@ dberr_t fil_system_t::ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_page,
   ut_ad(io_request_type == IORequest::WRITE_ASYNC ||
         io_request_type == IORequest::READ_SYNC ||
         io_request_type == IORequest::READ_ASYNC) ;
+  /* Simulate a failed synchronous read; for asynchronous reads, see
+  ib_ext_bp_async_read_error in IORequest::read_complete() */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_error",
+                  if (io_request_type == IORequest::READ_SYNC)
+                    return DB_IO_ERROR;);
+  /* Simulate a write that could not be submitted */
+  DBUG_EXECUTE_IF("ib_ext_bp_write_submit_error",
+                  if (io_request_type == IORequest::WRITE_ASYNC)
+                    return DB_IO_ERROR;);
+  os_offset_t offset= buf_pool.ext_page_offset(ext_page);
+  /* Simulate a synchronous or asynchronous read at the end of the file */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_eof",
+                  if (io_request_type == IORequest::READ_SYNC)
+                    offset= os_offset_t{buf_pool.extended_pages}
+                      << srv_page_size_shift;);
+  DBUG_EXECUTE_IF("ib_ext_bp_async_read_eof",
+                  if (io_request_type == IORequest::READ_ASYNC)
+                    offset= os_offset_t{buf_pool.extended_pages}
+                      << srv_page_size_shift;);
   /* Queue the aio request */
-  return os_aio(IORequest{&bpage, slot, &ext_page, io_request_type}, buf,
-                buf_pool.ext_page_offset(ext_page), len, ext_bp_file,
-                ext_bp_file_name);
+  dberr_t err= os_aio(IORequest{&bpage, slot, &ext_page, io_request_type},
+                      buf, offset, len, ext_bp_file, ext_bp_file_name);
+  /* Simulate a corrupted page in a successful synchronous read; for
+  asynchronous reads, see ib_ext_bp_async_read_corrupt in
+  IORequest::read_complete() */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_corrupt",
+                  if (err == DB_SUCCESS &&
+                      io_request_type == IORequest::READ_SYNC)
+                    static_cast<byte*>(buf)[len / 2]^= 1;);
+  return err;
 }
 
 #include <tpool.h>
@@ -3020,6 +3046,7 @@ void IORequest::write_complete(int io_error) const noexcept
   ut_ad(fil_validate_skip());
   ut_ad(node_ptr);
   buf_page_t *buf_page= bpage();
+  DBUG_EXECUTE_IF("ib_ext_bp_write_error", if (ext_buf()) io_error= EIO;);
   ut_ad(is_write());
 
   fil_space_t *space;
@@ -3033,7 +3060,7 @@ void IORequest::write_complete(int io_error) const noexcept
     {
       ut_d(auto debug_page_no = buf_page->id().page_no());
       /* The tablespace was dropped while the page was being written. */
-      buf_page_ext_write_discard(*this);
+      buf_page_ext_write_discard(*this, io_error);
       DBUG_EXECUTE_IF(
           "ib_ext_bp_remove_space_on_write_complete", if (debug_space) {
             sql_print_information(
@@ -3046,10 +3073,6 @@ void IORequest::write_complete(int io_error) const noexcept
           });
       return;
     }
-    DBUG_EXECUTE_IF(
-        "ib_ext_bp_write_io_error", if (ext_buf()) { io_error= 1; });
-    buf_page_write_complete(*this, io_error);
-    goto func_exit;
   }
   else
     space= node_ptr->space;
@@ -3071,7 +3094,8 @@ void IORequest::write_complete(int io_error) const noexcept
   else
     buf_page_write_complete(*this, io_error);
 
-  space->complete_write();
+  if (!ext_buf())
+    space->complete_write();
  func_exit:
   space->release();
 }
@@ -3079,6 +3103,8 @@ void IORequest::write_complete(int io_error) const noexcept
 void IORequest::read_complete(int io_error) const noexcept
 {
   buf_page_t *buf_page= bpage();
+  DBUG_EXECUTE_IF("ib_ext_bp_async_read_error",
+                  if (ext_buf()) io_error= EIO;);
   ut_ad(fil_validate_skip());
   ut_ad(node_ptr);
   ut_ad(is_read());
@@ -3088,9 +3114,13 @@ void IORequest::read_complete(int io_error) const noexcept
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
   fil_space_t *space;
+  fil_node_t *node= node_ptr;
+  const bool in_recovery{recv_sys.recovery_on};
   if (ext_buf()) {
     ut_ad(ext_buf_page()->id_ == buf_page->id());
     mysql_mutex_lock(&buf_pool.mutex);
+    if (UNIV_UNLIKELY(io_error != 0))
+      buf_pool.ext_disable(buf_pool.EXT_READ_ERROR);
     buf_pool.free_ext_page(*ext_buf_page());
     mysql_mutex_unlock(&buf_pool.mutex);
     /* The space will be released at the end of this function */
@@ -3116,35 +3146,83 @@ void IORequest::read_complete(int io_error) const noexcept
           });
       return;
     }
-    ut_d(if (DBUG_IF("ib_ext_bp_count_io_only_for_t")) {
-      auto space_name= space->name();
-      if (space_name.data() &&
-          !strncmp(space_name.data(), "test/t.ibd", space_name.size()))
+    if (UNIV_UNLIKELY(io_error != 0))
+      sql_print_error("InnoDB: Read error %d of page " UINT32PF
+                      " in the extended buffer pool file;"
+                      " reading the page from %s",
+                      io_error, buf_page->id().page_no(),
+                      UT_LIST_GET_FIRST(space->chain)->name);
+    else
+    {
+      DBUG_EXECUTE_IF("ib_ext_bp_async_read_corrupt",
+                      const size_t zs= buf_page->zip_size();
+                      (zs ? buf_page->zip.data : buf_page->frame)
+                        [(zs ? zs : srv_page_size) / 2]^= 1;);
+      const dberr_t err=
+        buf_page->read_complete(*UT_LIST_GET_FIRST(space->chain),
+                                in_recovery, true);
+      if (UNIV_LIKELY(err == DB_SUCCESS))
       {
-        ++buf_pool.stat.n_pages_read_from_ebp;
+        if (buf_page_ext_count_io(*buf_page, space))
+          ++buf_pool.stat.n_pages_read_from_ebp;
+        buf_page->unfix();
+        space->release();
+        return;
       }
-    } else)
-      ++buf_pool.stat.n_pages_read_from_ebp;
+      if (err != DB_FAIL)
+      {
+        /* The page was valid, but recovery failed. */
+        if (in_recovery && !srv_force_recovery)
+        {
+          mysql_mutex_lock(&recv_sys.mutex);
+          recv_sys.set_corrupt_fs();
+          mysql_mutex_unlock(&recv_sys.mutex);
+        }
+        space->release();
+        return;
+      }
+      /* The copy in the extended buffer pool is corrupted. */
+      mysql_mutex_lock(&buf_pool.mutex);
+      buf_pool.ext_disable(buf_pool.EXT_PAGE_CORRUPTED);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
+
+    /* Fall back to reading the page from the data file. */
+    const size_t zip_size= buf_page->zip_size();
+    const size_t len= zip_size ? zip_size : srv_page_size;
+    const fil_node_t &data_node= *UT_LIST_GET_FIRST(space->chain);
+    const fil_io_t fio=
+      space->io(IORequest(IORequest::READ_SYNC),
+                os_offset_t{buf_page->id().page_no()} * len, len,
+                zip_size ? buf_page->zip.data : buf_page->frame, buf_page);
+    if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+    {
+      /* fil_space_t::io() released the space reference. Like
+      buf_read_page_low(), report the page to recovery before evicting it. */
+      recv_sys.free_corrupted_page(buf_page->id(), data_node);
+      buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
+      if (in_recovery && !srv_force_recovery)
+      {
+        mysql_mutex_lock(&recv_sys.mutex);
+        recv_sys.set_corrupt_fs();
+        mysql_mutex_unlock(&recv_sys.mutex);
+      }
+      return;
+    }
+    node= fio.node;
+    io_error= 0;
   }
   else
     space= node_ptr->space;
 
   const page_id_t id(buf_page->id());
-  const bool in_recovery{recv_sys.recovery_on};
-
-  DBUG_EXECUTE_IF("ib_ext_bp_read_io_error", if (ext_buf()) { io_error= 1; });
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
+    ut_ad(!ext_buf());
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(),
-                    ext_buf() ? "of external buffer pool, external buffer "
-                                "pool is disabled"
-                              : node_ptr->name);
-    if (ext_buf())
-      fil_system.ext_buf_pool_disable();
-    else
-      recv_sys.free_corrupted_page(id, *node_ptr);
+                    io_error, id.page_no(), node_ptr->name);
+    recv_sys.free_corrupted_page(id, *node_ptr);
     buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
@@ -3154,9 +3232,8 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (buf_page->read_complete(ext_buf() ? *UT_LIST_GET_FIRST(space->chain)
-                                             : *node_ptr,
-                                   in_recovery))
+  else if (UNIV_UNLIKELY(buf_page->read_complete(*node, in_recovery) !=
+                         DB_SUCCESS))
     goto corrupted;
   else
     buf_page->unfix();

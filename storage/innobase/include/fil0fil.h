@@ -1207,6 +1207,9 @@ extern const char* dot_ext[];
 but in the MariaDB Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
+
+/** Name of the extended buffer pool file, for diagnostics */
+extern const char *ext_bp_file_name;
 #else
 # include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -1488,12 +1491,31 @@ public:
   /** Extended buffer pool file path */
   char  *ext_bp_path;
 
-  /** Extended buffer pool file size, equals to 0 if extended buffer pool is
-  not used. */
-  union {
-    Atomic_relaxed<size_t> ext_bp_size;
-    size_t ext_bp_size_non_atomic;
-  };
+  /** innodb_extended_buffer_pool_size: 0 if the extended buffer pool is
+  not used. At startup, this is the size of the file. Later, it can only be
+  changed to 0, to stop using the extended buffer pool, or back to the
+  size of the file (buf_pool.extended_pages pages), to resume using it.
+  This is only the storage of the system variable; it is not atomic, so
+  after startup, only ext_bp_set_size() may access it. */
+  size_t ext_bp_size;
+private:
+  /** Whether ext_bp_size is nonzero; can be read without holding
+  buf_pool.mutex. Set by ext_bp_set_size(). */
+  Atomic_relaxed<bool> ext_bp_active;
+  /** Whether the extended buffer pool was disabled because of an I/O error
+  or a corrupted page. Set only by buf_pool_t::ext_disable() while holding
+  buf_pool.mutex, and never reset. */
+  Atomic_relaxed<bool> ext_bp_disabled;
+  friend class buf_pool_t;
+public:
+  /** Set innodb_extended_buffer_pool_size. After startup, the caller must
+  hold buf_pool.mutex.
+  @param size  the startup size of the extended buffer pool, or 0 */
+  void ext_bp_set_size(size_t size) noexcept
+  {
+    ext_bp_size= size;
+    ext_bp_active= size != 0;
+  }
 
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
@@ -1581,11 +1603,15 @@ public:
                     IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
                     size_t len, void *buf) noexcept;
 
-  /** Returns if external buffer pool is enabled. */
-  bool ext_buf_pool_enabled() const { return ext_bp_size; }
+  /** @return whether the extended buffer pool is in use. After
+  ext_buf_pool_failed(), this will never return true again. The result is
+  stable while buf_pool.mutex is held. */
+  bool ext_buf_pool_enabled() const noexcept
+  { return ext_bp_active && !ext_bp_disabled; }
 
-  /** Disable external boffer pool */
-  void ext_buf_pool_disable() { ext_bp_size= 0; }
+  /** @return whether the extended buffer pool was disabled because of an
+  error, so that it can no longer be used */
+  bool ext_buf_pool_failed() const noexcept { return ext_bp_disabled; }
 
   /** Add the file to the end of opened spaces list in
   fil_system.space_list, so that fil_space_t::try_to_close() should close

@@ -1,0 +1,722 @@
+#
+# MDEV-31956: an I/O error on the extended buffer pool file, or a
+# corrupted page read from it, permanently disables the extended buffer
+# pool; no further reads from it are made, and the pages are read from
+# the data file instead.
+#
+call mtr.add_suppression("InnoDB: Disabling the extended buffer pool after ");
+call mtr.add_suppression("InnoDB: Read error \\d+ of page \\d+ in the extended buffer pool file");
+call mtr.add_suppression("InnoDB: Page \\[page id: space=\\d+, page number=\\d+\\] read from the extended buffer pool file is corrupted");
+call mtr.add_suppression("InnoDB: \\d+ bytes should have been read at \\d+ from ext_buffer_pool, but got only 0");
+call mtr.add_suppression("InnoDB: Retry attempts for reading partial data failed");
+# The server was started with --innodb-extended-buffer-pool-size=4M
+# (see ext_buf_pool_io_error.opt)
+include/assert.inc [innodb_extended_buffer_pool_size is the startup size]
+# Only 0 and the startup size are valid. As at startup, a value is
+# rounded down to a multiple of innodb_page_size.
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 DIV 2;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '2097152'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	innodb_extended_buffer_pool_size can only be set to 0 or 4194304
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '2097152'
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 * 2;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '8388608'
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 + 16384;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4210688'
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 - 1;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194303'
+include/assert.inc [Rejected values leave innodb_extended_buffer_pool_size unchanged]
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+include/assert.inc [innodb_extended_buffer_pool_size can be set to 0]
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+include/assert.inc [innodb_extended_buffer_pool_size can be set back to the startup size]
+# A value that rounds down to the startup size is accepted with a
+# warning, and stored rounded down
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 + 1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_extended_buffer_pool_size value: '4194305'
+include/assert.inc [innodb_extended_buffer_pool_size was rounded down to the startup size]
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304 + 16384 - 1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_extended_buffer_pool_size value: '4210687'
+include/assert.inc [innodb_extended_buffer_pool_size was rounded down to the startup size]
+# While the size is 0, nothing is written to or read from the
+# extended buffer pool, and the pages are read from the data file
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written0 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+# Setting the startup size again resumes it
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+# The pages that it holds are not read while the size is 0
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @read0 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @read0 > 0 AS read_from_ebp
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+read_from_ebp
+1
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Error mode: read
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_read_error';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_read_error';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 1 /Disabling the extended buffer pool after an I/O error while reading its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT @read1 - @read0 AS ebp_reads;
+ebp_reads
+0
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: async_read
+SET @old_read_ahead_threshold = @@GLOBAL.innodb_read_ahead_threshold;
+SET GLOBAL innodb_read_ahead_threshold = 1;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_async_read_error';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_async_read_error';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 2 /Disabling the extended buffer pool after an I/O error while reading its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+SET GLOBAL innodb_read_ahead_threshold = @old_read_ahead_threshold;
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: write
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_write_error';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_write_error';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 1 /Disabling the extended buffer pool after an I/O error while writing its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT @read1 - @read0 AS ebp_reads;
+ebp_reads
+0
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: write_submit
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_write_submit_error';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_write_submit_error';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 2 /Disabling the extended buffer pool after an I/O error while writing its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT @read1 - @read0 AS ebp_reads;
+ebp_reads
+0
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: corrupt
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_read_corrupt';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_read_corrupt';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 1 /Disabling the extended buffer pool after reading a corrupted page from its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT @read1 - @read0 AS ebp_reads;
+ebp_reads
+0
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: async_corrupt
+SET @old_read_ahead_threshold = @@GLOBAL.innodb_read_ahead_threshold;
+SET GLOBAL innodb_read_ahead_threshold = 1;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_async_read_corrupt';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_async_read_corrupt';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 2 /Disabling the extended buffer pool after reading a corrupted page from its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+SET GLOBAL innodb_read_ahead_threshold = @old_read_ahead_threshold;
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: eof
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_read_eof';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_read_eof';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 3 /Disabling the extended buffer pool after an I/O error while reading its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT @read1 - @read0 AS ebp_reads;
+ebp_reads
+0
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;
+# Restart to re-enable the extended buffer pool
+# restart
+# Error mode: async_eof
+SET @old_read_ahead_threshold = @@GLOBAL.innodb_read_ahead_threshold;
+SET GLOBAL innodb_read_ahead_threshold = 1;
+connect  prevent_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+SET @old_debug_dbug = @@GLOBAL.debug_dbug;
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_count_io_only_for_t';
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_disable_LRU_eviction_for_t';
+CREATE TABLE t (a INT NOT NULL PRIMARY KEY, b CHAR(255) NOT NULL DEFAULT '')
+ENGINE=InnoDB;
+INSERT INTO t(a) SELECT seq FROM seq_1_to_3000;
+SET @old_dirty_pct = @@GLOBAL.innodb_max_dirty_pages_pct;
+SET GLOBAL innodb_max_dirty_pages_pct = 0;
+SET GLOBAL innodb_max_dirty_pages_pct = @old_dirty_pct;
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_disable_LRU_eviction_for_t';
+SELECT variable_value INTO @written0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+SELECT variable_value INTO @read0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+# The pages of t were written to the extended buffer pool
+SELECT variable_value - @written0 > 0 AS written
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+written
+1
+SET GLOBAL DEBUG_DBUG='+d,ib_ext_bp_async_read_eof';
+# Failed reads fall back to the data file
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SET GLOBAL DEBUG_DBUG='-d,ib_ext_bp_async_read_eof';
+# The data file was not flagged as corrupted
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+FOUND 4 /Disabling the extended buffer pool after an I/O error while reading its file/ in mysqld.1.err
+SELECT variable_value INTO @read1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+SELECT variable_value INTO @written1 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+# After disabling, nothing is written to or read from it
+SET GLOBAL innodb_force_LRU_eviction = TRUE;
+SELECT COUNT(*), SUM(a) FROM t;
+COUNT(*)	SUM(a)
+3000	4501500
+SELECT variable_value - @written1 AS ebp_writes
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_PAGES_FLUSHED';
+ebp_writes
+0
+SELECT variable_value - @read1 AS ebp_reads
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_EXT_BUFFER_POOL_READS';
+ebp_reads
+0
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+4194304
+# It cannot be enabled again
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1210	The extended buffer pool was disabled because of an error, and it cannot be enabled again
+Error	1231	Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SET GLOBAL innodb_extended_buffer_pool_size = 0;
+SET GLOBAL innodb_extended_buffer_pool_size = 4194304;
+ERROR 42000: Variable 'innodb_extended_buffer_pool_size' can't be set to the value of '4194304'
+SELECT @@GLOBAL.innodb_extended_buffer_pool_size;
+@@GLOBAL.innodb_extended_buffer_pool_size
+0
+SET GLOBAL innodb_read_ahead_threshold = @old_read_ahead_threshold;
+disconnect prevent_purge;
+DROP TABLE t;
+SET GLOBAL DEBUG_DBUG=@old_debug_dbug;

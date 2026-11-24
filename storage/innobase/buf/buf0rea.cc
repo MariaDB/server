@@ -416,31 +416,46 @@ buf_read_page_low(
 
   ut_ad(bpage->in_file());
 
+  ext_buf_page_t *ext_page= init_page_result.ext_read;
+  if (ext_page && UNIV_UNLIKELY(!fil_system.ext_buf_pool_enabled()))
+  {
+    /* The extended buffer pool was disabled after
+    buf_page_init_for_read(). Read the page from the data file instead. */
+    mysql_mutex_lock(&buf_pool.mutex);
+    buf_pool.free_ext_page(*ext_page);
+    mysql_mutex_unlock(&buf_pool.mutex);
+    ext_page= nullptr;
+  }
+
   void* dst= zip_size > 1 ? bpage->zip.data : bpage->frame;
   const size_t len= zip_size & ~1 ? zip_size & ~1 : srv_page_size;
-
+  /* Synchronous read */
   if (err != nullptr)
   {
-    /* Synchronous read */
     thd_wait_begin(thd, THD_WAIT_DISKIO);
     ha_handler_stats *const stats= trx ? trx->active_handler_stats : nullptr;
     const ulonglong start= stats ? mariadb_measure() : 0;
-    auto fio=
-        init_page_result.ext_read
-            ? fil_io_t{fil_system.ext_bp_io(
-                           *bpage, *init_page_result.ext_read,
-                           IORequest::READ_SYNC, nullptr, len, dst),
-                       nullptr}
-            : space->io(IORequest(IORequest::READ_SYNC),
-                        os_offset_t{page_id.page_no()} * len, len, dst, bpage);
+    fil_io_t fio{DB_SUCCESS, nullptr};
+    if (ext_page)
+    {
+      fio.err= fil_system.ext_bp_io(*bpage, *ext_page, IORequest::READ_SYNC,
+                                    nullptr, len, dst);
+      mysql_mutex_lock(&buf_pool.mutex);
+      if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+        buf_pool.ext_disable(buf_pool.EXT_READ_ERROR);
+      buf_pool.free_ext_page(*ext_page);
+      mysql_mutex_unlock(&buf_pool.mutex);
+      if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+        /* Fall back to reading the page from the data file. */
+        ext_page= nullptr;
+    }
+    /* From now on, ext_page is only used as a flag whether the page was
+    read from the extended buffer pool. */
+    if (!ext_page)
+      fio= space->io(IORequest(IORequest::READ_SYNC),
+                     os_offset_t{page_id.page_no()} * len, len, dst, bpage);
     *err= fio.err;
     thd_wait_end(thd);
-    if (init_page_result.ext_read)
-    {
-      mysql_mutex_lock(&buf_pool.mutex);
-      buf_pool.free_ext_page(*init_page_result.ext_read);
-      mysql_mutex_unlock(&buf_pool.mutex);
-    }
     if (stats)
     {
       stats->pages_read_count++;
@@ -449,26 +464,28 @@ buf_read_page_low(
     }
     if (UNIV_LIKELY(*err == DB_SUCCESS))
     {
-      *err= bpage->read_complete(init_page_result.ext_read
-                                     ? *UT_LIST_GET_FIRST(space->chain)
-                                     : *fio.node,
-                                 recv_sys.recovery_on);
-      if (init_page_result.ext_read)
+      if (!ext_page)
+        *err= bpage->read_complete(*fio.node, recv_sys.recovery_on);
+      else if ((*err= bpage->read_complete(*UT_LIST_GET_FIRST(space->chain),
+                                           recv_sys.recovery_on, true)) ==
+               DB_FAIL)
       {
-        do
-        {
-#ifndef DBUG_OFF
-          if (DBUG_IF("ib_ext_bp_count_io_only_for_t"))
-          {
-            auto space_name= space->name();
-            if (!space_name.data() ||
-                strncmp(space_name.data(), "test/t.ibd", space_name.size()))
-              continue;
-          }
-#endif
-          ++buf_pool.stat.n_pages_read_from_ebp;
-        } while (false);
+        /* The copy in the extended buffer pool is corrupted. Read the
+        page from the data file instead. */
+        mysql_mutex_lock(&buf_pool.mutex);
+        buf_pool.ext_disable(buf_pool.EXT_PAGE_CORRUPTED);
+        mysql_mutex_unlock(&buf_pool.mutex);
+        ext_page= nullptr;
+        fio= space->io(IORequest(IORequest::READ_SYNC),
+                       os_offset_t{page_id.page_no()} * len, len, dst, bpage);
+        *err= fio.err;
+        if (UNIV_UNLIKELY(*err != DB_SUCCESS))
+          /* fil_space_t::io() released the space reference */
+          goto read_failed;
+        *err= bpage->read_complete(*fio.node, recv_sys.recovery_on);
       }
+      if (ext_page && buf_page_ext_count_io(*bpage, space))
+        ++buf_pool.stat.n_pages_read_from_ebp;
       if (*err)
         bpage= nullptr;
       space->release();
@@ -478,27 +495,36 @@ buf_read_page_low(
       return bpage;
     }
   }
-  else if (init_page_result.ext_read)
+  else
   {
-    auto err= fil_system.ext_bp_io(*bpage, *init_page_result.ext_read,
-                                   IORequest::READ_ASYNC, nullptr, len, dst);
-    space->release();
-    DBUG_EXECUTE_IF("ib_ext_bp_read_io_error", { err= DB_IO_ERROR; });
-    if (UNIV_LIKELY(DB_SUCCESS == err))
+    if (ext_page)
+    {
+      if (UNIV_LIKELY(DB_SUCCESS ==
+                      fil_system.ext_bp_io(*bpage, *ext_page,
+                                           IORequest::READ_ASYNC, nullptr,
+                                           len, dst)))
+      {
+        /* IORequest::read_complete() will acquire its own reference. */
+        space->release();
+        return reinterpret_cast<buf_page_t *>(-1);
+      }
+      /* The read could not be submitted; IORequest::read_complete()
+      will not be invoked. Fall back to reading the data file. */
+      mysql_mutex_lock(&buf_pool.mutex);
+      buf_pool.ext_disable(buf_pool.EXT_READ_ERROR);
+      buf_pool.free_ext_page(*ext_page);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
+    if (UNIV_LIKELY(DB_SUCCESS ==
+                    space
+                        ->io(IORequest(IORequest::READ_ASYNC),
+                             os_offset_t{page_id.page_no()} * len, len, dst,
+                             bpage)
+                        .err))
       return reinterpret_cast<buf_page_t *>(-1);
-    sql_print_warning("InnoDB: There was IO error during syncronous read from "
-                      "external buffer pool file, external buffer pool is "
-                      "disabled.");
-    fil_system.ext_buf_pool_disable();
   }
-  else if (UNIV_LIKELY(DB_SUCCESS ==
-                       space
-                           ->io(IORequest(IORequest::READ_ASYNC),
-                                os_offset_t{page_id.page_no()} * len, len, dst,
-                                bpage)
-                           .err))
-    return reinterpret_cast<buf_page_t *>(-1);
 
+read_failed:
   recv_sys.free_corrupted_page(page_id, *space->chain.start);
   buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
   return nullptr;

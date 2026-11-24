@@ -43,6 +43,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <sql_acl.h>
 #include <lex_ident.h>
 #include <sql_class.h>
+#include <sys_vars_shared.h>
 #include <sql_show.h>
 #include <sql_table.h>
 #include <table_cache.h>
@@ -1027,12 +1028,8 @@ static SHOW_VAR innodb_status_variables[]= {
    &buf_pool.stat.n_ra_pages_evicted, SHOW_SIZE_T},
   {"buffer_pool_read_requests", &buf_pool.stat.n_page_gets, SHOW_SIZE_T},
   {"buffer_pool_reads", &buf_pool.stat.n_pages_read, SHOW_SIZE_T},
-  {"ext_buffer_pool_reads", &buf_pool.stat.n_pages_read_from_ebp,
-    SHOW_SIZE_T},
   {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
   {"buffer_pool_write_requests", &buf_pool.flush_list_requests, SHOW_SIZE_T},
-  {"ext_buffer_pool_pages_flushed", &buf_pool.stat.n_pages_written_to_ebp,
-    SHOW_SIZE_T},
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
   {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
   {"data_fsyncs", (size_t*) &os_n_fsyncs, SHOW_SIZE_T},
@@ -1047,6 +1044,10 @@ static SHOW_VAR innodb_status_variables[]= {
   {"dblwr_pages_written", &export_vars.innodb_dblwr_pages_written,SHOW_SIZE_T},
   {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
   {"deadlocks", &lock_sys.deadlocks, SHOW_SIZE_T},
+  {"ext_buffer_pool_pages_flushed", &buf_pool.stat.n_pages_written_to_ebp,
+    SHOW_SIZE_T},
+  {"ext_buffer_pool_reads", &buf_pool.stat.n_pages_read_from_ebp,
+    SHOW_SIZE_T},
   {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
   {"log_waits", &log_sys.waits, SHOW_SIZE_T},
   {"log_write_requests", &log_sys.write_to_buf, SHOW_SIZE_T},
@@ -3749,13 +3750,74 @@ static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
   mysql_mutex_unlock(&buf_pool.mutex);
 }
 
+/** Validate SET GLOBAL innodb_extended_buffer_pool_size. The extended
+buffer pool file is created at startup and cannot be resized. The only
+valid values are 0, which stops using the extended buffer pool, and the
+value that the variable had after startup, which resumes using it. As at
+startup, a value is rounded down to a multiple of innodb_page_size, so
+any value that rounds down to the startup size is accepted, with a
+warning if it was rounded. Once the extended buffer pool was disabled
+because of an error, it cannot be used again. */
+static int innodb_extended_buffer_pool_size_validate(THD *thd,
+                                                     st_mysql_sys_var *,
+                                                     void *save,
+                                                     st_mysql_value *value)
+{
+  long long v;
+  if (value->val_int(value, &v) || (!value->is_unsigned(value) && v < 0))
+    return 1;
+  if (!v)
+  {
+    *static_cast<size_t*>(save)= 0;
+    return 0;
+  }
+  const size_t file_size= buf_pool.extended_pages << srv_page_size_shift;
+  if (!file_size)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "innodb_extended_buffer_pool_size cannot be changed when"
+                 " the server was started without the extended buffer pool");
+    return 1;
+  }
+  if (ulonglong(v) >> srv_page_size_shift != buf_pool.extended_pages)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_ARGUMENTS,
+                        "innodb_extended_buffer_pool_size can only be set"
+                        " to 0 or %zu", file_size);
+    return 1;
+  }
+  if (fil_system.ext_buf_pool_failed())
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "The extended buffer pool was disabled because of an"
+                 " error, and it cannot be enabled again");
+    return 1;
+  }
+  if (ulonglong(v) != file_size &&
+      throw_bounds_warning(thd, "innodb_extended_buffer_pool_size", true,
+                           true, v))
+    return 1;
+  *static_cast<size_t*>(save)= file_size;
+  return 0;
+}
+
 static void innodb_extended_buffer_pool_size_update(THD *thd,
                                                     st_mysql_sys_var *, void *,
                                                     const void *save)
 {
-  buf_pool.extended_pages=
-      (*static_cast<const size_t *>(save) >> srv_page_size_shift);
-  fil_system.ext_bp_size= buf_pool.extended_pages << srv_page_size_shift;
+  const size_t size= *static_cast<const size_t*>(save);
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* An error may have disabled the extended buffer pool after
+  innodb_extended_buffer_pool_size_validate() was called. */
+  const bool failed= size && fil_system.ext_buf_pool_failed();
+  if (!failed)
+    fil_system.ext_bp_set_size(size);
+  mysql_mutex_unlock(&buf_pool.mutex);
+  if (failed)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "The extended buffer pool was disabled because of an"
+                 " error, and it cannot be enabled again");
 }
 
 #ifdef UNIV_DEBUG
@@ -3843,13 +3905,13 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, log_sys.WRITE_SIZE_MAX, 1);
 
-static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size,
-                           fil_system.ext_bp_size_non_atomic,
-                           PLUGIN_VAR_RQCMDARG,
-                           "The extended buffer pool file size", nullptr,
-                           innodb_extended_buffer_pool_size_update,
-                           // TODO: set correct min and max values here.
-                           0, 0, SIZE_T_MAX, 0);
+static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size, fil_system.ext_bp_size,
+  PLUGIN_VAR_RQCMDARG,
+  "The extended buffer pool file size",
+  innodb_extended_buffer_pool_size_validate,
+  innodb_extended_buffer_pool_size_update,
+  // TODO: set correct min and max values here.
+  0, 0, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -4026,6 +4088,7 @@ static int innodb_init_params()
 #endif
 
   buf_pool.extended_pages = fil_system.ext_bp_size >> srv_page_size_shift;
+  fil_system.ext_bp_set_size(buf_pool.extended_pages << srv_page_size_shift);
 
   if (innodb_buffer_pool_size < min)
   {
