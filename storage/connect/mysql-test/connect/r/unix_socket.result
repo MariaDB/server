@@ -1,0 +1,21 @@
+#
+# unix_socket must not authenticate the server connecting to itself
+#
+create user 'USER' identified via unix_socket;
+grant all on *.* to 'USER';
+create table t1 (a int);
+insert t1 values (1);
+create table t2 (a int) engine=connect table_type=proxy tabname='t1'
+  option_list='user=USER';
+select * from t2;
+ERROR HY000: Got error 174 '(1698) Access denied for user 'USER'@'localhost'' from CONNECT
+# a separate client process is still authenticated
+connect c1,localhost,$USER,,;
+select current_user();
+current_user()
+USER@%
+disconnect c1;
+connection default;
+drop table t1, t2;
+drop user 'USER';
+# End of 10.11 tests

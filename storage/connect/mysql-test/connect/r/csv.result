@@ -219,3 +219,15 @@ DROP TABLE t1;
 SELECT HEX(REPLACE(LOAD_FILE('DATADIR/test/t1.csv'),'\r\n','\n')) AS file_contents;;
 file_contents
 E12CC3A10A
+#
+# MDEV-41944 CONNECT CSV discovery header overflows colname[]/len[]/typ[]/prc[]
+#
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='t200.csv';
+SELECT COUNT(*) FROM information_schema.columns
+WHERE table_schema='test' AND table_name='t1';
+COUNT(*)
+200
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='t201.csv';
+ERROR HY000: Too many fields line 1 of t201.csv
+# End of 10.11 tests

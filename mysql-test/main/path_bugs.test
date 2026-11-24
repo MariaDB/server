@@ -13,5 +13,30 @@ select * from t1;
 drop database test1;
 use test;
 drop procedure p1;
+set path default;
+
+--echo #
+--echo # MDEV-39596 Unexpected "No database selected" error for a CALL inside an anonymous block
+--echo #
+create database test1;
+create procedure test1.p1() select 1;
+create function test1.f1() returns int return 2;
+--delimiter $$
+create package pkg procedure p(); end; $$
+create package body pkg procedure p() select 'test.pkg.p'; end; $$
+begin not atomic call pkg.p(); end; $$
+--delimiter ;
+--source include/deselect_db.inc
+--delimiter $$
+begin not atomic call test1.p1(); end; $$
+begin not atomic select test1.f1(); end; $$
+--error ER_NO_DB_ERROR
+begin not atomic call p1(); end; $$
+--error ER_SP_DOES_NOT_EXIST
+begin not atomic call pkg.p(); end; $$
+--delimiter ;
+use test;
+drop package pkg;
+drop database test1;
 
 --echo # End of 12.3 tests

@@ -5,6 +5,7 @@
 # making writing tests that depend on reaching
 # the depth hard.
 #
+source include/have_sequence.inc;
 source include/not_embedded.inc;
 # MSAN with debug exceeds the stack early.
 source include/not_msan_with_debug.inc;
@@ -211,6 +212,24 @@ evalp select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
 --enable_result_log
 select 1;
 
+--echo #
+--echo # MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
+--echo #
+let $n=5000;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp explain extended select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+--enable_result_log
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+show warnings;
+create view v1 as select 1;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp create or replace view v1 as select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+--enable_result_log
+select * from v1;
+drop view v1;
+
 --echo # End of 10.11 tests
 
 --echo #
@@ -227,5 +246,19 @@ SELECT ST_GeomFromGeoJSON(
     repeat(']}', @len)
   )) as exp;
 --enable_result_log
+
+--echo #
+--echo # MDEV-41630 ST_IsValid crashes on polygons with many rings
+--echo #
+SET SESSION group_concat_max_len = 200000000;
+
+SET @rings = (SELECT GROUP_CONCAT(
+  CONCAT('(', seq, ' 0,', seq+1, ' 0,', seq+1, ' 1,', seq, ' 1,', seq, ' 0)')
+  SEPARATOR ','
+) FROM seq_1_to_100000);
+
+SET @g = ST_GeomFromText(CONCAT('POLYGON(', @rings, ')'));
+
+SELECT ST_IsValid(@g);
 
 --echo # End of 12.3 tests

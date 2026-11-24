@@ -25,7 +25,7 @@ Lex_ident_db Sql_path::resolve_current_schema(THD *thd, sp_head *caller,
   /* Resolve CURRENT_SCHEMA to actual database name. */
   if (caller && caller->m_name.str)
     return thd->to_ident_db_normalized_with_error(caller->m_db);
-  if (thd->db.str || thd->lex->sphead)
+  if (thd->db.str)
     return thd->copy_db_normalized();
   return {nullptr, 0};
 }

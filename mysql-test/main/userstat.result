@@ -268,6 +268,56 @@ drop table t1;
 select distinct busy_time>1e5, cpu_time>1e5 from information_schema.user_statistics;
 busy_time>1e5	cpu_time>1e5
 0	0
+#
+# DROP TABLE with more than MAX_INDEXES index statistics entries
+#
+set global userstat= 1;
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+remove the whole test when it is not 70
+70
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+count(*)
+0
+create table t1 (a int, key k0(a));
+insert t1 values (1),(2);
+lock tables t1 write;
+unlock tables;
+select count(*) as 'remove the whole test when it is not 70' from information_schema.index_statistics where table_name='t1';
+remove the whole test when it is not 70
+70
+drop table t1;
+select count(*) from information_schema.index_statistics where table_name='t1';
+count(*)
+0
+set global userstat= 0;
+#
+# DROP TABLE and DROP INDEX when statistical tables cannot be opened
+#
+set global userstat= 1;
+create table t1 (a int, b int, key a(a), key b(b));
+insert t1 values (1,1),(2,2);
+select * from t1 force index (a) where a=1;
+select * from t1 force index (b) where b=1;
+rename table mysql.index_stats to mysql.index_stats_save;
+alter table t1 drop index a;
+Warnings:
+Warning	1177	Got error 1146 when trying to open statistics table `index_stats` for updating statistics
+select table_name, index_name from information_schema.index_statistics
+where table_name='t1';
+table_name	index_name
+t1	b
+drop table t1;
+select table_name from information_schema.table_statistics
+where table_name='t1';
+table_name
+select table_name, index_name from information_schema.index_statistics
+where table_name='t1';
+table_name	index_name
+rename table mysql.index_stats_save to mysql.index_stats;
+set global userstat= 0;
 # End of 10.11 tests
 #
 # MDEV-33901 INDEX_STATISTICS.QUERIES is incremented additionally for

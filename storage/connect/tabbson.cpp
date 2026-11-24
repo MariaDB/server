@@ -1,6 +1,7 @@
 /************* tabbson C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: tabbson     Version 1.2                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
+/*  Copyright (c) 2020, 2026, MariaDB plc.                             */
 /*  This program are the BSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -350,7 +351,10 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   /*********************************************************************/
   for (i = 1; ; i++) {
     for (jpp = row; jpp; jpp = bp->GetNext(jpp)) {
-      strncpy(colname, bp->GetKey(jpp), 64);
+      if (PlugFmtName(g, colname, sizeof(colname), colname, "%s",
+                      bp->GetKey(jpp)))
+        goto err;
+
       fmt[bf] = 0;
 
       if (Find(g, bp->GetVlp(jpp), colname, MY_MIN(lvl, 0)))
@@ -400,7 +404,6 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
 {
   char  *p, *pc = colname + strlen(colname), buf[32];
   int    ars;
-  size_t n;
   PBVAL  job;
   PBVAL  jar;
 
@@ -452,12 +455,10 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
       for (PBPR jrp = bp->GetObject(job); jrp; jrp = bp->GetNext(jrp)) {
         PCSZ k = bp->GetKey(jrp);
 
-        if (*k != '$') {
-          n = sizeof(fmt) - strlen(fmt) - 1;
-          strncat(strncat(fmt, sep, n), k, n - strlen(sep));
-          n = sizeof(colname) - strlen(colname) - 1;
-          strncat(strncat(colname, "_", n), k, n - 1);
-        } // endif Key
+        if (*k != '$' &&
+            (PlugFmtName(g, fmt, sizeof(fmt), p, "%s%s", sep, k) ||
+             PlugFmtName(g, colname, sizeof(colname), pc, "_%s", k)))
+          return true;
 
         if (Find(g, bp->GetVlp(jrp), k, j + 1))
           return true;
@@ -475,26 +476,17 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
         ars = MY_MIN(bp->GetArraySize(jar), 1);
 
       for (int k = 0; k < ars; k++) {
-        n = sizeof(fmt) - (strlen(fmt) + 1);
-
         if (!tdp->Xcol || stricmp(tdp->Xcol, key)) {
-          snprintf(buf, sizeof(buf), "%d", k);
+          if (tdp->Uri ? PlugFmtName(g, fmt, sizeof(fmt), p, "%s%d", sep, k)
+                       : PlugFmtName(g, fmt, sizeof(fmt), p, "[%d]", k))
+            return true;
 
-          if (tdp->Uri) {
-            strncat(strncat(fmt, sep, n), buf, n - strlen(sep));
-          } else {
-            strncat(strncat(fmt, "[", n), buf, n - 1);
-            strncat(fmt, "]", n - (strlen(buf) + 1));
-          } // endif uri
+          if (all && PlugFmtName(g, colname, sizeof(colname), pc, "_%d", k))
+            return true;
 
-          if (all) {
-            n = sizeof(colname) - (strlen(colname) + 1);
-            strncat(strncat(colname, "_", n), buf, n - 1);
-          } // endif all
-
-        } else {
-          strncat(fmt, (tdp->Uri ? sep : "[*]"), n);
-        }
+        } else if (PlugFmtName(g, fmt, sizeof(fmt), p, "%s",
+                               tdp->Uri ? sep : "[*]"))
+          return true;
 
         if (Find(g, bp->GetArrayValue(jar, k), "", j))
           return true;
