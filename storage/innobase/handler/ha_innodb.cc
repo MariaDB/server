@@ -3762,22 +3762,44 @@ static void innodb_extended_buffer_pool_size_update(THD *thd,
 static void innodb_force_LRU_eviction_set(THD *, st_mysql_sys_var *, void *,
                                             const void *save)
 {
-  buf_pool.force_LRU_eviction_to_ebp= *static_cast<const my_bool *>(save);
-  if (buf_pool.force_LRU_eviction_to_ebp)
+  /* LRU batches are only performed by buf_flush_page_cleaner(), which
+  srv_start() only starts when !srv_read_only_mode (which is also implied
+  by innodb_force_recovery=6). There would be nothing to wait for. */
+  if (!*static_cast<const my_bool *>(save) || srv_read_only_mode)
+    return;
+  /* The wait below is not bounded in time. Do not block every other
+  connection, including any that is only being established, on
+  LOCK_global_system_variables while it is in progress. */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  buf_pool.force_LRU_eviction_to_ebp= true;
+  /* An LRU batch that is already running may have passed some pages
+  before the flag was set. Wait until at least one whole batch has run
+  with the flag set. done_flush_list is also broadcast for other reasons
+  and may wake up spuriously, so check the batch count after each wait.
+  Stop waiting if the page cleaner stops running, such as on shutdown: it
+  clears buf_page_cleaner_is_active and broadcasts done_flush_list while
+  holding flush_list_mutex, so we cannot miss that transition.
+  Unlike the other waiters on done_flush_list, we deliberately do not
+  increment buf_pool.done_flush_list_waiters_count. That counter is not a
+  wakeup gate but a policy signal: buf_flush_LRU_list_batch() reads it as a
+  request to produce free pages as quickly as possible, and then evicts
+  without writing to the extended buffer pool, which is precisely what this
+  variable exists to exercise. */
+  for (const size_t target= buf_pool.n_LRU_batches + 2;
+       buf_page_cleaner_is_active && buf_pool.n_LRU_batches < target; )
   {
-    /* Wake up page cleaner twice, the first one is to flush dirty pages to
-    data files, the second one is to flush clean pages to external buffer pool.
-    */
-    mysql_mutex_lock(&buf_pool.flush_list_mutex);
     buf_pool.page_cleaner_wakeup(true);
     my_cond_wait(&buf_pool.done_flush_list,
                  &buf_pool.flush_list_mutex.m_mutex);
-    buf_pool.page_cleaner_wakeup(true);
-    my_cond_wait(&buf_pool.done_flush_list,
-                 &buf_pool.flush_list_mutex.m_mutex);
-    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
   buf_pool.force_LRU_eviction_to_ebp= false;
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  /* The batches only submit asynchronous writes. Wait for them, including
+  the writes to the extended buffer pool, to complete, so that the pages
+  have been evicted and the statistics updated when we return. */
+  os_aio_wait_until_no_pending_writes(false);
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 #endif /* UNIV_DEBUG */
 

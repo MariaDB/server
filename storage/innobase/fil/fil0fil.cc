@@ -1288,15 +1288,7 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
-    if (ext_bp_file != OS_FILE_CLOSED)
-    {
-      /* The file was created with MY_TEMPORARY, so closing it removes it. */
-      int res= mysql_file_close(
-          IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
-          MYF(MY_WME));
-      ut_a(res != -1);
-      ext_bp_file= OS_FILE_CLOSED;
-    }
+    close_ext_file();
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -2926,9 +2918,64 @@ func_exit:
 	return {err, node};
 }
 
+void fil_system_t::close_ext_file() noexcept
+{
+  if (ext_bp_file == OS_FILE_CLOSED)
+    return;
+#ifdef _WIN32
+  /* The file was created by create_ext_file() with CreateFile(), not
+  through mysys; this also unbinds it from srv_thread_pool. */
+  ut_a(os_file_close_func(ext_bp_file.m_file));
+#else
+  /* The file was created with MY_TEMPORARY, so closing it removes it. */
+  int res= mysql_file_close(ext_bp_file, MYF(MY_WME));
+  ut_a(res != -1);
+#endif
+  ext_bp_file= OS_FILE_CLOSED;
+}
+
 bool fil_system_t::create_ext_file() noexcept
 {
   const char *dir= ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir;
+#ifdef _WIN32
+  /* ext_bp_io() submits asynchronous I/O for this file. On Windows, that
+  requires a handle that was opened with FILE_FLAG_OVERLAPPED and bound to
+  srv_thread_pool, which pfs_create_temp_file() (mysys) does not provide.
+  FILE_FLAG_DELETE_ON_CLOSE makes the operating system remove the file
+  when the handle is closed, including when the process is terminated. */
+  char name[MAX_PATH];
+  /* GetTempFileName() creates an empty file and uses at most the first
+  3 characters of the prefix. */
+  if (!GetTempFileName(dir, "ebp", 0, name))
+  {
+    sql_print_error("InnoDB: Cannot create the extended buffer pool file"
+                    " in '%s'", dir);
+    (void) os_file_get_last_error(true, false);
+    return false;
+  }
+  HANDLE h= CreateFile(name, GENERIC_READ | GENERIC_WRITE,
+                       FILE_SHARE_READ | FILE_SHARE_DELETE,
+                       my_win_file_secattr(), TRUNCATE_EXISTING,
+                       FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE |
+                       FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    sql_print_error("InnoDB: Cannot open the extended buffer pool file"
+                    " '%s'", name);
+    (void) os_file_get_last_error(true, false);
+    DeleteFile(name);
+    return false;
+  }
+  ext_bp_file= os_file_t{h};
+  if (srv_thread_pool && srv_thread_pool->bind(ext_bp_file.m_file))
+  {
+    sql_print_error("InnoDB: Cannot bind the extended buffer pool file"
+                    " '%s' to the I/O thread pool", name);
+    CloseHandle(h);
+    ext_bp_file= OS_FILE_CLOSED;
+    return false;
+  }
+#else
   /* The file is created as a temporary file, so that the operating system
   removes it when it is closed or the server exits, and no stale file is
   left behind after a crash. */
@@ -2940,14 +2987,12 @@ bool fil_system_t::create_ext_file() noexcept
                     " in '%s'", dir);
     return false;
   }
+#endif
   if (!os_file_set_size(ext_bp_file_name, ext_bp_file, ext_bp_size))
   {
+    close_ext_file();
     sql_print_error("InnoDB: Cannot set the extended buffer pool file"
                     " size to %zu bytes", ext_bp_size_non_atomic);
-    std::ignore= mysql_file_close(
-        IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
-        MYF(MY_WME));
-    ext_bp_file= OS_FILE_CLOSED;
     return false;
   }
   return true;
@@ -2986,20 +3031,9 @@ void IORequest::write_complete(int io_error) const noexcept
                     space= nullptr;);
     if (!space)
     {
-      if (slot)
-        slot->release();
       ut_d(auto debug_page_no = buf_page->id().page_no());
-      /* We must hold buf_pool.mutex while releasing the block, so that
-      no other thread can access it before we have freed it.
-      FIXME: The logic was copied from the code in buf_page_write_complete()
-      for temporary tables. This would be an obvious performance bottleneck us
-      when there is some write activity to the external buffer pool going on.
-      Implement deferred, batched freeing, similar to the one we do in the
-      normal LRU flushing/eviction in the page cleaner thread. */
-      mysql_mutex_lock(&buf_pool.mutex);
-      buf_page->write_complete_release(buf_page->state());
-      buf_LRU_free_page(buf_page, true, ext_buf_page());
-      mysql_mutex_unlock(&buf_pool.mutex);
+      /* The tablespace was dropped while the page was being written. */
+      buf_page_ext_write_discard(*this);
       DBUG_EXECUTE_IF(
           "ib_ext_bp_remove_space_on_write_complete", if (debug_space) {
             sql_print_information(
