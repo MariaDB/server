@@ -28,6 +28,12 @@ SELECT * FROM t1 WHERE f1 = 2 FOR UPDATE;
 # Block the applier on node #1 and issue a conflicting update on node #2
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 SET SESSION wsrep_sync_wait=0;
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -78,9 +84,10 @@ UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
 --connection node_1
 --reap
 
-# Confirm that NOW() is not stuck in time relative to SYSDATE();
---sleep 3
-SELECT TIMEDIFF(SYSDATE(), NOW()) < 2;
+# Confirm that NOW() is not stuck in time. A stuck timestamp would return
+# the same NOW(6) value in consecutive statements.
+SET @now_before = NOW(6);
+SELECT NOW(6) > @now_before;
 
 INSERT INTO rand_table VALUES (RAND()),(RAND()),(RAND()),(RAND()),(RAND());
 INSERT INTO rand_table VALUES (RAND()),(RAND()),(RAND()),(RAND()),(RAND());
@@ -93,6 +100,12 @@ SELECT COUNT(DISTINCT f1) = 10 FROM rand_table;
 --eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
 --enable_query_log
 
+--connection node_1a
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
 --connection node_2
 DROP TABLE t1;
 DROP TABLE rand_table;
+
