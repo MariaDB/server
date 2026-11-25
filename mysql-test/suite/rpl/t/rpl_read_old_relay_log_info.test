@@ -55,7 +55,7 @@ if (`SELECT "$master_file" != "" OR
 --let MYSQLD_DATADIR= `select @@datadir`
 perl;
 my $file = "$ENV{MYSQLD_DATADIR}/relay-log.info";
-my $newpos = '2147483648';
+my $newpos = '2000000000';
 
 open(my $in, "<", $file) or die "Cannot open $file: $!";
 binmode($in); # To preserve line endings
@@ -74,8 +74,8 @@ EOF
 --let $rpl_server_parameters= --skip-slave-start
 --source include/rpl_restart_server.inc
 
---let $assert_text= relay_log_pos should be 2147483648 after restart
---let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = 2147483648
+--let $assert_text= relay_log_pos should be 2000000000 after restart
+--let $assert_cond= [SHOW SLAVE STATUS, Relay_Log_Pos, 1] = 2000000000
 --source include/assert.inc
 
 --let $rpl_only_running_threads= 1
