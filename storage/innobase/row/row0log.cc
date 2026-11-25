@@ -3768,7 +3768,14 @@ row_log_apply(
 
 	index->lock.x_lock(SRW_LOCK_CALL);
 
-	if (index->online_log && !index->table->corrupted) {
+	/* A concurrent DML thread may already have aborted the creation
+	of this index (row_log_abort_sec()). */
+	const bool aborted = dict_index_get_online_status(index)
+		== ONLINE_INDEX_ABORTED;
+
+	if (aborted) {
+		error = DB_INDEX_CORRUPT;
+	} else if (index->online_log && !index->table->corrupted) {
 		error = row_log_apply_ops(trx, index, &dup, stage);
 	} else {
 		error = DB_SUCCESS;
@@ -3779,7 +3786,10 @@ row_log_apply(
 		index->type |= DICT_CORRUPT;
 		index->table->drop_aborted = TRUE;
 
-		dict_index_set_online_status(index, ONLINE_INDEX_ABORTED);
+		if (!aborted) {
+			dict_index_set_online_status(index,
+						     ONLINE_INDEX_ABORTED);
+		}
 	} else if (stage) {
 		/* Mark the index as completed only when it is
 		being called by DDL thread */
@@ -3845,7 +3855,16 @@ UndorecApplier::get_old_rec(const dtuple_t &tuple, dict_index_t *index,
 
   bool found= row_search_on_row_ref(&pcur, BTR_MODIFY_LEAF,
                                     index->table, &tuple, &mtr);
-  ut_a(found);
+  DBUG_EXECUTE_IF("row_log_get_old_rec_fail", found= false;);
+  if (!found)
+  {
+    /* The clustered index record must exist, because this
+    transaction holds a lock on it. The only way to fail is an
+    error in reading the page. Let the caller abort the online
+    DDL operation instead of crashing the server. */
+    *clust_rec= nullptr;
+    return nullptr;
+  }
   *clust_rec= btr_pcur_get_rec(&pcur);
 
   ulint len= 0;
@@ -3871,7 +3890,9 @@ UndorecApplier::get_old_rec(const dtuple_t &tuple, dict_index_t *index,
 }
 
 /** Clear out all online log of other online indexes after
-encountering the error during row_log_apply() in DML thread
+encountering the error during row_log_apply() in DML thread,
+or when the clustered index record cannot be found. If the table is
+being rebuilt, make the ALTER TABLE fail instead.
 @param	table	table which does online DDL */
 static void row_log_mark_other_online_index_abort(dict_table_t *table)
 {
@@ -3891,10 +3912,26 @@ static void row_log_mark_other_online_index_abort(dict_table_t *table)
     }
   }
 
+  bool rebuild= false;
   clust_index->lock.x_lock(SRW_LOCK_CALL);
-  clust_index->online_log= nullptr;
+  if (row_log_t *log= clust_index->online_log)
+  {
+    if (clust_index->online_log_is_dummy())
+      clust_index->online_log= nullptr;
+    else
+    {
+      /* The table is being rebuilt. Do not free the log,
+      because row_log_table_apply() will notice the error. */
+      rebuild= true;
+      mysql_mutex_lock(&log->mutex);
+      if (log->error == DB_SUCCESS)
+        log->error= DB_CORRUPTION;
+      mysql_mutex_unlock(&log->mutex);
+    }
+  }
   clust_index->lock.x_unlock();
-  table->drop_aborted= TRUE;
+  if (!rebuild)
+    table->drop_aborted= TRUE;
 }
 
 void dtype_t::assign(const dict_col_t &col)
@@ -3929,6 +3966,8 @@ void UndorecApplier::log_insert(const dtuple_t &tuple,
   if (!match_rec)
   {
     mtr.commit();
+    if (!rec)
+      row_log_mark_other_online_index_abort(clust_index->table);
     return;
   }
   const rec_t *copy_rec= match_rec;
@@ -4021,6 +4060,8 @@ void UndorecApplier::log_update(const dtuple_t &tuple,
   if (!match_rec)
   {
     mtr.commit();
+    if (!rec)
+      row_log_mark_other_online_index_abort(clust_index->table);
     return;
   }
 
