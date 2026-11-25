@@ -69,13 +69,16 @@ and the lock released later.
                   bitwise-ORed with 1 in recovery
 @param chain      buf_pool.page_hash cell for page_id
 @param block      preallocated buffer block (set to nullptr if consumed)
+@param fix        whether to buffer-fix the block if the page already exists
 @return pointer to the block
 @retval nullptr in case of an error
-@retval pointer to block | 1 if the page already exists in buf_pool */
+@retval pointer to block | 1 if the page already exists in buf_pool
+(buffer-fixed if fix holds, else nullptr | 1) */
 static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
                                           ulint zip_size,
                                           buf_pool_t::hash_chain &chain,
-                                          buf_block_t *&block) noexcept
+                                          buf_block_t *&block,
+                                          bool fix) noexcept
 {
   buf_page_t *bpage= !zip_size || (zip_size & 1) ? &block->page : nullptr;
   constexpr uint32_t READ_BUF_FIX{buf_page_t::READ_FIX + 1};
@@ -85,10 +88,32 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
   if (hash_page)
   {
   page_exists:
-    /* The page is already in the buffer pool. */
-    ut_d(const uint32_t state=) hash_page->fix();
-    ut_ad(state >= buf_page_t::FREED);
+    /* The page is already in the buffer pool. Only buffer-fix it for
+    a caller that will access it. buf_page_create_low() may observe
+    any buffer-fix on a page that is being allocated again. */
+#if defined UNIV_DEBUG || defined ENABLED_DEBUG_SYNC
+    uint32_t state;
+#endif
+    if (fix)
+    {
+#if defined UNIV_DEBUG || defined ENABLED_DEBUG_SYNC
+      state=
+#endif
+        hash_page->fix();
+      ut_ad(state >= buf_page_t::FREED);
+    }
+    else
+    {
+#ifdef ENABLED_DEBUG_SYNC
+      state= hash_page->state();
+#endif
+      hash_page= nullptr;
+    }
     hash_lock.unlock();
+#ifdef ENABLED_DEBUG_SYNC
+    if (buf_page_t::is_freed(state))
+      DEBUG_SYNC_C("buf_page_init_for_read_freed");
+#endif
     return reinterpret_cast<buf_page_t*>(uintptr_t(hash_page) | 1);
   }
 
@@ -96,10 +121,11 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
   {
     hash_lock.unlock();
     mysql_mutex_lock(&buf_pool.mutex);
-    hash_lock.lock();
     hash_page= buf_pool.page_hash.get(page_id, chain);
-    if (hash_page)
+    hash_lock.lock();
+    if (UNIV_LIKELY_NULL(hash_page))
     {
+    unlock_and_fix:
       mysql_mutex_unlock(&buf_pool.mutex);
       goto page_exists;
     }
@@ -157,11 +183,9 @@ static buf_page_t *buf_page_init_for_read(const page_id_t page_id,
       if (UNIV_LIKELY_NULL(hash_page))
       {
         /* The block was added by some other thread. */
-        ut_d(const uint32_t state=) hash_page->fix();
-        ut_ad(state >= buf_page_t::FREED);
         buf_buddy_free(data, zip_size);
-        mysql_mutex_unlock(&buf_pool.mutex);
-        return reinterpret_cast<buf_page_t*>(uintptr_t(hash_page) | 1);
+        hash_lock.lock();
+        goto unlock_and_fix;
       }
     }
 
@@ -273,7 +297,8 @@ buf_read_page_low(
     return nullptr;
   }
 
-  buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block);
+  buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block,
+                                            err != nullptr);
   if (UNIV_UNLIKELY(!bpage))
     goto fail;
   const bool exist(uintptr_t(bpage) & 1);
@@ -283,7 +308,7 @@ buf_read_page_low(
   {
     if (!err)
     {
-      bpage->unfix();
+      ut_ad(!bpage);
       bpage= reinterpret_cast<buf_page_t*>(-2);
     }
     else
@@ -791,15 +816,11 @@ void buf_read_recover(fil_space_t *space, const page_id_t page_id,
 
   if (init_lsn)
   {
-    buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block);
+    buf_page_t *bpage= buf_page_init_for_read(page_id, zip_size, chain, block,
+                                              false);
     if (UNIV_UNLIKELY(!bpage))
       goto fail;
-    const bool exist(uintptr_t(bpage) & 1);
-    bpage= reinterpret_cast<buf_page_t*>(uintptr_t(bpage) & ~uintptr_t{1});
-
-    if (exist)
-      bpage->unfix();
-    else
+    if (!(uintptr_t(bpage) & 1))
       os_fake_read(IORequest{bpage, (buf_tmp_buffer_t*) &recs,
                              UT_LIST_GET_FIRST(space->chain),
                              IORequest::READ_ASYNC}, init_lsn);
