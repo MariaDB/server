@@ -18,5 +18,5 @@ include/wait_for_slave_io_to_start.inc
 connection server_2;
 include/stop_slave.inc
 include/rpl_restart_server.inc [server_number=2 parameters: --skip-slave-start]
-include/assert.inc [relay_log_pos should be 2147483648 after restart]
+include/assert.inc [relay_log_pos should be 2000000000 after restart]
 include/rpl_end.inc
