@@ -237,4 +237,17 @@ select pk,
 lead(pk, 1) over ()
 from t1;
 ERROR HY000: No order list in window specification for 'lead'
+# MDEV-42371 Large offsets outside the partition return NULL
+select pk,
+lead(pk, 18446744073709551614) over (order by pk) as lead_unsigned,
+lag(pk, 18446744073709551615) over (order by pk) as lag_unsigned,
+lag(pk, cast('-9223372036854775808' as signed))
+over (order by pk) as lag_signed_min
+from t1
+where pk <= 3
+order by pk;
+pk	lead_unsigned	lag_unsigned	lag_signed_min
+1	NULL	NULL	NULL
+2	NULL	NULL	NULL
+3	NULL	NULL	NULL
 drop table t1;

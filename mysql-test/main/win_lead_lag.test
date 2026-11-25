@@ -120,4 +120,14 @@ select pk,
        lead(pk, 1) over ()
 from t1;
 
+--echo # MDEV-42371 Large offsets outside the partition return NULL
+select pk,
+       lead(pk, 18446744073709551614) over (order by pk) as lead_unsigned,
+       lag(pk, 18446744073709551615) over (order by pk) as lag_unsigned,
+       lag(pk, cast('-9223372036854775808' as signed))
+         over (order by pk) as lag_signed_min
+from t1
+where pk <= 3
+order by pk;
+
 drop table t1;
