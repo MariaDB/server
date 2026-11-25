@@ -818,6 +818,14 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
   if (!case_expr_item)
     return true;
 
+  if (case_expr_item->result_type() == ROW_RESULT &&
+      case_expr_item->cols() == 1)
+  {
+    /* A ROW, even one with a single column (e.g. NEW), is not a scalar. */
+    my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+    return true;
+  }
+
   if (!m_case_expr_holders[case_expr_id] ||
       m_case_expr_holders[case_expr_id]->result_type() !=
         case_expr_item->result_type())

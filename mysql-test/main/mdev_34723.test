@@ -954,6 +954,19 @@ UPDATE t SET a = 2;
 DROP TABLE t;
 
 --echo #
+--echo # MDEV-41983: SIGSEGV in Item_cache_row::store on
+--echo # CASE NEW WHEN in trigger on single-column table
+--echo #
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+DELIMITER $$;
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW BEGIN CASE NEW WHEN 1 THEN SET @x = 1; ELSE SET @x = 0; END CASE; END $$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+UPDATE t SET a = 2;
+DROP TABLE t;
+
+--echo #
 --echo # Re-parse trigger cursor ROW TYPE DEFAULT NEW/OLD after ALTER TABLE and repeated INSERT
 --echo #
 
@@ -1051,7 +1064,7 @@ DROP TABLE t1;
 --echo #
 --echo # Results are asserted and multi-row tables are used: SET NEW = OLD,
 --echo # SET NEW = r (MDEV-40127), per-row state in comparison, function
---echo # argument contexts (MDEV-41766/41767)
+--echo # argument contexts (MDEV-41766/41767), CASE NEW is an error (MDEV-41983)
 --echo #
 
 CREATE TABLE t1 (a INT, b INT);
@@ -1090,6 +1103,19 @@ UPDATE t1 SET b= b+1;
 SELECT @r;
 DROP TRIGGER t1_bu;
 DROP FUNCTION f;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @x= '';
+DELIMITER $$;
+CREATE TRIGGER tr BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+  CASE NEW WHEN 1 THEN SET @x= CONCAT(@x, 'one;'); ELSE SET @x= CONCAT(@x, 'other;'); END CASE;
+END $$
+DELIMITER ;$$
+--error ER_OPERAND_COLUMNS
+UPDATE t1 SET a= a+10;
 DROP TABLE t1;
 
 CREATE TABLE t1 (a INT, b INT);

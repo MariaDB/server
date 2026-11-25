@@ -780,6 +780,16 @@ UPDATE t SET a = 2;
 ERROR 21000: Operand should contain 1 column(s)
 DROP TABLE t;
 #
+# MDEV-41983: SIGSEGV in Item_cache_row::store on
+# CASE NEW WHEN in trigger on single-column table
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1);
+CREATE TRIGGER tr BEFORE UPDATE ON t FOR EACH ROW BEGIN CASE NEW WHEN 1 THEN SET @x = 1; ELSE SET @x = 0; END CASE; END $$
+UPDATE t SET a = 2;
+ERROR 21000: Operand should contain 1 column(s)
+DROP TABLE t;
+#
 # Re-parse trigger cursor ROW TYPE DEFAULT NEW/OLD after ALTER TABLE and repeated INSERT
 #
 CREATE TABLE t1 (a INT);
@@ -862,7 +872,7 @@ DROP TABLE t1;
 #
 # Results are asserted and multi-row tables are used: SET NEW = OLD,
 # SET NEW = r (MDEV-40127), per-row state in comparison, function
-# argument contexts (MDEV-41766/41767)
+# argument contexts (MDEV-41766/41767), CASE NEW is an error (MDEV-41983)
 #
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
@@ -906,6 +916,16 @@ SELECT @r;
 19,20;19,20;19,20;
 DROP TRIGGER t1_bu;
 DROP FUNCTION f;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @x= '';
+CREATE TRIGGER tr BEFORE UPDATE ON t1 FOR EACH ROW
+BEGIN
+CASE NEW WHEN 1 THEN SET @x= CONCAT(@x, 'one;'); ELSE SET @x= CONCAT(@x, 'other;'); END CASE;
+END $$
+UPDATE t1 SET a= a+10;
+ERROR 21000: Operand should contain 1 column(s)
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT);
 INSERT INTO t1 VALUES (1,2),(3,4);
