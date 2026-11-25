@@ -8519,6 +8519,15 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("hold_slave_group_commit_leader", {
+      if (result > 0 && thd->rgi_slave &&
+          thd->rgi_slave->current_gtid.domain_id == 0 &&
+          thd->rgi_slave->current_gtid.seq_no == 201)
+        debug_sync_set_action(thd, STRING_WITH_LEN(
+                              "now SIGNAL leader_held WAIT_FOR leader_go"));
+    });
+#endif
   DEBUG_SYNC(orig_entry->thd, "commit_after_release_LOCK_prepare_ordered");
 
   DBUG_PRINT("info", ("Queued for group commit as %s",
@@ -8656,6 +8665,17 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
       But just in case one is added later without updating the above switch
       statement, include a catch-all.
     */
+    if (!entry->thd->get_stmt_da()->is_error())
+      my_error(entry->error, MYF(0));
+    /*
+      A parallel slave worker retries the group, e.g. when the leader was
+      killed or timed out at MDL_BACKUP_COMMIT, so it is not an error of
+      writing to the binary log (yet): with no retries left the slave stops
+      with the error, which is reported as usual.
+    */
+    if (entry->thd->rgi_slave && entry->thd->rgi_slave->is_parallel_exec &&
+        slave_trans_retries > 0)
+      return 1;
     my_printf_error(entry->error,
                     "Error writing transaction to binary log: %d",
                     MYF(ME_ERROR_LOG), entry->error);
@@ -8671,6 +8691,78 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
     mark_xid_done(entry->cache_mngr->binlog_id, true);
 
   return 1;
+}
+
+/*
+  Take MDL_BACKUP_COMMIT for a binlog group commit on behalf of the leader.
+
+  Parallel slave workers do not acquire MDL_BACKUP_COMMIT in ha_commit_trans(),
+  they only publish the request as thd->backup_commit_lock (with no ticket).
+  The leader acquires it for the whole group. It is done before LOCK_log:
+  nobody else in the group holds the lock and every member is parked either in
+  wait_for_wakeup_ready() or in the queue, so waiting for a pending BACKUP
+  STAGE BLOCK_COMMIT cannot form a cycle. The lock is released by the
+  leader's ha_commit_trans() as for any other thread.
+  Only a parallel slave leader has anything to do here. Any other leader
+  holds the lock already, it covers the group as it is kept until the leader's
+  ha_commit_trans() returns. So does a parallel slave leader whose transaction
+  did not defer the lock.
+
+  @param leader  the group commit leader
+
+  @retval false  the group can go on
+  @retval true   the lock could not be taken (killed, lock wait timeout or
+                 deadlock victim). Nothing has been binlogged. Every member of
+                 the group has been failed with the error the leader got (it is
+                 in the diagnostics area of the leader) and woken up; each one
+                 reports it and rolls back in its own thread. The caller must
+                 return at once.
+*/
+inline bool
+MYSQL_BIN_LOG::trx_group_commit_backup_lock(group_commit_entry *leader)
+{
+  group_commit_entry *current;
+  MDL_request *lock= leader->thd->backup_commit_lock;
+
+  if (!leader->thd->rgi_slave || !leader->thd->rgi_slave->is_parallel_exec)
+    return false;
+
+  /*
+    XA PREPARE/COMMIT/ROLLBACK take the lock themselves,
+    see trans_xa_get_backup_lock()
+  */
+  DBUG_ASSERT(lock && (!lock->ticket ||
+                       leader->thd->lex->sql_command == SQLCOM_XA_PREPARE ||
+                       leader->thd->lex->sql_command == SQLCOM_XA_COMMIT ||
+                       leader->thd->lex->sql_command == SQLCOM_XA_ROLLBACK));
+  if (lock->ticket)
+    return false;
+
+  if (!leader->thd->mdl_context.acquire_lock(lock,
+                                  leader->thd->variables.lock_wait_timeout))
+    return false;
+
+  int lock_errno= leader->thd->get_stmt_da()->sql_errno();
+  mysql_mutex_lock(&LOCK_prepare_ordered);
+  current= group_commit_queue;
+  group_commit_queue= NULL;
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
+  while (current)
+  {
+    group_commit_entry *next= current->next;
+    current->error= lock_errno;
+    current->thd->waiting_on_group_commit= false;
+    current->thd->wakeup_subsequent_commits(lock_errno);
+    if (current != leader)
+    {
+      if (current->queued_by_other)
+        current->thd->wait_for_commit_ptr->wakeup(lock_errno);
+      else
+        current->thd->signal_wakeup_ready();
+    }
+    current= next;
+  }
+  return true;
 }
 
 /*
@@ -8694,6 +8786,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   ulong UNINIT_VAR(binlog_id);
   uint64 commit_id;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
+
+  if (trx_group_commit_backup_lock(leader))
+    DBUG_VOID_RETURN;                           // The group has been failed
 
   {
 #ifdef ENABLED_DEBUG_SYNC

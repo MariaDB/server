@@ -1693,6 +1693,8 @@ static bool wsrep_have_no2pc_rw_ha(Ha_trx_info* ha_list)
     stored functions or triggers. So we simply do nothing now.
     TODO: This should be fixed in later ( >= 5.1) releases.
 */
+inline Ha_trx_info* get_binlog_hton(Ha_trx_info *ha_info);
+
 int ha_commit_trans(THD *thd, bool all)
 {
   int error= 0, cookie;
@@ -1815,14 +1817,35 @@ int ha_commit_trans(THD *thd, bool all)
 
     if (!WSREP(thd))
     {
-      if (thd->mdl_context.acquire_lock(&mdl_backup,
-                                        thd->variables.lock_wait_timeout))
+      /*
+        A parallel slave worker doing two-phase commit that is going to be
+        binlogged does not take MDL_BACKUP_COMMIT here. The binlog group
+        commit leader acquires it for the whole group, after the engine
+        prepare and before it starts to binlog (see
+        MYSQL_BIN_LOG::trx_group_commit_leader()).
+
+        TODO: remove THD::backup_commit_lock related code/logics that the
+        poc commit put to sleep.
+
+        When the binlog does not take part in the transaction (binlog is
+        off, --log-slave-updates=0, events filtered out) there is no group
+        commit and the lock is taken here, before the prepare, as always.
+      */
+      if (rw_trans && thd->rgi_slave && thd->rgi_slave->is_parallel_exec &&
+          tc_log == &mysql_bin_log && get_binlog_hton(trans->ha_list) &&
+          !(trans->no_2pc || rw_ha_count <= 1))
+        thd->backup_commit_lock= &mdl_backup;     // not acquired yet
+      else
       {
-        my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
-        ha_rollback_trans(thd, all);
-        DBUG_RETURN(1);
+        if (thd->mdl_context.acquire_lock(&mdl_backup,
+                                          thd->variables.lock_wait_timeout))
+        {
+          my_error(ER_ERROR_DURING_COMMIT, MYF(0), 1);
+          ha_rollback_trans(thd, all);
+          DBUG_RETURN(1);
+        }
+        thd->backup_commit_lock= &mdl_backup;
       }
-      thd->backup_commit_lock= &mdl_backup;
     }
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
@@ -1891,6 +1914,8 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
+    /* A deferred MDL_BACKUP_COMMIT request is only for the log_and_order() path. */
+    DBUG_ASSERT(!thd->backup_commit_lock || thd->backup_commit_lock->ticket);
 #ifdef WITH_WSREP
     /*
       This commit will not go through log_and_order() where wsrep commit

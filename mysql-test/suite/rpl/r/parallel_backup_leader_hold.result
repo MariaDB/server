@@ -1,0 +1,85 @@
+include/master-slave.inc
+[connection master]
+#
+# A binlog group commit leader of the parallel slave must not deadlock
+# with BACKUP STAGE BLOCK_COMMIT: the leader T1, a follower T2 and the
+# backup session B (see MDEV-36025).
+#
+# T0 (gtid 0-1-200) is excluded from the slave binlog (the slave runs with
+# --binlog-ignore-db=nobinlog), so it commits without the binlog group
+# commit and wakes T1 (0-1-201) normally, and T1 leads a group. T2
+# (0-1-202) arrives later and follows T1.
+#
+connection master;
+CREATE DATABASE nobinlog;
+CREATE TABLE nobinlog.t0 (a INT PRIMARY KEY) ENGINE = innodb;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE = innodb;
+connection slave;
+include/stop_slave.inc
+SET STATEMENT sql_log_bin= 0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 3;
+SET @@global.slave_parallel_mode   = 'optimistic';
+connection master;
+USE nobinlog;
+SET @@gtid_seq_no=200;
+INSERT INTO t0 VALUES (1);
+USE test;
+SET @@gtid_seq_no=201;
+INSERT INTO t1 VALUES (1);
+SET @@gtid_seq_no=202;
+INSERT INTO t1 VALUES (2);
+# Local transactions lock out T0 and T2
+connect  aux_t0,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BEGIN;
+INSERT INTO nobinlog.t0 VALUES (1);
+connect  aux_t2,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+BEGIN;
+INSERT INTO t1 VALUES (2);
+connection slave;
+SET @@global.debug_dbug= "+d,hold_slave_group_commit_leader";
+include/start_slave.inc
+# T1 is prepared and waits for T0 to commit
+# Release T0. T1 leads a group and is held at the sync point
+connection aux_t0;
+ROLLBACK;
+connection slave;
+SET debug_sync = 'now WAIT_FOR leader_held';
+# Release T2. It queues up behind T1 and waits for it to lead
+connection aux_t2;
+ROLLBACK;
+connection slave;
+# B requests BLOCK_COMMIT. It is sent asynchronously: with T2 holding
+# MDL_BACKUP_COMMIT the request stays pending, otherwise (the leader
+# takes the lock for the group) it is granted at once.
+connect  backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+SET lock_wait_timeout= 15;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection slave;
+# Wait until B has decided: its upgrade to BACKUP_WAIT_COMMIT is pending,
+# or (fixed) it got the lock and is idle with BACKUP_BLOCK_DDL.
+# Let the leader go. Unless fixed, it requests MDL_BACKUP_COMMIT behind
+# the pending request of B, which waits for T2, which waits for T1.
+SET debug_sync = 'now SIGNAL leader_go';
+connection backup_slave;
+# Fixed: the leader waits for B to release the lock
+connection slave;
+connection backup_slave;
+BACKUP STAGE END;
+disconnect backup_slave;
+connection slave;
+SET debug_sync = RESET;
+include/diff_tables.inc [master:t1,slave:t1]
+# Clean up.
+include/stop_slave.inc
+SET @@global.debug_dbug= "";
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+DROP DATABASE nobinlog;
+connection slave;
+include/rpl_end.inc

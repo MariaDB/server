@@ -585,6 +585,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int queue_for_group_commit(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
+  bool trx_group_commit_backup_lock(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
 public:
   /*
