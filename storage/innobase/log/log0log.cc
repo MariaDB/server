@@ -962,6 +962,16 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       wait_lsn= end_lsn;
       goto retry_after_checkpoint;
     }
+    else if (wait_lsn - checkpoint >= max_checkpoint_age)
+    {
+      /*
+        log_close() allows the checkpoint age to grow up to
+        checkpoint_age_max(). Ensure that we will be below the
+        stricter innodb_log_archive=OFF limit before the switch.
+      */
+      wait_lsn-= max_modified_age_async;
+      goto retry_after_checkpoint;
+    }
 
 #ifdef HAVE_PMEM
     if (is_mmap())
@@ -1064,11 +1074,11 @@ void log_t::set_archive(my_bool archive, THD *thd) noexcept
       ut_ad(wait_lsn == get_lsn());
       /* apply similar logic as log_close() */
       const lsn_t checkpoint_age{wait_lsn - checkpoint};
+      ut_ad(checkpoint_age < max_checkpoint_age);
       if (checkpoint_age < max_modified_age_async)
         wait_lsn= 0;
       else
-        wait_lsn= ((wait_lsn - max_checkpoint_age) & ~lsn_t{1}) |
-          lsn_t{checkpoint_age >= max_checkpoint_age};
+        wait_lsn= (wait_lsn - max_modified_age_async) & ~lsn_t{1};
     }
 
     archived_lsn= end_lsn;
