@@ -1,0 +1,32 @@
+#
+# MDEV-42354 SET GLOBAL innodb_log_file_size=OFF may break recovery
+#
+CREATE TABLE t(a INT PRIMARY KEY, b CHAR(255))
+ENGINE=InnoDB DEFAULT CHARSET latin1;
+SET
+@save_archive=@@innodb_log_archive,
+@save_adaptive=@@innodb_adaptive_flushing,
+@save_dirty=@@innodb_max_dirty_pages_pct,
+@save_dirty_lwm=@@innodb_max_dirty_pages_pct_lwm,
+@save_io=@@innodb_io_capacity,
+@save_io_max=@@innodb_io_capacity_max;
+SET GLOBAL
+innodb_log_archive=OFF, innodb_log_checkpoint_now=ON,
+innodb_log_archive=ON,
+innodb_adaptive_flushing=OFF,
+innodb_max_dirty_pages_pct=99,
+innodb_max_dirty_pages_pct_lwm=0,
+innodb_io_capacity=100, innodb_io_capacity_max=100;
+INSERT INTO t SELECT seq, '' FROM seq_0_to_29500;
+SET GLOBAL innodb_log_archive=OFF;
+UPDATE t SET b='x' WHERE a<5;
+DROP TABLE t;
+SET GLOBAL
+innodb_log_archive=@save_archive,
+innodb_adaptive_flushing=@save_adaptive,
+innodb_max_dirty_pages_pct=@save_dirty,
+innodb_max_dirty_pages_pct_lwm=@save_dirty_lwm,
+innodb_io_capacity=@save_io, innodb_io_capacity_max=@save_io_max;
+Warnings:
+Warning	1210	Setting innodb_io_capacity to 200 higher than innodb_io_capacity_max 100
+Warning	1210	Setting innodb_max_io_capacity to 400
