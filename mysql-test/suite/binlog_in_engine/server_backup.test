@@ -5,6 +5,10 @@
 
 --echo ### Various tests for BACKUP SERVER with binlog-in-engine.
 
+# The test is running with --binlog-directory=binlogs, so binlogs are in a
+# sub-directory. This is to test that the binlog files in the backup are
+# placed in the basedir.
+
 --let $target_directory=$MYSQLTEST_VARDIR/tmp/backup_dir
 
 evalp BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=NONE;

@@ -1725,6 +1725,26 @@ private:
   }
 
   /**
+     Get the length of any directory path before a filename.
+     @param name   the filename
+     @return Number of characters in directory path including last '/'
+  */
+  static size_t get_dir_prefix_len(const char *name) noexcept
+  {
+    const char *sep= strrchr(name, '/');
+    if (sep)
+      ++sep;
+    else
+      sep= name;
+#ifdef _WIN32
+    const char *sep2= strrchr(sep, '\\');
+    if (sep2)
+      sep= sep2 + 1;
+#endif
+    return sep - name;
+  }
+
+  /**
      Process a tablespace that was collected at init().
      This may be invoked from multiple concurrent threads.
      @param target  backup target
@@ -1831,7 +1851,12 @@ private:
   {
     char filename[OS_FILE_MAX_PATH];
     binlog_name_make(filename, file_no);
-    return backup::copy_or_stream(target, sink, filename, 0);
+    /*
+      When --binlog-directory, put the binlog files in the basedir of the
+      backup. The user must move then to the desired location if necessary.
+    */
+    size_t dir_prefix= get_dir_prefix_len(filename);
+    return backup::copy_or_stream(target, sink, filename, dir_prefix);
   }
 
   /**
@@ -2435,12 +2460,22 @@ int InnoDB_backup::backup(const backup_target &target, const backup_sink &,
                           fil_node_t *node, const char *name,
                           uint32_t start, uint32_t limit) noexcept try
 {
+  size_t dir_prefix= 0;
+  if (node->space->id && srv_is_undo_tablespace(node->space->id))
+  {
+    /*
+      When --innodb-undo-directory, put the undo files in the basedir of the
+      backup. The user must move then to the desired location if necessary.
+    */
+    dir_prefix= get_dir_prefix_len(name);
+  }
+
   for (bool tried_mkdir{false};;)
   {
 #ifdef _WIN32
     std::string path{target.path};
     path.push_back('/');
-    path.append(name);
+    path.append(name + dir_prefix);
     HANDLE f=
       CreateFile(path.c_str(), GENERIC_WRITE, 0, my_win_file_secattr(),
                  CREATE_NEW, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING,
@@ -2472,7 +2507,7 @@ int InnoDB_backup::backup(const backup_target &target, const backup_sink &,
     this assumption be invalid, some data files in the backup may be
     corrupted. This corruption can be fixed by either removing this
     special handling, or by implementing file-level locking. */
-    f= fclonefileat(node->handle, target.fd, name, 0);
+    f= fclonefileat(node->handle, target.fd, name + dir_prefix, 0);
     if (!f)
       break;
     switch (errno) {
@@ -2496,11 +2531,11 @@ int InnoDB_backup::backup(const backup_target &target, const backup_sink &,
       switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
       case 1: /* 1024 bytes */
       case 2: /* 2048 bytes */
-        f= backup_file_create_buffered(target.fd, name);
+        f= backup_file_create_buffered(target.fd, name + dir_prefix);
         continue;
       }
 # endif
-      f= backup_file_create(target.fd, name);
+      f= backup_file_create(target.fd, name + dir_prefix);
     }
     while (false);
 
@@ -2614,7 +2649,8 @@ int InnoDB_backup::backup(const backup_target &target, const backup_sink &,
       if (err != 2)
         goto fail;
       /* The tablespace is being dropped. */
-      IF_WIN(DeleteFile(path.c_str()), unlinkat(target.fd, name, 0));
+      IF_WIN(DeleteFile(path.c_str()),
+             unlinkat(target.fd, name + dir_prefix, 0));
     }
 
     break;

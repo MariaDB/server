@@ -1,0 +1,1 @@
+--binlog_directory=binlog/in/engine --innodb-undo-directory=undos

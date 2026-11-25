@@ -105,7 +105,12 @@ RESET SLAVE ALL;
 
 --connection server2
 --echo *** Doing backup...
-evalp BACKUP SERVER TO '$datadir_1';
+evalp BACKUP SERVER TO '$datadir_1' OPTIONS BINLOG=NONE;
+# Copy InnoDB undo files in place. The to-be-provisioned server is running with
+# --innodb-undo-directory=undos.
+--move_file $datadir_1/undo001 $datadir_1/undos/undo001
+--move_file $datadir_1/undo002 $datadir_1/undos/undo002
+--move_file $datadir_1/undo003 $datadir_1/undos/undo003
 
 --echo *** Provision a new slave from the backup
 --connection default

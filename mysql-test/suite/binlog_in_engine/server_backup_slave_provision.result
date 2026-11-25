@@ -42,7 +42,7 @@ connection default;
 *** Removing old datadir for provisioned server
 connection server2;
 *** Doing backup...
-BACKUP SERVER TO '$datadir_1';
+BACKUP SERVER TO '$datadir_1' OPTIONS BINLOG=NONE;
 *** Provision a new slave from the backup
 connection default;
 # restart: --skip-slave-start
