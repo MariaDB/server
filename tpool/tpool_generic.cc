@@ -223,6 +223,8 @@ class thread_pool_generic : public thread_pool
   /** Maximum number of threads in this pool. */
   unsigned int m_max_threads;
 
+  const thread_pool_policy m_policy;
+
   /* maintenance related statistics (see maintenance()) */
   size_t m_last_thread_count;
   unsigned long long m_last_activity;
@@ -251,11 +253,13 @@ class thread_pool_generic : public thread_pool
     return m_active_threads.size() + m_standby_threads.size();
   }
 public:
-  thread_pool_generic(int min_threads, int max_threads);
+  thread_pool_generic(int min_threads, int max_threads,
+                      thread_pool_policy policy);
   ~thread_pool_generic() override;
   void wait_begin() override;
   void wait_end() override;
   void submit_task(task *task) override;
+  int get_worker_stats(worker_stats *stats) override;
 #ifdef _WIN32
   aio *create_native_aio(int max_io, aio_implementation) override
   { return create_win_aio(this, max_io); }
@@ -507,6 +511,15 @@ void thread_pool_generic::worker_end(worker_data* thread_data)
   m_active_threads.erase(thread_data);
   m_thread_data_cache.put(thread_data);
 
+  /*
+    While an idle worker runs its exit callback, it still counts against
+    max_threads. A submission in that window can remain queued if all
+    workers are exiting. Now that this worker has freed its slot, retry
+    here for pools that have no maintenance timer to pick up the work.
+  */
+  if (m_policy == thread_pool_policy::no_maintenance)
+    maybe_wake_or_create_thread();
+
   if (!thread_count() && m_in_shutdown)
   {
     /* Signal the destructor that no more threads are left. */
@@ -678,9 +691,10 @@ bool thread_pool_generic::add_thread()
     Deadlock danger exists, so monitor pool health
     with maintenance timer.
   */
-  switch_timer(timer_state_t::ON);
+  if (m_policy == thread_pool_policy::adaptive)
+    switch_timer(timer_state_t::ON);
 
-  if (n_threads >= m_min_threads)
+  if (m_policy == thread_pool_policy::adaptive && n_threads >= m_min_threads)
   {
     auto now = std::chrono::system_clock::now();
     if (now - m_last_thread_creation <
@@ -700,10 +714,11 @@ bool thread_pool_generic::add_thread()
   not reset all future attempt to create thread for this pool would not work as
   we would return from here.
 
-  Do not use this flag for pool of fixed size.
-  (since they lack maintenence that would rectify the pool size, if it is too small)
+  Do not use the flag without a maintenance timer. This includes fixed-size
+  pools and the no_maintenance policy, neither of which has a timer to retry
+  thread creation.
   */
-  if (m_min_threads != m_max_threads)
+  if (m_maintenance_timer)
   {
     if (m_thread_creation_pending.test_and_set())
       return false;
@@ -752,7 +767,8 @@ bool thread_pool_generic::wake(worker_wake_reason reason, task *)
 }
 
 
-thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
+thread_pool_generic::thread_pool_generic(int min_threads, int max_threads,
+                                         thread_pool_policy policy) :
   m_thread_data_cache(max_threads),
   m_task_queue(10000),
   m_standby_threads(),
@@ -773,13 +789,15 @@ thread_pool_generic::thread_pool_generic(int min_threads, int max_threads) :
   m_last_thread_creation(),
   m_min_threads(min_threads),
   m_max_threads(max_threads),
+  m_policy(policy),
   m_last_thread_count(),
   m_last_activity()
 {
   set_concurrency();
 
   // start the timer
-  if (m_min_threads != m_max_threads)
+  if (m_policy == thread_pool_policy::adaptive &&
+      m_min_threads != m_max_threads)
   {
     m_maintenance_timer= new timer_generic(thread_pool_generic::maintenance_func, this, nullptr);
     m_maintenance_timer->set_time(0, (int)m_timer_interval.count());
@@ -792,7 +810,9 @@ void thread_pool_generic::maybe_wake_or_create_thread()
   if (m_task_queue.empty())
     return;
   DBUG_ASSERT(m_active_threads.size() >= static_cast<size_t>(m_long_tasks_count + m_waiting_task_count));
-  if (m_active_threads.size() - m_long_tasks_count - m_waiting_task_count > m_concurrency)
+  if (m_policy == thread_pool_policy::adaptive &&
+      m_active_threads.size() - m_long_tasks_count - m_waiting_task_count >
+        m_concurrency)
     return;
   if (!m_standby_threads.empty())
   {
@@ -834,6 +854,14 @@ void thread_pool_generic::submit_task(task* task)
   m_tasks_enqueued++;
   m_task_queue.push(task);
   maybe_wake_or_create_thread();
+}
+
+int thread_pool_generic::get_worker_stats(worker_stats *stats)
+{
+  std::lock_guard<std::mutex> lk(m_mtx);
+  *stats= {m_active_threads.size(), m_standby_threads.size(),
+           m_task_queue.size(), m_max_threads};
+  return 0;
 }
 
 
@@ -929,9 +957,10 @@ thread_pool_generic::~thread_pool_generic()
   delete m_maintenance_timer;
 }
 
-thread_pool *create_thread_pool_generic(int min_threads, int max_threads)
+thread_pool *create_thread_pool_generic(int min_threads, int max_threads,
+                                        thread_pool_policy policy)
 {
- return new thread_pool_generic(min_threads, max_threads);
+  return new thread_pool_generic(min_threads, max_threads, policy);
 }
 
 } // namespace tpool

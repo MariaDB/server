@@ -230,6 +230,15 @@ enum aio_implementation
 #endif
 };
 
+struct worker_stats
+{
+  // Workers outside the idle list, including workers blocked inside a task.
+  size_t used;
+  size_t idle;
+  size_t queued;
+  size_t max_threads;
+};
+
 class thread_pool
 {
 protected:
@@ -307,6 +316,13 @@ public:
   */
   virtual void set_concurrency(unsigned int threads=0){}
 
+  /**
+    Get an advisory snapshot of worker usage and queue size.
+    The snapshot does not reserve worker capacity.
+    Return 0 on success, or -1 if the backend does not provide it.
+  */
+  virtual int get_worker_stats(worker_stats *) { return -1; }
+
   int bind(native_file_handle &fd) { return m_aio->bind(fd); }
   void unbind(const native_file_handle &fd) { if (m_aio) m_aio->unbind(fd); }
   int submit_io(aiocb *cb) { return m_aio->submit_io(cb); }
@@ -329,9 +345,21 @@ constexpr bool supports_native_aio()
 
 const int DEFAULT_MIN_POOL_THREADS= 1;
 const int DEFAULT_MAX_POOL_THREADS= 500;
+enum class thread_pool_policy
+{
+  adaptive,
+  /*
+    Grow on demand to max_threads without maintenance, startup throttling,
+    or a soft concurrency limit. min_threads is the idle-retention floor.
+  */
+  no_maintenance
+};
+
 extern thread_pool *
-create_thread_pool_generic(int min_threads= DEFAULT_MIN_POOL_THREADS,
-                           int max_threads= DEFAULT_MAX_POOL_THREADS);
+create_thread_pool_generic(
+  int min_threads= DEFAULT_MIN_POOL_THREADS,
+  int max_threads= DEFAULT_MAX_POOL_THREADS,
+  thread_pool_policy policy= thread_pool_policy::adaptive);
 extern "C" void tpool_wait_begin();
 extern "C" void tpool_wait_end();
 #ifdef _WIN32
