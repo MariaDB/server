@@ -395,7 +395,17 @@ int TP_pool_win::init()
 
   TP_POOL_STACK_INFORMATION stackinfo;
   stackinfo.StackCommit = 0;
-  stackinfo.StackReserve = (SIZE_T)my_thread_stack_size;
+  /*
+    Reserve extra virtual stack space beyond my_thread_stack_size for Windows
+    guard/overflow pages and OS threadpool frames above OS_thread_info::init()
+    (analogous to adding guard_size in my_setstacksize() on POSIX). StackCommit
+    remains 0 so physical pages are still committed on demand.
+  */
+  const SIZE_T extra_stack= 64U * 1024U;
+  const SIZE_T req_stack= (SIZE_T)my_thread_stack_size;
+  stackinfo.StackReserve = (req_stack > ~(SIZE_T)0 - extra_stack)
+                             ? req_stack
+                             : req_stack + extra_stack;
   if (!SetThreadpoolStackInformation(pool, &stackinfo))
   {
     tp_log_warning("Can't set threadpool stack size",
