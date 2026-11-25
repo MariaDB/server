@@ -1,0 +1,245 @@
+--source include/default_charset.inc
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-41137 CHARACTER SET ANY_CS and CHARACTER SET OF var in stored routines
+--echo #
+
+--echo #
+--echo # CHARACTER SET ANY_CS: the parameter takes the character set and the
+--echo # collation of the actual argument, without conversion
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET ANY_CS)
+BEGIN
+  SELECT CHARSET(a), COLLATION(a), HEX(a);
+END;
+$$
+DELIMITER ;$$
+CALL p1('x');
+CALL p1(_latin1 0xE9);
+CALL p1(_latin1'x' COLLATE latin1_bin);
+CALL p1(_ucs2 0x0078);
+SET @a= _latin1 0xE9;
+CALL p1(@a);
+
+--echo # A prepared statement placeholder has the connection character set
+PREPARE stmt FROM 'CALL p1(?)';
+EXECUTE stmt USING @a;
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+
+--echo # OUT and INOUT: the user variables keep their own character sets
+DELIMITER $$;
+CREATE PROCEDURE p1(OUT o VARCHAR(10) CHARACTER SET ANY_CS,
+                    INOUT io VARCHAR(10) CHARACTER SET ANY_CS)
+BEGIN
+  SET o= 'x';
+  SET io= CONCAT(io, 'y');
+END;
+$$
+DELIMITER ;$$
+SET @o= _latin1'a', @io= _ucs2 0x0061;
+CALL p1(@o, @io);
+SELECT CHARSET(@o), CHARSET(@io);
+DROP PROCEDURE p1;
+
+--echo # Function, and a DEFAULT value
+CREATE FUNCTION f1(a VARCHAR(10) CHARACTER SET ANY_CS DEFAULT _latin1'x')
+  RETURNS VARCHAR(10) CHARACTER SET utf8mb4 RETURN CHARSET(a);
+SELECT f1() AS c1, f1(_ucs2 0x0078) AS c2, f1('x') AS c3, f1() AS c4;
+DROP FUNCTION f1;
+
+--echo # The length is in characters, the size in bytes follows the argument
+CREATE PROCEDURE p1(a VARCHAR(3) CHARACTER SET ANY_CS)
+  SELECT OCTET_LENGTH(a), CHAR_LENGTH(a);
+CALL p1(_latin1 0xE9E9E9);
+CALL p1('ééé');
+CALL p1(_latin1 0xE9E9E9);
+DROP PROCEDURE p1;
+
+--echo #
+--echo # CHARACTER SET OF var: the character set (and collation) is taken
+--echo # from a previous parameter or variable
+--echo #
+
+--echo # The source has a fixed character set
+DELIMITER $$;
+CREATE PROCEDURE p1(a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_bin,
+                    b VARCHAR(10) CHARSET OF a,
+                    OUT c VARCHAR(10) CHARSET OF b)
+BEGIN
+  DECLARE v VARCHAR(10) CHARSET OF c;
+  SET c= 'x';
+  BEGIN
+    DECLARE w VARCHAR(10) CHARSET OF a;
+    SELECT CHARSET(b), COLLATION(b), CHARSET(v), CHARSET(w);
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1('x', 'y', @c);
+SELECT CHARSET(@c);
+
+--echo # The source is ANY_CS: resolved at every call
+DELIMITER $$;
+CREATE PROCEDURE p2(a VARCHAR(3) CHARACTER SET ANY_CS, b VARCHAR(3) CHARSET OF a)
+BEGIN
+  DECLARE v VARCHAR(3) CHARSET OF b;
+  SET v= 'ééé';
+  SELECT CHARSET(b), CHARSET(v), OCTET_LENGTH(v);
+END;
+$$
+DELIMITER ;$$
+CALL p2(_latin1'x', 'y');
+CALL p2(CONVERT('x' USING utf32), 'y');
+CALL p2(_latin1'x', 'y');
+
+--echo # Only a source with a fixed character set is known at CREATE time
+SELECT specific_name, parameter_name, character_set_name, collation_name
+FROM information_schema.parameters
+WHERE specific_schema=DATABASE() AND specific_name IN ('p1', 'p2')
+ORDER BY specific_name, ordinal_position;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+--echo #
+--echo # RETURNS ... CHARSET OF param: the character set of the return value
+--echo # is taken from a parameter
+--echo #
+
+--echo # The source has a fixed character set
+CREATE FUNCTION f1(a VARCHAR(10) CHARACTER SET latin1 COLLATE latin1_bin)
+  RETURNS VARCHAR(10) CHARSET OF a RETURN a;
+SELECT CHARSET(f1('x')), COLLATION(f1('x'));
+
+--echo # The source is ANY_CS (here through a second parameter):
+--echo # resolved for every call
+CREATE FUNCTION f2(a VARCHAR(10) CHARACTER SET ANY_CS, b VARCHAR(10) CHARSET OF a)
+  RETURNS VARCHAR(10) CHARSET OF b RETURN b;
+SELECT CHARSET(f2(_latin1'x', 'y')), CHARSET(f2(_ucs2 0x0078, 'y')),
+       CHARSET(f2('x', 'y'));
+
+--echo # An omitted argument: the character set of its DEFAULT value
+CREATE FUNCTION f3(a VARCHAR(10) CHARACTER SET ANY_CS DEFAULT _latin1'x')
+  RETURNS VARCHAR(10) CHARSET OF a RETURN a;
+SELECT CHARSET(f3()), CHARSET(f3(_ucs2 0x0078));
+
+--echo # The same call in a routine, a wider and then a narrower character set
+CREATE PROCEDURE p3(a VARCHAR(10) CHARACTER SET ANY_CS)
+  SELECT CHARSET(f2(a, 'y'));
+CALL p3(_latin1'x');
+CALL p3(_ucs2 0x0078);
+CALL p3(_latin1'x');
+
+--echo # The anchor is stored, and the functions are listed without errors
+SELECT name, returns FROM mysql.proc
+WHERE db=DATABASE() AND name IN ('f1', 'f2') ORDER BY name;
+SELECT routine_name, character_set_name FROM information_schema.routines
+WHERE routine_schema=DATABASE() AND routine_name IN ('f1', 'f2', 'f3')
+ORDER BY routine_name;
+DROP PROCEDURE p3;
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP FUNCTION f3;
+
+--echo #
+--echo # ANY_CS is allowed in routine parameters only
+--echo #
+
+--error ER_WRONG_USAGE
+CREATE FUNCTION f1() RETURNS VARCHAR(10) CHARACTER SET ANY_CS RETURN 'x';
+--error ER_WRONG_USAGE
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ANY_CS);
+--error ER_WRONG_USAGE
+SELECT CAST('x' AS CHAR CHARACTER SET ANY_CS);
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1(a ENUM('a','b') CHARACTER SET ANY_CS) SELECT 1;
+DELIMITER $$;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1() BEGIN DECLARE v VARCHAR(10) CHARACTER SET ANY_CS; END;
+$$
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c CURSOR(cp VARCHAR(5) CHARACTER SET ANY_CS) FOR SELECT cp;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # CHARACTER SET OF var: errors
+--echo #
+
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1(b VARCHAR(10) CHARSET OF a) SELECT 1;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1(a VARCHAR(10) CHARSET OF a) SELECT 1;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p1(a INT, b VARCHAR(10) CHARSET OF a) SELECT 1;
+--error ER_PARSE_ERROR
+CREATE PROCEDURE p1(a VARCHAR(10), b VARCHAR(10) CHARSET OF a COLLATE utf8mb4_bin) SELECT 1;
+
+CREATE TABLE any_cs (any_cs INT);
+SELECT any_cs FROM any_cs;
+DROP TABLE any_cs;
+CREATE PROCEDURE p1(any_cs INT) SELECT any_cs;
+DROP PROCEDURE p1;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p2(a VARCHAR(10) CHARACTER SET ANY_CS BINARY) SELECT a;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p3(a VARCHAR(10) CHARACTER SET ANY_CS COLLATE latin1_bin) SELECT a;
+--error ER_WRONG_USAGE
+CREATE PROCEDURE p4(a VARCHAR(10) BINARY CHARACTER SET ANY_CS) SELECT a;
+
+--error ER_UNKNOWN_CHARACTER_SET
+CREATE TABLE t1 (a VARCHAR(10), b VARCHAR(10) CHARSET OF a);
+--error ER_UNKNOWN_CHARACTER_SET
+SELECT CAST('a' AS CHAR CHARSET OF t1);
+--error ER_UNKNOWN_CHARACTER_SET
+ALTER TABLE t1 ADD c VARCHAR(10) CHARSET OF a;
+DELIMITER $$;
+--error ER_UNKNOWN_CHARACTER_SET
+CREATE PROCEDURE p1(a VARCHAR(5)) BEGIN CREATE TEMPORARY TABLE tt (b VARCHAR(10) CHARSET OF a); END$$
+DELIMITER ;$$
+
+--error ER_UNKNOWN_CHARACTER_SET
+CREATE PROCEDURE p1(a VARCHAR(5), p ROW(x VARCHAR(10) CHARSET OF a)) SELECT 1;
+--error ER_UNKNOWN_CHARACTER_SET
+CREATE FUNCTION f1(a VARCHAR(5)) RETURNS ROW(x VARCHAR(10) CHARSET OF a) RETURN NULL;
+DELIMITER $$;
+--error ER_UNKNOWN_CHARACTER_SET
+CREATE PROCEDURE p2(a VARCHAR(5)) BEGIN DECLARE v ROW(x VARCHAR(10) CHARSET OF a); END$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PROCEDURE p5(a VARCHAR(5) CHARACTER SET latin1) BEGIN DECLARE v ROW(x VARCHAR(10)); DECLARE w VARCHAR(10) CHARSET OF a; SELECT CHARSET(w); END$$
+DELIMITER ;$$
+CALL p5('x');
+DROP PROCEDURE p5;
+
+CREATE TABLE rt (charset INT);
+INSERT INTO rt VALUES (1);
+SELECT charset of FROM rt;
+SELECT charset AS of FROM rt;
+SELECT rt.charset of FROM rt;
+
+CREATE PROCEDURE p1(charset VARCHAR(10), b VARCHAR(10) CHARSET OF charset) SELECT 1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p2(a VARCHAR(5)) BEGIN DECLARE v INT DEFAULT (SELECT charset of FROM rt LIMIT 1); SELECT v; END$$
+DELIMITER ;$$
+CALL p2('x');
+DROP PROCEDURE p2;
+DROP TABLE rt;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

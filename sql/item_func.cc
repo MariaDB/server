@@ -6865,7 +6865,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
   */
-  res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  res= init_result_field(thd, max_length, maybe_null(), &null_value, &name,
+                         args, arg_count);
 
   if (res)
     DBUG_RETURN(TRUE);

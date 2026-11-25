@@ -3245,6 +3245,54 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
   DBUG_RETURN(err_status);
 }
 
+/**
+  RETURNS ... CHARACTER SET OF param / param%CHARSET, where the source is an
+  ANY_CS parameter (directly, or through other anchored parameters):
+  take the character set of the actual argument of this call.
+
+  @param def  a copy of the return definition. Never the definition of the
+              routine itself, it is shared by all the calls.
+*/
+bool Item_sp::resolve_return_charset(THD *thd, Spvar_definition *def,
+                                     Item **args, uint arg_count)
+{
+  uchar buff[STACK_BUFF_ALLOC];
+  const sp_variable *src= NULL;
+  if (check_stack_overrun(thd, STACK_MIN_SIZE * 2, buff))
+    return true;
+  /* A chain of anchors ends at an ANY_CS parameter */
+  for (uint offset= def->charset_anchor_offset(); ; )
+  {
+    if (!(src= m_sp->get_parse_context()->find_variable(offset)))
+      return false;                      // should not happen
+    if (src->field_def.any_cs || !src->field_def.has_charset_anchor())
+      break;
+    offset= src->field_def.charset_anchor_offset();
+  }
+  if (!src->field_def.any_cs)
+    return false;
+
+  /* The parameters are the first variables, so the offset is the argument no */
+  Item *arg;
+  if (src->offset < arg_count)
+  {
+    if (args[src->offset]->fix_fields_if_needed_for_scalar(thd,
+                                                           &args[src->offset]))
+      return true;
+    arg= args[src->offset];
+  }
+  else if ((arg= src->field_def.default_item_value))
+  {
+    /* The argument is omitted: the character set of its DEFAULT value */
+    if (!(arg= thd->sp_fix_func_item(&arg)))
+      return true;
+  }
+  else
+    return false;     // The wrong number of arguments is reported later
+
+  return def->type_handler()->adjust_spparam_charset_to(def,
+                                                        arg->collation.collation);
+}
 
 /**
   @brief Initialize the result field by creating a temporary dummy table
@@ -3266,7 +3314,8 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
 
 bool
 Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
-                           bool *null_value, LEX_CSTRING *name)
+                           bool *null_value, LEX_CSTRING *name,
+                           Item **args, uint arg_count)
 {
   DBUG_ENTER("Item_sp::init_result_field");
 
@@ -3294,6 +3343,15 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
         !(sp_result_field= m_sp->create_result_field(max_length, name,
                                                      def, dummy_table)))
     DBUG_RETURN(TRUE);
+  }
+  else if (m_sp->m_return_field_def.has_charset_anchor())
+  {
+    // RETURNS ... CHARSET OF an ANY_CS parameter
+    Spvar_definition def(m_sp->m_return_field_def);
+    if (resolve_return_charset(thd, &def, args, arg_count) ||
+        !(sp_result_field= m_sp->create_result_field(max_length, name,
+                                                     def, dummy_table)))
+      DBUG_RETURN(TRUE);
   }
   else
   {
