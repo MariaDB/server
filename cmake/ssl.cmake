@@ -154,7 +154,7 @@ MACRO (MYSQL_CHECK_SSL)
       # OpenSSL::SSL) so $<TARGET_PROPERTY:mariadb_ssl,INTERFACE_INCLUDE_DIRECTORIES>
       # also works for consumers that need the openssl headers but do not link
       # the library (violite.h pulls in <openssl/ssl.h> under HAVE_OPENSSL).
-      TARGET_INCLUDE_DIRECTORIES(mariadb_ssl INTERFACE ${OPENSSL_INCLUDE_DIR})
+      TARGET_INCLUDE_DIRECTORIES(mariadb_ssl SYSTEM INTERFACE ${OPENSSL_INCLUDE_DIR})
       IF(CMAKE_SYSTEM_NAME MATCHES "SunOS")
         TARGET_LINK_LIBRARIES(mariadb_ssl INTERFACE ${LIBSOCKET})
       ENDIF()
