@@ -314,5 +314,6 @@ extern bool binlog_recover_write_data(bool space_id, uint32_t page_no,
                                       lsn_t start_lsn, lsn_t lsn,
                                       const byte *buf, size_t size) noexcept;
 extern void binlog_recover_end(lsn_t lsn) noexcept;
+extern uint64_t ibb_get_backup_start(bool minimal);
 
 #endif /* innodb_binlog_h */

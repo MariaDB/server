@@ -1,0 +1,24 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE TABLE t (a INT PRIMARY KEY, b VARCHAR(1000)) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t SELECT seq, REPEAT('x', 900) FROM seq_1_to_50000;
+SELECT GET_LOCK('d', 0);
+GET_LOCK('d', 0)
+1
+connect con1,localhost,root;
+DELETE FROM t WHERE IF(a = 25000, GET_LOCK('d', 300), 1);
+connection default;
+SELECT RELEASE_LOCK('d');
+RELEASE_LOCK('d')
+1
+BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk';
+connection con1;
+disconnect con1;
+connection default;
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+SELECT COUNT(*) IN (0, 50000) FROM t;
+COUNT(*) IN (0, 50000)
+1
+# restart
+DROP TABLE t;

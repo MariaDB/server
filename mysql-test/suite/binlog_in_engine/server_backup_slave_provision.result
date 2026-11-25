@@ -1,0 +1,70 @@
+include/reset_master.inc
+*** Provision a new slave from a backup of a master
+connect  server2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+*** Stopping to-be-provisioned server
+*** Removing old datadir for provisioned server
+connection default;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1(a varchar(60) PRIMARY KEY, b VARCHAR(60)) ENGINE INNODB;
+INSERT INTO t1 VALUES(1, NULL);
+CREATE TABLE t2 (val INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (0);
+connect  con1,localhost,root,,;
+*** Start a background load...
+CALL gen_load();
+connection default;
+*** Doing backup...
+BACKUP SERVER TO '$datadir_2' OPTIONS CONCURRENT=4, BINLOG=MINIMAL;
+*** Stop the background load...
+UPDATE t2 SET val=1;
+connection con1;
+connection default;
+disconnect con1;
+*** Provision a new slave from the backup
+connection server2;
+# restart: --skip-slave-start
+SET GLOBAL gtid_slave_pos= @@GLOBAL.gtid_binlog_pos;
+CHANGE MASTER TO
+master_ssl_verify_server_cert=0,
+master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
+master_use_gtid= Slave_pos;
+START SLAVE;
+connection default;
+include/save_master_gtid.inc
+connection server2;
+include/sync_with_master_gtid.inc
+*** Provision a new slave from a backup of another slave
+connection server2;
+STOP SLAVE;
+RESET SLAVE ALL;
+connection default;
+*** Stopping to-be-provisioned server
+*** Removing old datadir for provisioned server
+connection server2;
+*** Doing backup...
+BACKUP SERVER TO '$datadir_1';
+*** Provision a new slave from the backup
+connection default;
+# restart: --skip-slave-start
+CHANGE MASTER TO
+master_ssl_verify_server_cert=0,
+master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root',
+master_use_gtid= Slave_pos;
+START SLAVE;
+connection server2;
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (42);
+include/save_master_gtid.inc
+connection default;
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 ORDER BY a;
+a
+42
+STOP SLAVE;
+RESET SLAVE ALL;
+connection default;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2, t3;
+connection server2;
+DROP PROCEDURE gen_load;
+DROP TABLE t1, t2, t3;

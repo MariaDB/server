@@ -1,0 +1,53 @@
+#
+# MDEV-39092 BACKUP SERVER of ENGINE=Aria
+#
+CREATE DATABASE a;
+CREATE TABLE a.t1 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+CREATE TABLE a.t2 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1 PAGE_CHECKSUM=1;
+INSERT INTO a.t1 VALUES (1);
+INSERT INTO a.t2 VALUES (2);
+connect backup,localhost,root;
+SET DEBUG_SYNC='aria_backup_header SIGNAL header WAIT_FOR opened';
+SET DEBUG_SYNC='aria_backup_header_locked SIGNAL locked WAIT_FOR go';
+BACKUP SERVER TO 'MYSQLTEST_VARDIR/bk';
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR header';
+SELECT * FROM a.t1;
+a
+1
+SET DEBUG_SYNC='now SIGNAL opened';
+SET DEBUG_SYNC='now WAIT_FOR locked';
+# The open of a.t2 waits for THR_LOCK_maria.
+connect open_t2,localhost,root;
+SELECT * FROM a.t2;
+connection default;
+# The first write to the open a.t1 waits for SHARE::intern_lock.
+connect write_t1,localhost,root;
+INSERT INTO a.t1 VALUES (1);
+connection default;
+SET DEBUG_SYNC='now SIGNAL go';
+connection open_t2;
+a
+2
+disconnect open_t2;
+connection write_t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+disconnect write_t1;
+connection backup;
+disconnect backup;
+connection default;
+SET DEBUG_SYNC='RESET';
+INSERT INTO a.t1 VALUES (3);
+# restart: --datadir=MYSQLTEST_VARDIR/bk
+CHECK TABLE a.t1, a.t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+a.t1	check	status	OK
+a.t2	check	status	OK
+SELECT * FROM a.t1;
+a
+1
+SELECT * FROM a.t2;
+a
+2
+# restart
+DROP DATABASE a;

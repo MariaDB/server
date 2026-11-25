@@ -50,6 +50,7 @@
 #include "sql_alter.h"                         // Sql_cmd_alter_table*
 #include "sql_truncate.h"                      // Sql_cmd_truncate_table
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
+#include "sql_backup.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part.
 #include "sql_handler.h"                       // Sql_cmd_handler_*
 #include "sql_signal.h"
@@ -223,6 +224,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 {
 // Master_info_file, enum_master_use_gtid, std::optional
 #include "rpl_master_info_file.h"
+#include "sql_backup.h"
 }
 
 %union {
@@ -397,6 +399,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
     Item *expr;
     LEX_CSTRING expr_str;
   } expr_and_query_str;
+  enum Sql_cmd_backup::enum_binlog_option backup_binlog_option;
 }
 
 %{
@@ -1028,6 +1031,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MESSAGE_TEXT_SYM              /* SQL-2003-N */
 %token  <kwd>  MICROSECOND_SYM               /* MYSQL-FUNC */
 %token  <kwd>  MIGRATE_SYM
+%token  <kwd>  MINIMAL_SYM
 %token  <kwd>  MINUTE_SYM                    /* SQL-2003-R */
 %token  <kwd>  MINVALUE_SYM
 %token  <kwd>  MIN_ROWS
@@ -1569,6 +1573,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         create_or_replace
         opt_if_not_exists
         opt_if_exists
+
+%type <backup_binlog_option> backup_binlog_option
 
 /*
   Bit field of MYSQL_START_TRANS_OPT_* flags.
@@ -15864,6 +15870,67 @@ backup_statements:
 	    /* Table list is empty for unlock */
             Lex->sql_command= SQLCOM_BACKUP_LOCK;
           }
+        | SERVER_SYM TO_SYM TEXT_STRING_sys
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3, 1);
+          }
+	  opt_backup_options
+	  { }
+        | SERVER_SYM WITH TEXT_STRING_sys
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup(1, $3);
+          }
+	  opt_backup_options
+	  { }
+        ;
+
+opt_backup_options:
+          /* empty */
+	  { }
+        | OPTIONS_SYM backup_options
+	  { }
+        ;
+
+backup_options:
+          backup_option
+	  { }
+        | backup_options ',' backup_option
+	  { }
+        ;
+
+backup_option:
+          BINLOG_SYM '=' backup_binlog_option
+          {
+	    if ($3 != Sql_cmd_backup::BINLOG_NONE &&
+	        !opt_binlog_engine_hton)
+            {
+              my_error(ER_REQUIRES_BINLOG_ENGINE, MYF(0),
+	               "non-default BINLOG backup option");
+              MYSQL_YYABORT;
+	    }
+	    static_cast<Sql_cmd_backup *>(Lex->m_sql_cmd)->binlog_option($3);
+	  }
+        | CONCURRENT '=' ulonglong_num
+        {
+	  static_cast<Sql_cmd_backup *>(Lex->m_sql_cmd)->concurrent(int($3));
+          if ($3 < 1 || $3 > 256)
+          {
+            my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "CONCURRENT",
+                     "BACKUP SERVER");
+            MYSQL_YYABORT;
+          }
+        }
+        ;
+
+backup_binlog_option:
+          FULL
+          { $$ = Sql_cmd_backup::BINLOG_FULL; }
+        | MINIMAL_SYM
+          { $$ = Sql_cmd_backup::BINLOG_MINIMAL; }
+        | NONE_SYM
+          { $$ = Sql_cmd_backup::BINLOG_NONE; }
         ;
 
 opt_delete_gtid_domain:
@@ -17357,6 +17424,7 @@ keyword_func_sp_var_and_label:
 %ifdef MARIADB
         | MINUS_ORACLE_SYM
 %endif
+        | MINIMAL_SYM
         | MINVALUE_SYM
         | MIN_ROWS
         | MODIFY_SYM

@@ -1,0 +1,31 @@
+--source include/have_aria.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-39092 BACKUP SERVER of ENGINE=Aria
+--echo #
+
+# A small page cache makes the DELETE evict and write data pages while the
+# backup runs. The backup must contain all Aria log up to the newest LSN
+# that occurs in the copied data files.
+CREATE TABLE t (a INT PRIMARY KEY, b VARCHAR(1000)) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t SELECT seq, REPEAT('x', 900) FROM seq_1_to_50000;
+SELECT GET_LOCK('d', 0);
+--connect con1,localhost,root
+--send DELETE FROM t WHERE IF(a = 25000, GET_LOCK('d', 300), 1)
+--connection default
+--let $wait_condition= SELECT COUNT(*) FROM information_schema.processlist WHERE state = 'User lock'
+--source include/wait_condition.inc
+SELECT RELEASE_LOCK('d');
+--evalp BACKUP SERVER TO '$MYSQLTEST_VARDIR/bk'
+--connection con1
+--reap
+--disconnect con1
+--connection default
+--let $restart_parameters= --datadir=$MYSQLTEST_VARDIR/bk
+--source include/restart_mysqld.inc
+SELECT COUNT(*) IN (0, 50000) FROM t;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $MYSQLTEST_VARDIR/bk
+DROP TABLE t;

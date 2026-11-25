@@ -80,7 +80,7 @@ static bool prealloc_thread_end= false;
 mysql_mutex_t purge_binlog_mutex;
 
 /** The earliest binlog tablespace file. Used in binlog purge. */
-static uint64_t earliest_binlog_file_no;
+static uint64_t earliest_binlog_file_no= IBB_NONE;
 
 /**
   The total space in use by binlog tablespace files. Maintained in-memory to
@@ -2882,6 +2882,8 @@ reset_oob_context(binlog_oob_context *c)
 static inline void
 free_oob_context(binlog_oob_context *c)
 {
+  if (UNIV_UNLIKELY(!c))
+    return;
   ut_ad(!c->pending_refcount /* Should not have pending until free */);
   reset_oob_context(c);  /* Defensive programming, should be redundant */
   ut_free(c->stmt_start_point);
@@ -4403,7 +4405,7 @@ innodb_binlog_trx(trx_t *trx, mtr_t *mtr)
   const rpl_gtid *gtid;
   uint64_t file_no, pos;
 
-  if (!trx->mysql_thd)
+  if (!trx->mysql_thd || UNIV_UNLIKELY(recv_sys.rpo != 0))
     return nullptr;
   innodb_binlog_status(&file_no, &pos);
   binlog_get_cache(trx->mysql_thd, file_no, pos, &cache, &binlog_info, &gtid);
@@ -4448,6 +4450,8 @@ innobase_binlog_write_direct_ordered(IO_CACHE *cache,
                              const rpl_gtid *gtid)
 {
   mtr_t mtr{nullptr};
+  if (UNIV_UNLIKELY(recv_sys.rpo != 0))
+    return false;
   ut_ad(binlog_info->engine_ptr2 == nullptr);
   innodb_binlog_status(&binlog_info->out_file_no, &binlog_info->out_offset);
   mtr.start();
@@ -5082,4 +5086,36 @@ binlog_recover_end(lsn_t lsn) noexcept
 {
   if (recover_obj.inited)
     recover_obj.end_actions(true);
+}
+
+
+/**
+   Determine the starting binlog file to include in a backup.
+   Can be the first existing binlog file, or for a minimal binlog backup
+   just the active file and any prior files still referened from it.
+*/
+uint64_t
+ibb_get_backup_start(bool minimal)
+{
+  mysql_mutex_assert_owner(&purge_binlog_mutex);
+  uint64_t file_no= earliest_binlog_file_no;
+
+  if (minimal)
+  {
+    /*
+      Only back up a minimal set of binlog files that are in active use.
+      (This is the same set of files that are protected from user
+      PURGE BINARY LOGS.)
+    */
+    LF_PINS *lf_pins= lf_hash_get_pins(&ibb_file_hash.hash);
+    mysql_mutex_lock(&active_binlog_mutex);
+    handler_binlog_purge_info purge_info{active_binlog_file_no, nullptr, 0,
+      nullptr, 0, false, false, false, {0}};
+    mysql_mutex_unlock(&active_binlog_mutex);
+    purge_adjust_limit_file_no(&purge_info, lf_pins);
+    lf_hash_put_pins(lf_pins);
+    file_no= purge_info.limit_file_no;
+  }
+
+  return file_no;
 }

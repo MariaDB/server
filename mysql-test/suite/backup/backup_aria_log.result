@@ -1,0 +1,11 @@
+CREATE TABLE at1 (id INT PRIMARY KEY, txt VARCHAR(64), KEY(txt))
+ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO at1 SELECT seq, MD5(seq) FROM seq_1_to_1000;
+BACKUP SERVER TO '$target_directory';
+# logdir
+aria_log.00000001
+aria_log_control
+# backup
+aria_log.00000001
+aria_log_control
+DROP TABLE at1;
