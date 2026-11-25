@@ -46,6 +46,14 @@ WITH RECURSIVE cte AS (
 SELECT * FROM cte;
 
 
+--echo # MDEV-42443 CYCLE columns may appear in any order
+WITH RECURSIVE cte (depth, a, b) AS (
+  SELECT 0, 1, 10
+  UNION ALL
+  SELECT depth + 1, a, b FROM cte WHERE depth < 2
+) CYCLE b, a RESTRICT
+SELECT * FROM cte;
+
 --echo #
 --echo # MDEV-20632 case (with fixed syntax)
 --echo #
