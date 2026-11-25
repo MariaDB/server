@@ -127,6 +127,16 @@ class XMLSchema_type;
 class XMLSchema_item: public Sql_alloc
 {
 public:
+  /*
+    No specific meaning of the 2048 value for that limit,
+    though evedences i found were that XML Schema being that deep is
+    incomprehensible by a human, and either a bad design
+    or malicious. Nobody came out with any usecase.
+    So it's safer to just set that limit to prevent
+    stack and other memory overruns.
+  */
+  static const int MAX_SCHEMA_NESTING_DEPTH= 2048;
+
   XMLSchema_item(const XMLSchema_item &)= delete;
 
   void operator=(const XMLSchema_item &) = delete;
@@ -157,10 +167,17 @@ public:
 
 
   /*
-    Check for bad circular references.
+    Check for bad circular references, and for the structure
+    nesting being too deep.
     TODO: add check for the 'final' type extensions.
   */
-  virtual bool check_type() { return FALSE; }
+
+  enum check_type_result{
+    CT_OK,
+    CT_CIRCULAR,  /* illegal circular references found. */
+    CT_DEPTH      /* strucutres nested too deeply. */
+  };
+  virtual int check_type(int nesting_depth) { return CT_OK; }
 
   /* Validation of an XML. */
 
@@ -1433,9 +1450,9 @@ public:
   }
   bool leave(MY_XML_VALIDATION_DATA *st,
             const char *attr, size_t len) override;
-  bool check_type() override
+  int check_type(int nesting_depth) override
   {
-    return m_compositor->check_type();
+    return m_compositor->check_type(nesting_depth);
   }
   /*
     Unwinds the validation state of the type: empties the m_c_stack
@@ -1673,14 +1690,17 @@ public:
             const char *attr, size_t len) override;
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
-  bool check_type() override
+  int check_type(int nesting_depth) override
   {
-    bool res;
+    int res;
     if (m_in_check_type)
-      return TRUE;   /* circular restrictions are not allowed. */
+      return CT_CIRCULAR;   /* circular restrictions are not allowed. */
+
+    if (nesting_depth++ >= MAX_SCHEMA_NESTING_DEPTH)
+      return CT_DEPTH;      /* long chain of derived types. */
 
     m_in_check_type= true;
-    res= m_base_type->check_type();
+    res= m_base_type->check_type(nesting_depth);
     m_in_check_type= false;
     return res;
   }
@@ -1764,13 +1784,16 @@ public:
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
 
-  bool check_type() override
+  int check_type(int nesting_depth) override
   {
-    bool res;
+    int res;
     if (m_in_check_type) /* circular extensions not allowed. */
-      return TRUE;
+      return CT_CIRCULAR;
+    if (nesting_depth++ >= MAX_SCHEMA_NESTING_DEPTH)
+      return CT_DEPTH;      /* long chain of derived types. */
+
     m_in_check_type= true;
-    res= m_base_type->check_type();
+    res= m_base_type->check_type(nesting_depth);
     m_in_check_type= false;
     return res;
   }
@@ -1849,7 +1872,10 @@ public:
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
   bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
-  bool check_type() override { return m_nested->check_type(); }
+  int check_type(int nesting_depth) override
+  {
+    return m_nested->check_type(nesting_depth);
+  }
   bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
   {
     return m_nested->validate_prepare(st);
@@ -1913,16 +1939,22 @@ public:
 
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
-  bool check_type() override
+  int check_type(int nesting_depth) override
   {
     List_iterator_fast<XMLSchema_tag> it(m_tags_list);
     XMLSchema_tag *cur;
+
+    if (nesting_depth++ >= MAX_SCHEMA_NESTING_DEPTH)
+      return CT_DEPTH;
+
     while ((cur= it++))
     {
-      if(cur->check_type())
-        return TRUE;
+      int res;
+
+      if((res= cur->check_type(nesting_depth)))
+        return res;
     }
-    return FALSE;
+    return CT_OK;
   }
   bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
   {
@@ -2223,15 +2255,22 @@ public:
   bool enter_tag(MY_XML_VALIDATION_DATA *st,
                  const char *attr, size_t len) override;
   bool leave(MY_XML_VALIDATION_DATA *st, const char *attr, size_t len) override;
-  bool check_type() override
+  int check_type(int nesting_depth) override
   {
-    bool res;
+    int res;
 
     if (m_in_check_type)
-      return TRUE;   /* circular groups are not allowed. */
+      return CT_CIRCULAR;   /* circular groups are not allowed. */
+
+    /*
+      Every group level is a few more frames in the validation recursion
+      (group_reference -> group_def -> compositor), so it's counted too.
+    */
+    if (nesting_depth++ >= MAX_SCHEMA_NESTING_DEPTH)
+      return CT_DEPTH;      /* long chain of nested groups. */
 
     m_in_check_type= true;
-    res= m_compositor->check_type();
+    res= m_compositor->check_type(nesting_depth);
     m_in_check_type= false;
     return res;
   }
@@ -2354,7 +2393,10 @@ retry_group:
     m_maxOccurs.copy_int_attribute(&c->m_maxOccurs);
     return c;
   }
-  bool check_type() override{ return m_group->check_type(); }
+  int check_type(int nesting_depth) override
+  {
+    return m_group->check_type(nesting_depth);
+  }
   bool is_emptyable() override
   {
     return m_group->is_emptyable() || m_minOccurs.m_value_int == 0;
@@ -2583,7 +2625,7 @@ public:
 
   XMLSchema_type *find_simple_type(const char *name, size_t len) const;
   XMLSchema_type *find_complex_type(const char *name, size_t len) const;
-  bool check_types(LEX_CSTRING *tag_name, LEX_CSTRING *bad_type);
+  int check_types(LEX_CSTRING *tag_name, LEX_CSTRING *bad_type);
   void reset_types();
 };
 
@@ -3773,19 +3815,21 @@ XMLSchema_type *XMLSchema_schema::find_complex_type(
 }
 
 
-bool XMLSchema_schema::check_types(LEX_CSTRING *tag_name,
+int XMLSchema_schema::check_types(LEX_CSTRING *tag_name,
                                    LEX_CSTRING *bad_tag)
 {
+  int res;
+
   {
     XMLSchema_group_def *grp;
 
     for(grp= m_global_element_groups; grp; grp= grp->m_next_group)
     {
-      if (grp->check_type())
+      if ((res= grp->check_type(0)))
       {
         *tag_name= xs_group.m_w;
         grp->get_group_name(bad_tag);
-        return TRUE;
+        return res;
       }
     }
   }
@@ -3794,25 +3838,42 @@ bool XMLSchema_schema::check_types(LEX_CSTRING *tag_name,
 
   for(t= m_global_complexTypes; t; t= t->m_next_type)
   {
-    if (t->check_type())
+    if ((res= t->check_type(0)))
     {
       t->get_type_name(bad_tag);
       *tag_name= xs_complexType.m_w;
-      return TRUE;
+      return res;
     }
   }
 
   for(t= m_global_simpleTypes; t; t= t->m_next_type)
   {
-    if (t->check_type())
+    if ((res= t->check_type(0)))
     {
       t->get_type_name(bad_tag);
       *tag_name= xs_simpleType.m_w;
-      return TRUE;
+      return res;
     }
   }
 
-  return FALSE;
+  /*
+    Anonymous types can't produce typical errors
+    as they can't be recursively invoked.
+    But they still checked against being too deep
+    to prevent stack overfows.
+  */
+  for(t= m_anonymous_types; t; t= t->m_next_type)
+  {
+    if ((res= t->check_type(0)))
+    {
+      *tag_name= xs_complexType.m_w;
+      bad_tag->str= "(anonymous)";
+      bad_tag->length= sizeof("(anonymous)") - 1;
+      return res;
+    }
+  }
+
+  return CT_OK;
 }
 
 
@@ -4081,12 +4142,22 @@ static int schema_parse(THD *thd, const String *xml,
       }
     }
 
-    if (user_data->schema->check_types(&bad_tag, &bad_name))
+    if ((rc= user_data->schema->check_types(&bad_tag, &bad_name)))
     {
-      my_printf_error(ER_UNKNOWN_ERROR,
-          "Invalid XML schema, %.*s %.*s has bad circular references.", MYF(0),
-          (int) bad_tag.length, bad_tag.str,
-          (int) bad_name.length, bad_name.str);
+      if (rc == XMLSchema_item::CT_CIRCULAR)
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+            "Invalid XML schema, %.*s %.*s has bad circular references.", MYF(0),
+            (int) bad_tag.length, bad_tag.str,
+            (int) bad_name.length, bad_name.str);
+      }
+      else /* rc == XMLSchema_item::CT_DEPTH */
+      {
+        my_printf_error(ER_UNKNOWN_ERROR,
+            "Invalid XML schema, %.*s %.*s is too deep.", MYF(0),
+            (int) bad_tag.length, bad_tag.str,
+            (int) bad_name.length, bad_name.str);
+      }
       rc= 1;
       goto exit;
     }

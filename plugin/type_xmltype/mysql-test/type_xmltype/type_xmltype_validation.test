@@ -2943,3 +2943,167 @@ insert into t1 values
 select name, doc, XMLISVALID(doc, @s), CAST(doc AS XMLTYPE)  from t1;
 drop table t1;
 
+--echo
+--echo MDEV-42390 XMLISVALID: stack overflow in XMLSchema_all::check_type / XMLSchema_sequence::validate_tag_name with deeply nested xs:sequence.
+--echo
+
+SET @n= 200000;
+--error ER_UNKNOWN_ERROR
+SELECT XMLISVALID('<r/>',
+    CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+              <xs:complexType name="t">',
+              REPEAT('<xs:sequence>', @n), REPEAT('</xs:sequence>', @n),
+              '</xs:complexType>
+            </xs:schema>'));
+
+
+# 1000 nested levels per group but 4 chained groups already recurse 4000 levels deep
+
+DELIMITER //;
+CREATE PROCEDURE p_group_chain(k INT, n INT)
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @g= '';
+  WHILE i <= n DO
+    SET @g= CONCAT(@g, '<xs:group name="g', i, '">', REPEAT('<xs:sequence>', k),
+      IF(i < n, CONCAT('<xs:group ref="g', i+1, '"/>'),
+                '<xs:element name="a" type="xs:string"/>'),
+      REPEAT('</xs:sequence>', k), '</xs:group>');
+    SET i= i+1;
+  END WHILE;
+  SET @s= CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                 '<xs:element name="r" type="t"/>',
+                 '<xs:complexType name="t"><xs:group ref="g1"/></xs:complexType>',
+                 @g, '</xs:schema>');
+  SELECT XMLISVALID('<r><a>x</a></r>', @s);
+END//
+DELIMITER ;//
+
+--error ER_UNKNOWN_ERROR
+CALL p_group_chain(1000, 4);
+DROP PROCEDURE p_group_chain;
+
+--echo
+--echo MDEV-42390 XMLISVALID: deeply nested xs:sequence in an anonymous complexType
+--echo
+
+SET @n= 200000;
+--error ER_UNKNOWN_ERROR
+SELECT XMLISVALID('<r><a>x</a></r>',
+    CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+              <xs:element name="r"><xs:complexType>',
+              REPEAT('<xs:sequence>', @n),
+              '<xs:element name="a" type="xs:string"/>',
+              REPEAT('</xs:sequence>', @n),
+              '</xs:complexType></xs:element>
+            </xs:schema>'));
+
+--echo
+--echo MDEV-42390 XMLISVALID: stack overflow in validate_tag_name, anonymous type plus chained groups
+--echo
+
+# Each nesting level is below XMLSchema_item::MAX_SCHEMA_NESTING_DEPTH
+# (2000 < 2048 for the anonymous type, 1000 per group), but validation
+# recurses through all of them, and the groups are counted as well.
+
+DELIMITER //;
+CREATE PROCEDURE p_anon_group_chain(k INT, n INT, m INT)
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @g= '';
+  WHILE i <= n DO
+    SET @g= CONCAT(@g, '<xs:group name="g', i, '">', REPEAT('<xs:sequence>', k),
+      IF(i < n, CONCAT('<xs:group ref="g', i+1, '"/>'),
+                '<xs:element name="a" type="xs:string"/>'),
+      REPEAT('</xs:sequence>', k), '</xs:group>');
+    SET i= i+1;
+  END WHILE;
+  SET @s= CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                 '<xs:element name="r"><xs:complexType>',
+                 REPEAT('<xs:sequence>', m), '<xs:group ref="g1"/>',
+                 REPEAT('</xs:sequence>', m),
+                 '</xs:complexType></xs:element>',
+                 @g, '</xs:schema>');
+  SELECT XMLISVALID('<r><a>x</a></r>', @s);
+END//
+DELIMITER ;//
+
+--error ER_UNKNOWN_ERROR
+CALL p_anon_group_chain(1000, 2, 1000);
+
+--error ER_UNKNOWN_ERROR
+CALL p_anon_group_chain(1000, 3, 2000);
+DROP PROCEDURE p_anon_group_chain;
+
+# Chains of types derived by xs:restriction / xs:extension nest as deep
+# as the compositors do, so they have to be limited the same way.
+
+DELIMITER //;
+CREATE PROCEDURE p_type_chain(n INT, ext INT)
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @t= '';
+  WHILE i <= n DO
+    IF ext THEN
+      SET @t= CONCAT(@t, '<xs:complexType name="t', i, '"><xs:simpleContent>',
+        '<xs:extension base="', IF(i = 1, 'xs:string', CONCAT('t', i-1)),
+        '"/></xs:simpleContent></xs:complexType>');
+    ELSE
+      SET @t= CONCAT(@t, '<xs:simpleType name="t', i, '"><xs:restriction base="',
+        IF(i = 1, 'xs:string', CONCAT('t', i-1)), '"/></xs:simpleType>');
+    END IF;
+    SET i= i+1;
+  END WHILE;
+  SET @s= CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                 @t, '<xs:element name="r" type="t', n, '"/></xs:schema>');
+  SELECT XMLISVALID('<r>x</r>', @s);
+END//
+DELIMITER ;//
+
+--echo # chains below the limit are still fine
+CALL p_type_chain(100, 0);
+CALL p_type_chain(100, 1);
+
+--error ER_UNKNOWN_ERROR
+CALL p_type_chain(3000, 0);
+--error ER_UNKNOWN_ERROR
+CALL p_type_chain(3000, 1);
+DROP PROCEDURE p_type_chain;
+
+--echo
+--echo MDEV-42390 XMLISVALID: a chain of groups just below the nesting limit
+--echo
+
+# Groups count in the nesting depth together with the compositors inside,
+# so the longest accepted chain of groups with one xs:sequence each is
+# MAX_SCHEMA_NESTING_DEPTH/2. It must validate without overflowing the stack
+# with the default thread_stack.
+
+DELIMITER //;
+CREATE PROCEDURE p_group_chain(n INT, doc VARCHAR(100))
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @g= '';
+  WHILE i <= n DO
+    SET @g= CONCAT(@g, '<xs:group name="g', i, '"><xs:sequence>',
+      IF(i < n, CONCAT('<xs:group ref="g', i+1, '"/>'),
+                '<xs:element name="a" type="xs:string"/>'),
+      '</xs:sequence></xs:group>');
+    SET i= i+1;
+  END WHILE;
+  SET @s= CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                 '<xs:element name="r"><xs:complexType><xs:group ref="g1"/>',
+                 '</xs:complexType></xs:element>', @g, '</xs:schema>');
+  SELECT n, XMLISVALID(doc, @s);
+END//
+DELIMITER ;//
+
+CALL p_group_chain(1000, '<r><a>x</a></r>');
+CALL p_group_chain(1000, '<r><b>x</b></r>');
+CALL p_group_chain(1023, '<r><a>x</a></r>');
+CALL p_group_chain(1023, '<r><b>x</b></r>');
+--error ER_UNKNOWN_ERROR
+CALL p_group_chain(1025, '<r><a>x</a></r>');
+--error ER_UNKNOWN_ERROR
+CALL p_group_chain(2047, '<r><a>x</a></r>');
+DROP PROCEDURE p_group_chain;
