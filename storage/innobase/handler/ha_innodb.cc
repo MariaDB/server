@@ -3821,7 +3821,7 @@ static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size,
 
 static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path to extended buffer pool file",
+  "Directory for the extended buffer pool file (default: the data directory)",
   nullptr, nullptr, nullptr);
 
 #ifdef UNIV_DEBUG

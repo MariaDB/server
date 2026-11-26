@@ -966,8 +966,6 @@ os_file_create_simple_func(
 	if (read_only) {
 	} else if (create_mode == OS_FILE_CREATE) {
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
-	} else if (create_mode == OS_FILE_OPEN_OR_CREATE) {
-		create_flag = O_RDWR | O_CREAT | O_CLOEXEC;
 	} else {
 		ut_ad(create_mode == OS_FILE_OPEN);
 		if (access_type != OS_FILE_READ_ONLY) {
@@ -1119,8 +1117,6 @@ os_file_create_func(
 	} else if (create_mode == OS_FILE_CREATE
 		   || create_mode == OS_FILE_CREATE_SILENT) {
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
-	} else if (create_mode == OS_FILE_OPEN_OR_CREATE) {
-		create_flag= O_RDWR | O_CREAT | O_CLOEXEC;
 	} else {
 		ut_ad(create_mode == OS_FILE_OPEN
 		      || create_mode == OS_FILE_OPEN_SILENT
@@ -1287,8 +1283,6 @@ os_file_create_simple_no_error_handling_func(
 	if (read_only) {
 	} else if (create_mode == OS_FILE_CREATE) {
 		create_flag = O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC;
-	} else if (create_mode == OS_FILE_OPEN_OR_CREATE) {
-		create_flag = O_RDWR | O_CREAT  | O_CLOEXEC;
 	} else {
 		ut_ad(create_mode == OS_FILE_OPEN);
 		if (access_type != OS_FILE_READ_ONLY) {
@@ -1909,8 +1903,6 @@ os_file_create_simple_func(
 
 	if (read_only || create_mode == OS_FILE_OPEN) {
 		create_flag = OPEN_EXISTING;
-	} else if (create_mode == OS_FILE_OPEN_OR_CREATE) {
-		create_flag = OPEN_ALWAYS;
 	} else {
 		ut_ad(create_mode == OS_FILE_CREATE);
 		create_flag = CREATE_NEW;
@@ -2036,9 +2028,6 @@ os_file_create_func(
 	case OS_FILE_CREATE:
 		create_flag = CREATE_NEW;
 		break;
-	case OS_FILE_OPEN_OR_CREATE:
-		create_flag= OPEN_ALWAYS;
-		break;
 	default:
 		ut_ad(create_mode == OS_FILE_OPEN
 		      || create_mode == OS_FILE_OPEN_SILENT
@@ -2143,8 +2132,6 @@ os_file_create_simple_no_error_handling_func(
 	} else {
 		if (create_mode == OS_FILE_CREATE) {
 			create_flag = CREATE_NEW;
-		} else if (create_mode == OS_FILE_OPEN_OR_CREATE) {
-			create_flag = OPEN_ALWAYS;
 		} else {
 			ut_ad(create_mode == OS_FILE_OPEN);
 		}

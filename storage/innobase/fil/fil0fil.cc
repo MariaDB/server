@@ -1290,14 +1290,12 @@ void fil_system_t::close() noexcept
   {
     if (ext_bp_file != OS_FILE_CLOSED)
     {
-      int ret= os_file_close(ext_bp_file);
-      ut_a(ret);
+      /* The file was created with MY_TEMPORARY, so closing it removes it. */
+      int res= mysql_file_close(
+          IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
+          MYF(MY_WME));
+      ut_a(res != -1);
       ext_bp_file= OS_FILE_CLOSED;
-      char path[FN_REFLEN];
-      snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
-               ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
-               ext_bp_file_name);
-      os_file_delete(innodb_data_file_key, path);
     }
     spaces.free();
     mysql_mutex_destroy(&mutex);
@@ -2930,35 +2928,26 @@ func_exit:
 
 bool fil_system_t::create_ext_file() noexcept
 {
-  char path[FN_REFLEN];
-  snprintf(path, sizeof(path), "%s" FN_ROOTDIR "%s",
-           ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir,
-           ext_bp_file_name);
-  bool ret;
-  ext_bp_file=
-      os_file_create(innodb_data_file_key, path, OS_FILE_OPEN_OR_CREATE,
-                     OS_DATA_FILE, false, &ret);
-  if (!ret)
+  const char *dir= ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir;
+  /* The file is created as a temporary file, so that the operating system
+  removes it when it is closed or the server exits, and no stale file is
+  left behind after a crash. */
+  ext_bp_file= pfs_create_temp_file(dir, "/Extended buffer pool file",
+                                    "ext_buf_", O_BINARY);
+  if (ext_bp_file == OS_FILE_CLOSED)
   {
-    sql_print_error("Cannot open/create extended buffer pool file '%s'", path);
-    /* Report OS error in error log */
-    std::ignore= os_file_get_last_error(true, false);
+    sql_print_error("InnoDB: Cannot create the extended buffer pool file"
+                    " in '%s'", dir);
     return false;
   }
-  ut_ad(ext_bp_file != OS_FILE_CLOSED);
-#ifndef _WIN32 /* On Microsoft Windows, mandatory locking is used */
-  if (!my_disable_locking && os_file_lock(ext_bp_file.m_file, path))
+  if (!os_file_set_size(ext_bp_file_name, ext_bp_file, ext_bp_size))
   {
-    os_file_close_func(ext_bp_file.m_file);
-    return false;
-  }
-#endif
-  ret= os_file_set_size(path, ext_bp_file.m_file, ext_bp_size);
-  if (!ret)
-  {
-    os_file_close_func(ext_bp_file.m_file);
-    sql_print_error("Cannot set extended buffer pool file '%s' size to %zum",
-                    path, ext_bp_size_non_atomic);
+    sql_print_error("InnoDB: Cannot set the extended buffer pool file"
+                    " size to %zu bytes", ext_bp_size_non_atomic);
+    std::ignore= mysql_file_close(
+        IF_WIN(my_win_handle2File((os_file_t) ext_bp_file), ext_bp_file),
+        MYF(MY_WME));
+    ext_bp_file= OS_FILE_CLOSED;
     return false;
   }
   return true;
@@ -3512,3 +3501,43 @@ fil_space_t *fil_space_t::prev_in_unflushed_spaces() noexcept
 }
 
 #endif
+
+/** Create a temporary file, and if UNIV_PFS_IO is defined, register the file
+descriptor with Performance Schema. The file is removed when it is closed.
+@param path    directory for the temporary file, or nullptr for tmpdir
+@param label   Performance Schema label of the file, starting with '/'
+@param prefix  file name prefix
+@param mode    flags for create_temp_file()
+@return file descriptor
+@retval OS_FILE_CLOSED on error */
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode) noexcept
+{
+  if (!path)
+    path= mysql_tmpdir;
+#ifdef UNIV_PFS_IO
+  /* This temp file open does not go through normal
+  file APIs, add instrumentation to register with
+  performance schema */
+  struct PSI_file_locker *locker;
+  PSI_file_locker_state state;
+  char *name=
+    static_cast<char*>(ut_malloc_nokey(strlen(path) + strlen(label) + 1));
+  strcpy(name, path);
+  strcat(name, label);
+
+  register_pfs_file_open_begin(&state, locker, innodb_temp_file_key,
+                               PSI_FILE_CREATE, name, __FILE__, __LINE__);
+#endif
+  DBUG_ASSERT(strlen(path) + 2 <= FN_REFLEN);
+  char filename[FN_REFLEN];
+  File f= create_temp_file(filename, path, prefix, mode,
+                           MYF(MY_WME | MY_TEMPORARY));
+  pfs_os_file_t fd= IF_WIN((os_file_t) my_get_osfhandle(f), f);
+
+#ifdef UNIV_PFS_IO
+  register_pfs_file_open_end(locker, fd, (fd == OS_FILE_CLOSED) ? NULL : &fd);
+  ut_free(name);
+#endif
+  return fd;
+}
