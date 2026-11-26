@@ -198,4 +198,70 @@ source include/show_binlog_events.inc;
 --echo
 connection master;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-40860 INSERT/REPLACE ... SELECT into temporary table may cause
+--echo # silent master/slave divergence
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,101),(2,202),(3,303);
+
+--echo # REPLACE ... SELECT is unsafe, so it is not binlogged. tmp is then not
+--echo # up to date in the binlog, and the INSERT reading it must be row logged.
+CREATE TEMPORARY TABLE tmp (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO tmp VALUES (1,10),(2,20);
+REPLACE INTO tmp SELECT id, v + 1 FROM t2;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+INSERT INTO t1 SELECT * FROM tmp;
+source include/show_binlog_events.inc;
+DROP TEMPORARY TABLE tmp;
+--sync_slave_with_master
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+connection master;
+DELETE FROM t1;
+--echo # INSERT IGNORE ... SELECT
+CREATE TEMPORARY TABLE tmp (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO tmp VALUES (1,10),(2,20);
+INSERT IGNORE INTO tmp SELECT id, v + 1 FROM t2;
+INSERT INTO t1 SELECT * FROM tmp;
+DROP TEMPORARY TABLE tmp;
+--sync_slave_with_master
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+connection master;
+DELETE FROM t1;
+--echo # INSERT ... SELECT ... ON DUPLICATE KEY UPDATE
+CREATE TEMPORARY TABLE tmp (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO tmp VALUES (1,10),(2,20);
+INSERT INTO tmp SELECT id, v + 1 FROM t2 ON DUPLICATE KEY UPDATE v= VALUES(v);
+INSERT INTO t1 SELECT * FROM tmp;
+DROP TEMPORARY TABLE tmp;
+--sync_slave_with_master
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+connection master;
+DELETE FROM t1;
+--echo # INSERT IGNORE ... SELECT that changes nothing keeps tmp up to date,
+--echo # so the INSERT reading it is still logged as a statement.
+CREATE TEMPORARY TABLE tmp (id INT PRIMARY KEY, v INT) ENGINE=InnoDB;
+INSERT INTO tmp VALUES (1,10),(2,20),(3,30);
+INSERT IGNORE INTO tmp SELECT id, v + 1 FROM t2;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+INSERT INTO t1 SELECT * FROM tmp;
+source include/show_binlog_events.inc;
+DROP TEMPORARY TABLE tmp;
+--sync_slave_with_master
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+connection master;
+DROP TABLE t1, t2;
 --source include/rpl_end.inc

@@ -4732,7 +4732,7 @@ bool select_insert::prepare_eof(bool in_create_table)
     if (binary_logged)
       table->s->table_creation_was_logged= 1;
   }
-  else if (changed)
+  if (changed && !binary_logged)
     table->mark_as_not_binlogged();
 
   table->file->ha_release_auto_increment();
