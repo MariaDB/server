@@ -130,11 +130,9 @@ enum os_file_create_t {
   OS_FILE_OPEN_RETRY,
   /** open a raw block device */
   OS_FILE_OPEN_RAW,
-  /** open file or create if it doesn't exist */
-  OS_FILE_OPEN_OR_CREATE,
 
   /** do not display diagnostic messages */
-  OS_FILE_ON_ERROR_SILENT= 8,
+  OS_FILE_ON_ERROR_SILENT= 4,
 
   OS_FILE_CREATE_SILENT= OS_FILE_CREATE | OS_FILE_ON_ERROR_SILENT,
   OS_FILE_OPEN_SILENT= OS_FILE_OPEN | OS_FILE_ON_ERROR_SILENT,

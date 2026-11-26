@@ -1922,4 +1922,15 @@ bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
 
 /* External buffer pool file name */
 extern const char *ext_bp_file_name;
+
+/** Create a temporary file, and if UNIV_PFS_IO is defined, register the file
+descriptor with Performance Schema. The file is removed when it is closed.
+@param path    directory for the temporary file, or nullptr for tmpdir
+@param label   Performance Schema label of the file, starting with '/'
+@param prefix  file name prefix
+@param mode    flags for create_temp_file()
+@return file descriptor
+@retval OS_FILE_CLOSED on error */
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode) noexcept;
 #endif /* UNIV_INNOCHECKSUM */

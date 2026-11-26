@@ -4405,45 +4405,15 @@ void row_merge_drop_temp_indexes()
 }
 
 
-/** Create temporary merge files in the given parameter path, and if
+/** Create a temporary merge file in the given path, and if
 UNIV_PFS_IO is defined, register the file descriptor with Performance Schema.
 @param[in]	path	location for creating temporary merge files, or NULL
 @return File descriptor */
-static pfs_os_file_t row_merge_file_create_mode(const char *path, int mode)
+static pfs_os_file_t row_merge_file_create_mode(const char *path, int)
 {
-	if (!path) {
-		path = mysql_tmpdir;
-	}
-#ifdef UNIV_PFS_IO
-	/* This temp file open does not go through normal
-	file APIs, add instrumentation to register with
-	performance schema */
-	struct PSI_file_locker*	locker;
-	PSI_file_locker_state	state;
-	static const char label[] = "/Innodb Merge Temp File";
-	char* name = static_cast<char*>(
-		ut_malloc_nokey(strlen(path) + sizeof label));
-	strcpy(name, path);
-	strcat(name, label);
-
-	register_pfs_file_open_begin(
-		&state, locker, innodb_temp_file_key,
-		PSI_FILE_CREATE, path ? name : label, __FILE__, __LINE__);
-
-#endif
-	DBUG_ASSERT(strlen(path) + 2 <= FN_REFLEN);
-	char filename[FN_REFLEN];
-	File f = create_temp_file(filename, path, "ib",
-				  O_BINARY | O_SEQUENTIAL,
-				  MYF(MY_WME | MY_TEMPORARY));
-	pfs_os_file_t fd = IF_WIN((os_file_t)my_get_osfhandle(f), f);
-
-#ifdef UNIV_PFS_IO
-	register_pfs_file_open_end(locker, fd, 
-		(fd == OS_FILE_CLOSED)?NULL:&fd);
-	ut_free(name);
-#endif
-
+	pfs_os_file_t fd = pfs_create_temp_file(path,
+						"/Innodb Merge Temp File",
+						"ib", O_BINARY | O_SEQUENTIAL);
 	if (fd == OS_FILE_CLOSED) {
 		ib::error() << "Cannot create temporary merge file";
 	}

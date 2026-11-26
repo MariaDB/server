@@ -22,10 +22,6 @@ START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 --connection default
 
---let $DATADIR = `select @@datadir`
-# Set ext buffer pool file size and check it was created, check it's size
---list_files $DATADIR ext_buffer_pool
-
 --disable_query_log
 --error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
