@@ -161,4 +161,70 @@ i
 DROP PROCEDURE p1;
 DROP FUNCTION sp_returns_int;
 DROP FUNCTION sp_returns_row;
+#
+# MDEV-41151 SF erroneously caches an anchored return data type
+#
+CREATE TABLE t1 (a INT);
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a DETERMINISTIC RETURN 1;
+SELECT f1();
+f1()
+1
+ALTER TABLE t1 MODIFY a VARCHAR(10);
+CREATE TABLE t2 AS SELECT f1() AS c;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+# Narrowing and widening under PREPARE, metadata after each ALTER
+CREATE TABLE t1 (a VARCHAR(100));
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a DETERMINISTIC RETURN 'abc';
+PREPARE s FROM 'SELECT f1() AS c';
+EXECUTE s;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c	c	253	300	3	Y	0	0	192
+c
+abc
+ALTER TABLE t1 MODIFY a VARCHAR(5);
+EXECUTE s;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c	c	253	15	3	Y	0	0	192
+c
+abc
+ALTER TABLE t1 MODIFY a VARCHAR(200);
+EXECUTE s;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				c	c	253	600	3	Y	0	0	192
+c
+abc
+DROP FUNCTION f1;
+# The narrowed type is enforced
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a DETERMINISTIC RETURN REPEAT('x',50);
+ALTER TABLE t1 MODIFY a VARCHAR(100);
+PREPARE s FROM 'SELECT f1() AS c';
+EXECUTE s;
+c
+xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+ALTER TABLE t1 MODIFY a VARCHAR(5);
+EXECUTE s;
+ERROR 22001: Data too long for column 'c' at row 0
+DROP FUNCTION f1;
+DROP TABLE t1;
+# TEXT to VARCHAR(5)
+CREATE TABLE t1 (a TEXT);
+CREATE FUNCTION f1() RETURNS TYPE OF t1.a DETERMINISTIC RETURN 'abc';
+PREPARE s FROM 'SELECT f1() AS c';
+EXECUTE s;
+c
+abc
+ALTER TABLE t1 MODIFY a VARCHAR(5);
+EXECUTE s;
+c
+abc
+DROP FUNCTION f1;
+DROP TABLE t1;
+DEALLOCATE PREPARE s;
 # End of 11.8 tests
