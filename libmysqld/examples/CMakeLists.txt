@@ -33,9 +33,11 @@ IF(UNIX)
 ENDIF(UNIX)
 
 MYSQL_ADD_EXECUTABLE(mariadb-test-embedded ../../client/mysqltest.cc
+  ../../client/mysqltest_replay_server.cc
   COMPONENT Test)
 TARGET_LINK_LIBRARIES(mariadb-test-embedded mysqlserver pcre2-posix pcre2-8)
-SET_SOURCE_FILES_PROPERTIES(../../client/mysqltest.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
+SET_SOURCE_FILES_PROPERTIES(../../client/mysqltest.cc ../../client/mysqltest_replay_server.cc
+  PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
 
 IF(CMAKE_GENERATOR MATCHES "Xcode")
 # It does not seem possible to tell Xcode the resulting target might need

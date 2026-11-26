@@ -44,8 +44,10 @@ IF(UNIX)
   SET_TARGET_PROPERTIES(mariadb PROPERTIES ENABLE_EXPORTS TRUE)
 ENDIF(UNIX)
 
-MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
-SET_SOURCE_FILES_PROPERTIES(mysqltest.cc PROPERTIES COMPILE_FLAGS "-DTHREADS ${PCRE2_DEBIAN_HACK}")
+MYSQL_ADD_EXECUTABLE(mariadb-test mysqltest.cc mysqltest_replay_server.cc
+                                  ${CMAKE_SOURCE_DIR}/sql/sql_string.cc COMPONENT Test)
+SET_SOURCE_FILES_PROPERTIES(mysqltest.cc mysqltest_replay_server.cc
+  PROPERTIES COMPILE_FLAGS "-DTHREADS ${PCRE2_DEBIAN_HACK}")
 TARGET_LINK_LIBRARIES(mariadb-test  ${CLIENT_LIB} pcre2-posix pcre2-8)
 SET_TARGET_PROPERTIES(mariadb-test PROPERTIES ENABLE_EXPORTS TRUE)
 
