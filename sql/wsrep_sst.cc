@@ -1870,7 +1870,12 @@ write_auth_info(FILE* const file, const char* method,
       err= (ret < 0 ? ret : -EMSGSIZE);
     }
 
-    if (auth.remote_name_.length())
+    /*
+      The joiner sends "<CN>:<secret>@<address>". The CN is empty
+      unless ssl-mode is VERIFY_*, but the secret must still reach
+      the donor script.
+    */
+    if (auth.remote_name_.length() || auth.remote_pswd_.length())
     {
       ret= fprintf(file,
                    "sst_remote_user=%s\n"
