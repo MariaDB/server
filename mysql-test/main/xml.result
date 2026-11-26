@@ -1434,4 +1434,23 @@ ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stac
 #
 SELECT UPDATEXML(NULL, REPEAT('-', 100000), 1);
 ERROR HY000: Thread stack overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed. Consider increasing the thread_stack system variable.
+#
+# MDEV-39593 Server crashes in Item_func::Item_func/Item_xpath_cast_number::Item_xpath_cast_number after EXTRACTVALUE with number() function in xpath
+#
+SELECT EXTRACTVALUE('<a/>', '/a[number()]');
+EXTRACTVALUE('<a/>', '/a[number()]')
+
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: ''
+SET @xml='<r><a>1</a><a>2</a></r>';
+SELECT ExtractValue(@xml, '/r/a[number()=2]');
+ExtractValue(@xml, '/r/a[number()=2]')
+2
+SELECT ExtractValue(@xml, '/r/a[number(.)=2]');
+ExtractValue(@xml, '/r/a[number(.)=2]')
+2
+SELECT ExtractValue('<x>1</x>', 'number()');
+ERROR HY000: XPATH syntax error: ''
+SELECT EXTRACTVALUE('<a/', '/a[number()');
+ERROR HY000: XPATH syntax error: ''
 # End of 10.11 test
