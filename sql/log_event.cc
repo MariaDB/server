@@ -522,10 +522,11 @@ row_log_event_uncompress(bool contain_checksum, const uchar *src, ulong src_len,
       (type - WRITE_ROWS_COMPRESSED_EVENT_V1 + WRITE_ROWS_EVENT_V1);
   }
 
-  ulong width= (ulong)safe_net_field_length_ll((uchar **)&tmp, end - tmp);
-  if (unlikely(!tmp || width > src_len /* overflow guard */))
+  ulonglong width= safe_net_field_length_ll((uchar **)&tmp, end - tmp);
+  /* Avoid overflow in bm_size and 2*bm_size below */
+  if (unlikely(!tmp || width > 8ULL * (ulonglong) (end - tmp)))
     return ER_BINLOG_UNCOMPRESS_ERROR;
-  size_t bm_size= (width + 7) / 8;
+  size_t bm_size= (size_t) ((width + 7) / 8);
   if (type == UPDATE_ROWS_EVENT_V1 || type == UPDATE_ROWS_EVENT)
   {
     if (unlikely(2*bm_size >= (size_t)(end - tmp)))
