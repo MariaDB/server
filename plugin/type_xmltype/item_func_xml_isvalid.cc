@@ -719,6 +719,7 @@ public:
   {
     return m_counter >= m_minOccurs.m_value_int;
   }
+  bool is_emptyable() override { return m_minOccurs.m_value_int == 0; }
 };
 
 

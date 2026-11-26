@@ -3107,3 +3107,80 @@ CALL p_group_chain(1025, '<r><a>x</a></r>');
 --error ER_UNKNOWN_ERROR
 CALL p_group_chain(2047, '<r><a>x</a></r>');
 DROP PROCEDURE p_group_chain;
+
+--echo
+--echo MDEV-42402 XMLISVALID: optional xs:any (minOccurs=0) is not treated as emptyable, valid XML rejected.
+--echo
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="c">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:any minOccurs="0" processContents="skip"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+SELECT XMLISVALID('<c/>', @s) ex1;
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="c">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="e"/>
+                <xs:any minOccurs="0" processContents="skip"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+SELECT XMLISVALID('<c><e/></c>', @s) ex1;
+
+
+--echo # xs:choice with an optional xs:any, expect 1
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="c">
+        <xs:complexType>
+            <xs:choice>
+                <xs:element name="e"/>
+                <xs:any minOccurs="0" processContents="skip"/>
+            </xs:choice>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+SELECT XMLISVALID('<c/>', @s) ex_choice;
+
+--echo # required xs:any (default minOccurs=1) rejects empty content, expect 0
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="c">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:any processContents="skip"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+SELECT XMLISVALID('<c/>', @s) ex_required_empty;
+
+--echo # trailing required xs:any is still required, expect 0
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="c">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="e"/>
+                <xs:any processContents="skip"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+SELECT XMLISVALID('<c><e/></c>', @s) ex_required_trailing;
+
