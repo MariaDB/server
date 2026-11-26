@@ -26,10 +26,42 @@ jobs:
 
       - uses: actions/checkout@v6
 
+      - name: Get cache key
+        id: week
+        # Refresh weekly, so the cached bison does not get stale.
+        run: echo "id=$(Get-Date -UFormat '%G-W%V')" >> $env:GITHUB_OUTPUT
+
+      - name: Restore winflexbison
+        id: wfb
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            C:\ProgramData\chocolatey\lib\winflexbison3
+            C:\ProgramData\chocolatey\bin\win_bison.exe
+            C:\ProgramData\chocolatey\bin\win_flex.exe
+          key: winflexbison3-${{ steps.week.outputs.id }}
+          # Fall back to an older week's copy if choco is down.
+          restore-keys: winflexbison3-
+
       - name: Install prerequisites
+        id: choco
+        if: steps.wfb.outputs.cache-hit != 'true'
         run: |
-          # Install bison to compile
-          choco install winflexbison3
+          # Install bison to compile. Retry, and tolerate choco being down
+          # if an older cached copy was restored.
+          for ($i = 1; $i -le 3; $i++) {
+            choco upgrade winflexbison3 -y --no-progress
+            if ($LASTEXITCODE -eq 0) {
+              echo "fresh=true" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+            Start-Sleep -Seconds (15 * $i)
+          }
+          if (Test-Path C:\ProgramData\chocolatey\bin\win_bison.exe) {
+            Write-Warning "choco failed, using the previously cached winflexbison3"
+            exit 0
+          }
+          exit 1
 
       - name: Build
         run: |
@@ -42,6 +74,17 @@ jobs:
           cd bld
           cmake .. -DWITH_SSL=bundled
           cmake --build . --config RelWithDebinfo --verbose -- -m
+
+      # A successful build proves bison works; save before the slow tests.
+      - name: Save winflexbison
+        if: success() && steps.choco.outputs.fresh == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            C:\ProgramData\chocolatey\lib\winflexbison3
+            C:\ProgramData\chocolatey\bin\win_bison.exe
+            C:\ProgramData\chocolatey\bin\win_flex.exe
+          key: winflexbison3-${{ steps.week.outputs.id }}
 
       - name: Test MTR
         run: |
