@@ -13,6 +13,7 @@ f1	f2
 SAVEPOINT my_sp;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 UPDATE t1 SET f2 = 'c' WHERE f1 = 2;
@@ -50,4 +51,6 @@ COUNT(*) = 1
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 COUNT(*) = 1
 1
+connection node_1a;
+connection node_2;
 DROP TABLE t1;
