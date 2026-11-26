@@ -213,6 +213,11 @@ my_bool vio_reset(Vio* vio, enum enum_vio_type type,
   /* Preserve perfschema info for this connection */
   vio->mysql_socket.m_psi= old_vio.mysql_socket.m_psi;
 
+  /* Preserve peer info, vio_init() zeroed it */
+  vio->localhost= old_vio.localhost;
+  vio->local= old_vio.local;
+  vio->remote= old_vio.remote;
+
 #ifdef HAVE_OPENSSL
   vio->ssl_arg= ssl;
 #endif
