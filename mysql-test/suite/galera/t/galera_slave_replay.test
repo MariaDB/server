@@ -70,6 +70,13 @@ SET SESSION wsrep_sync_wait = 0;
 --source include/wait_condition.inc
 
 --connection node_2a
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
 # Block the future commit of async replication
 --let $galera_sync_point = commit_monitor_master_enter_sync
 --source include/galera_set_sync_point.inc
@@ -197,11 +204,18 @@ RESET SLAVE;
 SET GLOBAL gtid_slave_pos = "";
 SET DEBUG_SYNC = "RESET";
 
+--connection node_2a
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
+--connection node_1
 DROP TABLE t1;
 
 --connection node_3
 DROP TABLE t1;
 RESET MASTER;
+
 
 --connection node_1
 --disconnect node_2a

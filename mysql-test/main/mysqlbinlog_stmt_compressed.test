@@ -10,6 +10,7 @@
 # 
 #
 
+RESET MASTER;
 SET GLOBAL log_bin_compress=on;
 SET GLOBAL log_bin_compress_min_len=10;
 CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
