@@ -702,6 +702,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
         share->error= OPEN_FRM_OK;
         if (mariadb_view_version_get(share))
           share->error= OPEN_FRM_ERROR_ALREADY_ISSUED;
+        else
+          thd->status_var.opened_shares++;
       }
     }
     else
