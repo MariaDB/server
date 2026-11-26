@@ -26,6 +26,24 @@ jobs:
 
       - uses: actions/checkout@v6
 
+      - name: System info
+        run: |
+          Write-Host "== Volumes"
+          Get-Volume | Where-Object DriveLetter |
+            Select-Object DriveLetter, FileSystemType, @{n='SizeGB';e={[int]($_.Size/1GB)}}, @{n='FreeGB';e={[int]($_.SizeRemaining/1GB)}} |
+            Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          Write-Host "== Directories"
+          Write-Host "RUNNER_TEMP=$env:RUNNER_TEMP"
+          Write-Host "TEMP=$env:TEMP"
+          Write-Host "GITHUB_WORKSPACE=$env:GITHUB_WORKSPACE"
+          Write-Host "== OS / CPU / memory"
+          $os = Get-CimInstance Win32_OperatingSystem
+          $cs = Get-CimInstance Win32_ComputerSystem
+          Write-Host ("{0} {1} ({2})" -f $os.Caption, $os.Version, $os.OSArchitecture)
+          Write-Host ("Logical CPUs: {0}" -f $cs.NumberOfLogicalProcessors)
+          Write-Host ("RAM: {0:N1} GB total, {1:N1} GB free" -f ($os.TotalVisibleMemorySize/1MB), ($os.FreePhysicalMemory/1MB))
+          Write-Host ("Commit limit: {0:N1} GB, free virtual: {1:N1} GB" -f ($os.TotalVirtualMemorySize/1MB), ($os.FreeVirtualMemory/1MB))
+
       - name: Get cache key
         id: week
         # Refresh weekly, so the cached bison does not get stale.
@@ -91,9 +109,7 @@ jobs:
           $env:PATH = "C:\Strawberry\perl\bin;$env:PATH;C:\Program Files (x86)\Windows Kits\10\Debuggers\arm64"
           $parallel = 2
           # create case-sensitive directory to run tests in
-          $tmp = (Get-Item $env:TEMP).FullName
-          $tmp = $tmp -replace '\\','/'
-          $cidir = "$tmp/ci"
+          $cidir = "$env:RUNNER_TEMP/ci" -replace '\\','/'
           mkdir $cidir
           fsutil file setCaseSensitiveInfo $cidir enable
           perl bld\mysql-test\mysql-test-run.pl --force --parallel=$parallel --suite=main,innodb,parts --vardir=$cidir/var --skip-rpl --mysqld=--lower-case-table-names=0  --mysqld=--loose-innodb-flush-log-at-trx-commit=2 --mysqld=--debug-no-sync --skip-test=innodb-virtual-columns
