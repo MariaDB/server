@@ -4,6 +4,7 @@ connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
 SET SESSION wsrep_sync_wait=0;
 FLUSH STATUS;
+SET GLOBAL wsrep_slave_threads = 2;
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1b;
 SET SESSION wsrep_sync_wait=0;
@@ -877,3 +878,8 @@ DROP TABLE p1;
 DROP TABLE IF EXISTS tmp1, tmp2;
 Warnings:
 Note	1051	Unknown table 'test.tmp1,test.tmp2'
+connection node_1a;
+connection node_2;
+DROP TABLE IF EXISTS dummy;
+Warnings:
+Note	1051	Unknown table 'test.dummy'
