@@ -31,3 +31,19 @@ disconnect con1;
 connection default;
 UNLOCK TABLES;
 DROP TABLE t;
+#
+# MDEV-40402 use-of-uninitialized-value in reload_acl_and_cache
+#
+RESET MASTER TO 7;
+FLUSH MASTER;
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+CREATE PROCEDURE p() FLUSH MASTER;
+RESET MASTER TO 7;
+CALL p();
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+DROP PROCEDURE p;
+# End of 10.11 tests
