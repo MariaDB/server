@@ -870,14 +870,67 @@ EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ id FROM t20 WHERE id < 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t20	range	PRIMARY	PRIMARY	4	NULL	#	#
 # A hint naming the ARRAY index now resolves
-# TODO: fix range access on arr_idx still used
 EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 arr_idx) */ id FROM t20
 WHERE 5 MEMBER OF (tags);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t20	range	arr_idx	arr_idx	19	NULL	#	Using where
+1	SIMPLE	t20	ALL	arr_idx	NULL	NULL	NULL	#	Using where
 SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ COUNT(*) FROM t20
 WHERE 5 MEMBER OF (tags);
 COUNT(*)
 1
+INSERT INTO t20 SELECT seq, 4, JSON_ARRAY(seq, seq + 1000)
+FROM seq_1001_to_2000;
+EXPLAIN SELECT id FROM t20 IGNORE INDEX (arr_idx)
+WHERE 5 MEMBER OF (tags) AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	ka	ka	5	NULL	#	Using index condition; Using where
+EXPLAIN SELECT id FROM t20 USE INDEX (ka)
+WHERE 5 MEMBER OF (tags) AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	ka	ka	5	NULL	#	Using index condition; Using where
+ALTER TABLE t20 ALTER INDEX arr_idx IGNORED;
+EXPLAIN SELECT id FROM t20 WHERE 5 MEMBER OF (tags) AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	ka	ka	5	NULL	#	Using index condition; Using where
+ALTER TABLE t20 ALTER INDEX arr_idx NOT IGNORED;
+DROP TABLE t20;
+CREATE TABLE t20 (id INT PRIMARY KEY, tags JSON,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)));
+INSERT INTO t20 SELECT seq, JSON_ARRAY(seq % 5, 1000 - seq)
+FROM seq_1_to_1000;
+# arr_idx is ordered by element, not by tags: must not skip filesort
+EXPLAIN SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags LIMIT 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	arr_idx	arr_idx	19	NULL	#	Using where; Using filesort
+SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags LIMIT 3;
+id	tags
+997	[2, 3]
+898	[3, 102]
+893	[3, 107]
+SELECT id, tags FROM t20 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags LIMIT 3;
+id	tags
+997	[2, 3]
+898	[3, 102]
+893	[3, 107]
+# DESC: no reverse scan on the ARRAY key
+EXPLAIN SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags DESC LIMIT 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	arr_idx	arr_idx	19	NULL	#	Using where; Using filesort
+SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags DESC LIMIT 3;
+id	tags
+3	[3, 997]
+8	[3, 992]
+13	[3, 987]
+SELECT id, tags FROM t20 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+ORDER BY tags DESC LIMIT 3;
+id	tags
+3	[3, 997]
+8	[3, 992]
+13	[3, 987]
 DROP TABLE t20;
 # End of 13.3 tests

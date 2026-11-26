@@ -776,13 +776,47 @@ EXPLAIN SELECT /*+ NO_INDEX_MERGE(t20 ka) */ id FROM t20
 --replace_column 9 # 10 #
 EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ id FROM t20 WHERE id < 100;
 --echo # A hint naming the ARRAY index now resolves
---echo # TODO: fix range access on arr_idx still used
 --replace_column 9 #
 EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 arr_idx) */ id FROM t20
   WHERE 5 MEMBER OF (tags);
 --sorted_result
 SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ COUNT(*) FROM t20
   WHERE 5 MEMBER OF (tags);
+
+INSERT INTO t20 SELECT seq, 4, JSON_ARRAY(seq, seq + 1000)
+  FROM seq_1001_to_2000;
+--replace_column 9 #
+EXPLAIN SELECT id FROM t20 IGNORE INDEX (arr_idx)
+  WHERE 5 MEMBER OF (tags) AND a < 3;
+--replace_column 9 #
+EXPLAIN SELECT id FROM t20 USE INDEX (ka)
+  WHERE 5 MEMBER OF (tags) AND a < 3;
+ALTER TABLE t20 ALTER INDEX arr_idx IGNORED;
+--replace_column 9 #
+EXPLAIN SELECT id FROM t20 WHERE 5 MEMBER OF (tags) AND a < 3;
+ALTER TABLE t20 ALTER INDEX arr_idx NOT IGNORED;
+DROP TABLE t20;
+
+CREATE TABLE t20 (id INT PRIMARY KEY, tags JSON,
+                  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)));
+INSERT INTO t20 SELECT seq, JSON_ARRAY(seq % 5, 1000 - seq)
+  FROM seq_1_to_1000;
+--echo # arr_idx is ordered by element, not by tags: must not skip filesort
+--replace_column 9 #
+EXPLAIN SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags LIMIT 3;
+SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags LIMIT 3;
+SELECT id, tags FROM t20 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags LIMIT 3;
+--echo # DESC: no reverse scan on the ARRAY key
+--replace_column 9 #
+EXPLAIN SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags DESC LIMIT 3;
+SELECT id, tags FROM t20 FORCE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags DESC LIMIT 3;
+SELECT id, tags FROM t20 IGNORE INDEX (arr_idx) WHERE 3 MEMBER OF (tags)
+  ORDER BY tags DESC LIMIT 3;
 DROP TABLE t20;
 
 --echo # End of 13.3 tests

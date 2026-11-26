@@ -2956,52 +2956,61 @@ SQL_SELECT::test_quick_select(THD *thd,
   if (head->s->hlindexes() && key_info->algorithm == HA_KEY_ALG_ARRAY)
   {
     Json_writer_object trace_idx_details(thd);
-    trace_idx_details.add("index", key_info->name).add("usable", true);
-    param.key[param.keys]= key_parts;
-    Json_writer_array trace_keypart(thd, "key_parts");
-    key_parts->key= param.keys;
-    key_parts->part= 0;
-    /*
-      key_info->key_part->{length,store_length} describe the underlying
-      JSON column's own (large) key length, not the small, fixed-format
-      {typ, value} encoding Item_func_member_of::get_mm_leaf() and
-      json_index_encode_value() actually produce and, via key_copy(), store
-      in SEL_ARG::min_value/max_value as a key spanning the hlindex table's
-      `typ tinyint unsigned` and `value varbinary(JSON_INDEX_VALUE_MAX_LEN)`
-      columns. get_quick_keys()/store_min_max() copy exactly
-      key_parts->store_length bytes out of that buffer, so this must match
-      the key_copy()-encoded size (JSON_INDEX_KEY_MAX_LEN, prefixes
-      included), not the JSON column's own length -- else it would read
-      past that small buffer.
-    */
-    key_parts->length= JSON_INDEX_VALUE_MAX_LEN;
-    key_parts->store_length= JSON_INDEX_KEY_MAX_LEN;
-    key_parts->field= key_info->key_part->field;
-    /*
-      Not key_info->key_part->null_bit: that's the underlying (now
-      nullable, see sql_table.cc's Key::ARRAY case) JSON column's own
-      null_bit, but this key part's bytes are never a null-indicator
-      byte followed by a value the way a normal nullable key part's are
-      -- json_index::make_key() always writes a real {typ, value} key
-      starting at byte 0 (typ is never 0: JSON_VALUE_UNINITIALIZED/
-      OBJECT/ARRAY are rejected before encoding, see
-      json_index_encode_token()). A nonzero null_bit here would make
-      null_part_in_key()/QUICK_RANGE_SELECT::cmp_next() misread that
-      always-nonzero typ byte as "this key part is NULL", breaking every
-      MEMBER OF lookup. NULL rows have no hlindex entry to find in the
-      first place (json_index::insert_row() skips them), so this key
-      part is never actually used to search for NULL.
-    */
-    key_parts->null_bit= 0;
-    key_parts->image_type= Field::image_type(key_info->algorithm);
-    key_parts->flag= (uint8) key_info->key_part->key_part_flag;
-    trace_keypart.add(key_parts->field->field_name);
-    key_parts->claimed= false;
-    key_parts++;
-    trace_keypart.end();
-    param.real_keynr[param.keys++]= head->s->keys;
-    if (JSON_INDEX_KEY_MAX_LEN > max_key_len)
-      max_key_len= JSON_INDEX_KEY_MAX_LEN;
+    trace_idx_details.add("index", key_info->name);
+    if (!keys_to_use.is_set(head->s->keys))
+      trace_idx_details.add("usable", false).add("cause", "not applicable");
+    else if (hint_key_state(thd, head, head->s->keys, NO_RANGE_HINT_ENUM, 0))
+      trace_idx_details.add("usable", false)
+                       .add("cause", "no_range_optimization hint");
+    else
+    {
+      trace_idx_details.add("usable", true);
+      param.key[param.keys]= key_parts;
+      Json_writer_array trace_keypart(thd, "key_parts");
+      key_parts->key= param.keys;
+      key_parts->part= 0;
+      /*
+        key_info->key_part->{length,store_length} describe the underlying
+        JSON column's own (large) key length, not the small, fixed-format
+        {typ, value} encoding Item_func_member_of::get_mm_leaf() and
+        json_index_encode_value() actually produce and, via key_copy(), store
+        in SEL_ARG::min_value/max_value as a key spanning the hlindex table's
+        `typ tinyint unsigned` and `value varbinary(JSON_INDEX_VALUE_MAX_LEN)`
+        columns. get_quick_keys()/store_min_max() copy exactly
+        key_parts->store_length bytes out of that buffer, so this must match
+        the key_copy()-encoded size (JSON_INDEX_KEY_MAX_LEN, prefixes
+        included), not the JSON column's own length -- else it would read
+        past that small buffer.
+      */
+      key_parts->length= JSON_INDEX_VALUE_MAX_LEN;
+      key_parts->store_length= JSON_INDEX_KEY_MAX_LEN;
+      key_parts->field= key_info->key_part->field;
+      /*
+        Not key_info->key_part->null_bit: that's the underlying (now
+        nullable, see sql_table.cc's Key::ARRAY case) JSON column's own
+        null_bit, but this key part's bytes are never a null-indicator
+        byte followed by a value the way a normal nullable key part's are
+        -- json_index::make_key() always writes a real {typ, value} key
+        starting at byte 0 (typ is never 0: JSON_VALUE_UNINITIALIZED/
+        OBJECT/ARRAY are rejected before encoding, see
+        json_index_encode_token()). A nonzero null_bit here would make
+        null_part_in_key()/QUICK_RANGE_SELECT::cmp_next() misread that
+        always-nonzero typ byte as "this key part is NULL", breaking every
+        MEMBER OF lookup. NULL rows have no hlindex entry to find in the
+        first place (json_index::insert_row() skips them), so this key
+        part is never actually used to search for NULL.
+      */
+      key_parts->null_bit= 0;
+      key_parts->image_type= Field::image_type(key_info->algorithm);
+      key_parts->flag= (uint8) key_info->key_part->key_part_flag;
+      trace_keypart.add(key_parts->field->field_name);
+      key_parts->claimed= false;
+      key_parts++;
+      trace_keypart.end();
+      param.real_keynr[param.keys++]= head->s->keys;
+      if (JSON_INDEX_KEY_MAX_LEN > max_key_len)
+        max_key_len= JSON_INDEX_KEY_MAX_LEN;
+    }
   }
   trace_idx.end();
 
