@@ -328,6 +328,7 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
 void mark_tmp_table_for_reuse(TABLE *table);
 
 int dynamic_column_error_message(enum_dyncol_func_result rc);
+bool dyncol_get_offset_arg(Item *arg, uint *num);
 
 /* open_and_lock_tables with optional derived handling */
 int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);

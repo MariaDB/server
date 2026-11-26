@@ -7754,11 +7754,14 @@ bool Item_func_dyncol_exists::val_bool()
   DYNAMIC_COLUMN col;
   String *str;
   LEX_STRING buf, *name= NULL;
-  ulonglong num= 0;
+  uint num= 0;
   enum enum_dyncol_func_result rc;
 
   if (args[1]->result_type() == INT_RESULT)
-    num= args[1]->val_int();
+  {
+    if (dyncol_get_offset_arg(args[1], &num))
+      goto null;
+  }
   else
   {
     String *nm= args[1]->val_str(&nmbuf);
@@ -7790,13 +7793,13 @@ bool Item_func_dyncol_exists::val_bool()
     name= &buf;
   }
   str= args[0]->val_str(&tmp);
-  if (args[0]->null_value || args[1]->null_value || num > UINT_MAX16)
+  if (args[0]->null_value || args[1]->null_value)
     goto null;
   col.length= str->length();
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
   rc= ((name == NULL) ?
-       mariadb_dyncol_exists_num(&col, (uint) num) :
+       mariadb_dyncol_exists_num(&col, num) :
        mariadb_dyncol_exists_named(&col, name));
   if (rc < 0)
   {

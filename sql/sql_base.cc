@@ -10011,5 +10011,28 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
 }
 
 /**
+  Read a numeric dynamic column key argument and enforce the uint16 limit
+  shared by all SQL-level dynamic column lookups
+
+  @param arg           key argument (INT_RESULT)
+  @param[out] num      key value when within [0, DYNCOL_NUM_KEY_MAX]
+
+  @return false ok
+  @return true  argument is NULL or out of range
+*/
+
+bool dyncol_get_offset_arg(Item *arg, uint *num)
+{
+  longlong value;
+  if (arg->null_value)
+    return true;
+  value= arg->val_int();
+  if (arg->null_value || value < 0 || value > DYNCOL_NUM_KEY_MAX)
+    return true;
+  *num= (uint) value;
+  return false;
+}
+
+/**
   @} (end of group Data_Dictionary)
 */

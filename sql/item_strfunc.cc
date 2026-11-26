@@ -5164,14 +5164,20 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
 {
   DYNAMIC_COLUMN dyn_str;
   String *res;
-  longlong num= 0;
+  uint num= 0;
   LEX_STRING buf, *name= NULL;
   char nmstrbuf[11];
   String nmbuf(nmstrbuf, sizeof(nmstrbuf), system_charset_info);
   enum enum_dyncol_func_result rc;
 
   if (args[1]->result_type() == INT_RESULT)
-    num= args[1]->val_int();
+  {
+    if (dyncol_get_offset_arg(args[1], &num))
+    {
+      null_value= 1;
+      return 1;
+    }
+  }
   else
   {
     String *nm= args[1]->val_str(&nmbuf);
@@ -5205,12 +5211,6 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
   }
 
 
-  if (args[1]->null_value || num < 0 || num > INT_MAX)
-  {
-    null_value= 1;
-    return 1;
-  }
-
   res= args[0]->val_str(tmp);
   if (args[0]->null_value)
   {
@@ -5221,7 +5221,7 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
   dyn_str.str=   (char*) res->ptr();
   dyn_str.length= res->length();
   if ((rc= ((name == NULL) ?
-            mariadb_dyncol_get_num(&dyn_str, (uint) num, val) :
+            mariadb_dyncol_get_num(&dyn_str, num, val) :
             mariadb_dyncol_get_named(&dyn_str, name, val))))
   {
     dynamic_column_error_message(rc);
