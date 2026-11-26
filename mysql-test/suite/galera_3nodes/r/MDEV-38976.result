@@ -28,7 +28,7 @@ Performing --wsrep-recover ...
 Performing --wsrep-recover ...
 connection node_3;
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
-# grastate.dat of nodes 1,2 kept its UUID after the abort
+# grastate.dat of nodes 1,2 kept its UUID and is marked diverged after the abort
 connection node_3;
 connection node_1;
 connection node_2;
@@ -52,6 +52,8 @@ connection node_1;
 DROP TABLE t1;
 connection node_1;
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");
@@ -65,6 +67,8 @@ CALL mtr.add_suppression("got signal 6");
 CALL mtr.add_suppression("Attempting backtrace");
 connection node_2;
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");
@@ -78,6 +82,8 @@ CALL mtr.add_suppression("got signal 6");
 CALL mtr.add_suppression("Attempting backtrace");
 connection node_3;
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");

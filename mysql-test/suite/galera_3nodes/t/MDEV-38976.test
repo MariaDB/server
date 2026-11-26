@@ -23,8 +23,9 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-# Galera 26.4.29 keeps the saved state (grastate.dat) of a node that aborts
-# because it is ahead of the primary component. Earlier versions invalidate it.
+# Galera 26.4.29 marks the saved state (grastate.dat) of a node that aborts
+# because it is ahead of the primary component as diverged, and keeps its UUID.
+# Earlier versions invalidate it.
 --let $galera_version=26.4.29
 source ../wsrep/include/check_galera_version.inc;
 
@@ -165,6 +166,21 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
     }
     die "Node $n did not report 'Reversing history'\n" unless $found;
 
+    # The saved state is marked as diverged slightly after the error is
+    # logged, while the node is shutting down. Wait for that.
+    my $state = "$ENV{MYSQLTEST_VARDIR}/mysqld.$n/data/grastate.dat";
+    my $marked = 0;
+    for (my $i = 0; $i < 600 && !$marked; $i++)
+    {
+      if (open(my $sf, '<', $state))
+      {
+        while (<$sf>) { if (/^diverged:\s*1/) { $marked = 1; last; } }
+        close($sf);
+      }
+      sleep(0.1) unless $marked;
+    }
+    die "Node $n did not mark its saved state as diverged\n" unless $marked;
+
     # Wait until the aborting server process has exited
     my $pidfile = "$ENV{MYSQLTEST_VARDIR}/run/mysqld.$n.pid";
     if (open(my $pf, '<', $pidfile))
@@ -183,14 +199,17 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
 EOF
 
 #
-# The saved state of nodes 1,2 must have survived the abort: it must not have
-# been reset to the undefined UUID.
+# The saved state of nodes 1,2 must not have been reset to the undefined UUID.
+# It must be marked as diverged instead, so that the nodes do not rejoin
+# silently.
 #
 --error 1
 --exec grep -q '^uuid: *00000000-0000-0000-0000-000000000000' $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
 --error 1
 --exec grep -q '^uuid: *00000000-0000-0000-0000-000000000000' $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
---echo # grastate.dat of nodes 1,2 kept its UUID after the abort
+--exec grep -q '^diverged: *1' $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+--exec grep -q '^diverged: *1' $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--echo # grastate.dat of nodes 1,2 kept its UUID and is marked diverged after the abort
 
 #
 # Restart the cluster in the correct order: nodes 1,2 hold the newest state.
@@ -202,6 +221,10 @@ EOF
 # Node 3 is stale: it was dragged into a primary component without the newest
 # writes. Force a full state transfer for it, as an operator would.
 --remove_file $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+
+# Node 2 is marked diverged and would refuse to rejoin. It holds the same data
+# as node 1, so the operator lets it rejoin with a state transfer from node 1.
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 
 # Node 1 is the bootstrap node, mark it safe to bootstrap like an operator does
 --exec sed -i 's/^safe_to_bootstrap: .*/safe_to_bootstrap: 1/' $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
@@ -258,6 +281,8 @@ DROP TABLE t1;
 
 --connection node_1
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");
@@ -271,6 +296,8 @@ CALL mtr.add_suppression("got signal 6");
 CALL mtr.add_suppression("Attempting backtrace");
 --connection node_2
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");
@@ -284,6 +311,8 @@ CALL mtr.add_suppression("got signal 6");
 CALL mtr.add_suppression("Attempting backtrace");
 --connection node_3
 CALL mtr.add_suppression("WSREP: .*Reversing history");
+CALL mtr.add_suppression("WSREP: State file is marked as diverged from the group");
+CALL mtr.add_suppression("WSREP: Bootstrapping from a node whose state was marked diverged");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_group\\.cpp:group_post_state_exchange\\(\\)");
 CALL mtr.add_suppression("WSREP: Node is ahead of the primary component");
 CALL mtr.add_suppression("WSREP: node uuid: .* is inconsistent to restored view");
