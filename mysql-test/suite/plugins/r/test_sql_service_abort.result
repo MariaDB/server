@@ -1,0 +1,30 @@
+#
+# MDEV-42087 Memory leak of a local statement that fails after it sent
+# its metadata, here aborted by KILL QUERY
+#
+INSTALL PLUGIN test_sql_service SONAME 'test_sql_service';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  blocker,localhost,root;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a
+1
+connect  con1,localhost,root;
+SET innodb_lock_wait_timeout=3600;
+SET GLOBAL test_sql_service_execute_sql_local= 'SELECT * FROM test.t1 FOR UPDATE';
+connection default;
+connection con1;
+SHOW STATUS LIKE 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Error 1317 returned. Query execution was interrupted
+disconnect con1;
+connection blocker;
+COMMIT;
+disconnect blocker;
+connection default;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_service;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+# End of 10.11 tests

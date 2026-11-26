@@ -1,0 +1,46 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+if (!$TEST_SQL_SERVICE_SO) {
+  skip No TEST_SQL_SERVICE plugin;
+}
+
+--echo #
+--echo # MDEV-42087 Memory leak of a local statement that fails after it sent
+--echo # its metadata, here aborted by KILL QUERY
+--echo #
+
+INSTALL PLUGIN test_sql_service SONAME 'test_sql_service';
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET innodb_lock_wait_timeout=3600;
+send SET GLOBAL test_sql_service_execute_sql_local= 'SELECT * FROM test.t1 FOR UPDATE';
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_lock_waits;
+--source include/wait_condition.inc
+--disable_query_log
+eval KILL QUERY $con1_id;
+--enable_query_log
+
+connection con1;
+reap;
+SHOW STATUS LIKE 'test_sql_query_result';
+disconnect con1;
+
+connection blocker;
+COMMIT;
+disconnect blocker;
+connection default;
+DROP TABLE t1;
+UNINSTALL PLUGIN test_sql_service;
+
+--echo # End of 10.11 tests
