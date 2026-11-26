@@ -10,6 +10,7 @@ insert into t1 values (4, 0);
 connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2b;
 set session wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 connection node_1;
 UPDATE test.t1 set j=1 where i=4;
@@ -28,4 +29,6 @@ ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 select * from t1;
 i	j
 4	1
+connection node_2b;
+connection node_1;
 DROP TABLE t1;
