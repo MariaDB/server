@@ -1374,16 +1374,8 @@ Item_sum_sp::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
-  Query_arena *arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
-
-  bool ret= init_result_field(thd, max_length, maybe_null(),
-                              &null_value, &name);
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-
-  if(ret)
-    return true;
+  if (init_result_field(thd, max_length, maybe_null(), &null_value, &name))
+    return TRUE;
 
   for (uint i= 0 ; i < arg_count ; i++)
   {
@@ -1472,6 +1464,7 @@ Item_sum_sp::cleanup()
 {
   Item_sp::cleanup();
   Item_sum::cleanup();
+  max_length= 0;
 }
 
 /**
