@@ -5641,6 +5641,7 @@ static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
 #endif
   mtr->commit();
+  DEBUG_SYNC_C("btr_blob_free_after_commit");
 
   mysql_mutex_lock(&buf_pool.mutex);
   block->page.unfix();

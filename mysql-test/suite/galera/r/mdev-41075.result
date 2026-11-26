@@ -19,12 +19,12 @@ connection node_1;
 STOP SLAVE;
 RESET SLAVE ALL;
 SET GLOBAL wsrep_on = OFF;
-RESET MASTER;
+include/reset_master.inc
 SET GLOBAL wsrep_on = ON;
 SET GLOBAL gtid_slave_pos = "";
 connection node_2;
 SET GLOBAL wsrep_on = OFF;
-RESET MASTER;
+include/reset_master.inc
 SET GLOBAL wsrep_on = ON;
 SET GLOBAL gtid_slave_pos = "";
 connection primary;
