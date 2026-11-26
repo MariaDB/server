@@ -21,6 +21,7 @@
 #else
 #include <unistd.h>
 #endif
+#include <ctype.h>
 #include "mysql_sha2.h"
 #include <mysql/plugin_auth.h>
 #include <mysqld_error.h>
@@ -41,6 +42,9 @@ struct digest {
 #define PASSWORD_LEN (SCRAMBLE_LENGTH + SHA256CRYPT_LEN + sizeof("$A$005$")-1)
 
 #define ITERATION_MULTIPLIER 1000
+/* the number of rounds in a hash, in units of ITERATION_MULTIPLIER */
+#define MIN_ITERATIONS 5
+#define MAX_ITERATIONS 0xfff
 
 #define MAX_RSA_SIZE            512 /* enough up to 4096-bit keys */
 
@@ -189,8 +193,17 @@ static int digest_to_binary(const char *hash, size_t hash_length,
                     "%zu characters long", 0, PASSWORD_LEN);
     return 1;
   }
-  if (sscanf(hash, "$A$%X$%20c%43c", &authstr->iterations, authstr->salt,
-             authstr->crypted) < 3)
+  /*
+    The number of rounds is exactly three hex digits: sscanf() alone
+    would also accept a sign or spaces, e.g. "-01" as 0xFFFFFFFF.
+  */
+  if (!isxdigit((unsigned char) hash[3]) ||
+      !isxdigit((unsigned char) hash[4]) ||
+      !isxdigit((unsigned char) hash[5]) ||
+      sscanf(hash, "$A$%3X$%20c%43c", &authstr->iterations, authstr->salt,
+             authstr->crypted) < 3 ||
+      authstr->iterations < MIN_ITERATIONS ||
+      authstr->iterations > MAX_ITERATIONS)
   {
     my_printf_error(ER_PASSWD_LENGTH, "Invalid password hash", 0);
     return 1;
@@ -221,7 +234,8 @@ static MYSQL_SYSVAR_BOOL(auto_generate_rsa_keys, auto_generate_keys,
 
 static MYSQL_SYSVAR_UINT(digest_rounds, digest_rounds, PLUGIN_VAR_READONLY,
   "Number of SHA2 rounds to be performed when computing a password hash",
-  NULL, NULL, 5000, 5000, 0xfff * ITERATION_MULTIPLIER, 1);
+  NULL, NULL, 5000, MIN_ITERATIONS * ITERATION_MULTIPLIER,
+  MAX_ITERATIONS * ITERATION_MULTIPLIER, 1);
 
 static int init_keys(void *p)
 {

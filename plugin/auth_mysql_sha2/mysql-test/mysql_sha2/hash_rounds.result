@@ -1,0 +1,50 @@
+call mtr.add_suppression('failed to read private_key.pem: 2 "No such file or directory"');
+show status like 'caching_sha2_password%';
+Variable_name	Value
+Caching_sha2_password_rsa_public_key	
+create user test1@'%' identified via caching_sha2_password using PASSWORD('pwd');
+create user test2@'%' identified via caching_sha2_password;
+show grants for test2@'%';
+Grants for test2@%
+GRANT USAGE ON *.* TO `test2`@`%` IDENTIFIED VIA caching_sha2_password
+create procedure checkme() sql security invoker
+select user(), current_user(), variable_value > '' as 'have_ssl'
+    from information_schema.session_status
+where variable_name='ssl_cipher';
+grant execute on test.* to test1@'%', test2@'%';
+#
+# MDEV-42384 caching_sha2_password does not enforce limits of
+# caching_sha2_password_digest_rounds for passwords set via SET PASSWORD
+#
+create user test3@'%' identified via caching_sha2_password using PASSWORD('pw');
+# the number of rounds (in thousands) must be 3 hex digits, 005 to FFF
+set password for test3@'%' = '$A$-01$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+set password for test3@'%' = '$A$000$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+set password for test3@'%' = '$A$004$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+set password for test3@'%' = '$A$ 10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+set password for test3@'%' = '$A$+10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+set password for test3@'%' = '$A$00g$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+create user test4@'%' identified via caching_sha2_password using '$A$-01$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+ERROR HY000: Invalid password hash
+# the limits themselves are accepted
+set password for test3@'%' = '$A$005$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+set password for test3@'%' = '$A$FFF$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+set password for test3@'%' = '$A$fff$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+# a password set with the limits still works
+set password for test3@'%' = PASSWORD('pw');
+connect con1, localhost,test3,pw,,,,SOCKET;
+select user(), current_user();
+user()	current_user()
+test3@localhost	test3@%
+disconnect con1;
+connection default;
+drop user test3@'%';
+drop procedure checkme;
+drop user test1@'%';
+drop user test2@'%';
