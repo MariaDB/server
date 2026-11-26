@@ -76,24 +76,32 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   */
   if (wsrep_after_statement(thd) && !err)
   {
-    enum wsrep::transaction::state wsrep_trx_state= thd->wsrep_trx().state();
-    bool wsrep_needs_retry=
-      (wsrep_trx_state == wsrep::transaction::s_must_abort ||
-       wsrep_trx_state == wsrep::transaction::s_cert_failed);
-    if (!wsrep_needs_retry)
-    {
-      WSREP_WARN("Parallel slave failed at wsrep_after_statement() hook");
-    }
-    else if (!thd->is_error() && wsrep_current_error(thd))
+    /*
+      wsrep_after_statement(thd) only returns true when the wsrep side
+      already has a retryable error recorded (wsrep::transaction::
+      after_statement(), wsrep-lib/src/transaction.cpp, sets
+      wsrep::e_deadlock_error on the client state before resolving the
+      transaction to s_aborted - a BF abort or certification failure).
+      By the time the call returns, wsrep::transaction::cleanup() has
+      already reset the transaction's own bf_aborted()/active()/id_, so
+      there is nothing left on thd->wsrep_trx() itself to inspect here;
+      the call having returned true is the only signal, and it already
+      means this is exactly such a case.
+    */
+    if (!thd->is_error() && wsrep_current_error(thd))
     {
       /*
-        The apply/commit already failed, or is about to on the wsrep side,
-        but no MariaDB error was raised. Map the wsrep error onto the
-        matching MariaDB error, so has_temporary_error() can recognise a
-        retryable error such as ER_LOCK_DEADLOCK or ER_QUERY_INTERRUPTED.
+        No MariaDB error was raised for it yet. Map the wsrep error onto
+        the matching MariaDB error, so has_temporary_error() can
+        recognise a retryable error such as ER_LOCK_DEADLOCK or
+        ER_QUERY_INTERRUPTED.
       */
       wsrep_override_error(thd, wsrep_current_error(thd),
                            wsrep_current_error_status(thd));
+    }
+    else if (!thd->is_error())
+    {
+      WSREP_WARN("Parallel slave failed at wsrep_after_statement() hook");
     }
     err= 1;
   }
@@ -878,6 +886,13 @@ mark_start_commit_unless_wsrep(rpl_group_info *rgi)
     Galera can rollback and retry any transaction during commit if
     it conflicts with eg. another node. Thus it is not safe to allow
     following gco to start here when using Galera.
+
+    Trade-off: for a Galera worker this delays the next group-commit-order
+    wave's start until this transaction's own commit has fully finished
+    (finish_event_group()'s post-commit mark_start_commit()), instead of
+    letting it start optimistically while this transaction is still
+    mid-commit, as a non-Galera worker does. Lower parallel-replication
+    throughput on a Galera node, traded for correctness.
   */
   if (likely(!WSREP(rgi->thd)))
     rgi->mark_start_commit();
