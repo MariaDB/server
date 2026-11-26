@@ -1,0 +1,69 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-42454 Assertion buf_fix_count(state) <= 2 with read-ahead
+--echo #
+
+# All tables are in the system tablespace (innodb_file_per_table=0), so
+# that the BLOB page that the ROLLBACK on t1 frees is in the read-ahead
+# area of the BLOB pages of t3, and CREATE TABLE t2 allocates it again.
+CREATE TABLE t1(id INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, REPEAT('a', 10000));
+CREATE TABLE t3(id INT PRIMARY KEY, b LONGBLOB) ENGINE=InnoDB;
+INSERT INTO t3 SELECT seq, REPEAT(CHAR(64 + seq % 26), 10000)
+FROM seq_1_to_30;
+
+# Empty the buffer pool.
+--source include/restart_mysqld.inc
+
+# Access enough BLOB pages of t3 to enable a random read-ahead
+# in their area.
+SELECT SUM(LENGTH(b)) FROM t3 WHERE id BETWEEN 12 AND 28;
+
+connect con1,localhost,root;
+BEGIN;
+# Allocate a new BLOB page.
+UPDATE t1 SET b = REPEAT('z', 10000) WHERE id = 1;
+# The ROLLBACK frees the BLOB page. btr_blob_free() keeps a buffer-fix
+# on it after the mini-transaction commit.
+SET DEBUG_SYNC = 'btr_blob_free_after_commit SIGNAL freed WAIT_FOR go_free';
+send ROLLBACK;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR freed';
+
+connect con2,localhost,root;
+SET @save_random_read_ahead = @@GLOBAL.innodb_random_read_ahead;
+SET GLOBAL innodb_random_read_ahead = ON;
+# A BLOB page of t3 that is not in the buffer pool triggers a random
+# read-ahead. It finds the freed page in the buffer pool and must not
+# keep a buffer-fix on it.
+SET DEBUG_SYNC = 'buf_page_init_for_read_freed SIGNAL ra_found WAIT_FOR go_ra';
+send SELECT SUM(LENGTH(b)) FROM t3 WHERE id >= 29;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR ra_found';
+
+# buf_page_create_low() finds the freed page with the buffer-fix of
+# btr_blob_free() in addition to its own.
+CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB;
+
+SET DEBUG_SYNC = 'now SIGNAL go_ra';
+connection con2;
+reap;
+SET GLOBAL innodb_random_read_ahead = @save_random_read_ahead;
+disconnect con2;
+
+connection default;
+SET DEBUG_SYNC = 'now SIGNAL go_free';
+connection con1;
+reap;
+disconnect con1;
+
+connection default;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1, t2, t3;
