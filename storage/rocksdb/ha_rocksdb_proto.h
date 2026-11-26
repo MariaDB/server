@@ -66,6 +66,17 @@ void rdb_get_global_perf_counters(Rdb_perf_counters *counters)
 
 void rdb_queue_save_stats_request();
 
+/** Create a RocksDB checkpoint (a consistent, hardlink-based
+snapshot of the live database).
+@param checkpoint_dir_raw  directory to create
+@retval HA_EXIT_SUCCESS on success
+@retval HA_EXIT_FAILURE on failure */
+int rdb_create_checkpoint(const char *checkpoint_dir);
+/** Remove a RocksDB checkpoint directory created by rdb_create_checkpoint().
+@param checkpoint_dir checkpoint directory to be removed */
+void rdb_remove_checkpoint(const char *checkpoint_dir);
+extern char *rocksdb_datadir;
+
 /*
   Access to singleton objects.
 */

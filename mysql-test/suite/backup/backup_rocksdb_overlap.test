@@ -1,0 +1,72 @@
+--source include/have_rocksdb.inc
+--source include/have_debug_sync.inc
+--source include/not_windows.inc
+
+# With InnoDB, InnoDB_backup::init() makes a second BACKUP SERVER
+# wait at BACKUP_START, which hides most of the overlap window.
+if (`SELECT COUNT(*) FROM information_schema.ENGINES
+     WHERE ENGINE='InnoDB' AND SUPPORT IN ('YES','DEFAULT')`)
+{
+  --skip Needs InnoDB disabled
+}
+
+CREATE TABLE tr(a INT PRIMARY KEY) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1),(2),(3);
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_overlap
+--error 0,1
+--rmdir $targetdir
+
+--echo # Backup 1: directory target. The checkpoint is renamed into
+--echo # the target at BACKUP_FINISHED; then the backup pauses.
+--connect con1, localhost, root
+SET debug_sync='rocksdb_backup_step SIGNAL b1_finished WAIT_FOR b1_go';
+--replace_result $targetdir targetdir
+--send_eval BACKUP SERVER TO '$targetdir'
+
+--connection default
+SET debug_sync='now WAIT_FOR b1_finished';
+
+--echo # Backup 2: stream target, which keeps its checkpoint
+--echo # in rocksdb_datadir until backup_end(BACKUP_FINISHED).
+--connect con2, localhost, root
+SET debug_sync='rocksdb_backup_step SIGNAL b2_finished WAIT_FOR b2_go';
+--send BACKUP SERVER WITH 'cat'
+
+--connection default
+--echo # Backup 2 must not reach BACKUP_FINISHED while backup 1 is active.
+--disable_warnings
+SET debug_sync='now WAIT_FOR b2_finished TIMEOUT 3';
+--enable_warnings
+SET debug_sync='now SIGNAL b1_go';
+--connection con1
+--reap
+--disconnect con1
+--connection default
+SET debug_sync='now SIGNAL b2_go';
+--connection con2
+--reap
+--disconnect con2
+--connection default
+SET debug_sync='RESET';
+
+--echo # Both backups must contain the RocksDB data.
+--let $targetdir2=$MYSQLTEST_VARDIR/tmp/backup_rocksdb_overlap2
+--error 0,1
+--rmdir $targetdir2
+--mkdir $targetdir2
+--exec tar xf $MARIADB_DATADIR/1.tar -C $targetdir2
+--remove_file $MARIADB_DATADIR/1.tar
+
+--let $restart_noprint=1
+--let $restart_parameters=--datadir=$targetdir
+--source include/restart_mysqld.inc
+SELECT * FROM tr;
+--let $restart_parameters=--datadir=$targetdir2
+--source include/restart_mysqld.inc
+SELECT * FROM tr;
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $targetdir
+--rmdir $targetdir2
+DROP TABLE tr;
