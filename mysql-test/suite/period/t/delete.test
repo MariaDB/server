@@ -268,3 +268,19 @@ select * from t1;
 drop table t1;
 drop table log_tbl;
 drop procedure log;
+
+--echo #
+--echo # MDEV-40821 SIGSEGV in Window_funcs_sort::setup
+--echo #
+--echo # Bound referencing another table must not delete whole rows
+create table t1 (x int, s date, e date, period for app(s,e));
+create table t2 (d date);
+insert into t1 values (1, '2000-01-01', '2000-01-10'),
+                      (2, '2000-02-01', '2000-02-10');
+insert into t2 values ('2000-01-05');
+delete from t1 for portion of app from (select d from t2) to '2000-01-20';
+--sorted_result
+select * from t1;
+drop table t1, t2;
+
+--echo # End of 10.11 tests

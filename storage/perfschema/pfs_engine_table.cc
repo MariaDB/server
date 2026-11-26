@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
+   Copyright (c) 2026, MariaDB plc
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -153,6 +154,7 @@ bool PFS_table_context::initialize(void)
     {
       m_last_version= context->m_current_version;
       m_map= context->m_map;
+      /* Both sizes come from the container maximum, fixed at startup. */
       assert(m_map_size == context->m_map_size);
       m_map_size= context->m_map_size;
     }
@@ -174,7 +176,7 @@ bool PFS_table_context::initialize(void)
     {
       THD *thd= current_thd;
       ulong words= m_map_size / m_word_size + (m_map_size % m_word_size > 0);
-      m_map= (ulong *)thd->calloc(words * m_word_size);
+      m_map= (ulong *)thd->calloc(words * sizeof(ulong));
     }
 
     /* Write to TLS. */
@@ -190,7 +192,8 @@ bool PFS_table_context::initialize(void)
 PFS_table_context::PFS_table_context(ulonglong current_version, bool restore, thread_local_key_t key) :
                    m_thr_key(key), m_current_version(current_version), m_last_version(0),
                    m_map(NULL), m_map_size(0),
-                   m_restore(restore), m_initialized(false), m_last_item(0)
+                   m_restore(restore), m_initialized(false),
+                   m_last_item(NO_LAST_ITEM)
 {
   initialize();
 }
@@ -199,7 +202,8 @@ PFS_table_context::PFS_table_context(ulonglong current_version, bool restore, th
 PFS_table_context::PFS_table_context(ulonglong current_version, ulong map_size, bool restore, thread_local_key_t key) :
                    m_thr_key(key), m_current_version(current_version), m_last_version(0),
                    m_map(NULL), m_map_size(map_size),
-                   m_restore(restore), m_initialized(false), m_last_item(0)
+                   m_restore(restore), m_initialized(false),
+                   m_last_item(NO_LAST_ITEM)
 {
   initialize();
 }
@@ -215,6 +219,7 @@ PFS_table_context::~PFS_table_context(void)
 
 void PFS_table_context::set_item(ulong n)
 {
+  assert(n < m_map_size);
   if (n == m_last_item)
     return;
   ulong word= n / m_word_size;
@@ -225,6 +230,7 @@ void PFS_table_context::set_item(ulong n)
 
 bool PFS_table_context::is_item_set(ulong n)
 {
+  assert(n < m_map_size);
   ulong word= n / m_word_size;
   ulong bit= n % m_word_size;
   return (m_map[word] & (1UL << bit));
@@ -1988,7 +1994,7 @@ int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
                              MY_DIR *dir __attribute__((unused)),
                              handlerton::discovered_list *result)
 {
-  if (compare_table_names(db->str, PERFORMANCE_SCHEMA_str.str))
+  if (strcasecmp(db->str, PERFORMANCE_SCHEMA_str.str))
     return 0;
   for (size_t i= 0; i < array_elements(all_shares) - 1; i++)
     result->add_table(all_shares[i]->m_name.str,

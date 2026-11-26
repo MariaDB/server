@@ -16,7 +16,7 @@
 # whenever that signature is found.
 #
 
---let $galera_version=26.4.29
+--let $galera_version=26.4.28
 source ../wsrep/include/check_galera_version.inc;
 
 --source include/have_innodb.inc

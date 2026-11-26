@@ -56,6 +56,11 @@ end while;
 deallocate prepare read_tbl;
 end|
 set global innodb_max_purge_lag_wait= 0;
+create table t5 (a int) engine=innodb;
+connect  stop_purge,localhost,root;
+set debug_dbug= '+d,purge_stop_wait_truncation';
+flush tables t5 for export;
+connection default;
 set @old_size= @@global.innodb_buffer_pool_size;
 set @new_size= 12582912;
 set @first_new= 0;
@@ -86,7 +91,6 @@ group_concat(pk)
 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20
 connection default;
 set global innodb_buffer_pool_size= @old_size;
-set global innodb_max_purge_lag_wait= 0;
 #
 # An UPDATE that continues from a stale position
 #
@@ -115,8 +119,12 @@ select group_concat(pk) from t2 where val = 'b';
 group_concat(pk)
 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
 set debug_sync= 'reset';
+connection stop_purge;
+unlock tables;
+disconnect stop_purge;
+connection default;
 drop procedure read_into_first_new_block;
 drop function hold;
-drop table t1, t2, t3, t4;
+drop table t1, t2, t3, t4, t5;
 set global innodb_buffer_pool_size= @old_size;
 set global innodb_lru_scan_depth= @save_scan_depth;

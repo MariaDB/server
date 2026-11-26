@@ -6651,26 +6651,8 @@ prepare_inplace_alter_table_dict(
 	bool table_lock_failed = false;
 
 	if (!ctx->online) {
-acquire_lock:
 		ctx->prebuilt->trx->op_info = "acquiring table lock";
 		error = lock_table_for_trx(user_table, ctx->trx, LOCK_S);
-	} else if (add_key_nums) {
-		/* FIXME: trx_resurrect_table_locks() will not resurrect
-		MDL for any recovered transactions that may hold locks on
-		the table. We will prevent race conditions by "unnecessarily"
-		acquiring an InnoDB table lock even for online operation,
-		to ensure that the rollback of recovered transactions will
-		not run concurrently with online ADD INDEX. */
-		user_table->lock_shared_lock();
-		for (lock_t *lock = UT_LIST_GET_FIRST(user_table->locks);
-		     lock;
-		     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
-			if (lock->trx->is_recovered) {
-				user_table->lock_shared_unlock();
-				goto acquire_lock;
-			}
-		}
-		user_table->lock_shared_unlock();
 	}
 
 	if (pause_purge) {
@@ -6794,9 +6776,17 @@ new_clustered_failed:
 			n_cols++;
 			DBUG_ASSERT(flags2 & DICT_TF2_FTS);
 			DBUG_ASSERT(add_fts_doc_id_idx);
-			flags2 |= DICT_TF2_FTS_ADD_DOC_ID
-				| DICT_TF2_FTS_HAS_DOC_ID
-				| DICT_TF2_FTS;
+			flags2 |= DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS;
+			/* This flag makes row_merge_build_indexes() assign
+			new FTS_DOC_ID values; it clears the flag when done.
+			If the table is empty (mdl_exclusive_after_prepare),
+			inplace_alter_table() skips that phase. The flag
+			would stay set, and a FULLTEXT index added later
+			without a rebuild would not match the FTS_DOC_ID
+			of the rows. */
+			if (!ha_alter_info->mdl_exclusive_after_prepare) {
+				flags2 |= DICT_TF2_FTS_ADD_DOC_ID;
+			}
 		}
 
 		DBUG_ASSERT(!add_fts_doc_id_idx || (flags2 & DICT_TF2_FTS));

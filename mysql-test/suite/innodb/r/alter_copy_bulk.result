@@ -1,16 +1,45 @@
-SET @default_stats_persistent= @@global.innodb_stats_persistent;
-SET GLOBAL innodb_stats_persistent= 0;
-CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
+SET @save_fill_factor=@@GLOBAL.innodb_fill_factor;
+SET GLOBAL innodb_fill_factor=100;
+CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB STATS_PERSISTENT=1;
 INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
 ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
 ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
+index_name	stat_name	stat_value
+GEN_CLUST_INDEX	n_leaf_pages	993
+GEN_CLUST_INDEX	size	1059
+f2	n_leaf_pages	63
+f2	size	97
 ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
 ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
 INSERT INTO t1 VALUES(repeat('a', 200), 1);
 ALTER TABLE t1 ADD UNIQUE KEY(f2);
 ERROR 23000: Duplicate entry '1' for key 'f2_2'
 ALTER IGNORE TABLE t1 MODIFY f1 CHAR(200) NOT NULL;
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
+index_name	stat_name	stat_value
+GEN_CLUST_INDEX	n_leaf_pages	993
+GEN_CLUST_INDEX	size	1059
+f2	n_leaf_pages	63
+f2	size	97
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+SELECT index_name, stat_name, stat_value FROM mysql.innodb_index_stats
+WHERE database_name = 'test' AND table_name = 't1'
+AND stat_name IN ('size','n_leaf_pages');
+index_name	stat_name	stat_value
+GEN_CLUST_INDEX	n_leaf_pages	993
+GEN_CLUST_INDEX	size	1059
+f2	n_leaf_pages	63
+f2	size	97
+SET GLOBAL innodb_fill_factor=@save_fill_factor;
 CREATE TABLE t2(f1 INT NOT NULL,
 FOREIGN KEY(f1) REFERENCES t1(f2))ENGINE=InnoDB;
 INSERT INTO t2 VALUES(1);
@@ -90,7 +119,6 @@ INSERT INTO t1 VALUES
 (REPEAT('x',65535),'dd');
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
-SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
 #
 #  MDEV-36504 Memory leak after insert into empty table
 #
@@ -102,13 +130,12 @@ SELECT COUNT(*) > 0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
 COUNT(*) > 0
 1
 connect con1,localhost,root,,,;
-SET innodb_lock_wait_timeout=0;
+SET STATEMENT innodb_lock_wait_timeout=0 FOR
 CREATE TABLE t2(f1 INT DEFAULT 1 PRIMARY KEY)
 STATS_PERSISTENT= 1 ENGINE=InnoDB as SELECT k FROM t1;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 connection default;
-SET innodb_lock_wait_timeout=default;
 DROP TABLE t1;
 DROP TABLE IF EXISTS t2;
 # restart

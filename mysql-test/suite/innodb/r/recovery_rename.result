@@ -1,0 +1,108 @@
+#
+# MDEV-41548 InnoDB: Cannot replay rename because the target file exists
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t2 VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE t2 TO t3, t1 TO t2;
+# Kill the server
+# restart
+SELECT * FROM t2;
+a
+1
+SELECT * FROM t3;
+a
+2
+DROP TABLE t2, t3;
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+# Kill the server
+# restart
+SELECT * FROM tb;
+a
+2
+SELECT * FROM td;
+a
+1
+DROP TABLE tb, td;
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+# Kill the server
+# restart
+SELECT * FROM tb;
+a
+2
+SELECT * FROM td;
+a
+1
+DROP TABLE tb, td;
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+# Kill the server
+# restart
+SELECT * FROM tb;
+a
+2
+SELECT * FROM td;
+a
+1
+DROP TABLE tb, td;
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+# Kill the server
+# restart
+SELECT * FROM tb;
+a
+2
+SELECT * FROM td;
+a
+1
+DROP TABLE tb, td;
+CREATE TABLE ta (a INT) ENGINE=InnoDB;
+CREATE TABLE td (a INT) ENGINE=InnoDB;
+INSERT INTO ta VALUES(1);
+INSERT INTO td VALUES(2);
+SET GLOBAL innodb_log_checkpoint_now=ON;
+RENAME TABLE ta TO tb;
+RENAME TABLE tb TO tc;
+RENAME TABLE td TO tb;
+RENAME TABLE tc TO td;
+# Kill the server
+# restart
+SELECT * FROM tb;
+a
+2
+SELECT * FROM td;
+a
+1
+DROP TABLE tb, td;

@@ -26,8 +26,39 @@ SELECT * FROM t1;
 SET GLOBAL wsrep_reject_queries = ALL_KILL;
 
 --connection node_1a
---error ER_CONNECTION_KILLED,2013,2006,2026
-SELECT * FROM t1;
+#
+# wsrep_close_client_connections() only signals the kill asynchronously
+# (MDEV-40348): it does not wait for node_1a's thread to notice and
+# close the connection before SET GLOBAL above returns. A single query
+# here races that signal and can observe the connection still alive,
+# getting the same ER_UNKNOWN_COM_ERROR 1047 that plain ALL already
+# returns above, instead of a connection error. Poll until the
+# connection is actually gone.
+#
+--disable_query_log
+--disable_result_log
+--let $wait_counter = 600
+--let $killed = 0
+while (!$killed)
+{
+  --error 0,ER_CONNECTION_KILLED,2013,2006,2026,ER_UNKNOWN_COM_ERROR
+  SELECT * FROM t1;
+  if ($mysql_errno != 0 && $mysql_errno != 1047)
+  {
+    --let $killed = 1
+  }
+  if (!$killed)
+  {
+    --dec $wait_counter
+    if (!$wait_counter)
+    {
+      --die wsrep_reject_queries=ALL_KILL did not kill the node_1a connection in time
+    }
+    --real_sleep 0.1
+  }
+}
+--enable_result_log
+--enable_query_log
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --error ER_UNKNOWN_COM_ERROR,1047

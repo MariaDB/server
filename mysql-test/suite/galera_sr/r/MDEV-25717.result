@@ -13,6 +13,7 @@ COUNT(*)
 3
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_toi";
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;

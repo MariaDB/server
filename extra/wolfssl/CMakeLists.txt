@@ -40,6 +40,9 @@ SET(WOLFCRYPT_SRCDIR ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl/wolfcrypt/src)
 ADD_DEFINITIONS(${SSL_DEFINES})
 ADD_DEFINITIONS(-DWOLFSSL_LIB -DBUILDING_WOLFSSL)
 ADD_DEFINITIONS(-DWOLFSSL_SP_4096)
+
+check_type_size("__uint128_t" __UINT128_T)
+
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl)
 INCLUDE_DIRECTORIES(${SSL_INCLUDE_DIRS})
 
@@ -99,6 +102,7 @@ if(WOLFSSL_INTELASM)
   if(MSVC_INTEL)
     target_sources(wolfssl PRIVATE
       ${WOLFCRYPT_SRCDIR}/aes_asm.asm
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.asm
       ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.asm
       ${WOLFCRYPT_SRCDIR}/sp_x86_64_asm.asm
     )
@@ -110,6 +114,7 @@ if(WOLFSSL_INTELASM)
     set(USE_INTEL_SPEEDUP 1)
     target_sources(wolfssl PRIVATE
       ${WOLFCRYPT_SRCDIR}/aes_asm.S
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.S
       ${WOLFCRYPT_SRCDIR}/aes_gcm_asm.S
       ${WOLFCRYPT_SRCDIR}/chacha_asm.S
       ${WOLFCRYPT_SRCDIR}/poly1305_asm.S
@@ -119,7 +124,8 @@ if(WOLFSSL_INTELASM)
     )
     target_compile_options(wolfssl PRIVATE -maes -msse4.2 -mpclmul)
     # Workaround 5.5.4 bug (user_settings.h not included into aes_asm.S)
-    set_property(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
+    set_property(SOURCE ${WOLFCRYPT_SRCDIR}/aes_asm.S
+      ${WOLFCRYPT_SRCDIR}/aes_x86_64_asm.S APPEND PROPERTY COMPILE_OPTIONS "-DWOLFSSL_X86_64_BUILD")
   endif()
 endif()
 

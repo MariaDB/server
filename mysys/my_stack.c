@@ -71,5 +71,5 @@ extern void my_get_stack_bounds(void **stack_start, void **stack_end,
   *stack_start= my_get_stack_pointer(fallback_stack_start);
   stack_size= (fallback_stack_size -
                MY_MIN(fallback_stack_size, MY_STACK_SAFE_MARGIN));
-  *stack_end= (char *)(*stack_start) + stack_size * STACK_DIRECTION;
+  *stack_end= (char *)(*stack_start) + ((ssize_t)stack_size) * STACK_DIRECTION;
 }

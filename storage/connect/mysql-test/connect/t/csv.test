@@ -183,3 +183,26 @@ DROP TABLE t1;
 #
 --remove_file $MYSQLD_DATADIR/test/people.csv
 --remove_file $MYSQLD_DATADIR/test/tmp.csv
+
+--echo #
+--echo # MDEV-41944 CONNECT CSV discovery header overflows colname[]/len[]/typ[]/prc[]
+--echo #
+perl;
+  for my $n (200, 201) {
+    my $f= "$ENV{MARIADB_DATADIR}/test/t$n.csv";
+    open my $fh, '>', $f or die "open $f: $!";
+    print $fh join(',', map { "c$_" } 1..$n), "\n";
+    print $fh join(',', 1..$n), "\n";
+    close $fh;
+  }
+EOF
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='t200.csv';
+SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema='test' AND table_name='t1';
+DROP TABLE t1;
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='t201.csv';
+--remove_file $MARIADB_DATADIR/test/t200.csv
+--remove_file $MARIADB_DATADIR/test/t201.csv
+
+--echo # End of 10.11 tests

@@ -220,7 +220,7 @@ static File_option triggers_file_parameters[]=
     my_offsetof(class Table_triggers_list, hr_create_times),
     FILE_OPTIONS_ULLLIST
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 File_option sql_modes_parameters=
@@ -263,7 +263,7 @@ static File_option trigname_file_parameters[]=
     offsetof(struct st_trigname, trigger_table),
     FILE_OPTIONS_ESTRING
   },
-  { { 0, 0 }, 0, FILE_OPTIONS_STRING }
+  { { 0, 0 }, 0, FILE_OPTIONS_ESTRING }
 };
 
 
@@ -560,6 +560,15 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     if (err_status)
       goto end;
   }
+
+  /*
+    Resolve the DEFINER and check that the user may use it before TOI
+    replicates the statement: the applier runs with all privileges, so
+    a DEFINER refused here would otherwise be accepted by the other
+    nodes, and the trigger would run there with the DEFINER's privileges.
+  */
+  if (create && sp_process_definer(thd))
+    goto end;
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
 
@@ -921,8 +930,8 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   if (error_if_mysql50_prefix(lex->spname->m_name.str, ER_SP_WRONG_NAME))
     DBUG_RETURN(true);
 
-  if (sp_process_definer(thd))
-    DBUG_RETURN(true);
+  /* lex->definer was resolved and checked by mysql_create_or_drop_trigger() */
+  DBUG_ASSERT(lex->definer);
 
   /*
     Let us check if all references to fields in old/new versions of row in
@@ -1632,6 +1641,11 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         if (parser_state.init(thd, (char*) trg_create_str->str,
                               trg_create_str->length))
           goto err_with_lex_cleanup;
+        /*
+          Name-only loads (DROP/RENAME TABLE, I_S.TRIGGERS) need every
+          trigger name, e.g. for the .TRN files.
+        */
+        parser_state.m_lip.ignore_kill= names_only;
 
         if (!trigger_list->client_cs_names.is_empty())
           creation_ctx= Trigger_creation_ctx::create(thd,
@@ -1658,9 +1672,21 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         Deprecated_trigger_syntax_handler error_handler;
         thd->push_internal_handler(&error_handler);
 
+        DBUG_EXECUTE_IF("kill_on_second_trigger_load",
+                        if (trg_create_str !=
+                            trigger_list->definitions_list.head())
+                          thd->set_killed(KILL_QUERY););
+
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
         DBUG_ASSERT(!parse_error || lex.sphead == 0);
+
+        /*
+          The handler swallowed the kill error raised in parse_sql(). Raise
+          it again, the trigger is not broken.
+        */
+        if (parser_state.m_lip.fail_if_stopped_on_kill())
+          goto err_with_lex_cleanup;
 
         /*
           Not strictly necessary to invoke this method here, since we know
@@ -1849,6 +1875,9 @@ err_with_lex_cleanup:
   }
 
 error:
+  /* Not all callers delete table->triggers on error, closefrm() does not. */
+  delete table->triggers;
+  table->triggers= NULL;
   if (unlikely(!thd->is_error()))
   {
     /*

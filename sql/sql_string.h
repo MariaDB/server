@@ -45,7 +45,7 @@ typedef struct st_mem_root MEM_ROOT;
 class Binary_string;
 int sortcmp(const Binary_string *s, const Binary_string *t, CHARSET_INFO *cs);
 int stringcmp(const Binary_string *s, const Binary_string *t);
-String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
+String *copy_if_not_alloced(String *a, String *b, size_t arg_length);
 inline uint32 copy_and_convert(char *to, size_t to_length, CHARSET_INFO *to_cs,
                                const char *from, size_t from_length,
                                CHARSET_INFO *from_cs, uint *errors)
@@ -1141,7 +1141,7 @@ public:
   }
 
   void strip_sp();
-  friend String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
+  friend String *copy_if_not_alloced(String *a, String *b, size_t arg_length);
   friend class Field;
   uint32 numchars() const
   {

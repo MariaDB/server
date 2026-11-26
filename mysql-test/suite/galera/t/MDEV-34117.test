@@ -41,6 +41,8 @@ SET SESSION wsrep_trx_fragment_size = 0;
 SELECT @@wsrep_trx_fragment_unit;
 SELECT @@wsrep_trx_fragment_size;
 SET GLOBAL wsrep_on=ON;
+# Local-only checks; skip the causal wait, it can time out under load (MDEV-41388).
+SET SESSION wsrep_sync_wait = 0;
 --error ER_WRONG_VALUE_FOR_VAR
 SET SESSION wsrep_trx_fragment_unit='STATEMENTS';
 --error ER_WRONG_VALUE_FOR_VAR
@@ -48,6 +50,7 @@ SET SESSION wsrep_trx_fragment_size = 2;
 SHOW WARNINGS;
 SELECT @@wsrep_trx_fragment_unit;
 SELECT @@wsrep_trx_fragment_size;
+SET SESSION wsrep_sync_wait = 15;
 SET GLOBAL wsrep_on=OFF;
 CREATE TABLE IF NOT EXISTS mysql.wsrep_streaming_log
 (

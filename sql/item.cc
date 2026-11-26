@@ -4180,6 +4180,7 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
   Type_handler_hybrid_field_type(&type_handler_null),
   state(NO_VALUE),
   m_empty_string_is_null(false),
+  m_changing_value(false),
   indicator(STMT_INDICATOR_NONE),
   m_out_param_info(NULL),
   /*
@@ -4241,6 +4242,7 @@ void Item_param::sync_clones()
 
     c->state= state;
     c->m_empty_string_is_null= m_empty_string_is_null;
+    c->m_changing_value= m_changing_value;
 
     c->value.PValue_simple::operator=(value);
     c->value.Type_handler_hybrid_field_type::operator=(value);
@@ -4950,14 +4952,22 @@ bool Item_param::convert_str_value(THD *thd)
 }
 
 
+void Item_param::set_changing_value(bool changing)
+{
+  m_changing_value= changing;
+  for (Item_param **c= m_clones.begin(); c < m_clones.end(); c++)
+    (*c)->m_changing_value= changing;
+}
+
+
 bool Item_param::basic_const_item() const
 {
   switch (state) {
   case LONG_DATA_VALUE:
   case NULL_VALUE:
-    return true;
+    return !m_changing_value;
   case SHORT_DATA_VALUE:
-    return type_handler()->cmp_type() != TIME_RESULT;
+    return !m_changing_value && type_handler()->cmp_type() != TIME_RESULT;
   case DEFAULT_VALUE:
   case IGNORE_VALUE:
     invalid_default_param();

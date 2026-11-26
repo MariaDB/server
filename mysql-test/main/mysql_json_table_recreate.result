@@ -185,8 +185,7 @@ drop table tempty;
 drop table mysql_json_test;
 drop table mysql_json_test_big;
 #
-# MDEV-32790: Output result in show create table
-#             for mysql_json type should be longtext
+# MDEV-32790: Output result in show create table for mysql_json type should be longtext
 #
 create table t1(j json);
 show create table t1;
@@ -256,3 +255,10 @@ alter table t1 force;
 ERROR HY000: Error parsing MySQL JSON format, please dump this table from MySQL and then restore it to be able to use it in MariaDB.
 drop table t1;
 # End of 10.6 tests
+#
+# MDEV-41473 more mysql_json plugin OOB reads
+#
+alter table t1 force;
+ERROR HY000: Error parsing MySQL JSON format, please dump this table from MySQL and then restore it to be able to use it in MariaDB.
+drop table t1;
+# End of 10.11 tests

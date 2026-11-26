@@ -133,6 +133,12 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
+
+# https://bugzilla.redhat.com/show_bug.cgi?id=2390105
+%if 0%{?fedora} >= 43
+%undefine _preserve_static_debuginfo
+%define _find_debuginfo_opts --no-ar-files
+%endif
 ")
 
 # this creative hack is described here: http://www.cmake.org/pipermail/cmake/2012-January/048416.html
@@ -251,6 +257,8 @@ IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "socat" "pv" "stunnel")
   SETA(CPACK_RPM_test_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES}" "socat")
 ENDIF()
+
+SETA(CPACK_RPM_server_PACKAGE_REQUIRES "/usr/bin/ps")
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)

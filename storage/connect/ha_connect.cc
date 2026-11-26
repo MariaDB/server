@@ -1,4 +1,5 @@
-/* Copyright (C) MariaDB Corporation Ab
+/* Copyright (c) 2004, 2021, Olivier Bertrand.
+   Copyright (c) 2013, 2026, MariaDB plc.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1396,11 +1397,13 @@ char *ha_connect::GetRealString(PCSZ s)
 {
   char *sv;
 
-  if (IsPartitioned() && s && *partname) {
-    sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
-    PPOOLHEADER pph = (PPOOLHEADER)xp->g->Sarea;
-    snprintf(sv, xp->g->Sarea_Size - pph->To_Free, s, partname);
-    PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
+  const char *p;
+
+  if (IsPartitioned() && s && *partname && (p= strstr(s, "%s"))) {
+    size_t len= strlen(s) - 2 + strlen(partname) + 1;
+
+    sv= (char*)PlugSubAlloc(xp->g, NULL, len);
+    snprintf(sv, len, "%.*s%s%s", (int) (p - s), s, partname, p + 2);
   } else
     sv= (char*)s;
 
@@ -4675,6 +4678,44 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn,
   return checkPrivileges(thd, type, options, db, table, quick);
 } // end of check_privileges
 
+// Check whether the user can access a CONNECT sub-table in the given mode
+bool ha_connect::check_subtable_privileges(THD *thd, TABLE_SHARE *s,
+                                           MODE mode)
+{
+  privilege_t want(NO_ACL);
+  TABLE_LIST  tl;
+  bool        rc;
+  bool        quiet= false;
+
+  switch (mode) {
+    case MODE_ANY:                      // Only info()
+    case MODE_ALTER:                    // Only info() in ALTER TABLE
+      quiet= true;  // CONNECT treats this as "no statistics" not a hard error
+      /* fall-through */
+    case MODE_READ:   want= SELECT_ACL;              break;
+    case MODE_INSERT: want= INSERT_ACL;              break;
+    case MODE_UPDATE: want= SELECT_ACL | UPDATE_ACL; break;
+    case MODE_DELETE: want= SELECT_ACL | DELETE_ACL; break;
+    case MODE_READX:                    // Only for remote index types
+    case MODE_WRITE:                    // Only used for index files
+    case MODE_ERROR:
+      DBUG_ASSERT(0);
+      return true;
+  } // endswitch mode
+
+  tl.init_one_table(&s->db, &s->table_name, NULL, TL_READ);
+
+  if (table && table->pos_in_table_list) {
+    Switch_to_definer_security_ctx backup_ctx(thd, table->pos_in_table_list);
+    rc= check_table_access(thd, want, &tl, FALSE, 1, quiet);
+  } else
+    rc= check_table_access(thd, want, &tl, FALSE, 1, quiet);
+
+  // info() of a file-based table does not require FILE. neither here nor elsewhere
+  return rc || (!quiet && checkPrivileges(thd, GetRealType(s->option_struct),
+                                   s->option_struct, s->db.str, table, false));
+} // end of check_subtable_privileges
+
 // Check that two indexes are equivalent
 bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 {
@@ -5819,6 +5860,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
     if (fn && *fn)
       switch (ttp) {
+        case TAB_CSV:
         case TAB_FMT:
         case TAB_DBF:
         case TAB_XML:
@@ -7103,7 +7145,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     s= "/";
 #endif  // !_WIN32
     if (IsPartitioned()) {
-      snprintf(tfn, sizeof(tfn), fn, GetPartName());
+      if (const char *p= strstr(fn, "%s"))
+        snprintf(tfn, sizeof(tfn), "%.*s%s%s", (int) (p - fn), fn,
+                 GetPartName(), p + 2);
+      else
+        snprintf(tfn, sizeof(tfn), "%s", fn);
 
       // This is to avoid an initialization error raised by the
       // test on check_table_flags made in ha_partition::open

@@ -91,7 +91,6 @@ static int prepare_for_fill(TABLE_LIST *tables)
   */
   thd->variables.pseudo_thread_id= thd->thread_id;
   server_threads.insert(thd);
-  thd->thread_stack= (char*) &tables;
   thd->store_globals();
 
   thd->mysys_var->current_cond= &sleep_condition;

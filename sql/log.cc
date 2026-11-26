@@ -7260,7 +7260,8 @@ err:
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 #ifdef HAVE_REPLICATION
-      if (repl_semisync_master.wait_after_sync(log_file_name, offset))
+      if (likely(!error) &&
+          repl_semisync_master.wait_after_sync(log_file_name, offset))
       {
         error=1;
         /* error is already printed inside hook */
@@ -12524,9 +12525,7 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
     back a statement or a transaction. However, notifications do not happen
     if the binary log is set as read/write.
   */
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-  /* cache_mngr may be missing e.g. in mtr test ev51914.test */
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
   if (cache_mngr)
   {
     /*

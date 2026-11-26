@@ -2078,7 +2078,8 @@ err_exit:
 		undo_block = trx_undo_add_page(undo, &mtr, &err);
 
 		DBUG_EXECUTE_IF("ib_err_ins_undo_page_add_failure",
-				undo_block = NULL;);
+				undo_block = NULL;
+				err = DB_OUT_OF_FILE_SPACE;);
 	} while (UNIV_LIKELY(undo_block != NULL));
 
 	if (err != DB_OUT_OF_FILE_SPACE) {
@@ -2086,8 +2087,7 @@ err_exit:
 	}
 
 	ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-		DB_OUT_OF_FILE_SPACE,
-		//ER_INNODB_UNDO_LOG_FULL,
+		ER_INNODB_UNDO_LOG_FULL,
 		"No more space left over in %s tablespace for allocating UNDO"
 		" log pages. Please add new data file to the tablespace or"
 		" check if filesystem is full or enable auto-extension for"

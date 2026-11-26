@@ -1,0 +1,199 @@
+#
+# An old read view must not see a table whose data was replaced
+# by DDL, also after the table was evicted from the InnoDB data
+# dictionary cache. Each case starts a read view, commits an
+# UPDATE that sets b to 11 and 12, runs the DDL, and then reads
+# the table in the old read view. A correct read returns b=1,2
+# or fails with ER_TABLE_DEF_CHANGED. The combination evict
+# evicts the table before the read.
+#
+call mtr.add_suppression("InnoDB: Tablespace for table `test`.`t` is set as discarded");
+SET @save_evict= @@GLOBAL.innodb_evict_tables_on_commit_debug;
+connect mvcc,localhost,root;
+connect evict,localhost,root;
+connection default;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t FORCE, ALGORITHM=COPY;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t FORCE, ALGORITHM=INPLACE;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t ADD INDEX(b), ALGORITHM=INPLACE;
+connection mvcc;
+SELECT * FROM t;
+a	b	d
+1	1	1
+2	2	2
+# success
+SELECT a FROM t FORCE INDEX(b);
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t ADD COLUMN c INT DEFAULT 42, ALGORITHM=INSTANT;
+connection mvcc;
+SELECT * FROM t;
+a	b	d	c
+1	1	1	42
+2	2	2	42
+# success
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t DROP COLUMN b, ALGORITHM=INSTANT;
+connection mvcc;
+SELECT * FROM t;
+a	d
+1	1
+2	2
+# success
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t RENAME INDEX k TO k2;
+connection mvcc;
+SELECT * FROM t;
+a	b	d
+1	1	1
+2	2	2
+# success
+SELECT a FROM t FORCE INDEX(k2);
+a
+1
+2
+# success
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+TRUNCATE TABLE t;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t DISCARD TABLESPACE;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLESPACE_DISCARDED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+ALTER TABLE t ADD INDEX(b), ALGORITHM=INPLACE;
+ALTER TABLE t ADD COLUMN c INT, ALGORITHM=INSTANT;
+connection mvcc;
+SELECT * FROM t;
+a	b	d	c
+1	1	1	NULL
+2	2	2	NULL
+# success
+SELECT a FROM t FORCE INDEX(b);
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT, KEY k(d)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+CREATE TABLE src LIKE t;
+INSERT INTO src SELECT * FROM t;
+ALTER TABLE t DISCARD TABLESPACE;
+FLUSH TABLES src FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE src;
+ALTER TABLE t IMPORT TABLESPACE;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLE_DEF_CHANGED
+SELECT a FROM t FORCE INDEX(k);
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+CREATE TABLE t(a INT PRIMARY KEY, b INT, d INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t VALUES(1,1,1),(2,2,2);
+connection mvcc;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+UPDATE t SET b = b + 10;
+CREATE TABLE src LIKE t;
+INSERT INTO src SELECT * FROM t;
+ALTER TABLE t DISCARD TABLESPACE;
+FLUSH TABLES src FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE src;
+ALTER TABLE t IMPORT TABLESPACE;
+connection mvcc;
+SELECT * FROM t;
+# errname: ER_TABLE_DEF_CHANGED
+COMMIT;
+connection default;
+DROP TABLE t;
+disconnect mvcc;
+disconnect evict;
+SET GLOBAL innodb_evict_tables_on_commit_debug= @save_evict;

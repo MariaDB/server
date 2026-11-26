@@ -993,6 +993,7 @@ my_real_read(NET *net, size_t *complen,
   size_t length;
   uint i,retry_count=0;
   ulong len=packet_error;
+  bool proxy_parsed= false;
   my_bool expect_error_packet __attribute__((unused))= 0;
   thr_alarm_t alarmed;
 #ifndef NO_ALARM
@@ -1260,22 +1261,27 @@ end:
 
 packets_out_of_order:
   {
-    switch (handle_proxy_header(net)) {
-    case ABORT:
+    if (!proxy_parsed)
+    {
+      switch (handle_proxy_header(net))
+      {
+      case ABORT:
         /* error happened, message is already written. */
         len= packet_error;
-        goto end; 
-    case RETRY:
+        goto end;
+      case RETRY:
+        proxy_parsed= true;
         goto retry;
-    case IGNORE:
+      case IGNORE:
         break;
-    }
+     }
+   }
 
     DBUG_PRINT("error",
                ("Packets out of order (Found: %d, expected %u)",
                 (int) net->buff[net->where_b + 3],
                 net->pkt_nr));
-    EXTRA_DEBUG_ASSERT(0);
+    EXTRA_DEBUG_ASSERT(DBUG_IF("net_expect_protocol_errors"));
     /*
        We don't make noise server side, since the client is expected
        to break the protocol for e.g. --send LOAD DATA .. LOCAL where

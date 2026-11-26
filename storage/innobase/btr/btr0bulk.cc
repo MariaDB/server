@@ -37,9 +37,9 @@ uint	innobase_fill_factor;
 
 /** Initialize members, allocate page if needed and start mtr.
 Note: we commit all mtrs on failure.
+@param hint_page_no  page allocation hint, or 0
 @return error code. */
-dberr_t
-PageBulk::init()
+dberr_t PageBulk::init(uint32_t hint_page_no)
 {
 	buf_block_t*	new_block;
 	page_t*		new_page;
@@ -62,8 +62,8 @@ PageBulk::init()
 		m_index->set_modified(alloc_mtr);
 
 		/* Allocate a new page. */
-		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
-					   &alloc_mtr, &m_mtr, &err);
+		new_block = btr_page_alloc(m_index, hint_page_no, FSP_UP,
+					   m_level, &alloc_mtr, &m_mtr, &err);
 		alloc_mtr.commit();
 		if (!new_block) {
 			m_mtr.commit();
@@ -878,7 +878,7 @@ BtrBulk::pageSplit(
 	/* Initialize a new page */
 	PageBulk new_page_bulk(m_index, m_trx->id, FIL_NULL,
 			       page_bulk->getLevel());
-	dberr_t	err = new_page_bulk.init();
+	dberr_t	err = new_page_bulk.init(page_bulk->getPageNo());
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
@@ -1010,7 +1010,7 @@ BtrBulk::insert(
 		PageBulk*	new_page_bulk
 			= UT_NEW_NOKEY(PageBulk(m_index, m_trx->id, FIL_NULL,
 						level));
-		err = new_page_bulk->init();
+		err = new_page_bulk->init(0);
 		if (err != DB_SUCCESS) {
 			UT_DELETE(new_page_bulk);
 			return(err);
@@ -1064,7 +1064,7 @@ BtrBulk::insert(
 		PageBulk*	sibling_page_bulk;
 		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx->id,
 							  FIL_NULL, level));
-		err = sibling_page_bulk->init();
+		err = sibling_page_bulk->init(page_bulk->getPageNo());
 		if (err != DB_SUCCESS) {
 			UT_DELETE(sibling_page_bulk);
 			goto func_exit;
@@ -1200,7 +1200,7 @@ err_exit:
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */
-		err = root_page_bulk.init();
+		err = root_page_bulk.init(0);
 		if (err != DB_SUCCESS) {
 			goto err_exit;
 		}

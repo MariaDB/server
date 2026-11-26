@@ -178,7 +178,6 @@ void udf_init()
     DBUG_VOID_RETURN;
   }
   initialized = 1;
-  new_thd->thread_stack= (void*) &new_thd;      // Big stack
   new_thd->store_globals();
   new_thd->set_db(&MYSQL_SCHEMA_NAME);
 

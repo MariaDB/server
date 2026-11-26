@@ -107,3 +107,21 @@ select concat(user, '__'), is_role from mysql.user where user like 'foo%';
 select * from mysql.roles_mapping;
 --sorted_result
 show grants;
+
+--echo #
+--echo # MDEV-41123 show_role_grants: Assertion `pair' failed
+--echo #
+create table mysql.global_priv_bak as select * from mysql.global_priv;
+create role i0;
+delete from mysql.global_priv;
+set sql_mode='';
+--error ER_PASSWORD_NO_MATCH
+grant usage on *.* to i0;
+set sql_mode=default;
+drop role i0;
+show grants;
+insert mysql.global_priv select * from mysql.global_priv_bak;
+drop table mysql.global_priv_bak;
+flush privileges;
+
+--echo # End of 10.11 tests

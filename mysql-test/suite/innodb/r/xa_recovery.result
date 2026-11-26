@@ -19,8 +19,7 @@ connect  con1,localhost,root;
 SET STATEMENT innodb_lock_wait_timeout=1 FOR # work around MDEV-38741
 SELECT * FROM t1 LOCK IN SHARE MODE;
 connection default;
-SET innodb_lock_wait_timeout=1;
-DROP TABLE t2;
+SET STATEMENT lock_wait_timeout=1 FOR DROP TABLE t2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
@@ -31,7 +30,7 @@ XA ROLLBACK 'x';
 SELECT * FROM t1;
 a
 1
-DROP TABLE t2;
+SET STATEMENT lock_wait_timeout=1 FOR DROP TABLE t2;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 XA ROLLBACK 'y';
 DROP TABLE t2;

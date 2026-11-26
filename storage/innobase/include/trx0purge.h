@@ -451,8 +451,17 @@ public:
     latch.wr_lock(SRW_LOCK_CALL);
     trx_sys.clone_oldest_view(&view);
     if (also_end_view)
-      (end_view= view).
-        clamp_low_limit_id(head.trx_no ? head.trx_no : tail.trx_no);
+    {
+      end_view= view;
+      /* At startup, purge has not run yet. Assigning to 0
+      would make end_view claim that no history has been
+      purged. Although, any undo log records that were
+      history has been purged and any undo log records that
+      were purged before restart may have been reused.
+      Keep the oldest view as it is */
+      if (const trx_id_t trx_no= head.trx_no ? head.trx_no : tail.trx_no)
+        end_view.clamp_low_limit_id(trx_no);
+    }
     latch.wr_unlock();
   }
 

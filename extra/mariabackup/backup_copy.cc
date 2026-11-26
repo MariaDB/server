@@ -1,7 +1,7 @@
 /******************************************************
 hot backup tool for InnoDB
 (c) 2009-2015 Percona LLC and/or its affiliates
-(c) 2017 MariaDB
+(c) 2017, 2026 MariaDB plc.
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
@@ -330,9 +330,10 @@ make_path_n(int n, char **path, ulint *path_len, ...)
 	}
 	va_end(vl);
 
-	if (len_needed < *path_len) {
+	if (len_needed > *path_len) {
 		free(*path);
 		*path = static_cast<char*>(malloc(len_needed));
+		*path_len = len_needed;
 	}
 
 	va_start(vl, path_len);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -633,7 +633,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
-  char	path[FN_REFLEN];
+  char	path[FN_REFLEN + 1];
   size_t frmlen, read_length;
   uint length;
   DBUG_ENTER("open_table_def");
@@ -642,21 +642,30 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
-                 path);
-  if (flags & GTS_FORCE_DISCOVERY)
+  if (share->normalized_path.length + reg_ext_length > FN_REFLEN)
   {
-    const char *path2= share->normalized_path.str;
-    DBUG_ASSERT(flags & GTS_TABLE);
-    DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    /* Delete .frm and .par files */
-    mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
-    mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2, PAR_EXT,
-                                   MYF(0));
+    /* CREATE TABLE refuses such paths, the frm cannot exist */
+    my_errno= ENOENT;
     file= -1;
   }
   else
-    file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  {
+    length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
+                   path);
+    if (flags & GTS_FORCE_DISCOVERY)
+    {
+      const char *path2= share->normalized_path.str;
+      DBUG_ASSERT(flags & GTS_TABLE);
+      DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
+      /* Delete .frm and .par files */
+      mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
+      mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2,
+                                     PAR_EXT, MYF(0));
+      file= -1;
+    }
+    else
+      file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  }
 
   if (file < 0)
   {
@@ -712,6 +721,11 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   }
 
   frmlen= uint4korr(head+10);
+  if (frmlen < sizeof(head))
+  {
+    share->error = OPEN_FRM_CORRUPTED;
+    goto err;
+  }
   set_if_smaller(frmlen, FRM_MAX_SIZE); // safety
 
   if (!(buf= (uchar*)my_malloc(PSI_INSTRUMENT_ME, frmlen,
@@ -3702,9 +3716,13 @@ ret:
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {
-    thd->clear_error();
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
-             db.str, table_name.str, sql_copy);
+    /* Keep the kill error, the table definition is not broken. */
+    if (!parser_state.m_lip.stopped_on_kill)
+    {
+      thd->clear_error();
+      my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
+               db.str, table_name.str, sql_copy);
+    }
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */
@@ -4070,7 +4088,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
 
   error= parse_sql(thd, &parser_state, NULL);
   if (unlikely(error))
+  {
+    /* The kill error is reported, the .frm is not corrupted. */
+    if (parser_state.m_lip.stopped_on_kill)
+      *error_reported= true;
     goto end;
+  }
 
   if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
@@ -4550,6 +4573,16 @@ partititon_err:
         */
         error_reported= TRUE;
       }
+      else if (thd->is_error() &&
+               thd->get_stmt_da()->sql_errno() == uint(thd->killed_errno()))
+      {
+        /*
+          The kill error is reported, the .frm is not corrupted.
+          mysql_unpack_partition() does not return stopped_on_kill, so the
+          reported error is checked.
+        */
+        error_reported= true;
+      }
       goto err;
     }
   }
@@ -4877,7 +4910,7 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
 {
-  char buff[FN_REFLEN];
+  char buff[FN_REFLEN + 1];
   const myf errortype= ME_ERROR_LOG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
   DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
@@ -4892,7 +4925,8 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
       my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
     else
     {
-      strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+      strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+               NullS);
       my_error((db_errno == EMFILE) ? ER_CANT_OPEN_FILE : ER_FILE_NOT_FOUND,
                errortype, buff, db_errno);
     }
@@ -4914,11 +4948,13 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
   case OPEN_FRM_CORRUPTED:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_NOT_FORM_FILE, errortype, buff);
     break;
   case OPEN_FRM_READ_ERROR:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
     break;
   case OPEN_FRM_NEEDS_REBUILD:
@@ -8423,18 +8459,37 @@ void TABLE::move_fields(Field **ptr, const uchar *to, const uchar *from)
 
 
 /*
-  Store all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Generated blob fields handled by remember_blob_values(),
+  restore_blob_values() and free_blob_values()
 */
 
-void TABLE::remember_blob_values(String *blob_storage)
+static inline bool is_remembered_blob(const Field *field, bool with_stored)
+{
+  return field->flags & BLOB_FLAG &&
+         (with_stored || !field->vcol_info->stored_in_db);
+}
+
+
+/*
+  Move Field_blob::value of generated blob fields into blob_storage,
+  leaving value empty. Computing another row into record[0] then does not
+  overwrite the buffers that a saved record points to.
+
+  Used by InnoDB when it computes virtual fields for its internal records,
+  by handler::check_duplicate_long_entry_key(), TABLE::delete_row(),
+  vers_insert_history_row() and TABLE::period_make_insert().
+
+  @param with_stored  Also move the values of stored generated blob fields.
+                      blob_storage must hold s->virtual_fields values, else
+                      s->virtual_not_stored_blob_fields values.
+*/
+
+void TABLE::remember_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       memcpy((void*) blob_storage, (void*) &blob->value, sizeof(blob->value));
@@ -8446,24 +8501,41 @@ void TABLE::remember_blob_values(String *blob_storage)
 
 
 /*
-  Restore all allocated virtual fields blob values
-  Used by InnoDB when calculating virtual fields for it's own internal
-  records
+  Free what was computed into Field_blob::value since
+  remember_blob_values() and move the stored values back
+
+  @param with_stored  Must match remember_blob_values()
 */
 
-void TABLE::restore_blob_values(String *blob_storage)
+void TABLE::restore_blob_values(String *blob_storage, bool with_stored)
 {
   Field **vfield_ptr;
   for (vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
   {
-    if ((*vfield_ptr)->type() == MYSQL_TYPE_BLOB &&
-        !(*vfield_ptr)->vcol_info->stored_in_db)
+    if (is_remembered_blob(*vfield_ptr, with_stored))
     {
       Field_blob *blob= ((Field_blob*) *vfield_ptr);
       blob->value.free();
       memcpy((void*) &blob->value, (void*) blob_storage, sizeof(blob->value));
       blob_storage++;
     }
+  }
+}
+
+
+/*
+  Free the values stored by remember_blob_values() without moving them
+  back: Field_blob::value keeps what was computed since then
+
+  @param with_stored  Must match remember_blob_values()
+*/
+
+void TABLE::free_blob_values(String *blob_storage, bool with_stored)
+{
+  for (Field **vfield_ptr= vfield; *vfield_ptr; vfield_ptr++)
+  {
+    if (is_remembered_blob(*vfield_ptr, with_stored))
+      (blob_storage++)->free();
   }
 }
 
@@ -8832,6 +8904,28 @@ void TABLE_LIST::reinit_before_use(THD *thd)
     were closed in the end of previous prepare or execute call.
   */
   table= 0;
+  /*
+    linked_table points into the owner's internal_tables list, built the
+    last time the owner was opened.
+
+    That list lives on the owner's TABLE object. Once the owner is
+    closed, that TABLE object is freed, and so is the list. linked_table
+    then points to freed memory.
+
+    relink_internal_tables() (sql_base.cc) fixes linked_table up again,
+    but only while processing the owner itself, earlier in this same
+    execution. If the owner's open is skipped this round, it never runs,
+    and linked_table stays stale.
+
+    open_table() writes through linked_table whenever it is not NULL.
+    A stale linked_table there is a write to freed memory.
+
+    So: clear it here, before the owner is processed again. Either
+    relink_internal_tables() sets it to the new list this round, or it
+    stays NULL and open_table() skips the write.
+  */
+  if (linked_table_owner)
+    linked_table= nullptr;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
 
@@ -9441,10 +9535,13 @@ int TABLE::update_generated_fields()
     next_number_field= NULL;
   }
 
-  if (likely(!res) && vfield)
-    res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
-  if (likely(!res) && versioned())
-    vers_update_fields();
+  if (likely(!res))
+  {
+    if (versioned())
+      res= vers_update_fields_vcols();
+    else if (vfield)
+      res= update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  }
   if (likely(!res))
     res= verify_constraints(false) == VIEW_CHECK_ERROR;
   return res;
@@ -9467,7 +9564,19 @@ int TABLE::period_make_insert(Item *src, Field *dst)
   THD *thd= in_use;
 
   ulonglong prev_insert_id= file->next_insert_id;
+  String *blob_storage= NULL;
   store_record(this, record[1]);
+  /*
+    update_generated_fields() computes generated blobs into
+    Field_blob::value, which may hold the generated blobs of the row saved by
+    the caller (the new row of UPDATE FOR PORTION OF in record[2]). Keep them
+    while the inserted row is in record[0].
+  */
+  if (vfield)
+  {
+    blob_storage= (String *) alloca(sizeof(String) * s->virtual_fields);
+    remember_blob_values(blob_storage, true);
+  }
   int res= src->save_in_field(dst, true);
 
   if (likely(!res))
@@ -9487,6 +9596,8 @@ int TABLE::period_make_insert(Item *src, Field *dst)
     res= triggers->process_triggers(thd, TRG_EVENT_INSERT,
                                     TRG_ACTION_AFTER, true);
 
+  if (blob_storage)
+    restore_blob_values(blob_storage, true);
   restore_record(this, record[1]);
   if (res)
     file->restore_auto_increment(prev_insert_id);
@@ -9570,7 +9681,18 @@ bool TABLE::check_period_overlaps(const KEY &key,
   return true;
 }
 
-/* returns true if vers_end_field was updated */
+/**
+  Set row_start and row_end of the row in record[0] unless they have
+  explicit values. For VERS_TRX_ID only row_end is set, regardless of its
+  explicit value.
+
+  Virtual fields are not computed: the caller must call
+  update_virtual_fields(VCOL_UPDATE_FOR_WRITE) afterwards, or use
+  vers_update_fields_vcols().
+
+  @retval true   vers_end_field was updated
+  @retval false  vers_end_field has an explicit value and was not updated
+*/
 bool TABLE::vers_update_fields()
 {
   bool res= false;
@@ -9586,9 +9708,24 @@ bool TABLE::vers_update_fields()
     res= true;
   }
 
-  if (vfield)
-    update_virtual_fields(file, VCOL_UPDATE_FOR_READ);
   return res;
+}
+
+
+/**
+  Set the system fields and compute virtual fields, which may depend on them.
+
+  @see vers_update_fields()
+
+  @retval 0      Success
+  @retval other  Error from update_virtual_fields(VCOL_UPDATE_FOR_WRITE)
+*/
+int TABLE::vers_update_fields_vcols()
+{
+  vers_update_fields();
+  if (vfield)
+    return update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+  return 0;
 }
 
 

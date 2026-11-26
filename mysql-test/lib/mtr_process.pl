@@ -147,7 +147,22 @@ sub sleep_until_file_created ($$$$$) {
 
   mtr_warning("Timeout after mysql-test-run waited $timeout seconds " .
 	      "for the process $proc to create a pid file.");
+
+  dump_core_for_hung_server($proc);
   return 0;
+}
+
+
+# A server that is alive, but did not finish starting up, is hung.
+# Make it dump core and write a stack trace to its error log,
+# to see where it got stuck, instead of just killing it.
+sub dump_core_for_hung_server {
+  my ($proc)= @_;
+
+  return unless defined $proc and $proc->wait_one(0, 1);
+  mtr_print("Dumping core for $proc, it hung in startup");
+  $proc->dump_core();
+  $proc->wait_one($::opt_dump_core_timeout, 1);
 }
 
 

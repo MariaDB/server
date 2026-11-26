@@ -1,0 +1,48 @@
+--echo #
+--echo # MDEV-41490: an unsafe ignore_db_dirs directory name must be
+--echo # rejected instead of used.
+--echo #
+# The server does not restrict which characters a directory name in
+# ignore_db_dirs may contain (sql_show.cc only checks its length), but
+# the SST scripts splice the name into an eval'd rsync filter (rsync)
+# or a find -regex (mariabackup). A name outside a safe character set
+# is logged as an error and left out, instead of being used.
+#
+# rsync validates on the donor (it builds the transfer filter);
+# mariabackup validates on the joiner (it wipes its own datadir before
+# applying the backup), so the side to check depends on the method.
+--source include/big_test.inc
+--source include/have_mariabackup.inc
+
+# The initial join of node_2 already runs a full SST from node_1,
+# which is enough to exercise the check.
+--source include/galera_cluster.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+
+--connection node_1
+--let $sst_method = `SELECT @@global.wsrep_sst_method`
+
+--let $check_connection = node_1
+--let $check_log = $MYSQLTEST_VARDIR/log/mysqld.1.err
+if ($sst_method == 'mariabackup')
+{
+--let $check_connection = node_2
+--let $check_log = $MYSQLTEST_VARDIR/log/mysqld.2.err
+}
+
+--connection $check_connection
+call mtr.add_suppression("WSREP_SST: \\[ERROR\\] ignore_db_dirs:");
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo The side that uses ignore_db_dirs must reject the unsafe directory name
+--let SEARCH_FILE = $check_log
+--let SEARCH_PATTERN = ignore_db_dirs: 'bad dir' is not a safe directory name
+--let SEARCH_OUTPUT = count
+--source include/search_pattern_in_file.inc
+
+--echo # End of 10.11 tests

@@ -154,6 +154,9 @@ static char *mrn_get_string_between_quote(const char *ptr)
 
   size_t length = end_ptr - start_ptr;
   char *extracted_string = (char *)mrn_my_malloc(length + 1, MYF(MY_WME));
+  if (!extracted_string) {
+    DBUG_RETURN(NULL);
+  }
   if (esc_flg) {
     size_t extracted_index = 0;
     const char *current_ptr = start_ptr;
@@ -188,7 +191,9 @@ static char *mrn_get_string_between_quote(const char *ptr)
         break;
       }
       ++extracted_index;
+      current_ptr += 2;
     }
+    extracted_string[extracted_index] = '\0';
   } else {
     memcpy(extracted_string, start_ptr, length);
     extracted_string[length] = '\0';

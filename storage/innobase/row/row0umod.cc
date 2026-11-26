@@ -42,6 +42,12 @@ Created 2/27/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "que0que.h"
 #include "log0log.h"
+#include "debug_sync.h"
+
+#ifdef ENABLED_DEBUG_SYNC
+extern void *thd_attach_thd(THD*);
+extern void thd_detach_thd(void*);
+#endif
 
 /* Considerations on undoing a modify operation.
 (1) Undoing a delete marking: all index records should be found. Some of
@@ -593,22 +599,34 @@ nochange_index:
 				/* Freeze purge_sys.view across the
 				dereference and confirm that purge cannot see
 				the writer of version, the oldest one this
-				walk has applied. If it can, stop and report
-				the secondary index entry as still needed,
-				which is the conservative answer. Only the
-				dereference needs the freeze: the prefixes end
-				up copied into heap. */
+				walk has applied. If it can, no read view
+				needs prev_version, the walk found no match
+				among the newer versions, and it ends as
+				trx_undo_prev_version_build() would have ended
+				it: the secondary index entry is not needed.
+				Reporting it as needed would leave it
+				delete-marked with no undo log record that
+				lets purge remove it. Only the dereference
+				needs the freeze: the prefixes end up copied
+				into heap. */
 				purge_sys_t::view_guard freeze{
 					purge_sys_t::view_guard::VIEW};
 
 				/* row_undo_mod_sec_is_unsafe_purgeable forces
 				this branch, which is otherwise reached only
 				when the view advances between the walk
-				starting and the freeze. */
+				starting and the freeze.
+				row_undo_mod_sec_is_unsafe_keep reports the
+				entry as needed, which is how this branch
+				behaved before. */
 				if (freeze.view().changes_visible(
 					    version_trx_id)
 				    || DBUG_IF(
 				    "row_undo_mod_sec_is_unsafe_purgeable")) {
+					if (!DBUG_IF(
+					    "row_undo_mod_sec_is_unsafe_keep")) {
+						prev_version = nullptr;
+					}
 					break;
 				}
 
@@ -1450,6 +1468,21 @@ rollback_clust:
 			}
 		}
 	}
+
+#ifdef ENABLED_DEBUG_SYNC
+	DBUG_EXECUTE_IF("rollback_wait",
+			if (node->trx->mysql_thd || current_thd);
+			else if (THD *recovery_thd= trx_sys.recovery_thd())
+			{
+			  DBUG_SET("-d,rollback_wait");
+			  void *thd_ctx= thd_attach_thd(recovery_thd);
+			  debug_sync_set_action
+			    (recovery_thd,
+			     STRING_WITH_LEN("now SIGNAL rollback_parked "
+					     "WAIT_FOR rollback_resume"));
+			  thd_detach_thd(thd_ctx);
+			});
+#endif
 
 	node->table->release();
 	node->table = NULL;

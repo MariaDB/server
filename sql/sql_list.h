@@ -790,7 +790,6 @@ public:
     So we declare, but don't define copy CTOR and assignment operator.
   */
   base_ilist(const base_ilist&);
-  void operator=(const base_ilist&);
 };
 
 

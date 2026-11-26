@@ -3559,17 +3559,6 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 }
 
 
-static void acl_update_role(const char *rolename, const privilege_t privileges)
-{
-  ACL_ROLE *role= find_acl_role(rolename, true);
-  if (role)
-  {
-    role->initial_role_access= role->access= privileges;
-    DBUG_ASSERT(strcasecmp(rolename, public_name.str) || acl_public == role);
-  }
-}
-
-
 ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
                    const Account_options &options,
                    const privilege_t privileges)
@@ -4815,20 +4804,31 @@ static bool test_if_create_new_users(THD *thd)
 ****************************************************************************/
 static USER_AUTH auth_no_password;
 
+static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table= false);
+
+static void unlink_role_and_propagate(ACL_ROLE *role);
+
 static int replace_user_table(THD *thd, const User_table &user_table,
                               LEX_USER * const combo, privilege_t rights,
                               const bool revoke_grant,
                               const bool can_create_user,
-                              const bool no_auto_create)
+                              const bool no_auto_create,
+                              /* Non-NULL only for CREATE OR REPLACE of an existing account: 
+                              its old privileges are removed from these tables */
+                              Grant_tables *cleanup_tables= nullptr)
 {
   int error = -1;
   uint nauth= 0;
   bool old_row_exists=0;
+  bool old_row_is_role= false;
   uchar user_key[MAX_KEY_LENGTH];
   bool handle_as_role= combo->is_role();
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  ACL_ROLE *role= NULL;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -4875,18 +4875,30 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       goto end;
     }
 
-    if (!combo->auth)
-      combo->auth= &auth_no_password;
-
     old_row_exists = 0;
-    restore_record(table, s->default_values);
-    user_table.set_host(combo->host.str, combo->host.length);
-    user_table.set_user(combo->user.str, combo->user.length);
   }
   else
   {
     old_row_exists = 1;
     store_record(table,record[1]);			// Save copy for update
+    old_row_is_role= user_table.get_is_role();
+  }
+
+  /*
+    A new account starts from the default row. So does a replaced one:
+    CREATE OR REPLACE is DROP IF EXISTS + CREATE, so everything the statement
+    doesn't mention (password, resource limits, SSL options, lock status, ...)
+    must not survive from the old row. record[1] keeps the old row for the
+    update.
+  */
+  if (!old_row_exists || cleanup_tables)
+  {
+    if (!combo->auth)
+      combo->auth= &auth_no_password;
+
+    restore_record(table, s->default_values);
+    user_table.set_host(combo->host.str, combo->host.length);
+    user_table.set_user(combo->user.str, combo->user.length);
   }
 
   for (USER_AUTH *auth= combo->auth; auth; auth= auth->next)
@@ -4910,8 +4922,14 @@ static int replace_user_table(THD *thd, const User_table &user_table,
 
   if (handle_as_role)
   {
-    if (old_row_exists && !user_table.get_is_role())
+    if (old_row_exists && !old_row_is_role)
     {
+      goto end;
+    }
+    role= find_acl_role(combo->user.str, true);
+    if ((role != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
     if (user_table.set_is_role(true))
@@ -4931,8 +4949,18 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
-    new_acl_user= old_row_exists ? *old_acl_user :
+    new_acl_user= (old_row_exists && !cleanup_tables) ? *old_acl_user :
                   ACL_USER(thd, *combo, lex->account_options, rights);
+    if (old_acl_user && cleanup_tables)
+    {
+      /*
+        The fresh ACL_USER replaces *old_acl_user in place, so it must keep
+        the old role_grants array (rebuilt by rebuild_role_grants() later)
+        instead of leaking it.
+      */
+      delete_dynamic(&new_acl_user.role_grants);
+      new_acl_user.role_grants= old_acl_user->role_grants;
+    }
     if (acl_user_update(thd, &new_acl_user, nauth,
                         *combo, lex->account_options, rights))
       goto end;
@@ -5003,6 +5031,24 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     }
   }
 
+  if (cleanup_tables)
+  {
+    /*
+      Remove the old privileges from all the grant tables except mysql.user.
+      This is deliberately done after all the checks, but before the
+      mysql.user row is written: mysql.user must never have the new
+      authentication while the other tables still have the old privileges.
+      The price is that an engine error here (or in the row write below)
+      leaves the account with its old mysql.user row but without part or all
+      of its privileges, like a crash right after DROP USER would.
+    */
+    if (handle_grant_data(thd, *cleanup_tables, true, combo, NULL, true) < 0)
+    {
+      error= -1;
+      goto end;
+    }
+  }
+
   if (old_row_exists)
   {
     /*
@@ -5042,7 +5088,21 @@ end:
     if (handle_as_role)
     {
       if (old_row_exists)
-        acl_update_role(combo->user.str, rights);
+      {
+        role->initial_role_access= role->access= rights;
+        if (cleanup_tables)
+        {
+          /*
+            The delayed drop skipped the ROLE_ACL part of handle_grant_data(),
+            which for DROP ROLE detaches the role from the grant graph and
+            recomputes the privileges of its grantees. Do it here, after the
+            role got its new (empty) privileges, so that roles and users that
+            had this role granted don't keep its old privileges cached.
+          */
+          unlink_role_and_propagate(role);
+          reset_dynamic(&role->parent_grantee);
+        }
+      }
       else
         acl_insert_role(combo->user.str, rights);
     }
@@ -6461,6 +6521,42 @@ static void propagate_role_grants(ACL_ROLE *role,
 }
 
 
+/**
+  Detach a role from the role grant graph and propagate the loss of its
+  privileges to everything that had it granted.
+
+  The role itself stays in acl_roles, with an empty role_grants array
+  (parent_grantee is kept for the propagation, and cleaned up by the
+  caller: DROP ROLE frees the role, CREATE OR REPLACE ROLE resets it).
+
+  Used by DROP ROLE and by CREATE OR REPLACE ROLE: all the grants of the role
+  have already been revoked when this is called, so what is left to do is to
+  refresh the cached effective privileges of the grantees.
+*/
+static void unlink_role_and_propagate(ACL_ROLE *role)
+{
+  // delete the role from cross-reference arrays
+  for (size_t i=0; i < role->role_grants.elements; i++)
+  {
+    ACL_ROLE *grant= *dynamic_element(&role->role_grants, i, ACL_ROLE**);
+    remove_ptr_from_dynarray(&grant->parent_grantee, role);
+  }
+
+  for (size_t i=0; i < role->parent_grantee.elements; i++)
+  {
+    ACL_USER_BASE *grantee= *dynamic_element(&role->parent_grantee,
+                                             i, ACL_USER_BASE**);
+    remove_ptr_from_dynarray(&grantee->role_grants, role);
+  }
+
+  /* Remove all of the role_grants from this role. */
+  delete_dynamic(&role->role_grants);
+
+  /* all grants must be revoked from this role by now. propagate this */
+  propagate_role_grants(role, PRIVS_TO_MERGE::ALL);
+}
+
+
 // State of a node during a Depth First Search exploration
 struct NODE_STATE
 {
@@ -7739,6 +7835,35 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
 }
 
 
+/**
+  Find the role and, if @a check_privilege is set, check that
+  the current user may also grant it.
+
+  The caller must hold acl_cache->lock.
+
+  @return the role, or NULL with the error reported by my_error()
+*/
+static ACL_ROLE *find_grantable_role(THD *thd, const char *rolename,
+                                     bool check_privilege)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  ACL_ROLE *role= find_acl_role(rolename, false);
+  if (!role)
+  {
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
+    return NULL;
+  }
+  if (check_privilege && !can_grant_role(thd, role))
+  {
+    my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
+             thd->security_ctx->priv_user, thd->security_ctx->priv_host);
+    return NULL;
+  }
+  return role;
+}
+
+
 bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 {
   DBUG_ENTER("mysql_grant_role");
@@ -7749,6 +7874,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   DBUG_ASSERT(list.elements >= 2);
   int result;
   bool create_new_user, no_auto_create_user;
+  bool check_privilege; /* no initializer: the TOI goto jumps past it */
   String wrong_users;
   LEX_USER *user, *granted_role;
   LEX_CSTRING rolename;
@@ -7768,25 +7894,55 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   no_auto_create_user= thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER;
 
   Grant_tables tables;
+
+#ifdef WITH_WSREP
+  /*
+    With wsrep, check the privilege before TOI replicates the statement:
+    the applier runs with a non-user security context, for which
+    can_grant_role() always succeeds, so a statement refused here would
+    otherwise still be applied by the other nodes.
+
+    Appliers and replayers do not begin TOI (see wsrep_to_isolation_begin()),
+    so for them the check below under the locks is enough.
+  */
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    mysql_mutex_lock(&acl_cache->lock);
+    role= find_grantable_role(thd, rolename.str, true);
+    mysql_mutex_unlock(&acl_cache->lock);
+    if (!role)
+      DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
+
+  DEBUG_SYNC(thd, "grant_role_before_toi");
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  /*
+    The role or the privileges may change before the locks below are
+    taken, so the role is looked up and the privilege checked again.
+
+    Under TOI, the privilege check done before replication is final: the
+    appliers on the other nodes skip it, so checking again here could
+    refuse the statement on this node only, if an ACL change was ordered
+    between the check and the start of TOI. The role lookup is repeated
+    in any case, it gives the same result on every node.
+  */
+  check_privilege= true;
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_thd_is_local_toi(thd))
+    check_privilege= false;
+#endif /* WITH_WSREP */
+
   if ((result= tables.open_and_lock(thd, Table_user | Table_roles_mapping, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-  if (!(role= find_acl_role(rolename.str, false)))
+  if (!(role= find_grantable_role(thd, rolename.str, check_privilege)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
-    my_error(ER_INVALID_ROLE, MYF(0), rolename.str);
-    DBUG_RETURN(TRUE);
-  }
-
-  if (!can_grant_role(thd, role))
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-    my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
-             thd->security_ctx->priv_user, thd->security_ctx->priv_host);
     DBUG_RETURN(TRUE);
   }
 
@@ -7986,6 +8142,11 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   mysql_rwlock_unlock(&LOCK_grant);
 
   DBUG_RETURN(result);
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 
@@ -10623,26 +10784,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     size_t old_key_length= acl_role->user.length;
     if (drop)
     {
-      // delete the role from cross-reference arrays
-      for (size_t i=0; i < acl_role->role_grants.elements; i++)
-      {
-        ACL_ROLE *grant= *dynamic_element(&acl_role->role_grants,
-                                          i, ACL_ROLE**);
-        remove_ptr_from_dynarray(&grant->parent_grantee, acl_role);
-      }
-
-      for (size_t i=0; i < acl_role->parent_grantee.elements; i++)
-      {
-        ACL_USER_BASE *grantee= *dynamic_element(&acl_role->parent_grantee,
-                                                 i, ACL_USER_BASE**);
-        remove_ptr_from_dynarray(&grantee->role_grants, acl_role);
-      }
-
-      /* Remove all of the role_grants from this role. */
-      delete_dynamic(&acl_role->role_grants);
-
-      /* all grants must be revoked from this role by now. propagate this */
-      propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
+      unlink_role_and_propagate(acl_role);
 
       my_hash_delete(&acl_roles, (uchar*) acl_role);
       DBUG_RETURN(1);
@@ -10940,6 +11082,9 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     user_from                   The the user to be searched/dropped/renamed.
     user_to                     The new name for the user if to be renamed,
                                 NULL otherwise.
+    skip_user_table             Skip the mysql.user row and its in-memory
+                                entry. Used by CREATE OR REPLACE USER, where
+                                replace_user_table() rewrites that row.
 
   DESCRIPTION
     Go through all grant tables and in-memory grant structures and apply
@@ -10955,7 +11100,8 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 */
 
 static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
-                             LEX_USER *user_from, LEX_USER *user_to)
+                             LEX_USER *user_from, LEX_USER *user_to,
+                             bool skip_user_table)
 {
   int result= 0;
   int found;
@@ -11124,20 +11270,23 @@ static int handle_grant_data(THD *thd, Grant_tables& tables, bool drop,
       goto end;
   }
 
-  /* Handle user table. */
-  if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
-                                 drop, user_from, user_to)) < 0)
+  if (!skip_user_table)
   {
-    /* Handle of table failed, don't touch the in-memory array. */
-    result= -1;
-  }
-  else
-  {
-    enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
-    if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+    /* Handle user table. */
+    if ((found= handle_grant_table(thd, tables.user_table(), USER_TABLE,
+                                   drop, user_from, user_to)) < 0)
     {
-      result= 1; /* At least one record/element found. */
-      DBUG_ASSERT(! search_only);
+      /* Handle of table failed, don't touch the in-memory array. */
+      result= -1;
+    }
+    else
+    {
+      enum enum_acl_lists what= handle_as_role ? ROLE_ACL : USER_ACL;
+      if (((handle_grant_struct(what, drop, user_from, user_to)) || found) && !result)
+      {
+        result= 1; /* At least one record/element found. */
+        DBUG_ASSERT(! search_only);
+      }
     }
   }
 
@@ -11215,21 +11364,19 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
     */
-    if (handle_grant_data(thd, tables, 0, user_name, NULL))
+    int found= handle_grant_data(thd, tables, 0, user_name, NULL);
+    if (found < 0)
+    {
+      // a grant table could not be read, the error is already reported
+      append_user(thd, &wrong_users, user_name);
+      result= TRUE;
+      continue;
+    }
+    if (found)
     {
       if (thd->lex->create_info.or_replace())
       {
-        // Drop the existing user
-        if (handle_grant_data(thd, tables, 1, user_name, NULL) <= 0)
-        {
-          // DROP failed
-          append_user(thd, &wrong_users, user_name);
-          result= true;
-          continue;
-        }
-        else
-          some_users_dropped= true;
-        // Proceed with the creation
+        some_users_dropped= true;
       }
       else if (thd->lex->create_info.if_not_exists())
       {
@@ -11255,8 +11402,15 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       }
     }
 
+    /*
+      Pass the tables (which makes it a replace) only if the search above
+      found an account or orphan grants; for a new name skip scanning all
+      grant tables a second time.
+    */
     if (replace_user_table(thd, tables.user_table(), user_name,
-                           NO_ACL, 0, 1, 0))
+                           NO_ACL, 0, 1, 0,
+                           (thd->lex->create_info.or_replace() && found) ?
+                           &tables : nullptr))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;
@@ -11298,10 +11452,16 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     }
   }
 
-  if (result && some_users_dropped && !handle_as_role)
+  if (some_users_dropped)
   {
-    /* Rebuild in-memory structs, since 'acl_users' has been modified */
-    rebuild_check_host();
+    /*
+      The delayed drop in replace_user_table() only removes the old mapping
+      entries from roles_mappings_hash, not from the ACL_ROLE/ACL_USER_BASE
+      cross-reference arrays. Rebuild those arrays so no stale/duplicate
+      entries survive to crash a later DROP ROLE / DROP USER.
+    */
+    if (!handle_as_role)
+      rebuild_check_host();   // 'acl_users' has been modified
     rebuild_role_grants();
   }
 
@@ -14163,6 +14323,15 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   char *next_field;
   const char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
+
+  /*
+    A valid name has at most SAFE_NAME_LEN characters. A longer one
+    stays invalid when cut to SAFE_NAME_LEN+1 characters, and
+    mysql_change_db() rejects it.
+  */
+  if (db)
+    db_len= MY_MIN(db_len, thd->charset()->charpos(db, db + db_len,
+                                                   SAFE_NAME_LEN + 1));
 
   /*
     Since 4.1 all database names are stored in utf8
