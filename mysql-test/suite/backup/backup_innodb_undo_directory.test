@@ -1,0 +1,18 @@
+--source include/have_innodb.inc
+
+--let $datadir= `SELECT @@datadir`
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0), (2, 0), (3, 0);
+
+--let $target_directory=$MYSQLTEST_VARDIR/some_data_directory
+evalp BACKUP SERVER TO '$target_directory';
+
+--echo ### Test that the undo files appear in the sub-directory of the origin server
+--echo list_files datadir/undo/files undo00?
+--list_files $datadir/undo/files undo00?
+--echo ### Test that the undo files appear in the basedir of the backup
+--echo list_files target_directory undo00?
+--list_files $target_directory undo00?
+
+--rmdir $target_directory
+DROP TABLE t1;

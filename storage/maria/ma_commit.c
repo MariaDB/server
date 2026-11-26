@@ -52,7 +52,9 @@ int ma_commit(TRN *trn)
     issue (transaction's updates were made visible to other transactions).
     So we need to go the first way.
 
-    Note that we have to use | here to ensure that all calls are made.
+    trnman_commit_trn() must be called even if the COMMIT record was not
+    written. commit_lsn is only valid after translog_write_record()
+    succeeded.
   */
 
   /*
@@ -62,7 +64,7 @@ int ma_commit(TRN *trn)
   res= (translog_write_record(&commit_lsn, LOGREC_COMMIT,
                              trn, NULL, 0,
                              sizeof(log_array)/sizeof(log_array[0]),
-                             log_array, NULL, NULL) |
+                             log_array, NULL, NULL) ||
         translog_flush(commit_lsn));
 
   DBUG_EXECUTE_IF("maria_sleep_in_commit",

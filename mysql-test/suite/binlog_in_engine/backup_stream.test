@@ -1,0 +1,2 @@
+--source include/have_innodb_binlog.inc
+--source ../backup/backup_stream.test

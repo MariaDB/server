@@ -73,6 +73,8 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
 int ma_control_file_write_and_force(LSN last_checkpoint_lsn_arg,
                                     uint32 last_logno_arg, TrID max_trid_arg,
                                     uint8 recovery_failures_arg);
+uint ma_control_file_image(uchar *buffer, LSN last_checkpoint_lsn_arg,
+                           uint32 last_logno_arg, TrID max_trid_arg);
 /* For simple programs that creates Aria files*/
 CONTROL_FILE_ERROR ma_control_file_open_or_create();
 int ma_control_file_end(void);
