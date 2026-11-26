@@ -1,0 +1,93 @@
+SET NAMES utf8mb4;
+SET sql_mode=ORACLE;
+#
+# Start of 11.8 tests
+#
+#
+# MDEV-41137 CHARACTER SET ANY_CS and CHARACTER SET var%CHARSET in stored routines
+#
+# Parameters and variables follow the character set of the argument
+CREATE PROCEDURE p1(
+p_in1 IN VARCHAR2 CHARACTER SET ANY_CS,
+p_in2 IN VARCHAR2 CHARACTER SET p_in1%CHARSET,
+p_out1 OUT VARCHAR2 CHARACTER SET p_in2%CHARSET)
+AS
+v1 VARCHAR2(100) CHARACTER SET p_in1%CHARSET;
+v2 VARCHAR2(100) CHARSET v1%CHARSET;
+BEGIN
+p_out1:= 'x';
+SELECT CHARSET(p_in1), CHARSET(p_in2), CHARSET(p_out1), CHARSET(v1), CHARSET(v2);
+END;
+$$
+CALL p1(_latin1'a', 'b', @out);
+CHARSET(p_in1)	CHARSET(p_in2)	CHARSET(p_out1)	CHARSET(v1)	CHARSET(v2)
+latin1	latin1	latin1	latin1	latin1
+SELECT CHARSET(@out);
+CHARSET(@out)
+latin1
+CALL p1(_ucs2 0x0061, 'b', @out);
+CHARSET(p_in1)	CHARSET(p_in2)	CHARSET(p_out1)	CHARSET(v1)	CHARSET(v2)
+ucs2	ucs2	ucs2	ucs2	ucs2
+SELECT CHARSET(@out);
+CHARSET(@out)
+ucs2
+CALL p1(_latin1'a', 'b', @out);
+CHARSET(p_in1)	CHARSET(p_in2)	CHARSET(p_out1)	CHARSET(v1)	CHARSET(v2)
+latin1	latin1	latin1	latin1	latin1
+DROP PROCEDURE p1;
+# The source has a fixed character set
+DECLARE
+a VARCHAR2(10) CHARACTER SET latin1 COLLATE latin1_bin;
+b VARCHAR2(10) CHARACTER SET a%CHARSET;
+BEGIN
+SELECT CHARSET(b), COLLATION(b);
+END;
+$$
+CHARSET(b)	COLLATION(b)
+latin1	latin1_bin
+# Function, CLOB, and the length per call
+CREATE FUNCTION f1(a CLOB CHARACTER SET ANY_CS) RETURN VARCHAR2
+AS
+v VARCHAR2(3) CHARACTER SET a%CHARSET;
+BEGIN
+v:= 'ééé';
+RETURN CHARSET(a) || ' ' || OCTET_LENGTH(v);
+END;
+$$
+SELECT f1(_latin1'x'), f1(CONVERT('x' USING utf32)), f1(_latin1'x');
+f1(_latin1'x')	f1(CONVERT('x' USING utf32))	f1(_latin1'x')
+latin1 3	utf32 12	latin1 3
+DROP FUNCTION f1;
+# RETURN ... CHARACTER SET param%CHARSET
+CREATE FUNCTION f2(v_in CLOB CHARACTER SET ANY_CS) RETURN CLOB CHARACTER SET v_in%CHARSET
+AS
+BEGIN
+RETURN v_in;
+END;
+$$
+SELECT CHARSET(f2(_latin1'x')), CHARSET(f2(_ucs2 0x0078)), CHARSET(f2(_latin1'x'));
+CHARSET(f2(_latin1'x'))	CHARSET(f2(_ucs2 0x0078))	CHARSET(f2(_latin1'x'))
+latin1	ucs2	latin1
+SELECT name, returns FROM mysql.proc WHERE db=DATABASE() AND name='f2';
+name	returns
+f2	longtext CHARSET "v_in"%CHARSET
+SELECT routine_name, character_set_name FROM information_schema.routines
+WHERE routine_schema=DATABASE() AND routine_name='f2';
+routine_name	character_set_name
+f2	NULL
+DROP FUNCTION f2;
+#
+# Errors
+#
+CREATE PROCEDURE p1 AS v VARCHAR2(10) CHARACTER SET ANY_CS; BEGIN NULL; END;
+$$
+ERROR HY000: Incorrect usage of CHARACTER SET ANY_CS and non-parameter definitions
+CREATE PROCEDURE p1(a VARCHAR2(10) CHARACTER SET b%CHARSET) AS BEGIN NULL; END;
+$$
+ERROR 42000: Undeclared variable: b
+CREATE PROCEDURE p1(a VARCHAR2(10) CHARACTER SET latin1, b VARCHAR2(10) CHARSET OF a) AS BEGIN NULL; END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'OF a) AS BEGIN NULL; END' at line 1
+#
+# End of 11.8 tests
+#
