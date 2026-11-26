@@ -818,6 +818,75 @@ static void test_decimal_precision_overflow()
 }
 
 
+/*
+  MDEV-42453: a numeric lookup key with more than 6 decimal digits
+  underflowed the 6-byte nmkeybuff in find_column() (backwritenum()
+  writes digits backward from the buffer end), a stack-buffer-overflow
+  WRITE reachable via COLUMN_GET / COLUMN_EXISTS on a string-format
+  dynamic column. Numeric keys are limited to DYNCOL_NUM_KEY_MAX (the
+  2-byte stored key range); larger keys are reported as not-found and
+  such names remain reachable by string key.
+*/
+static void test_mdev_42453()
+{
+  DYNAMIC_COLUMN str;
+  DYNAMIC_COLUMN_VALUE vals[4], res;
+  MYSQL_LEX_STRING keys[4];
+  uint large_keys[4]= {1000000, 9999999, 2147483647, 4294967295U};
+  uint i;
+  int rc;
+
+  keys[0].str= (char *) "a";       keys[0].length= 1;
+  keys[1].str= (char *) "65535";   keys[1].length= 5;
+  keys[2].str= (char *) "65536";   keys[2].length= 5;
+  keys[3].str= (char *) "1000000"; keys[3].length= 7;
+  for (i= 0; i < 4; i++)
+  {
+    vals[i].type= DYN_COL_INT;
+    vals[i].x.long_value= i + 1;
+  }
+
+  mariadb_dyncol_init(&str);
+  rc= mariadb_dyncol_create_many_named(&str, 4, keys, vals, 1);
+  ok(rc == ER_DYNCOL_OK, "MDEV-42453 create named blob");
+
+  for (i= 0; i < 4; i++)
+  {
+    mariadb_dyncol_value_init(&res);
+    rc= mariadb_dyncol_get_num(&str, large_keys[i], &res);
+    ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_NULL,
+       "MDEV-42453 COLUMN_GET numeric key %u -> NULL", large_keys[i]);
+  }
+
+  mariadb_dyncol_value_init(&res);
+  rc= mariadb_dyncol_get_num(&str, 65535, &res);
+  ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_INT && res.x.long_value == 2,
+     "MDEV-42453 uint16 max key still found");
+
+  mariadb_dyncol_value_init(&res);
+  rc= mariadb_dyncol_get_num(&str, 65536, &res);
+  ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_NULL,
+     "MDEV-42453 key above uint16 max -> NULL");
+
+  mariadb_dyncol_value_init(&res);
+  rc= mariadb_dyncol_get_named(&str, &keys[2], &res);
+  ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_INT && res.x.long_value == 3,
+     "MDEV-42453 name above limit found by string key");
+
+  mariadb_dyncol_value_init(&res);
+  rc= mariadb_dyncol_get_named(&str, &keys[3], &res);
+  ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_INT && res.x.long_value == 4,
+     "MDEV-42453 7-digit name found by string key");
+
+  mariadb_dyncol_value_init(&res);
+  rc= mariadb_dyncol_get_named(&str, &keys[0], &res);
+  ok(rc == ER_DYNCOL_OK && res.type == DYN_COL_INT && res.x.long_value == 1,
+     "MDEV-42453 named lookup still works");
+
+  mariadb_dyncol_free(&str);
+}
+
+
 #define BIG_STRING_SIZE (1024*1024)
 int main(int argc __attribute__((unused)), char **argv)
 {
@@ -825,7 +894,7 @@ int main(int argc __attribute__((unused)), char **argv)
   char *big_string= (char *)malloc(BIG_STRING_SIZE);
 
   MY_INIT(argv[0]);
-  plan(74);
+  plan(84);
 
   if (!big_string)
     exit(1);
@@ -962,6 +1031,7 @@ int main(int argc __attribute__((unused)), char **argv)
   test_overlong_int(DYN_COL_UINT, "uint");
   test_overlong_int(DYN_COL_INT, "sint");
   test_decimal_precision_overflow();
+  test_mdev_42453();
 
   my_end(0);
   return exit_status();

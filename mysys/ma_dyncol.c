@@ -2119,7 +2119,7 @@ static my_bool
 find_column(DYN_HEADER *hdr, uint numkey, LEX_STRING *strkey)
 {
   LEX_STRING nmkey;
-  char nmkeybuff[DYNCOL_NUM_CHAR]; /* to fit max 2 bytes number */
+  char nmkeybuff[DYNCOL_NUM_CHAR]; /* fits keys up to DYNCOL_NUM_KEY_MAX */
   DBUG_ASSERT(hdr->header != NULL);
 
   if (hdr->header + hdr->header_size > hdr->data_end)
@@ -2139,6 +2139,17 @@ find_column(DYN_HEADER *hdr, uint numkey, LEX_STRING *strkey)
   }
   else if (hdr->format == dyncol_fmt_str && strkey == NULL)
   {
+    /*
+      Numeric lookup keys are limited to DYNCOL_NUM_KEY_MAX, consistently
+      with the SQL layer. Larger keys do not fit nmkeybuff; report
+      not-found (such names remain reachable by string key) instead of
+      overflowing the buffer (MDEV-42453).
+    */
+    if (numkey > DYNCOL_NUM_KEY_MAX)
+    {
+      hdr->type= DYN_COL_NULL;
+      return 0;
+    }
     nmkey.str= backwritenum(nmkeybuff + sizeof(nmkeybuff), numkey);
     nmkey.length= (nmkeybuff + sizeof(nmkeybuff)) - nmkey.str;
     strkey= &nmkey;

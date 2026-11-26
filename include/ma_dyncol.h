@@ -60,6 +60,13 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define MAX_TOTAL_NAME_LENGTH 65535
 #define MAX_NAME_LENGTH (MAX_TOTAL_NAME_LENGTH/4)
 
+/*
+  Largest numeric column key (stored keys are 2 bytes). Numeric lookups
+  above this limit are reported as not-found; such names remain reachable
+  by string key.
+*/
+#define DYNCOL_NUM_KEY_MAX 65535
+
 /* NO and OK is the same used just to show semantics */
 #define ER_DYNCOL_NO ER_DYNCOL_OK
 
