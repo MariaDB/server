@@ -88,16 +88,30 @@ UPDATE t2 set f2=2 where f1=2;
 --let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_slave_enter_sync
 --source include/galera_wait_sync_point.inc
 
-# Let the first transaction to proceed
+# Pop both sync points before signalling. "dbug=" pops one level of
+# the debug stack, so after the first pop commit_monitor_slave_enter_sync
+# is active again and the released SR applier would stop there.
+--source include/galera_clear_sync_point.inc
+--source include/galera_clear_sync_point.inc
 --let $galera_sync_point = commit_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
---source include/galera_clear_sync_point.inc
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
---source include/galera_clear_sync_point.inc
 
 --connection node_1
 COMMIT;
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
+
+# Wait until node_2 has applied all transactions, then verify
+# that both nodes have the same rows
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 1 AND f2 = 1
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t2 WHERE f2 = f1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY f1;
+SELECT * FROM t2 ORDER BY f1;
 
 # Teardown
 --connection node_1

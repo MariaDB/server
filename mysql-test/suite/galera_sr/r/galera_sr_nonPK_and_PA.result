@@ -32,12 +32,29 @@ UPDATE t2 set f2=2 where f1=2;
 connection node_2;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_slave_enter_sync';
-SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
-SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
 COMMIT;
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	1
+2	0
+SELECT * FROM t2 ORDER BY f1;
+f1	f2
+1	1
+2	2
+connection node_2;
+SELECT * FROM t1 ORDER BY f1;
+f1	f2
+1	1
+2	0
+SELECT * FROM t2 ORDER BY f1;
+f1	f2
+1	1
+2	2
 connection node_1;
 SET GLOBAL wsrep_slave_threads = DEFAULT;
 DROP TABLE t1;
