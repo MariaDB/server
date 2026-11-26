@@ -769,13 +769,13 @@ bool Opt_hints_table::fix_key_hints(TABLE *table)
 
   /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
-  keyinfo_array.resize(table->s->keys, NULL);
+  keyinfo_array.resize(table->s->total_keys, NULL);
 
   for (Opt_hints** hint= child_array_ptr()->begin();
        hint < child_array_ptr()->end(); ++hint) 
   {
     KEY *key_info= table->key_info;
-    for (uint j= 0 ; j < table->s->keys ; j++, key_info++)
+    for (uint j= 0 ; j < table->s->total_keys ; j++, key_info++)
     {
       if (key_info->name.streq((*hint)->get_name()))
       {

@@ -847,4 +847,37 @@ SELECT id FROM t19 IGNORE INDEX (arr_idx) WHERE 'exactly17-bytes!!' MEMBER OF (t
 id
 5
 DROP TABLE t19;
+#
+# 20. Optimizer hints on a table with an ARRAY index: the per-key hint
+# array must have a slot for the ARRAY key (key number s->keys)
+#
+CREATE TABLE t20 (id INT PRIMARY KEY, a INT, tags JSON, KEY ka (a),
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY)));
+INSERT INTO t20 SELECT seq, seq % 10, JSON_ARRAY(seq, seq + 1000)
+FROM seq_1_to_1000;
+# A key-level hint on another key, ARRAY key a range candidate
+# (asserted in Mem_root_array::at() before the fix)
+EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ id FROM t20
+WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	arr_idx	arr_idx	19	NULL	#	Using where
+EXPLAIN SELECT /*+ NO_INDEX_MERGE(t20 ka) */ id FROM t20
+WHERE 5 MEMBER OF (tags) AND a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	ka,arr_idx	arr_idx	19	NULL	#	Using where
+# The same hint, ARRAY key not a candidate
+EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ id FROM t20 WHERE id < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	PRIMARY	PRIMARY	4	NULL	#	#
+# A hint naming the ARRAY index now resolves
+# TODO: fix range access on arr_idx still used
+EXPLAIN SELECT /*+ NO_RANGE_OPTIMIZATION(t20 arr_idx) */ id FROM t20
+WHERE 5 MEMBER OF (tags);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	range	arr_idx	arr_idx	19	NULL	#	Using where
+SELECT /*+ NO_RANGE_OPTIMIZATION(t20 ka) */ COUNT(*) FROM t20
+WHERE 5 MEMBER OF (tags);
+COUNT(*)
+1
+DROP TABLE t20;
 # End of 13.3 tests
