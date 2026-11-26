@@ -6905,4 +6905,34 @@ drop table t1;
 # MDEV-16733 mysqldump --tab and --xml options are conflicting
 #
 mariadb-dump: --xml can't be used with --tab.
+#
+# MDEV-33959 mysqldump of all databases cannot be loaded if a table
+#            uses a sequence from another schema
+#
+create sequence s;
+create database db;
+create table db.t (a int default nextval(test.s));
+# --all-databases
+drop database db;
+drop sequence s;
+show create table db.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT nextval(`test`.`s`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop database db;
+drop sequence s;
+# --databases, listing the dependent database before the one owning the sequence
+create sequence s;
+create database db;
+create table db.t (a int default nextval(test.s));
+drop database db;
+drop sequence s;
+show create table db.t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT nextval(`test`.`s`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop database db;
+drop sequence s;
 # End of 10.11 tests
