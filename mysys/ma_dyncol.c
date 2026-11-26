@@ -1700,6 +1700,19 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
     goto err;
   }
 
+  /*
+    The name pool size is stored in 2 bytes (see
+    set_fixed_header_named()), so it must not exceed
+    MAX_TOTAL_NAME_LENGTH. Individual name lengths are checked by
+    check_limit_named() above, but the aggregate was not validated,
+    causing 2-byte truncation/wrap and a malformed blob (MDEV-40794).
+  */
+  if (unlikely(hdr->nmpool_size > MAX_TOTAL_NAME_LENGTH))
+  {
+    rc= ER_DYNCOL_LIMIT;
+    goto err;
+  }
+
   (*fmt->set_fixed_hdr)(str, hdr);
   /* reserve place for header and name pool */
   str->length+= hdr->header_size + hdr->nmpool_size;
@@ -3552,6 +3565,11 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
   new_header.nmpool_size= (size_t) (new_header.nmpool_size + name_delta);
   DBUG_ASSERT(new_header.format != dyncol_fmt_num ||
               new_header.nmpool_size == 0);
+  if (unlikely(new_header.nmpool_size > MAX_TOTAL_NAME_LENGTH))
+  {
+    rc= ER_DYNCOL_LIMIT;
+    goto end;
+  }
   if ((new_header.offset_size=
        new_fmt->dynamic_column_offset_bytes(new_header.data_size)) >=
       new_fmt->max_offset_size)
