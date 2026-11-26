@@ -238,6 +238,8 @@ EOF
 --let SEARCH_FILE = $prepare_log
 --let SEARCH_PATTERN = mdev42091_poc
 --let SEARCH_ABORT = NOT FOUND
+# match count isn't stable across platforms, only presence matters
+--replace_regex /FOUND [0-9]+ /FOUND N /
 --source include/search_pattern_in_file.inc
 
 # the attacker's chosen directory must never be searched or referenced,
