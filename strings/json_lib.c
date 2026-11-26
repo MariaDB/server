@@ -475,6 +475,7 @@ enum json_num_states {
   NS_INT, /* Integer part. */
   NS_FRAC,/* Fractional part. */
   NS_EX,  /* Exponential part begins. */
+  NS_EXS, /* Sign of the exponential part. */
   NS_EX1, /* Exponential part continues. */
   NS_NUM_STATES
 };
@@ -490,7 +491,8 @@ static int json_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
 /*ZE1*/  { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
 /*INT*/  { JE_SYN,  JE_SYN, NS_INT,   NS_INT, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
 /*FRAC*/ { JE_SYN,  JE_SYN, NS_FRAC,  NS_FRAC,JE_SYN,  NS_EX,  NS_OK,  JE_BAD_CHR },
-/*EX*/   { NS_EX,   NS_EX,  NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR }, 
+/*EX*/   { NS_EXS,  NS_EXS, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR },
+/*EXS*/  { JE_SYN,  JE_SYN, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR },
 /*EX1*/  { JE_SYN,  JE_SYN, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, NS_OK,  JE_BAD_CHR }
 };
 
@@ -505,6 +507,7 @@ static uint json_num_state_flags[NS_NUM_STATES]=
 /*INT*/  0,
 /*FRAC*/ JSON_NUM_FRAC_PART,
 /*EX*/   JSON_NUM_EXP,
+/*EXS*/  0,
 /*EX1*/  0,
 };
 
@@ -520,11 +523,20 @@ static int skip_num_constant(json_engine_t *j)
     j->num_flags|= json_num_state_flags[state];
     if ((c_len= json_next_char(&j->s)) > 0 && j->s.c_next < 128)
     {
-      if ((state= json_num_states[state][json_num_chr_map[j->s.c_next]]) > 0)
+      int next_state= json_num_states[state][json_num_chr_map[j->s.c_next]];
+      if (next_state > 0)
       {
+        state= next_state;
         j->s.c_str+= c_len;
         continue;
       }
+      /*
+        The number stops here.  Like at the end of the text, it must be
+        complete: '1e', '1e+' or '-' followed by ']', ',' or '}' is not
+        a number.
+      */
+      if ((j->s.error= json_num_states[state][N_END]) < 0)
+        return 1;
       break;
     }
 
