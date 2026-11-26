@@ -2517,7 +2517,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` varchar(83) CHARACTER SET ucs2 COLLATE ucs2_general_ci DEFAULT NULL,
-  `c2` decimal(65,38) DEFAULT NULL
+  `c2` decimal(65,1) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 select hex(concat(@@ft_max_word_len));

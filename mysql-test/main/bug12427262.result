@@ -37,7 +37,7 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_read_after-@count_read_before;
 @count_read_after-@count_read_before
-0.00000000000000000000000000000000000000
+0
 show full tables;
 Tables_in_show_table_lw_db	Table_type
 t1	BASE TABLE
@@ -57,6 +57,6 @@ Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @count_read_after-@count_read_before;
 @count_read_after-@count_read_before
-10.00000000000000000000000000000000000000
+10
 drop table t1;
 drop database show_table_lw_db;
