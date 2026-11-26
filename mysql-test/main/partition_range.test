@@ -1054,3 +1054,21 @@ select * from t partition (p2);
 
 set time_zone=default;
 drop table t;
+
+--echo #
+--echo # MDEV-32747 MSAN/Valgrind errors in partition_info::print_no_partition_found upon ER_DATA_OVERFLOW
+--echo #
+create table t (f decimal(50)) partition by range (f)
+  (partition p0 values less than (1), partition pn values less than maxvalue);
+--error ER_DATA_OVERFLOW
+insert into t values (18446744073709551615);
+insert ignore into t values (18446744073709551615);
+drop table t;
+
+create table t (f decimal(50)) partition by list (f) (partition p0 values in (1));
+--error ER_DATA_OVERFLOW
+insert into t values (18446744073709551615);
+insert ignore into t values (18446744073709551615);
+drop table t;
+
+--echo # End of 10.11 tests
