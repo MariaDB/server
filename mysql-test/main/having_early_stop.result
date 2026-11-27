@@ -1,0 +1,525 @@
+#
+# MDEV-38303: Stop the scan early when an aggregate HAVING conjunct
+#             can no longer become true
+#
+CREATE TABLE t1 (a INT, b INT, c INT, d DECIMAL(5,1)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT seq, seq, IF(seq > 900, seq, NULL), seq FROM seq_1_to_1000;
+CREATE TABLE t2 (a INT, b INT) ENGINE=MyISAM;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_1000;
+CREATE TABLE t4 (a INT, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t4 SELECT seq FROM seq_1_to_1000;
+ANALYZE TABLE t1, t2, t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+# Statements run through having_early_stop.inc print "UNEXPECTED ..." only
+# if the scan length is not what we expect.
+#
+# Section 1: must stop early, and the result must stay correct
+#
+# COUNT(col)=0: b is non-NULL from the very first row
+SELECT COUNT(b) AS cnt_b FROM t1 HAVING COUNT(b)=0;
+cnt_b
+# COUNT(*) < const
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+cnt
+# COUNT(*) <= const
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 10;
+cnt
+# Swapped operands
+SELECT COUNT(b) AS cnt_b FROM t1 HAVING 0 = COUNT(b);
+cnt_b
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING 10 > COUNT(*);
+cnt
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING 10 >= COUNT(*);
+cnt
+# Stoppable conjunct together with other AND-parts
+SELECT COUNT(*) AS cnt, SUM(b) AS sum_b FROM t1 WHERE a > 0 HAVING COUNT(*) < 5 AND SUM(b) > 1;
+cnt	sum_b
+SELECT COUNT(*) AS cnt, SUM(b) AS sum_b FROM t1 WHERE a > 0 HAVING SUM(b) > 1 AND COUNT(*) < 5;
+cnt	sum_b
+# HAVING over an alias
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING cnt < 10;
+cnt
+# Join
+SELECT COUNT(*) AS cnt FROM t2, t4 WHERE t2.a = t4.a HAVING COUNT(*) < 10;
+cnt
+# Stoppable conjunct with an extra non-stoppable one that is also false
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 AND MAX(b) < 0;
+cnt
+# Uncorrelated subquery with a stoppable HAVING
+SELECT (SELECT COUNT(*) AS cnt FROM t2 WHERE a > 0 HAVING COUNT(*) < 10) AS sub_cnt;
+sub_cnt
+NULL
+# Several stoppable conjuncts: the last one is the only false one and
+# is still used
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000 AND COUNT(*) <= 1500 AND COUNT(*) < 3000 AND COUNT(*) < 10;
+cnt
+# With LIMIT
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 LIMIT 1;
+cnt
+# SQL_CALC_FOUND_ROWS
+SELECT SQL_CALC_FOUND_ROWS COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+cnt
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+0
+# Non-integer constant
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2.5;
+cnt
+# NOT(COUNT(*) >= 10) is turned into COUNT(*) < 10 at parse time
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING NOT (COUNT(*) >= 10);
+cnt
+#
+# Section 2: conditions are true, the scan must run to the end
+#
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000;
+cnt
+1000
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 1000;
+cnt
+1000
+# c is NULL on every row that passes WHERE, so COUNT(c)=0 stays true
+SELECT COUNT(c) AS cnt_c FROM t1 WHERE a <= 900 HAVING COUNT(c)=0;
+cnt_c
+0
+# Empty input: COUNT(*)=0 over no rows still returns the row
+SELECT COUNT(*) AS cnt FROM t1 WHERE a < 0 HAVING COUNT(*) = 0;
+cnt
+0
+#
+# Section 3: shapes that are NOT stoppable, result must be correct and
+#            the scan must be complete
+#
+# Equality with non-zero constant is not monotonic
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 5;
+cnt
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 1000;
+cnt
+1000
+# COUNT(*) = 0.5 is never true, but only COUNT(*) = 0 is known to be final
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) = 0.5;
+cnt
+# Temporal constant: COUNT is converted to a date, which is not monotonic
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < DATE'2000-01-01';
+cnt
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= TIMESTAMP'2000-01-01 00:00:00';
+cnt
+# Opposite direction, and <>
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) > 10;
+cnt
+1000
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <> 0;
+cnt
+1000
+# Top-level OR
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 OR COUNT(*) > 500;
+cnt
+1000
+# COUNT(DISTINCT) is computed only at the end
+SELECT COUNT(DISTINCT b) AS cnt_dist_b FROM t1 WHERE a > 0 HAVING COUNT(DISTINCT b) < 10;
+cnt_dist_b
+# Comparison against a non-constant
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < MAX(b) - 990;
+cnt
+# Other aggregates (future work)
+SELECT MAX(b) AS max_b FROM t1 WHERE a > 0 HAVING MAX(b) < 10;
+max_b
+# A constant expression is cached, not a literal, so it is not used
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 5 + 5;
+cnt
+# Constants that are not literals are not used: @v (also inside an
+# expression, which becomes a <cache> filled on first read) is
+# changed by a stored function while the rows are read, so the HAVING
+# result depends on its final value (full scan, 1000 rows counted)
+CREATE FUNCTION set_v(x INT) RETURNS INT
+BEGIN
+SET @v= IF(x=1, 0, 5000);
+RETURN 1;
+END
+$$
+SET @v= 5000;
+SELECT COUNT(*) AS cnt FROM t1 WHERE set_v(a) HAVING COUNT(*) < @v;
+cnt
+1000
+SET @v= 5000;
+SELECT COUNT(*) AS cnt FROM t1 WHERE set_v(a) HAVING COUNT(*) < @v + 0;
+cnt
+1000
+DROP FUNCTION set_v;
+# NULL constant: HAVING is never TRUE, but the NULL is not used
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < NULL;
+cnt
+# GROUP BY with several groups: a stop on one group must not hide the
+# later group g=5 whose v is all NULL
+CREATE TABLE t3 (g INT, v INT) ENGINE=MyISAM;
+INSERT INTO t3 SELECT IF(seq <= 600, 3, 5), IF(seq <= 600, seq, NULL) FROM seq_1_to_1000;
+SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING g = 5 AND COUNT(v) = 0;
+grp	cnt_v
+5	0
+SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING g = 3 AND COUNT(v) < 10;
+grp	cnt_v
+SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g HAVING COUNT(v) = 0;
+grp	cnt_v
+5	0
+SELECT g AS grp, COUNT(v) AS cnt_v FROM t3 GROUP BY g WITH ROLLUP HAVING COUNT(v) < 10;
+grp	cnt_v
+5	0
+DROP TABLE t3;
+# Window function with implicit grouping
+SELECT COUNT(*) AS cnt, ROW_NUMBER() OVER () AS rn FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+cnt	rn
+#
+# Section 4: prepared statements, constant changes between executions
+#
+PREPARE stmt FROM 'SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < ?';
+SET @lim= 10;
+EXECUTE stmt USING @lim;
+cnt
+SET @lim= 1001;
+EXECUTE stmt USING @lim;
+cnt
+1000
+SET @lim= 1000;
+EXECUTE stmt USING @lim;
+cnt
+SET @lim= 5;
+EXECUTE stmt USING @lim;
+cnt
+DEALLOCATE PREPARE stmt;
+#
+# Section 5: stored function in the aggregate argument sees fewer rows
+#            but the result is unchanged
+#
+CREATE FUNCTION f1(x INT) RETURNS INT DETERMINISTIC RETURN x;
+$$
+SELECT COUNT(f1(b)) AS cnt_f1 FROM t1 HAVING COUNT(f1(b)) < 10;
+cnt_f1
+SELECT COUNT(f1(b)) AS cnt_f1 FROM t1 HAVING COUNT(f1(b)) < 2000;
+cnt_f1
+1000
+DROP FUNCTION f1;
+#
+# Section 6: ORDER BY / DISTINCT on the single result row
+#
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10 ORDER BY 1;
+cnt
+SELECT DISTINCT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+cnt
+SELECT DISTINCT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000;
+cnt
+1000
+#
+# Section 7: other query shapes, the result must stay correct
+#
+# Derived table and view with the condition pushed into HAVING
+SELECT * FROM (SELECT COUNT(*) AS c FROM t1) dt WHERE c < 10;
+c
+SELECT * FROM (SELECT COUNT(*) AS c FROM t1) dt WHERE c < 2000;
+c
+1000
+CREATE VIEW v1 AS SELECT COUNT(*) AS c FROM t1;
+SELECT * FROM v1 WHERE c < 10;
+c
+SELECT * FROM v1 WHERE c < 2000;
+c
+1000
+DROP VIEW v1;
+# IN subquery converted to EXISTS, HAVING with a stoppable conjunct
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='materialization=off,semijoin=off';
+SELECT 5 IN (SELECT COUNT(*) FROM t2 HAVING COUNT(*) < 10) AS in_res;
+in_res
+0
+SELECT 1000 IN (SELECT COUNT(*) FROM t2 HAVING COUNT(*) < 2000) AS in_res;
+in_res
+1
+SET optimizer_switch= @save_optimizer_switch;
+# Large constants
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 18446744073709551615;
+cnt
+1000
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 1e300;
+cnt
+1000
+SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < 123456789012345678901234567890.5;
+cnt
+1000
+# Prepared statement executed with a DATE parameter
+PREPARE stmt FROM 'SELECT COUNT(*) AS cnt FROM t1 HAVING COUNT(*) < ?';
+SET @d= DATE'2000-01-01';
+EXECUTE stmt USING @d;
+cnt
+1000
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2000-01-01'
+DEALLOCATE PREPARE stmt;
+# Correlated subquery, executed for several outer values
+SELECT a, (SELECT COUNT(*) FROM t2 WHERE t2.a <= t1.a HAVING COUNT(*) < 3) AS c
+FROM t1 WHERE a <= 5;
+a	c
+1	1
+2	2
+3	NULL
+4	NULL
+5	NULL
+# Block nested loop join
+SET @save_join_cache_level= @@join_cache_level;
+SET join_cache_level= 2;
+SELECT COUNT(*) AS cnt FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 10;
+cnt
+SELECT COUNT(*) AS cnt FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 2000;
+cnt
+1000
+SET join_cache_level= @save_join_cache_level;
+#
+# Section 8: EXPLAIN (the optimizer trace is in having_early_stop_notembedded)
+#
+# The tabular format shows it in the Extra column
+EXPLAIN SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using having short-cut
+# and is not shown when it cannot be used
+EXPLAIN SELECT SUM(a) AS s FROM t1 HAVING SUM(a) < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	
+# With a join, it is shown on the first table only
+EXPLAIN SELECT COUNT(*) FROM t1, t2 WHERE t1.a = t2.a HAVING COUNT(*) < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using having short-cut
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
+# The shortcut is shown in the JSON format
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 10;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(0) < 10",
+    "having_shortcut": true,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "t1.a > 0"
+        }
+      }
+    ]
+  }
+}
+# and is not shown when it cannot be used
+EXPLAIN FORMAT=JSON SELECT SUM(a) AS s FROM t1 HAVING SUM(a) < 10;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "sum(t1.a) < 10",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+#
+# Section 9: the plan shows having_shortcut, but the scan is not
+#            stopped, or stopped late (and the NULL constant, which
+#            has no having_shortcut)
+#
+# having_shortcut only says that the scan may stop. It does so only if
+# the condition becomes FALSE before the last row is read.
+# Exact row counts
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(0) < 2000",
+    "having_shortcut": true,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "t1.a > 0"
+        }
+      }
+    ]
+  }
+}
+# Never FALSE: all 1000 rows are read
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < 2000;
+cnt
+1000
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	1001
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 1000;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(0) <= 1000",
+    "having_shortcut": true,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "t1.a > 0"
+        }
+      }
+    ]
+  }
+}
+# FALSE would need 1001 rows, there are 1000
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) <= 1000;
+cnt
+1000
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	1001
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < NULL;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(0) < NULL",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100,
+          "attached_condition": "t1.a > 0"
+        }
+      }
+    ]
+  }
+}
+# A NULL constant is not used: no having_shortcut and no early stop
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 0 HAVING COUNT(*) < NULL;
+cnt
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	1001
+EXPLAIN FORMAT=JSON SELECT COUNT(c) AS cnt FROM t1 HAVING COUNT(c) < 50;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(t1.c) < 50",
+    "having_shortcut": true,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 100
+        }
+      }
+    ]
+  }
+}
+# c is NULL for 900 rows: the scan stops, but only at row 950
+FLUSH STATUS;
+SELECT COUNT(c) AS cnt FROM t1 HAVING COUNT(c) < 50;
+cnt
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	950
+EXPLAIN FORMAT=JSON SELECT COUNT(*) AS cnt FROM t1 WHERE a > 990 HAVING COUNT(*) < 50;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": 0.1671618,
+    "having_condition": "count(0) < 50",
+    "having_shortcut": true,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 1000,
+          "cost": 0.1671618,
+          "filtered": 1.100000024,
+          "attached_condition": "t1.a > 990"
+        }
+      }
+    ]
+  }
+}
+# WHERE leaves 10 rows, all of them are scanned, HAVING stays TRUE
+FLUSH STATUS;
+SELECT COUNT(*) AS cnt FROM t1 WHERE a > 990 HAVING COUNT(*) < 50;
+cnt
+10
+SHOW SESSION STATUS LIKE 'Handler_read_rnd_next';
+Variable_name	Value
+Handler_read_rnd_next	1001
+#
+# Section 10: constants evaluated at optimize time, and errors
+#
+# EXPLAIN must not evaluate a scalar-subquery constant at optimize time
+EXPLAIN SELECT COUNT(*) FROM t1 WHERE a > 0 HAVING COUNT(*) = (SELECT a FROM t2) + 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	1000	
+SELECT COUNT(*) FROM t1 WHERE a > 0 HAVING COUNT(*) = (SELECT a FROM t2) + 0;
+ERROR 21000: Subquery returns more than 1 row
+# An error raised on a row after the stop point is not seen, as with LIMIT
+CREATE FUNCTION f_err(x INT) RETURNS INT
+BEGIN
+IF x > 500 THEN
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT= 'row too far';
+END IF;
+RETURN 1;
+END
+$$
+SELECT COUNT(*) AS cnt FROM t1 WHERE f_err(a) HAVING COUNT(*) < 10;
+cnt
+SELECT COUNT(*) AS cnt FROM t1 WHERE f_err(a) HAVING COUNT(*) < 2000;
+ERROR 45000: row too far
+DROP FUNCTION f_err;
+DROP TABLE t1, t2, t4;
+# End of 13.3 tests

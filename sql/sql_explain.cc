@@ -1108,7 +1108,8 @@ int Explain_select::print_explain(Explain_query *query,
     for (uint i=0; i< n_join_tabs; i++)
     {
       join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
-                                  select_type, using_tmp, using_fs);
+                                  select_type, using_tmp, using_fs,
+                                  having_shortcut && i == 0);
       if (i == 0)
       {
         /* 
@@ -1236,6 +1237,8 @@ void Explain_select::print_explain_json(Explain_query *query,
         writer->add_str("0");
       }
     }
+    if (having_shortcut)
+      writer->add_member("having_shortcut").add_bool(true);
 
     int started_objects= 0;
     
@@ -1550,7 +1553,8 @@ int Explain_table_access::print_explain(select_result_sink *output,
                                         bool is_analyze,
                                         uint select_id, const char *select_type,
                                         bool using_temporary,
-                                        bool using_filesort)
+                                        bool using_filesort,
+                                        bool using_having_shortcut)
 {
   THD *thd= output->thd; // note: for SHOW EXPLAIN, this is target thd.
   MEM_ROOT *mem_root= thd->mem_root;
@@ -1747,6 +1751,15 @@ int Explain_table_access::print_explain(select_result_sink *output,
     else
       extra_buf.append(STRING_WITH_LEN("; "));
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  if (using_having_shortcut)
+  {
+    if (first)
+      first= false;
+    else
+      extra_buf.append(STRING_WITH_LEN("; "));
+    extra_buf.append(STRING_WITH_LEN("Using having short-cut"));
   }
 
   if (rowid_filter)
