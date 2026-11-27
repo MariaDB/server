@@ -824,6 +824,48 @@ Warnings:
 Level	Warning
 Code	1411
 Message	Incorrect datetime value: 'Wednesday, June 2, 2014' for function str_to_date
+#
+# MDEV-41935 STR_TO_DATE returns NULL only when en_US locale is omitted
+# under utf8mb4_bin
+#
+SET lc_time_names='en_US';
+SELECT STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+'%d %M %Y') AS omitted,
+STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+'%d %M %Y', 'en_US') AS explicit,
+STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_uca1400_as_cs,
+'%d %M %Y') AS uca_as_cs,
+STR_TO_DATE(_latin1'1 MARCH 2026' COLLATE latin1_bin,
+'%d %M %Y') AS latin1_bin,
+STR_TO_DATE(_latin1'1 march 2026' COLLATE latin1_general_cs,
+'%d %M %Y') AS latin1_cs,
+STR_TO_DATE(BINARY '1 march 2026', '%d %M %Y') AS bin;
+omitted	2026-03-01
+explicit	2026-03-01
+uca_as_cs	2026-03-01
+latin1_bin	2026-03-01
+latin1_cs	2026-03-01
+bin	2026-03-01
+SELECT STR_TO_DATE(_utf8mb4'1 mar 2026' COLLATE utf8mb4_bin,
+'%e %b %Y') AS abbr_month,
+STR_TO_DATE(_utf8mb4'monday 2 3 2026' COLLATE utf8mb4_bin,
+'%W %e %c %Y') AS weekday,
+STR_TO_DATE(_utf8mb4'mon 2 3 2026' COLLATE utf8mb4_bin,
+'%a %e %c %Y') AS abbr_weekday;
+abbr_month	2026-03-01
+weekday	2026-03-02
+abbr_weekday	2026-03-02
+SET @fmt= '%d %M %Y';
+SELECT STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+@fmt) AS runtime_format;
+runtime_format	2026-03-01
+# latin1 0xA0 and 0xB7 separators are still accepted
+SELECT STR_TO_DATE(_latin1 X'32303236A03033A03031',
+_latin1'%Y %m %d') AS nbsp,
+STR_TO_DATE(_latin1 X'32303236B73033B73031',
+_latin1'%Y%.%m%.%d') AS middle_dot;
+nbsp	2026-03-01
+middle_dot	2026-03-01
 # End of 12.3 test
 SET @@lc_time_names=DEFAULT;
 SET NAMES latin1;

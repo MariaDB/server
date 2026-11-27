@@ -429,6 +429,38 @@ SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y');
 --echo # locale as third param to STR_TO_DATE
 SELECT STR_TO_DATE('Wednesday, June 2, 2014', '%W, %M %e, %Y', 'ar_DZ');
 
+--echo #
+--echo # MDEV-41935 STR_TO_DATE returns NULL only when en_US locale is omitted
+--echo # under utf8mb4_bin
+--echo #
+
+SET lc_time_names='en_US';
+SELECT STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+                   '%d %M %Y') AS omitted,
+       STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+                   '%d %M %Y', 'en_US') AS explicit,
+       STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_uca1400_as_cs,
+                   '%d %M %Y') AS uca_as_cs,
+       STR_TO_DATE(_latin1'1 MARCH 2026' COLLATE latin1_bin,
+                   '%d %M %Y') AS latin1_bin,
+       STR_TO_DATE(_latin1'1 march 2026' COLLATE latin1_general_cs,
+                   '%d %M %Y') AS latin1_cs,
+       STR_TO_DATE(BINARY '1 march 2026', '%d %M %Y') AS bin;
+SELECT STR_TO_DATE(_utf8mb4'1 mar 2026' COLLATE utf8mb4_bin,
+                   '%e %b %Y') AS abbr_month,
+       STR_TO_DATE(_utf8mb4'monday 2 3 2026' COLLATE utf8mb4_bin,
+                   '%W %e %c %Y') AS weekday,
+       STR_TO_DATE(_utf8mb4'mon 2 3 2026' COLLATE utf8mb4_bin,
+                   '%a %e %c %Y') AS abbr_weekday;
+SET @fmt= '%d %M %Y';
+SELECT STR_TO_DATE(_utf8mb4'1 march 2026' COLLATE utf8mb4_bin,
+                   @fmt) AS runtime_format;
+--echo # latin1 0xA0 and 0xB7 separators are still accepted
+SELECT STR_TO_DATE(_latin1 X'32303236A03033A03031',
+                   _latin1'%Y %m %d') AS nbsp,
+       STR_TO_DATE(_latin1 X'32303236B73033B73031',
+                   _latin1'%Y%.%m%.%d') AS middle_dot;
+
 --echo # End of 12.3 test
 
 SET @@lc_time_names=DEFAULT;
