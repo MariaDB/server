@@ -1533,6 +1533,12 @@ public:
   Item_func_chr(THD *thd, Item *arg1, CHARSET_INFO *cs):
     Item_func_char(thd, arg1, cs) {}
   String *val_str(String *) override;
+  bool eq(const Item *item, const Eq_config &config) const override
+  {
+    return Item_func::eq(item, config) &&
+           collation.collation == item->collation.collation;
+  }
+  void print(String *str, enum_query_type query_type) override;
   bool fix_length_and_dec(THD *thd) override
   {
     max_length= 4;

@@ -106,6 +106,26 @@ Item *Schema::make_item_func_call_native(THD *thd,
                                          const Lex_ident_sys &name,
                                          List<Item> *args) const
 {
+  // Stored CHR expressions carry the original database collation.
+  if (this == &mariadb_schema && args && args->elements == 2 &&
+      lex_string_eq(&name, STRING_WITH_LEN("chr")))
+  {
+    Item *arg= args->pop();
+    const Item_const *literal= args->pop()->get_item_const();
+    const String *cl= literal ? literal->const_ptr_string() : NULL;
+    if (!cl || !cl->length() || cl->length() > MY_CS_COLLATION_NAME_SIZE ||
+        memchr(cl->ptr(), 0, cl->length()))
+    {
+      my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), name.str);
+      return NULL;
+    }
+    char cl_name[MY_CS_COLLATION_NAME_SIZE + 1];
+    strmake(cl_name, cl->ptr(), cl->length());
+    Charset_loader_server loader;
+    CHARSET_INFO *cs= loader.get_exact_collation_or_error(cl_name,
+                                                          thd->get_utf8_flag());
+    return cs ? new (thd->mem_root) Item_func_chr(thd, arg, cs) : NULL;
+  }
   Create_func *builder= find_native_function_builder(thd, name);
   if (builder)
     return builder->create_func(thd, &name, args);

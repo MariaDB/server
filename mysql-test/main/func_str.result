@@ -5880,5 +5880,68 @@ SELECT CONV(-9223372036854775808, -10, -62);
 CONV(-9223372036854775808, -10, -62)
 -AzL8n0Y58m8
 #
+# MDEV-42268 Preserve CHR in stored expressions
+#
+CREATE DATABASE db_chr CHARACTER SET latin1 COLLATE latin1_bin;
+USE db_chr;
+SET @saved_collation= @@collation_connection;
+SET collation_connection= ucs2_general_ci;
+CREATE TABLE test.t1 (a INT, c VARBINARY(4) AS (CHR(a)));
+CREATE VIEW test.v1 AS SELECT CHR(a) AS c FROM test.t1;
+SET collation_connection= @saved_collation;
+USE test;
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `c` varbinary(4) GENERATED ALWAYS AS (mariadb_schema.chr(`a`,_binary'latin1_bin')) VIRTUAL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+INSERT INTO t1 (a) VALUES (NULL),(233);
+SELECT a, HEX(c), c IS NULL FROM t1 ORDER BY a;
+a	HEX(c)	c IS NULL
+NULL	NULL	1
+233	E9	0
+SELECT HEX(c), c IS NULL, COLLATION(c) FROM v1 ORDER BY c;
+HEX(c)	c IS NULL	COLLATION(c)
+NULL	1	latin1_bin
+E9	0	latin1_bin
+INSERT INTO t1 (a) VALUES (66),(97);
+SELECT mariadb_schema.chr(a,'latin1_bin') AS letter FROM t1
+WHERE a IN (66,97) ORDER BY mariadb_schema.chr(a,'latin1_swedish_ci');
+letter
+a
+B
+CREATE SEQUENCE s1 START WITH 65;
+CREATE VIEW v2 AS SELECT HEX(CHR(NEXT VALUE FOR s1)) AS h;
+SELECT h FROM v2;
+h
+41
+SELECT NEXT VALUE FOR s1;
+NEXT VALUE FOR s1
+66
+SELECT mariadb_schema.chr(65, NULL);
+ERROR 42000: Incorrect parameters in the call to native function 'chr'
+SELECT mariadb_schema.chr(65, 1);
+ERROR 42000: Incorrect parameters in the call to native function 'chr'
+SELECT mariadb_schema.chr(65, 'nosuch');
+ERROR HY000: Unknown collation: 'nosuch'
+SELECT chr(65, 'latin1_bin');
+ERROR 42000: Incorrect parameter count in the call to native function 'chr'
+CREATE DATABASE db_uca CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+USE db_uca;
+CREATE VIEW test.v3 AS SELECT CHR(65) AS c, CHR(255) AS bad;
+USE test;
+SELECT HEX(c), COLLATION(c), COERCIBILITY(c), HEX(bad), bad IS NULL FROM v3;
+HEX(c)	COLLATION(c)	COERCIBILITY(c)	HEX(bad)	bad IS NULL
+41	utf8mb4_uca1400_ai_ci	4	NULL	1
+Warnings:
+Warning	1300	Invalid utf8mb4 character string: 'FF'
+DROP VIEW v1, v2, v3;
+DROP SEQUENCE s1;
+DROP TABLE t1;
+DROP DATABASE db_chr;
+DROP DATABASE db_uca;
+#
 # End of 11.4 tests
 #
