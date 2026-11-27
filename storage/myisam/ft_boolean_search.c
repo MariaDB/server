@@ -738,7 +738,20 @@ static int _ftb_check_phrase(FTB *ftb, const uchar *document, uint len,
 }
 
 
-static int _ftb_climb_the_tree(FTB *ftb, FTB_WORD *ftbw, FT_SEG_ITERATOR *ftsi_orig)
+/**
+  Propagate a matched word's weight and boolean state up the expression tree.
+  Check phrases during row evaluation and, for exclusions, index search.
+
+  @param ftb        Boolean search state
+  @param ftbw       Matched query word
+  @param ftsi_orig  Row iterator, or NULL during index search
+  @param record     Buffer for row reads during index phrase checks;
+                    NULL during row evaluation
+
+  @return 0 on success, or an error code
+*/
+static int _ftb_climb_the_tree(FTB *ftb, FTB_WORD *ftbw,
+                               FT_SEG_ITERATOR *ftsi_orig, uchar *record)
 {
   FT_SEG_ITERATOR ftsi;
   FTB_EXPR *ftbe;
@@ -768,22 +781,46 @@ static int _ftb_climb_the_tree(FTB *ftb, FTB_WORD *ftbw, FT_SEG_ITERATOR *ftsi_o
       {
         yn_flag=ftbe->flags;
         weight=ftbe->cur_weight*ftbe->weight;
-        if (mode && ftbe->phrase)
+        if (ftbe->phrase)
         {
           int found= 0;
 
-          memcpy(&ftsi, ftsi_orig, sizeof(ftsi));
+          if (mode)
+            memcpy(&ftsi, ftsi_orig, sizeof(ftsi));
+          else
+          {
+            FTB_EXPR *expr;
+            uint flags= 0;
+
+            /*
+              An unverified phrase must not exclude a row, either directly
+              or through an enclosing excluded expression. Such rows cannot
+              be recovered by the final relevance check.
+            */
+            for (expr= ftbe; expr; expr= expr->up)
+            {
+              /* This phrase cannot change a rejected expression. */
+              if (expr->docid[0] == curdoc && expr->nos)
+                return 0;
+              flags|= expr->flags;
+            }
+            if (!(flags & FTB_FLAG_NO))
+              continue;
+            if ((*ftb->info->read_record)(ftb->info, curdoc, record))
+              return my_errno;
+            _mi_ft_segiterator_init(ftb->info, ftb->keynr, record, &ftsi);
+          }
           while (_mi_ft_segiterator(&ftsi) && !found)
           {
             if (!ftsi.pos)
               continue;
             found= _ftb_check_phrase(ftb, ftsi.pos, ftsi.len, ftbe, parser);
             if (unlikely(found < 0))
-              return 1;
+              return HA_ERR_OUT_OF_MEM;
           }
           if (!found)
             break;
-        } /* ftbe->quot */
+        }
       }
       else
         break;
@@ -824,6 +861,7 @@ int ft_boolean_read_next(FT_INFO *ftb, char *record)
   FTB_WORD  *ftbw;
   MI_INFO   *info=ftb->info;
   my_off_t   curdoc;
+  int error;
 
   if (ftb->state != INDEX_SEARCH && ftb->state != INDEX_DONE)
     return -1;
@@ -847,9 +885,10 @@ int ft_boolean_read_next(FT_INFO *ftb, char *record)
   {
     while (curdoc == (ftbw=(FTB_WORD *)queue_top(& ftb->queue))->docid[0])
     {
-      if (unlikely(_ftb_climb_the_tree(ftb, ftbw, 0)))
+      if (unlikely((error= _ftb_climb_the_tree(ftb, ftbw, NULL,
+                                              (uchar*) record))))
       {
-        my_errno= HA_ERR_OUT_OF_MEM;
+        my_errno= error;
         goto err;
       }
 
@@ -954,7 +993,7 @@ static int ftb_find_relevance_add_word(MYSQL_FTPARSER_PARAM *param,
     if (ftbw->docid[1] == ftb->info->lastpos)
       continue;
     ftbw->docid[1]= ftb->info->lastpos;
-    if (unlikely(_ftb_climb_the_tree(ftb, ftbw, ftb_param->ftsi)))
+    if (unlikely(_ftb_climb_the_tree(ftb, ftbw, ftb_param->ftsi, NULL)))
       return 1;
   }
   return(0);

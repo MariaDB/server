@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # A well-formed Big5 character without a Unicode mapping does not end
+--echo # the document
+--echo #
+CREATE TABLE t (a TEXT CHARACTER SET big5, FULLTEXT(a) WITH PARSER ngram)
+  ENGINE=InnoDB;
+INSERT INTO t VALUES (CONCAT(_big5 X'C840', _big5 'abc'));
+SELECT HEX(a) FROM t WHERE MATCH(a) AGAINST('abc' IN BOOLEAN MODE);
+DROP TABLE t;
+
+--echo #
+--echo # Single-byte punctuation and spaces separate words, multi-byte
+--echo # characters do not
+--echo #
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a) WITH PARSER ngram)
+  ENGINE=InnoDB CHARSET=utf8mb4;
+SET GLOBAL innodb_ft_aux_table='test/t';
+INSERT INTO t VALUES (1, 'ab,cd e'), (2, '数据、库');
+SELECT word, doc_id, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE
+ORDER BY doc_id, position;
+SET GLOBAL innodb_ft_aux_table=default;
+DROP TABLE t;
+
+--echo #
+--echo # A word that becomes a phrase of n-grams matches only as a whole,
+--echo # also with + and -
+--echo #
+let $engine= InnoDB;
+--source ngram_edge_phrase.inc
+let $engine= MyISAM;
+--source ngram_edge_phrase.inc
+let $engine= Aria;
+--source ngram_edge_phrase.inc
+
+--echo #
+--echo # Natural language mode: a row matches any n-gram of the query
+--echo #
+let $engine= MyISAM;
+--source ngram_edge_natural.inc
+let $engine= Aria;
+--source ngram_edge_natural.inc
+
+--echo #
+--echo # UPDATE and DELETE change what is found
+--echo #
+let $engine= InnoDB;
+--source ngram_edge_dml.inc
+let $engine= MyISAM;
+--source ngram_edge_dml.inc
+let $engine= Aria;
+--source ngram_edge_dml.inc

@@ -136,6 +136,20 @@ fts_check_token(
 	const ib_rbt_t*		stopwords,
 	const CHARSET_INFO*	cs);
 
+/** Check that a token from a parser plugin fits into the index.
+A parser plugin does its own filtering, so the length and stopword
+checks of fts_check_token() do not apply, but the word column of the
+auxiliary tables holds at most HA_FT_MAXCHARLEN characters.
+@param[in]	token		token string
+@retval true	if the token can be indexed
+@retval false	if the token is empty or too long */
+inline bool fts_token_fits(const fts_string_t *token)
+{
+	return token->f_n_char > 0
+	       && token->f_n_char <= HA_FT_MAXCHARLEN
+	       && token->f_len <= FTS_MAX_WORD_LEN;
+}
+
 /******************************************************************//**
 Initialize a document. */
 void

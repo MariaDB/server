@@ -1,0 +1,17 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+--echo #
+--echo # The longest n-grams (ngram_longest.opt), of characters of 1 to 3 bytes
+--echo #
+SET NAMES utf8mb4;
+SELECT @@ngram_token_size;
+let $engine= InnoDB;
+--source ngram_longest.inc
+let $engine= MyISAM;
+--source ngram_longest.inc
+let $engine= Aria;
+--source ngram_longest.inc

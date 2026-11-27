@@ -1,0 +1,26 @@
+#
+# MDEV-10267 Add "ngram" support to MariaDB
+# The built-in tokenizer checks the words added to the cache against the
+# stopword list as before: in lower case, and once for all spellings
+# that the collation of the index takes as equal
+#
+CREATE TABLE sw (value VARCHAR(30)) ENGINE=InnoDB CHARSET=latin1 COLLATE=latin1_bin;
+INSERT INTO sw VALUES ('foo'), ('cafe');
+SET GLOBAL innodb_ft_server_stopword_table='test/sw';
+SET NAMES utf8mb4;
+CREATE TABLE t (id INT PRIMARY KEY, a TEXT, FULLTEXT(a)) ENGINE=InnoDB CHARSET=latin1;
+INSERT INTO t VALUES (1, 'FOO bar'), (2, 'café cafe zebra');
+SET GLOBAL innodb_ft_aux_table='test/t';
+SELECT word, doc_id, position FROM INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHE
+ORDER BY word, doc_id, position;
+word	doc_id	position
+bar	1	4
+café	2	0
+café	2	5
+zebra	2	10
+SET GLOBAL innodb_ft_aux_table=default;
+SELECT id FROM t WHERE MATCH(a) AGAINST('"café zebra"' IN BOOLEAN MODE);
+id
+2
+SET GLOBAL innodb_ft_server_stopword_table=default;
+DROP TABLE t, sw;

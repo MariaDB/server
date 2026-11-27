@@ -1,0 +1,15 @@
+--source include/have_innodb.inc
+# Restarts and kills the server
+--source include/not_embedded.inc
+--source include/big_test.inc
+
+--echo #
+--echo # MDEV-10267 Add "ngram" support to MariaDB
+--echo #
+
+# With 1-grams (ngram_random_1.opt), a phrase search reads many more
+# documents
+let $n_docs= 150;
+let $n_docs_crash= 40;
+let $n_queries= 50;
+--source ngram_random.inc

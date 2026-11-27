@@ -1,0 +1,43 @@
+--source include/have_innodb.inc
+--source include/have_simple_parser.inc
+
+--echo #
+--echo # MDEV-41758 ALTER TABLE ignores a changed fulltext parser of an index
+--echo #
+
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+
+--echo # Adding a parser. The index is built with it: simple_parser keeps
+--echo # 'abc-def' as one word, so 'abc' does not match.
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT, FULLTEXT ft(c)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'abc-def');
+ALTER TABLE t DROP INDEX ft, ADD FULLTEXT ft(c) WITH PARSER simple_parser;
+SHOW CREATE TABLE t;
+SELECT id FROM t WHERE MATCH(c) AGAINST('abc');
+DROP TABLE t;
+
+--echo # Removing it, which cannot be done instantly
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT,
+  FULLTEXT ft(c) WITH PARSER simple_parser) ENGINE=InnoDB;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+ALTER TABLE t DROP INDEX ft, ADD FULLTEXT ft(c), ALGORITHM=INSTANT;
+ALTER TABLE t DROP INDEX ft, ADD FULLTEXT ft(c);
+SHOW CREATE TABLE t;
+DROP TABLE t;
+
+--echo # Adding it under another name: the index is rebuilt, not just renamed,
+--echo # so 'abc' does not match.
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT, FULLTEXT ft(c)) ENGINE=InnoDB;
+INSERT INTO t VALUES (1, 'abc-def');
+ALTER TABLE t DROP INDEX ft, ADD FULLTEXT ft2(c) WITH PARSER simple_parser;
+SELECT id FROM t WHERE MATCH(c) AGAINST('abc');
+DROP TABLE t;
+
+--echo # The same parser, in any letter case, is no change
+CREATE TABLE t (id INT PRIMARY KEY, c TEXT,
+  FULLTEXT ft(c) WITH PARSER simple_parser) ENGINE=InnoDB;
+ALTER TABLE t DROP INDEX ft,
+  ADD FULLTEXT ft(c) WITH PARSER SIMPLE_PARSER, ALGORITHM=INSTANT;
+DROP TABLE t;
+
+UNINSTALL PLUGIN simple_parser;
