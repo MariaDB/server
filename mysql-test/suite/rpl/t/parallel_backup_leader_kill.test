@@ -1,0 +1,141 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+# The test is not format specific, MIXED is required to optimize testing time
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # The binlog group commit leader of the parallel slave is killed while it
+--echo # waits for MDL_BACKUP_COMMIT held back by BACKUP STAGE BLOCK_COMMIT. The
+--echo # group, the leader T1 and the follower T2, fails with the kill error.
+--echo # With no transaction retries the slave stops with the error.
+--echo #
+--echo # T0 (gtid 0-1-200) is excluded from the slave binlog (the slave runs with
+--echo # --binlog-ignore-db=nobinlog), so it commits without the binlog group
+--echo # commit and wakes T1 (0-1-201) normally, and T1 leads a group. T2
+--echo # (0-1-202) arrives later and follows T1.
+--echo #
+
+call mtr.add_suppression("Error writing transaction to binary log");
+call mtr.add_suppression("Slave SQL:.*Gtid 0-1-20[12]");
+call mtr.add_suppression("Slave: Deadlock found when trying to get lock");
+
+--connection master
+CREATE DATABASE nobinlog;
+CREATE TABLE nobinlog.t0 (a INT PRIMARY KEY) ENGINE = innodb;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE = innodb;
+--sync_slave_with_master
+
+--source include/stop_slave.inc
+SET STATEMENT sql_log_bin= 0 FOR ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode   = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_threads= 3;
+SET @@global.slave_parallel_mode   = 'optimistic';
+
+--connection master
+USE nobinlog;
+SET @@gtid_seq_no=200;
+INSERT INTO t0 VALUES (1);
+USE test;
+SET @@gtid_seq_no=201;
+INSERT INTO t1 VALUES (1);
+SET @@gtid_seq_no=202;
+INSERT INTO t1 VALUES (2);
+--save_master_pos
+
+--echo # Local transactions lock out T0 and T2
+--connect (aux_t0,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+INSERT INTO nobinlog.t0 VALUES (1);
+--connect (aux_t2,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+BEGIN;
+INSERT INTO t1 VALUES (2);
+
+--connection slave
+SET @old_retries= @@global.slave_transaction_retries;
+SET @@global.slave_transaction_retries= 0;
+SET @@global.debug_dbug= "+d,hold_slave_group_commit_leader";
+--source include/start_slave.inc
+
+--echo # T1 is prepared and waits for T0 to commit
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+--echo # Release T0. T1 leads a group and is held at the sync point
+--connection aux_t0
+ROLLBACK;
+--connection slave
+SET debug_sync = 'now WAIT_FOR leader_held';
+
+--echo # Release T2. It queues up behind T1 and waits for it to lead
+--connection aux_t2
+ROLLBACK;
+--connection slave
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state = "Commit"
+--source include/wait_condition.inc
+
+--echo # B requests BLOCK_COMMIT. It is sent asynchronously: with T2 holding
+--echo # MDL_BACKUP_COMMIT the request stays pending, otherwise (the leader
+--echo # takes the lock for the group) it is granted at once.
+--connect (backup_slave,127.0.0.1,root,,test,$SLAVE_MYPORT,)
+SET lock_wait_timeout= 15;
+--let $b_id= `SELECT connection_id()`
+BACKUP STAGE START;
+--send BACKUP STAGE BLOCK_COMMIT
+
+--connection slave
+--echo # Wait until B has decided: its upgrade to BACKUP_WAIT_COMMIT is pending,
+--echo # or (fixed) it got the lock and is idle with BACKUP_BLOCK_DDL.
+--let $wait_condition= SELECT count(*) > 0 FROM performance_schema.metadata_locks m JOIN performance_schema.threads t ON t.thread_id = m.owner_thread_id JOIN information_schema.processlist p ON p.id = t.processlist_id WHERE t.processlist_id = $b_id AND m.object_type = 'BACKUP' AND ((m.lock_type = 'BACKUP_WAIT_COMMIT' AND m.lock_status = 'PENDING') OR (m.lock_type = 'BACKUP_BLOCK_DDL' AND p.command = 'Sleep'))
+--source include/wait_condition.inc
+
+--echo # The leader waits for B to release the lock
+--connection slave
+SET debug_sync = 'now SIGNAL leader_go';
+--let $wait_condition= SELECT count(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for backup lock"
+--source include/wait_condition.inc
+
+--echo # Kill the leader. The group fails and the slave stops with the error.
+--let $leader_id= `SELECT id FROM information_schema.processlist WHERE state = "Waiting for backup lock"`
+--disable_query_log
+--eval KILL $leader_id
+--enable_query_log
+--let $slave_sql_errno= 1213,1317,1927
+--source include/wait_for_slave_sql_error.inc
+--let $status_items= Last_SQL_Errno, Last_SQL_Error
+--source include/show_slave_status.inc
+SELECT @@gtid_slave_pos;
+SET debug_sync = RESET;
+
+--connection backup_slave
+--reap
+BACKUP STAGE END;
+--disconnect backup_slave
+
+--connection slave
+SET @@global.debug_dbug= "";
+SET @@global.slave_transaction_retries= @old_retries;
+START SLAVE SQL_THREAD;
+--source include/wait_for_slave_sql_to_start.inc
+--connection slave
+--sync_with_master
+SET debug_sync = RESET;
+
+--let $diff_tables= master:t1,slave:t1
+--source include/diff_tables.inc
+
+--echo # Clean up.
+--source include/stop_slave.inc
+SET @@global.debug_dbug= "";
+SET @@global.slave_parallel_threads= @old_parallel_threads;
+SET @@global.slave_parallel_mode   = @old_parallel_mode;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1;
+DROP DATABASE nobinlog;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

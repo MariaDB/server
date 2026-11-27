@@ -1,0 +1,3 @@
+--binlog-ignore-db=nobinlog
+--performance-schema
+--performance-schema-instrument=wait/lock/metadata/sql/mdl=ON
