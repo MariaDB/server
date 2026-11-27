@@ -7367,9 +7367,11 @@ protected:
 class Item_ignore_specification:
         public Item_contextually_typed_value_specification
 {
+  Item_field *m_associated_field;
 public:
   Item_ignore_specification(THD *thd)
-   :Item_contextually_typed_value_specification(thd)
+   :Item_contextually_typed_value_specification(thd),
+   m_associated_field(nullptr)
   { }
   void print(String *str, enum_query_type) override
   {
@@ -7379,8 +7381,25 @@ public:
   {
     return false;
   }
+  bool associate_with_target_field(THD *, Item_field *field) override
+  {
+    m_associated_field= field;
+    return false;
+  }
   int save_in_field(Field *field_arg, bool) override
   {
+    /*
+      UPDATE: IGNORE keeps the current value of the target column. In a
+      multi-table UPDATE field_arg can be a field of a temporary table, so
+      read the value from the real column.
+    */
+    if (m_associated_field && field_arg != m_associated_field->field &&
+        find_ignore_reaction(field_arg->table->in_use) ==
+          IGNORE_MEANS_FIELD_VALUE)
+    {
+      m_associated_field->save_val(field_arg);
+      return false;
+    }
     return field_arg->save_in_field_ignore_value(false);
   }
   bool save_in_param(THD *, Item_param *param) override
