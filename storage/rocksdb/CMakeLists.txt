@@ -164,7 +164,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
 # MARIAROCKS-TODO: how to properly depend on -lrt ?
-TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARIES})
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib MariaDB::zlib)
 if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
@@ -226,6 +226,7 @@ ADD_LIBRARY(rocksdb_tools STATIC
    rocksdb/tools/ldb_cmd.cc
    rocksdb/tools/sst_dump_tool.cc
 )
+TARGET_LINK_LIBRARIES(rocksdb_tools MariaDB::zlib)
 
 MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)

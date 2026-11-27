@@ -337,8 +337,9 @@ The following specify which files/extra groups are read (specified before remain
  this number. If set to 0, index dives are always used
  --event-scheduler[=name] 
  Enable the event scheduler. Possible values are ON, OFF,
- and DISABLED (keep the event scheduler completely
- deactivated, it cannot be activated run-time)
+ DISABLED (keep the event scheduler completely
+ deactivated, it cannot be activated run-time), and
+ ORIGINAL (reset to the value the server was started with)
  --expensive-subquery-limit=# 
  The maximum number of rows a subquery may examine in
  order to be executed during optimization and used for

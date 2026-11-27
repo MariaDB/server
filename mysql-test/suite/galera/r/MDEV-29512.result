@@ -4,6 +4,7 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 int, f3 varchar(2000));
 INSERT INTO t1 VALUES (1, 0, REPEAT('1234567890', 200));
 INSERT INTO t1 VALUES (3, 3, REPEAT('1234567890', 200));
 SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
@@ -37,4 +38,5 @@ select f1,f2 from t1;
 f1	f2
 1	0
 3	2
+connection node_2;
 DROP TABLE t1;
