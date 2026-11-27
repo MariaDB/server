@@ -3100,4 +3100,64 @@ SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
 JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }')
 ["", "k2"]
 SET SESSION character_set_database= default;
+#
+# MDEV-41898 JSON_VALID accepts a number with an empty exponent ('1e')
+#            inside arrays and objects
+#
+# A number that stops before it is complete must be rejected whether it
+# ends the text or is followed by a delimiter such as ']', ',' or '}'.
+# Incomplete numbers: all must be invalid
+SELECT JSON_VALID('1e') AS top_e, JSON_VALID('[1e]') AS arr_e,
+JSON_VALID('{"a":1e}') AS obj_e, JSON_VALID('[1e+]') AS arr_e_plus,
+JSON_VALID('[1E-]') AS arr_E_minus, JSON_VALID('[1e,2]') AS arr_e_comma,
+JSON_VALID('[1e ]') AS arr_e_space, JSON_VALID('[-]') AS arr_minus,
+JSON_VALID('{"a":-}') AS obj_minus, JSON_VALID('[0e]') AS arr_0e,
+JSON_VALID('[1.5e]') AS arr_frac_e;
+top_e	arr_e	obj_e	arr_e_plus	arr_E_minus	arr_e_comma	arr_e_space	arr_minus	obj_minus	arr_0e	arr_frac_e
+0	0	0	0	0	0	0	0	0	0	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 7
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 4
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 4
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 2
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 6
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 5
+# At most one sign may follow the exponent marker
+SELECT JSON_VALID('1e+-5') AS top_signs, JSON_VALID('[1e--+5]') AS arr_signs,
+JSON_VALID('1e++5') AS top_plus_plus, JSON_VALID('{"a":1E-+5}') AS obj_signs,
+JSON_VALID('[1e+-]') AS arr_signs_no_digits;
+top_signs	arr_signs	top_plus_plus	obj_signs	arr_signs_no_digits
+0	0	0	0	0
+Warnings:
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 4
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 3
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 8
+Note	4038	Syntax error in JSON text in argument 1 to function 'json_valid' at position 4
+SELECT JSON_VALID('1e+5') AS top_plus5, JSON_VALID('1E-5') AS top_minus5;
+top_plus5	top_minus5
+1	1
+# The value of an incomplete number must not be returned
+SELECT JSON_VALUE('[1e]', '$[0]') AS val_e;
+val_e
+NULL
+SELECT JSON_EXTRACT('{"a":1e}', '$.a') AS extract_e;
+extract_e
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 7
+# Complete numbers next to the same delimiters stay valid
+SELECT JSON_VALID('[1e5]') AS arr_e5, JSON_VALID('{"a":1E+5}') AS obj_e5,
+JSON_VALID('[1e-5, 2]') AS arr_e_minus5, JSON_VALID('[-1 ]') AS arr_neg,
+JSON_VALID('[0,1.5,-0]') AS arr_mixed;
+arr_e5	obj_e5	arr_e_minus5	arr_neg	arr_mixed
+1	1	1	1	1
+SELECT JSON_VALUE('[1e5]', '$[0]') AS val_e5;
+val_e5
+1e5
 # End of 10.11 Test

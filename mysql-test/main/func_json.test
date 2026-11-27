@@ -2193,4 +2193,36 @@ SET SESSION character_set_database=utf32;
 SELECT JSON_KEYS ('{"S":-1.0,"D": {"o":,"a": }}');
 SELECT JSON_KEYS('{"":1, "k2":2, "":3, "k2":4 }');
 SET SESSION character_set_database= default;
+
+--echo #
+--echo # MDEV-41898 JSON_VALID accepts a number with an empty exponent ('1e')
+--echo #            inside arrays and objects
+--echo #
+--echo # A number that stops before it is complete must be rejected whether it
+--echo # ends the text or is followed by a delimiter such as ']', ',' or '}'.
+
+--echo # Incomplete numbers: all must be invalid
+SELECT JSON_VALID('1e') AS top_e, JSON_VALID('[1e]') AS arr_e,
+       JSON_VALID('{"a":1e}') AS obj_e, JSON_VALID('[1e+]') AS arr_e_plus,
+       JSON_VALID('[1E-]') AS arr_E_minus, JSON_VALID('[1e,2]') AS arr_e_comma,
+       JSON_VALID('[1e ]') AS arr_e_space, JSON_VALID('[-]') AS arr_minus,
+       JSON_VALID('{"a":-}') AS obj_minus, JSON_VALID('[0e]') AS arr_0e,
+       JSON_VALID('[1.5e]') AS arr_frac_e;
+
+--echo # At most one sign may follow the exponent marker
+SELECT JSON_VALID('1e+-5') AS top_signs, JSON_VALID('[1e--+5]') AS arr_signs,
+       JSON_VALID('1e++5') AS top_plus_plus, JSON_VALID('{"a":1E-+5}') AS obj_signs,
+       JSON_VALID('[1e+-]') AS arr_signs_no_digits;
+SELECT JSON_VALID('1e+5') AS top_plus5, JSON_VALID('1E-5') AS top_minus5;
+
+--echo # The value of an incomplete number must not be returned
+SELECT JSON_VALUE('[1e]', '$[0]') AS val_e;
+SELECT JSON_EXTRACT('{"a":1e}', '$.a') AS extract_e;
+
+--echo # Complete numbers next to the same delimiters stay valid
+SELECT JSON_VALID('[1e5]') AS arr_e5, JSON_VALID('{"a":1E+5}') AS obj_e5,
+       JSON_VALID('[1e-5, 2]') AS arr_e_minus5, JSON_VALID('[-1 ]') AS arr_neg,
+       JSON_VALID('[0,1.5,-0]') AS arr_mixed;
+SELECT JSON_VALUE('[1e5]', '$[0]') AS val_e5;
+
 --echo # End of 10.11 Test
