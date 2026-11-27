@@ -136,9 +136,9 @@ int my_is_symlink(const char *filename __attribute__((unused)))
   'filename'.
 
   On error returns -1, unless error is file not found, in which case it
-  is 1; 'to' will then be populated with a fallback value as specified by
-  my_load_path() with null own_path_prefix; symlinks will not be
-  resolved.
+  is 1; 'to' will then be populated with a fallback value (on POSIX, as
+  specified by my_load_path() with null own_path_prefix; on Windows, see
+  my_win_realpath()); symlinks will not be resolved.
 
   Sets my_errno to specific error number.
 */
@@ -176,20 +176,7 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
   }
   DBUG_RETURN(result);
 #elif defined(_WIN32)
-  int ret= GetFullPathName(filename,FN_REFLEN, to, NULL);
-  if (ret == 0 || ret > FN_REFLEN)
-  {
-    my_errno= (ret > FN_REFLEN) ? ENAMETOOLONG : GetLastError();
-    if (MyFlags & MY_WME)
-      my_error(EE_REALPATH, MYF(0), filename, my_errno);
-    /* 
-      GetFullPathName didn't work : use my_load_path() which is a poor 
-      substitute original name but will at least be able to resolve 
-      paths that starts with '.'.
-    */  
-    my_load_path(to, filename, NullS);
-    return -1;
-  }
+  return my_win_realpath(to, filename, MyFlags);
 #else
   my_load_path(to, filename, NullS);
 #endif
