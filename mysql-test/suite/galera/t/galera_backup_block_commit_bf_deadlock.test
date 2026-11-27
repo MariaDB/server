@@ -1,0 +1,96 @@
+#
+# With wsrep_mode=BF_ABORT_MARIABACKUP, BACKUP STAGE BLOCK_DDL does not
+# pause the provider, and BACKUP STAGE BLOCK_COMMIT takes its backup lock,
+# then pauses the provider. The pause waits for each write in the provider
+# order. A TOI or applier write that waits for a backup lock then
+# deadlocks with BLOCK_COMMIT: in this mode MDL_lock::can_grant_lock()
+# does not grant backup locks to TOI and appliers.
+#
+# A local ALTER TABLE, an applied ALTER TABLE and an applied
+# REPLICATE_MYISAM INSERT start during BLOCK_DDL and wait for the backup
+# lock before BLOCK_COMMIT starts. No sync point is needed.
+#
+# include/galera_backup_lock_deadlock.inc prints the outcome and restarts
+# node 1.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $node_1= node_1
+--let $node_2= node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+--connection node_2
+--let $wait_condition= SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait= 0;
+
+--echo # Local TOI: ALTER TABLE, started during BLOCK_DDL
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_id= `SELECT CONNECTION_ID()`
+--send ALTER TABLE t1 COMMENT 'local'
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $op_id AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+--connection node_1_lock
+--send BACKUP STAGE BLOCK_COMMIT
+--let $dl_name= BLOCK_COMMIT local toi_ddl
+--let $dl_write= ID = $op_id
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+--disconnect node_1a
+
+--echo # Applier: ALTER TABLE, started during BLOCK_DDL
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+--connection node_2
+ALTER TABLE t1 COMMENT 'applier';
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+--connection node_1_lock
+--send BACKUP STAGE BLOCK_COMMIT
+--let $dl_name= BLOCK_COMMIT applier toi_ddl
+--let $dl_write= USER = 'system user' AND INFO LIKE 'ALTER TABLE t1%'
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+
+--echo # Applier: REPLICATE_MYISAM INSERT, started during BLOCK_DDL
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+--connection node_2
+INSERT INTO t2 VALUES (NULL);
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+--connection node_1_lock
+--send BACKUP STAGE BLOCK_COMMIT
+--let $dl_name= BLOCK_COMMIT applier toi_myisam
+--let $dl_write= USER = 'system user' AND INFO LIKE 'INSERT INTO t2%'
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+
+--connection node_1
+SELECT COUNT(*) FROM t2;
+SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+DROP TABLE t1, t2;
+
+--source include/galera_restart_default.inc
+--source include/auto_increment_offset_restore.inc

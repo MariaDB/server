@@ -1,0 +1,66 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER u1;
+connect  node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+SET GLOBAL debug_dbug= '+d,sst_hold_BLOCK_DDL,sst_hold_BLOCK_COMMIT';
+# Node 2 requests SST from node 1.
+connection node_2;
+connection node_1b;
+# Donor held after BLOCK_DDL: local ALTER TABLE
+SET DEBUG_SYNC= 'now WAIT_FOR sst_held_BLOCK_DDL';
+connect  node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1a;
+SET SESSION wsrep_sync_wait= 0;
+ALTER TABLE t1 COMMENT 'block_ddl';
+connection node_1b;
+BLOCK_DDL local toi_ddl: waits
+SET DEBUG_SYNC= 'now SIGNAL sst_continue_BLOCK_DDL';
+# Donor held after BLOCK_COMMIT: local GRANT
+SET DEBUG_SYNC= 'now WAIT_FOR sst_held_BLOCK_COMMIT';
+connect  node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1c;
+SET SESSION wsrep_sync_wait= 0;
+GRANT SELECT (a) ON test.t1 TO u1;
+connection node_1b;
+BLOCK_COMMIT local toi_grant: waits
+# Donor held after BLOCK_COMMIT: local ALTER TABLE
+connect  node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1d;
+SET SESSION wsrep_sync_wait= 0;
+ALTER TABLE t1 COMMENT 'block_commit';
+connection node_1b;
+BLOCK_COMMIT local toi_ddl: waits
+connection node_1;
+SET DEBUG_SYNC= 'now SIGNAL sst_continue_BLOCK_COMMIT';
+connection node_1a;
+connection node_1c;
+connection node_1d;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+disconnect node_1d;
+connection node_2;
+CALL mtr.add_suppression("WSREP_SST: \\[ERROR\\]");
+CALL mtr.add_suppression("WSREP: Process completed with error: wsrep_sst_mariabackup");
+CALL mtr.add_suppression("WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script");
+CALL mtr.add_suppression("WSREP: Application received wrong state");
+CALL mtr.add_suppression("WSREP: Application state transfer failed");
+SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+TABLE_COMMENT
+block_commit
+connection node_1;
+CALL mtr.add_suppression("Assertion `backup_stage <= BACKUP_WAIT_FOR_FLUSH");
+CALL mtr.add_suppression("got signal 6");
+CALL mtr.add_suppression("Attempting backtrace");
+CALL mtr.add_suppression("WSREP_SST: \\[ERROR\\]");
+SET GLOBAL debug_dbug= '';
+SET DEBUG_SYNC= 'RESET';
+DROP USER u1;
+DROP TABLE t1;
+disconnect node_2;
+disconnect node_1;

@@ -1145,6 +1145,7 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
       thd->wsrep_desynced_backup_stage)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
+    DEBUG_SYNC(thd, "wsrep_unlock_global_read_lock_before_resume");
     if (server_state.state() == Wsrep_server_state::s_donor ||
         (WSREP_NNULL(thd) &&
          server_state.state() != Wsrep_server_state::s_synced))

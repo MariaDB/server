@@ -1,0 +1,160 @@
+#
+# A mariabackup SST donor does not pause the provider at BACKUP STAGE
+# BLOCK_DDL or BLOCK_COMMIT. Without BF_ABORT_MARIABACKUP,
+# MDL_lock::can_grant_lock() grants every backup lock to TOI, so DDL on
+# the donor does not wait for the backup stages:
+# - at BLOCK_DDL, a local ALTER TABLE commits,
+# - at BLOCK_COMMIT, a local GRANT commits, and a local ALTER TABLE
+#   fails an assertion in backup_log_ddl() in a debug build.
+#
+# Each write must wait. The test prints a line that starts with "BUG:"
+# for each write that commits or crashes the donor.
+#
+# The donor's mariabackup is held after BLOCK_DDL and after BLOCK_COMMIT.
+# After the assertion, the joiner fails the SST. Both nodes are started
+# again.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_mariabackup.inc
+
+--let $node_1= node_1
+--let $node_2= node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE USER u1;
+
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+SET GLOBAL debug_dbug= '+d,sst_hold_BLOCK_DDL,sst_hold_BLOCK_COMMIT';
+
+--echo # Node 2 requests SST from node 1.
+--connection node_2
+--source include/shutdown_mysqld.inc
+--let $expect_file_2= $_expect_file_name
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--connection node_1b
+--let $wait_condition= SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--write_line "restart" $expect_file_2
+
+--echo # Donor held after BLOCK_DDL: local ALTER TABLE
+SET DEBUG_SYNC= 'now WAIT_FOR sst_held_BLOCK_DDL';
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_conn= node_1a
+--let $op_stage= BLOCK_DDL
+--let $op= toi_ddl
+--let $op_stmt= ALTER TABLE t1 COMMENT 'block_ddl'
+--let $op_com= Com_alter_table
+--source include/galera_sst_donor_write.inc
+--let $pending_1a= $op_pending
+SET DEBUG_SYNC= 'now SIGNAL sst_continue_BLOCK_DDL';
+
+--echo # Donor held after BLOCK_COMMIT: local GRANT
+SET DEBUG_SYNC= 'now WAIT_FOR sst_held_BLOCK_COMMIT';
+--connect (node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_conn= node_1c
+--let $op_stage= BLOCK_COMMIT
+--let $op= toi_grant
+--let $op_stmt= GRANT SELECT (a) ON test.t1 TO u1
+--let $op_com= Com_grant
+--source include/galera_sst_donor_write.inc
+--let $pending_1c= $op_pending
+
+--echo # Donor held after BLOCK_COMMIT: local ALTER TABLE
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $expect_file_2
+--connect (node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_conn= node_1d
+--let $op= toi_ddl
+--let $op_stmt= ALTER TABLE t1 COMMENT 'block_commit'
+--let $op_com= Com_alter_table
+--source include/galera_sst_donor_write.inc
+--let $pending_1d= $op_pending
+--let $crashed= 0
+if ($outcome == crashed)
+{
+  --let $crashed= 1
+}
+
+if ($crashed)
+{
+  # The joiner aborts when the donor is gone.
+  --let PID_FILE_2= $MYSQLTEST_VARDIR/run/mysqld.2.pid
+  --perl
+    # The pid file is removed when node 2 exits.
+    open(my $fh, '<', $ENV{PID_FILE_2}) or exit(0);
+    my $pid = <$fh>;
+    chomp($pid);
+    for (my $i = 0; $i < 3000 && kill(0, $pid); $i++) {
+      select(undef, undef, undef, 0.1);
+    }
+    die "Node 2 did not exit" if kill(0, $pid);
+EOF
+
+  --connection node_1
+  --source include/wait_until_disconnected.inc
+  --remove_file $MYSQLTEST_VARDIR/mysqld.1/data/grastate.dat
+  --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  --let $start_mysqld_params= --wsrep-new-cluster
+  --source include/start_mysqld.inc
+  --let $start_mysqld_params=
+}
+if (!$crashed)
+{
+  --remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+  --connection node_1
+  SET DEBUG_SYNC= 'now SIGNAL sst_continue_BLOCK_COMMIT';
+  # Writes that wait commit after the SST.
+  if ($pending_1a)
+  {
+    --connection node_1a
+    --reap
+  }
+  if ($pending_1c)
+  {
+    --connection node_1c
+    --reap
+  }
+  if ($pending_1d)
+  {
+    --connection node_1d
+    --reap
+  }
+}
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_1c
+--disconnect node_1d
+--write_line restart $expect_file_2
+
+--connection node_2
+--let $wait_ready_counter= 3000
+--source include/galera_wait_ready.inc
+# The joiner fails the SST when the donor crashes.
+CALL mtr.add_suppression("WSREP_SST: \\[ERROR\\]");
+CALL mtr.add_suppression("WSREP: Process completed with error: wsrep_sst_mariabackup");
+CALL mtr.add_suppression("WSREP: Failed to read uuid:seqno and wsrep_gtid_domain_id from joiner script");
+CALL mtr.add_suppression("WSREP: Application received wrong state");
+CALL mtr.add_suppression("WSREP: Application state transfer failed");
+SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+
+--connection node_1
+CALL mtr.add_suppression("Assertion `backup_stage <= BACKUP_WAIT_FOR_FLUSH");
+CALL mtr.add_suppression("got signal 6");
+CALL mtr.add_suppression("Attempting backtrace");
+CALL mtr.add_suppression("WSREP_SST: \\[ERROR\\]");
+SET GLOBAL debug_dbug= '';
+SET DEBUG_SYNC= 'RESET';
+DROP USER u1;
+DROP TABLE t1;
+
+if ($crashed)
+{
+  --source include/galera_restart_default.inc
+}
+--source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

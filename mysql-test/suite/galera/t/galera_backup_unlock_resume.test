@@ -1,0 +1,68 @@
+#
+# UNLOCK TABLES after FLUSH TABLES WITH READ LOCK, and BACKUP STAGE END,
+# must resume the provider before they release the backup lock. A local
+# TOI write that waits for the backup lock must then commit.
+#
+# The write is a REPLICATE_MYISAM INSERT: it takes the backup lock before
+# it begins TOI. The unlocking statement is held between the release of
+# the backup lock and the resume of the provider. If the write begins TOI
+# on the paused provider, it fails with ER_UNKNOWN_COM_ERROR, and the test
+# prints a line that starts with "BUG:".
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=MyISAM;
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $op_id= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+
+--echo # FTWRL, then UNLOCK TABLES
+--connection node_1
+FLUSH TABLES WITH READ LOCK;
+--connection node_1a
+--send INSERT INTO t1 VALUES (1)
+--connection node_1b
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $op_id AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+--connection node_1
+SET DEBUG_SYNC= 'wsrep_unlock_global_read_lock_before_resume SIGNAL unlocked WAIT_FOR resume';
+--send UNLOCK TABLES
+--connection node_1b
+SET DEBUG_SYNC= 'now WAIT_FOR unlocked';
+--let $unlock_stmt= UNLOCK TABLES
+--source include/galera_backup_unlock_resume.inc
+
+--echo # BACKUP STAGE BLOCK_DDL, then BACKUP STAGE END
+--connection node_1
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+--connection node_1a
+--send INSERT INTO t1 VALUES (2)
+--connection node_1b
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $op_id AND STATE = 'Waiting for backup lock'
+--source include/wait_condition.inc
+--connection node_1
+SET DEBUG_SYNC= 'wsrep_backup_stage_before_resume_and_resync SIGNAL unlocked WAIT_FOR resume';
+--send BACKUP STAGE END
+--connection node_1b
+SET DEBUG_SYNC= 'now WAIT_FOR unlocked';
+--let $unlock_stmt= BACKUP STAGE END
+--source include/galera_backup_unlock_resume.inc
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+--connection node_2
+SELECT COUNT(*) FROM t1;
+
+--disconnect node_1a
+--disconnect node_1b
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;

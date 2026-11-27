@@ -1,0 +1,69 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+connection node_2;
+SET SESSION wsrep_sync_wait= 0;
+# Local TOI: ALTER TABLE, started during BLOCK_DDL
+connect  node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+connect  node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ALTER TABLE t1 COMMENT 'local';
+connection node_1;
+SET SESSION wsrep_sync_wait= 0;
+connection node_1_lock;
+BACKUP STAGE BLOCK_COMMIT;
+BLOCK_COMMIT local toi_ddl: no deadlock
+Killing server ...
+connection node_2;
+connection node_1;
+connection node_2;
+disconnect node_1_lock;
+disconnect node_1a;
+# Applier: ALTER TABLE, started during BLOCK_DDL
+connect  node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+connection node_2;
+ALTER TABLE t1 COMMENT 'applier';
+connection node_1;
+SET SESSION wsrep_sync_wait= 0;
+connection node_1_lock;
+BACKUP STAGE BLOCK_COMMIT;
+BLOCK_COMMIT applier toi_ddl: no deadlock
+Killing server ...
+connection node_2;
+connection node_1;
+connection node_2;
+disconnect node_1_lock;
+# Applier: REPLICATE_MYISAM INSERT, started during BLOCK_DDL
+connect  node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+connection node_2;
+INSERT INTO t2 VALUES (NULL);
+connection node_1;
+SET SESSION wsrep_sync_wait= 0;
+connection node_1_lock;
+BACKUP STAGE BLOCK_COMMIT;
+BLOCK_COMMIT applier toi_myisam: no deadlock
+Killing server ...
+connection node_2;
+connection node_1;
+connection node_2;
+disconnect node_1_lock;
+connection node_1;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+1
+SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+TABLE_COMMENT
+applier
+DROP TABLE t1, t2;

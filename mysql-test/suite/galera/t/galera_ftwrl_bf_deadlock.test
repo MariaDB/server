@@ -1,0 +1,102 @@
+#
+# With wsrep_mode=BF_ABORT_MARIABACKUP, FLUSH TABLES WITH READ LOCK
+# deadlocks with a write that is in the provider order but has not taken
+# its backup lock MDL yet. FTWRL takes its backup locks, then pauses the
+# provider. The pause waits for the write. The write waits for the backup
+# lock: in this mode MDL_lock::can_grant_lock() does not grant backup
+# locks to TOI and appliers.
+#
+# Each write is held at a sync point before its MDL while FTWRL starts.
+# include/galera_backup_lock_deadlock.inc prints the outcome and restarts
+# node 1.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--let $node_1= node_1
+--let $node_2= node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE USER u1;
+--connection node_2
+--let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test'
+--source include/wait_condition.inc
+SET SESSION wsrep_sync_wait= 0;
+
+--echo # Applier: InnoDB INSERT, held before apply
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+--connection node_1
+SET GLOBAL debug_dbug= '+d,sync.wsrep_apply_cb';
+--connection node_2
+INSERT INTO t1 VALUES (NULL);
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+SET DEBUG_SYNC= 'now WAIT_FOR sync.wsrep_apply_cb_reached';
+SET GLOBAL debug_dbug= '';
+--connection node_1_lock
+--send FLUSH TABLES WITH READ LOCK
+--connection node_1
+--let $wait_condition= SELECT VARIABLE_VALUE <> 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+SET DEBUG_SYNC= 'now SIGNAL signal.wsrep_apply_cb';
+--let $dl_name= FTWRL applier innodb
+--let $dl_write= USER = 'system user' AND INFO LIKE 'INSERT INTO t1%'
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+
+--echo # Local TOI: ALTER TABLE, held before it opens the table
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_id= `SELECT CONNECTION_ID()`
+SET DEBUG_SYNC= 'alter_table_before_open_tables SIGNAL op_held WAIT_FOR op_go';
+--send ALTER TABLE t1 COMMENT 'local'
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+SET DEBUG_SYNC= 'now WAIT_FOR op_held';
+--connection node_1_lock
+--send FLUSH TABLES WITH READ LOCK
+--connection node_1
+--let $wait_condition= SELECT VARIABLE_VALUE <> 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+SET DEBUG_SYNC= 'now SIGNAL op_go';
+--let $dl_name= FTWRL local toi_ddl
+--let $dl_write= ID = $op_id
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+--disconnect node_1a
+
+--echo # Local TOI: GRANT, held before it opens the privilege tables
+--connect (node_1_lock, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $dl_lock_id= `SELECT CONNECTION_ID()`
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+--let $op_id= `SELECT CONNECTION_ID()`
+SET DEBUG_SYNC= 'open_and_process_table SIGNAL op_held WAIT_FOR op_go';
+--send GRANT SELECT (a) ON test.t1 TO u1
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+SET DEBUG_SYNC= 'now WAIT_FOR op_held';
+--connection node_1_lock
+--send FLUSH TABLES WITH READ LOCK
+--connection node_1
+--let $wait_condition= SELECT VARIABLE_VALUE <> 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+--source include/wait_condition.inc
+SET DEBUG_SYNC= 'now SIGNAL op_go';
+--let $dl_name= FTWRL local toi_grant
+--let $dl_write= ID = $op_id
+--source include/galera_backup_lock_deadlock.inc
+--disconnect node_1_lock
+--disconnect node_1a
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+SHOW GRANTS FOR u1;
+DROP USER u1;
+DROP TABLE t1;
+
+--source include/galera_restart_default.inc
+--source include/auto_increment_offset_restore.inc

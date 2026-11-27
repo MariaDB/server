@@ -1,0 +1,16 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream
+inno-backup-opts="--dbug=+d,mariabackup_events"
+
+[ENV]
+# The donor's mariabackup runs these after each backup stage. It waits
+# only at the stages that the test enables, not in other SSTs.
+after_backup_stage_block_ddl=SET DEBUG_SYNC= IF((SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'DEBUG_DBUG') LIKE '%sst_hold_BLOCK_DDL%', 'now SIGNAL sst_held_BLOCK_DDL WAIT_FOR sst_continue_BLOCK_DDL', 'RESET')
+after_backup_stage_block_commit=SET DEBUG_SYNC= IF((SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'DEBUG_DBUG') LIKE '%sst_hold_BLOCK_COMMIT%', 'now SIGNAL sst_held_BLOCK_COMMIT WAIT_FOR sst_continue_BLOCK_COMMIT', 'RESET')

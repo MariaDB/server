@@ -468,6 +468,7 @@ bool backup_end(THD *thd)
     if (thd->wsrep_desynced_backup_stage)
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
+      DEBUG_SYNC(thd, "wsrep_backup_stage_before_resume_and_resync");
       THD_STAGE_INFO(thd, stage_waiting_flow);
       WSREP_DEBUG("backup_end: waiting for flow control for %s",
                   wsrep_thd_query(thd));
