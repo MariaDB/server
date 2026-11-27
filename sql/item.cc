@@ -3324,6 +3324,13 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
       DBUG_RETURN(TRUE);
   }
 
+  /* On error, don't keep a half-built field: the next call would trust it */
+  auto sp_res_cleanup= make_scope_exit([this]() {
+    delete sp_result_field;
+    sp_result_field= NULL;
+    sp_result_field_items= Item_args();
+  });
+
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;
@@ -3353,6 +3360,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
       DBUG_RETURN(true);
   }
 
+  sp_res_cleanup.release();
   DBUG_RETURN(FALSE);
 }
 

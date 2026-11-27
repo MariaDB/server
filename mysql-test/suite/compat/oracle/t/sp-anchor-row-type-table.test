@@ -231,3 +231,41 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.7 tests
 --echo #
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-42243 SIGSEGV in Item_sp::init_result_field() when a procedure
+--echo # is called a second time after the first call failed on a ROW TYPE OF
+--echo # return type
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(32));
+DELIMITER $$;
+CREATE FUNCTION f1 RETURN t2%ROWTYPE AS
+BEGIN
+  RETURN ROW(1,'b1');
+END;
+$$
+CREATE PROCEDURE p1 AS
+  r t1%ROWTYPE := f1();
+BEGIN
+  SELECT r.a, r.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1;
+--error ER_NO_SUCH_TABLE
+CALL p1;
+CREATE TABLE t2 (a INT, b VARCHAR(32));
+CALL p1;
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
