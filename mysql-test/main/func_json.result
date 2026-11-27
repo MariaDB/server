@@ -5831,4 +5831,24 @@ JSON_SCHEMA_VALID(@schema, @value)
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 r
 0
+#
+# MDEV-42275 Assertion ((hash)->blength != 0) failed in my_hash_first
+# upon JSON_ARRAY_INTERSECT when one row holds a non-array value
+#
+CREATE TABLE t1 (id INT, a MEDIUMTEXT, b MEDIUMTEXT);
+INSERT INTO t1 VALUES (1, '["2", "4"]', '["2","4"]'),
+(2, '9223372036854775807', '["2"]'),
+(3, '["2"]', '["2"]'),
+(4, 'not json', '["2"]'),
+(5, '["4"]', '["2","4"]');
+SELECT id, JSON_ARRAY_INTERSECT(a, b) FROM t1 ORDER BY id;
+id	JSON_ARRAY_INTERSECT(a, b)
+1	["2", "4"]
+2	NULL
+3	["2"]
+4	NULL
+5	["4"]
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_array_intersect' at position 1
+DROP TABLE t1;
 # End of 11.4 tests
