@@ -137,3 +137,36 @@ DROP TABLE t4;
 DROP FUNCTION bad;
 
 SET debug_dbug= @saved_debug_dbug;
+
+--echo #
+--echo # MDEV-41823: TO_NUMBER() with format element PR rejects positive values
+--echo #
+
+SELECT TO_NUMBER('<1234.50>', '9999.99PR');
+SELECT TO_NUMBER('1234.50', '9999.99PR');
+SELECT TO_NUMBER(' 1234.50', '9999.99PR');
+SELECT TO_NUMBER('  1234.50', '9999.99PR');
+
+SELECT TO_NUMBER(' 1234.50 ', '9999.99PR');
+SELECT TO_NUMBER('   12.34 ', '9999.99PR');
+
+--echo # Malformed signs: NULL + warning 1411
+SELECT TO_NUMBER('1234.50 ', '9999.99PR');
+SELECT TO_NUMBER('1234.50>', '9999.99PR');
+SELECT TO_NUMBER('<1234.50', '9999.99PR');
+SELECT TO_NUMBER('<', '9999.99PR');
+SELECT TO_NUMBER('', '99PR');
+SELECT TO_NUMBER(' ', '99PR');
+SELECT TO_NUMBER('<>', '99PR');
+SELECT TO_NUMBER('  ', '99PR');
+SELECT TO_NUMBER('   ', '99PR');
+
+--echo # Single digit values
+SELECT TO_NUMBER('<5>', '9PR');
+SELECT TO_NUMBER('5', '9PR');
+SELECT TO_NUMBER(' 5', '9PR');
+SELECT TO_NUMBER(' 5 ', '9PR');
+
+--echo #
+--echo # End of 12.3 tests
+--echo #
