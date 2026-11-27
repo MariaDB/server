@@ -150,6 +150,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/proxy_protocol.cc ../sql/backup.cc
            ../sql/sql_tvc.cc ../sql/sql_tvc.h
            ../sql/opt_split.cc
+           ../sql/opt_plan_refinement.cc ../sql/opt_plan_refinement.h
            ../sql/rowid_filter.cc ../sql/rowid_filter.h
            ../sql/item_vers.cc
            ../sql/opt_trace.cc
