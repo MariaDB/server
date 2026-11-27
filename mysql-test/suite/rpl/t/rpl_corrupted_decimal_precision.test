@@ -12,6 +12,18 @@
 --source include/have_binlog_format_mixed_or_statement.inc
 --source include/master-slave.inc
 
+# A replicate_*_table filter set and cleared by an earlier test leaves the
+# slave deferring User var events until the next server restart (the flag
+# is not reset), and an error in a deferred event does not stop the slave.
+# Restart the slave so that the event below is applied directly.
+# Remove when the server bug (MDEV-42850) is fixed.
+--connection slave
+--source include/stop_slave.inc
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+--source include/start_slave.inc
+--connection master
+
 # The master intentionally writes a corrupted event, the slave has to reject it
 --connection slave
 call mtr.add_suppression("Slave SQL: Invalid variable length at User var event");
