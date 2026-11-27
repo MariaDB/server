@@ -13,7 +13,7 @@
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
---connection slave
+--sync_slave_with_master
 --source include/stop_slave.inc
 
 --echo #
