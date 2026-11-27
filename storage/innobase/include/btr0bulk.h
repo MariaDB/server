@@ -30,6 +30,7 @@ Created 03/11/2014 Shaohua Wang
 #include "dict0dict.h"
 #include "rem0types.h"
 #include "page0cur.h"
+#include "page0zip.h"
 
 #include <vector>
 
@@ -127,9 +128,10 @@ public:
 	void commit(bool success);
 
 	/** Compress if it is compressed table
+	@param level  compression level
 	@return	true	compress successfully or no need to compress
 	@return	false	compress failed. */
-	bool compress();
+	bool compress(uint level);
 
 	/** Check whether the record needs to be stored externally.
 	@return	true
@@ -289,7 +291,8 @@ public:
 		const trx_t*	trx)
 		:
 		m_index(index),
-		m_trx(trx)
+		m_trx(trx),
+		m_compression_level(page_zip_level)
 	{
 		ut_ad(!dict_index_is_spatial(index));
 	}
@@ -361,6 +364,11 @@ private:
 
 	/** Transaction */
 	const trx_t*const	m_trx;
+
+	/** innodb_compression_level at the start of the bulk load.
+	Every page, including the copy of the top-level page in the
+	root page, must be compressed at the same level. */
+	const uint		m_compression_level;
 
 	/** Root page level */
 	ulint			m_root_level;

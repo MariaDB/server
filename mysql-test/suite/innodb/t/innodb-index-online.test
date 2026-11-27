@@ -2,6 +2,7 @@
 --source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
 
 --disable_query_log
@@ -541,6 +542,37 @@ reap;
 CHECK TABLE t1 EXTENDED;
 SELECT f5, f2, f4 FROM t1 USE INDEX(v1);
 SELECT f3, f5 FROM t1 USE INDEX(v2);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-37685 BtrBulk compression level changes during bulk load cause index inconsistency
+--echo #
+SET @save_level = @@GLOBAL.innodb_compression_level;
+SET GLOBAL innodb_compression_level = 9;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100))
+ENGINE=InnoDB CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+# The secondary index fits in a single leaf page (m_root_level=0).
+# About 2KiB of identical keys compress to well under 1KiB at level 9,
+# but do not fit in a 1KiB page when stored uncompressed at level 0.
+INSERT INTO t1 SELECT seq, REPEAT('x', 100) FROM seq_1_to_20;
+
+connect (con1,localhost,root,,);
+# Stop after the top-level page was compressed at level 9,
+# before it is copied to the root page and compressed again.
+SET DEBUG_SYNC = 'btr_bulk_finish_before_root SIGNAL top_done WAIT_FOR go';
+send ALTER TABLE t1 ADD INDEX (b), ALGORITHM=INPLACE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR top_done';
+SET GLOBAL innodb_compression_level = 0;
+SET DEBUG_SYNC = 'now SIGNAL go';
+
+connection con1;
+reap;
+disconnect con1;
+connection default;
+SET GLOBAL innodb_compression_level = @save_level;
+CHECK TABLE t1;
 DROP TABLE t1;
 
 SET DEBUG_SYNC = 'RESET';
