@@ -23,6 +23,8 @@ GRANT REPLICATION MASTER ADMIN ON *.* TO user1@localhost;
 connect user1,localhost,user1,,;
 connection user1;
 SET GLOBAL rpl_semi_sync_master_trace_level=64;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 SET rpl_semi_sync_master_trace_level=64;
 ERROR HY000: Variable 'rpl_semi_sync_master_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
 SET SESSION rpl_semi_sync_master_trace_level=64;
@@ -31,3 +33,5 @@ disconnect user1;
 connection default;
 DROP USER user1@localhost;
 SET @@global.rpl_semi_sync_master_trace_level=@global;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release

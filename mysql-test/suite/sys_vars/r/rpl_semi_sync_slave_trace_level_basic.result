@@ -20,6 +20,8 @@ select * from information_schema.session_variables where variable_name='rpl_semi
 VARIABLE_NAME	VARIABLE_VALUE
 RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL	32
 set global rpl_semi_sync_slave_trace_level=16;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 set session rpl_semi_sync_slave_trace_level=99;
 ERROR HY000: Variable 'rpl_semi_sync_slave_trace_level' is a GLOBAL variable and should be set with SET GLOBAL
 select @@global.rpl_semi_sync_slave_trace_level;
@@ -41,6 +43,8 @@ VARIABLE_NAME	VARIABLE_VALUE
 RPL_SEMI_SYNC_SLAVE_TRACE_LEVEL	16
 NOTE: Value can also be set to values that are combinations of values
 set global rpl_semi_sync_slave_trace_level=42;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 select @@global.rpl_semi_sync_slave_trace_level;
 @@global.rpl_semi_sync_slave_trace_level
 42
@@ -65,6 +69,8 @@ ERROR 42000: Incorrect argument type to variable 'rpl_semi_sync_slave_trace_leve
 set global rpl_semi_sync_slave_trace_level="some text";
 ERROR 42000: Incorrect argument type to variable 'rpl_semi_sync_slave_trace_level'
 SET @@global.rpl_semi_sync_slave_trace_level = @start_global_value;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 select @@global.rpl_semi_sync_slave_trace_level;
 @@global.rpl_semi_sync_slave_trace_level
 32

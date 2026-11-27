@@ -3954,7 +3954,8 @@ Sys_semisync_master_trace_level(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_master_trace_level));
+       ON_UPDATE(fix_rpl_semi_sync_master_trace_level),
+       DEPRECATED_NO_REPLACEMENT(1303));
 
 static const char *repl_semisync_wait_point[]=
 {"AFTER_SYNC", "AFTER_COMMIT", NullS};
@@ -4011,7 +4012,8 @@ Sys_semisync_slave_trace_level(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,~0L),DEFAULT(32),BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_rpl_semi_sync_slave_trace_level));
+       ON_UPDATE(fix_rpl_semi_sync_slave_trace_level),
+       DEPRECATED_NO_REPLACEMENT(1303));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                     PRIV_SET_SYSTEM_GLOBAL_VAR_RPL_SEMI_SYNC_SLAVE_DELAY_MASTER>

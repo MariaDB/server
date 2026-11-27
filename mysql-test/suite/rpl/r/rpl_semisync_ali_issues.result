@@ -137,17 +137,37 @@ truncate table t1;
 connection slave;
 # Test rpl_semi_sync_slave_trace_level
 SET GLOBAL rpl_semi_sync_slave_trace_level= 1;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_slave_trace_level= 16;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_slave_trace_level= 64;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_slave_trace_level= 128;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_slave_trace_level= 32;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_slave_trace_level' is deprecated and will be removed in a future release
 connection master;
 # Test rpl_semi_sync_master_trace_level
 SET GLOBAL rpl_semi_sync_master_trace_level= 1;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_master_trace_level= 16;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_master_trace_level= 64;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_master_trace_level= 128;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 SET GLOBAL rpl_semi_sync_master_trace_level= 32;
+Warnings:
+Warning	1287	'@@rpl_semi_sync_master_trace_level' is deprecated and will be removed in a future release
 # Test rpl_semi_sync_master_timeout
 SET GLOBAL rpl_semi_sync_master_timeout= 1000;
 SET GLOBAL rpl_semi_sync_master_timeout= 10000;
