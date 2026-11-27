@@ -1,0 +1,5 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+innodb-lock-wait-timeout=2
+wsrep-debug=1

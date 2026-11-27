@@ -35,6 +35,7 @@ Created 5/7/1996 Heikki Tuuri
 
 #include "lock0lock.h"
 #include "lock0priv.h"
+#include "ha_prototypes.h"
 #include "dict0mem.h"
 #include "trx0purge.h"
 #include "trx0sys.h"
@@ -607,7 +608,6 @@ static bool wsrep_BF_has_to_wait(const lock_t *lock, const trx_t *trx,
   THD *granted_thd= lock->trx->mysql_thd;
 
   ut_ad(wsrep_thd_is_BF(request_thd, false));
-  ut_ad(lock->trx->is_wsrep());
 
   /* Granted is aborting, let it complete. */
   if (wsrep_thd_is_aborting(granted_thd))
@@ -647,8 +647,16 @@ static bool wsrep_will_BF_abort(const lock_t *lock, const trx_t *trx)
 {
   ut_ad(wsrep_thd_is_BF(trx->mysql_thd, false));
 
-  /* Don't BF abort system transactions. */
-  if (!lock->trx->is_wsrep())
+  /* Don't BF abort system transactions (InnoDB purge, persistent
+     statistics recalculation, defragmentation, ...): they are not a
+     client connection, so there is no wsrep transaction to roll back
+     and no connection to kill. This used to be !lock->trx->is_wsrep(),
+     which also, wrongly, gave the same immunity to an ordinary local
+     session that had disabled wsrep for itself (SET SESSION
+     wsrep_on=OFF): that session must still be BF-abortable like any
+     other local session, so the check here is narrowed to actually
+     match a background thread instead of any non-wsrep transaction. */
+  if (thd_is_background_thread(lock->trx->mysql_thd))
     return false;
 
   /* BF trx will wait for the lock, but it doesn't have to according

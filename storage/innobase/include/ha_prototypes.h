@@ -423,6 +423,14 @@ MYSQL_THD innobase_create_background_thd(const char* name);
 @param[in]	thd	MYSQL_THD to destroy */
 void destroy_background_thd(MYSQL_THD thd);
 
+/** Determine if thd is one of InnoDB's own background threads
+(persistent statistics recalculation, purge, defragmentation, ...)
+rather than a client connection, i.e. one created by
+innobase_create_background_thd().
+@param thd  MYSQL_THD to check
+@return whether thd is an InnoDB background thread */
+bool thd_is_background_thread(MYSQL_THD thd);
+
 /** Open a table based on a database and table name.
 @param db     schema name
 @param name   table name within the schema

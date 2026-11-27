@@ -1,0 +1,64 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-42061: BF immunity of local sessions with wsrep_on = OFF
+--echo #
+--echo # A local session with wsrep_on=OFF must still be BF aborted by a
+--echo # conflicting applier transaction at the InnoDB lock level, the same
+--echo # way it already is at the MDL level. Here the session is itself
+--echo # actively waiting for an unrelated lock, held by a third
+--echo # connection, when the conflict happens.
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1),(2,2);
+--connect(node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1)
+--connect(node_1b,127.0.0.1,root,,test,$NODE_MYPORT_1)
+
+--connection node_1b
+--let $wsrep_local_bf_aborts_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+START TRANSACTION;
+UPDATE t1 SET b = 99 WHERE a = 2;
+
+--connection node_1
+SET SESSION wsrep_on=OFF;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET b = 10 WHERE a = 1;
+--let $victim_id = `SELECT CONNECTION_ID()`
+--send UPDATE t1 SET b = 20 WHERE a = 2
+
+--connection node_1a
+--let $wait_timeout = 10
+--let $wait_condition = SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE id = $victim_id AND state LIKE '%pdating%'
+--source include/wait_condition.inc
+
+--connection node_2
+UPDATE t1 SET b = 999 WHERE a = 1;
+
+--connection node_1
+--error ER_QUERY_INTERRUPTED
+--reap
+ROLLBACK;
+SET SESSION wsrep_on=ON;
+
+--connection node_1a
+--let $wait_timeout = 10
+--let $wait_condition = SELECT b = 999 FROM t1 WHERE a = 1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+--let $wsrep_local_bf_aborts_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_bf_aborts'`
+--disable_query_log
+--eval SELECT $wsrep_local_bf_aborts_after - $wsrep_local_bf_aborts_before = 1 AS wsrep_local_aborts_increment;
+--enable_query_log
+
+--connection node_1b
+ROLLBACK;
+
+--connection node_1
+DROP TABLE t1;
+--disconnect node_1a
+--disconnect node_1b
+--source include/galera_end.inc

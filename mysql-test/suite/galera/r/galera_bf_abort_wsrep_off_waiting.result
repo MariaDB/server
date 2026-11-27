@@ -1,0 +1,46 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-42061: BF immunity of local sessions with wsrep_on = OFF
+#
+# A local session with wsrep_on=OFF must still be BF aborted by a
+# conflicting applier transaction at the InnoDB lock level, the same
+# way it already is at the MDL level. Here the session is itself
+# actively waiting for an unrelated lock, held by a third
+# connection, when the conflict happens.
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,1),(2,2);
+connect node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1;
+connect node_1b,127.0.0.1,root,,test,$NODE_MYPORT_1;
+connection node_1b;
+START TRANSACTION;
+UPDATE t1 SET b = 99 WHERE a = 2;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+UPDATE t1 SET b = 10 WHERE a = 1;
+UPDATE t1 SET b = 20 WHERE a = 2;
+connection node_1a;
+connection node_2;
+UPDATE t1 SET b = 999 WHERE a = 1;
+connection node_1;
+ERROR 70100: Query execution was interrupted
+ROLLBACK;
+SET SESSION wsrep_on=ON;
+connection node_1a;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	999
+2	2
+wsrep_local_aborts_increment
+0
+connection node_1b;
+ROLLBACK;
+connection node_1;
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_2;
+disconnect node_1;
