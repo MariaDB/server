@@ -3044,6 +3044,7 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
 {
   int action_time;
   bool fields_already_marked= false;
+  bool write_fields_already_marked= false;
   DBUG_ENTER("Table_triggers_list::mark_fields_used");
 
   for (action_time= 0; action_time < (int)TRG_ACTION_MAX; action_time++)
@@ -3079,25 +3080,26 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
 
       iterate_trigger_row_and_run_func(
         trigger->body->m_trg_table_row,
-        [this, &fields_already_marked] (Item_trigger_row* trg_row)
+        [this, &fields_already_marked,
+         &write_fields_already_marked] (Item_trigger_row* trg_row)
         {
-          if (trg_row->check_if_settable())
+          /*
+            Reading NEW/OLD as a whole row needs every column, including the
+            virtual ones, to be computed: mark them with their dependencies.
+          */
+          bool settable= trg_row->check_if_settable() != nullptr;
+          if (fields_already_marked && (!settable || write_fields_already_marked))
+            return;
+
+          for (uint i= 0; i < trigger_table->s->fields; i++)
           {
-            if (!fields_already_marked)
-            {
-              Field_iterator_table field_iterator;
-
-              field_iterator.set_table(trigger_table);
-
-              for (uint i=0; !field_iterator.end_of_fields();
-                   field_iterator.next(), i++)
-              {
-                bitmap_set_bit(trigger_table->write_set, i);
-                trigger_table->mark_column_with_deps(trigger_table->field[i]);
-              }
-              fields_already_marked= true;
-            }
+            if (settable)
+              bitmap_set_bit(trigger_table->write_set, i);
+            trigger_table->mark_column_with_deps(trigger_table->field[i]);
           }
+          fields_already_marked= true;
+          if (settable)
+            write_fields_already_marked= true;
         }
       );
 

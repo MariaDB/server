@@ -798,6 +798,14 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 
+CREATE TABLE t (id INT PRIMARY KEY, a INT, b VARCHAR(10), c INT AS (a * 10) VIRTUAL, d VARCHAR(20) AS (CONCAT(b, '!')) VIRTUAL);
+INSERT INTO t (id, a, b) VALUES (1, 1, 'b1');
+CREATE TRIGGER t_bd BEFORE DELETE ON t FOR EACH ROW SET @v = (OLD = (1, 1, 'b1', 10, 'b1!'));
+DELETE FROM t WHERE id = 1;
+SELECT @v;
+
+DROP TABLE t;
+
 --echo #
 --echo # MDEV-41767: Wrong result for row comparison of trigger NEW/OLD:
 --echo # NEW = OLD returns 1 after a column change, OLD = (1,2,3) returns 0
