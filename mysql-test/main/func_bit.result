@@ -365,3 +365,58 @@ Warning	1916	Got overflow when converting '-9223372036854776000' to INT. Value t
 #
 # End of 10.5 tests
 #
+#
+# MDEV-41555 Bitwise shift counts must not be truncated to 32 bits
+#
+SELECT b'101010' >> 4294967297 AS shift_right;
+shift_right
+0
+SELECT 1 << 4294967296 AS shift_left, 1 >> 4294967296 AS shift_right;
+shift_left	shift_right
+0	0
+CREATE TABLE t1 (shift_count BIGINT UNSIGNED);
+INSERT INTO t1 VALUES
+(NULL), (0), (1), (63), (64), (65), (4294967295), (4294967296),
+(4294967297), (4294967298), (9223372036854775808),
+(18446744069414584320), (18446744073709551615);
+SELECT shift_count, HEX(1 << shift_count) AS shift_left,
+HEX(18446744073709551615 >> shift_count) AS shift_right
+FROM t1 ORDER BY shift_count;
+shift_count	shift_left	shift_right
+NULL	NULL	NULL
+0	1	FFFFFFFFFFFFFFFF
+1	2	7FFFFFFFFFFFFFFF
+63	8000000000000000	1
+64	0	0
+65	0	0
+4294967295	0	0
+4294967296	0	0
+4294967297	0	0
+4294967298	0	0
+9223372036854775808	0	0
+18446744069414584320	0	0
+18446744073709551615	0	0
+DROP TABLE t1;
+SELECT NULL << 1 AS shift_left, NULL >> 1 AS shift_right;
+shift_left	shift_right
+NULL	NULL
+SELECT 42 << -1 AS shift_left, 42 >> -1 AS shift_right;
+shift_left	shift_right
+0	0
+PREPARE stmt FROM 'SELECT 1 << ? AS shift_left, 42 >> ? AS shift_right';
+SET @shift= 4294967297;
+EXECUTE stmt USING @shift, @shift;
+shift_left	shift_right
+0	0
+SET @shift= 1;
+EXECUTE stmt USING @shift, @shift;
+shift_left	shift_right
+2	21
+SET @shift= NULL;
+EXECUTE stmt USING @shift, @shift;
+shift_left	shift_right
+NULL	NULL
+DEALLOCATE PREPARE stmt;
+#
+# End of 10.11 tests
+#

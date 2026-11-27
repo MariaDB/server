@@ -95,3 +95,36 @@ SELECT BIT_COUNT(-9223372036854775808e0) AS c1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-41555 Bitwise shift counts must not be truncated to 32 bits
+--echo #
+
+SELECT b'101010' >> 4294967297 AS shift_right;
+SELECT 1 << 4294967296 AS shift_left, 1 >> 4294967296 AS shift_right;
+
+CREATE TABLE t1 (shift_count BIGINT UNSIGNED);
+INSERT INTO t1 VALUES
+  (NULL), (0), (1), (63), (64), (65), (4294967295), (4294967296),
+  (4294967297), (4294967298), (9223372036854775808),
+  (18446744069414584320), (18446744073709551615);
+SELECT shift_count, HEX(1 << shift_count) AS shift_left,
+       HEX(18446744073709551615 >> shift_count) AS shift_right
+FROM t1 ORDER BY shift_count;
+DROP TABLE t1;
+
+SELECT NULL << 1 AS shift_left, NULL >> 1 AS shift_right;
+SELECT 42 << -1 AS shift_left, 42 >> -1 AS shift_right;
+
+PREPARE stmt FROM 'SELECT 1 << ? AS shift_left, 42 >> ? AS shift_right';
+SET @shift= 4294967297;
+EXECUTE stmt USING @shift, @shift;
+SET @shift= 1;
+EXECUTE stmt USING @shift, @shift;
+SET @shift= NULL;
+EXECUTE stmt USING @shift, @shift;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
