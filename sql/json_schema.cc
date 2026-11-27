@@ -1962,6 +1962,11 @@ bool Json_schema_unevaluated_properties::validate(const json_engine_t *je,
     count++;
     if (validate_schema_items(&curr_je, &schema_list))
       return true;
+    if (!json_value_scalar(&curr_je))
+    {
+      if (json_skip_level(&curr_je))
+        return true;
+    }
   }
   return has_false ? (!count ? false: true) : false;
 }
@@ -1989,6 +1994,11 @@ bool Json_schema_additional_properties::validate(const json_engine_t *je,
           return true;
         if (validate_schema_items(&curr_je, &schema_list))
          return true;
+        if (!json_value_scalar(&curr_je))
+        {
+          if (json_skip_level(&curr_je))
+            return true;
+        }
       }
   }
 
@@ -2034,6 +2044,11 @@ bool Json_schema_unevaluated_items::validate(const json_engine_t *je,
     count++;
    if (validate_schema_items(&curr_je, &schema_list))
      return true;
+    if (!json_value_scalar(&curr_je))
+    {
+      if (json_skip_level(&curr_je))
+        return true;
+    }
   }
 
   return is_false ? (!count ? false : true) : false;
@@ -2238,6 +2253,11 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
         if (!match_found)
         {
           if (fall_back_on_alternate_schema(&curr_je, k_start, k_end))
+            return true;
+        }
+        if (!json_value_scalar(&curr_je))
+        {
+          if (json_skip_level(&curr_je))
             return true;
         }
       }
