@@ -1,0 +1,20 @@
+#
+# MDEV-17870 Opened_streams status variable is missing
+#
+# The init file was read through a stream that is closed by now,
+# so more streams have been opened than are open
+SELECT o.VARIABLE_VALUE > 0 AS has_opened_streams,
+o.VARIABLE_VALUE > c.VARIABLE_VALUE AS some_were_closed
+FROM information_schema.GLOBAL_STATUS o, information_schema.GLOBAL_STATUS c
+WHERE o.VARIABLE_NAME= 'OPENED_STREAMS' AND c.VARIABLE_NAME= 'OPEN_STREAMS';
+has_opened_streams	some_were_closed
+1	1
+# FLUSH STATUS does not reset it
+SELECT VARIABLE_VALUE INTO @before FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'OPENED_STREAMS';
+FLUSH GLOBAL STATUS;
+SELECT VARIABLE_VALUE >= @before AS not_reset FROM information_schema.GLOBAL_STATUS
+WHERE VARIABLE_NAME= 'OPENED_STREAMS';
+not_reset
+1
+# End of 13.3 tests
