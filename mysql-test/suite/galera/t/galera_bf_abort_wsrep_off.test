@@ -1,0 +1,38 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-42061: BF immunity of local sessions with wsrep_on = OFF
+--echo #
+--echo # A local session with wsrep_on=OFF must still be BF aborted by a
+--echo # conflicting applier transaction at the InnoDB lock level, the same
+--echo # way it already is at the MDL level. Here the session is idle,
+--echo # holding the lock the applier conflicts on, when the conflict
+--echo # happens. There is no wait of its own to cancel, and no wsrep
+--echo # transaction for the background rollbacker to pick up, so the
+--echo # connection itself is killed, the same as a plain KILL CONNECTION
+--echo # would: the client sees its connection drop.
+--echo #
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(6)) ENGINE=InnoDB;
+--connect(node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1)
+
+--connection node_1
+SET SESSION wsrep_on=OFF;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1,'node_1');
+
+--connection node_2
+INSERT INTO t1 VALUES (1,'node_2');
+
+--connection node_1a
+--let $wait_timeout = 10
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'node_2'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'node_1'
+--source include/wait_condition.inc
+
+DROP TABLE t1;
+--disconnect node_1a
+--source include/galera_end.inc

@@ -2930,6 +2930,17 @@ dberr_t dict_stats_save(dict_table_t* table, index_id_t index_id)
 		goto unlocked_free_and_exit;
 	}
 
+#ifdef ENABLED_DEBUG_SYNC
+	/* Let a test pause here while the LOCK_X above is held, so it can
+	exercise a conflicting request for the same lock (e.g. a wsrep BF
+	or TOI applier) against a transaction that is not a user session. */
+	DBUG_EXECUTE_IF("dict_stats_save_locked_notify_and_wait",
+	   debug_sync_set_action(thd,
+	   STRING_WITH_LEN("now SIGNAL dict_stats_save_locked"
+			   " WAIT_FOR dict_stats_save_locked_continue"));
+	);
+#endif /* ENABLED_DEBUG_SYNC */
+
 	pinfo = pars_info_create();
 
 	pars_info_add_str_literal(pinfo, "database_name", db_utf8);

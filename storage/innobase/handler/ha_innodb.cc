@@ -1712,6 +1712,17 @@ MYSQL_THD innobase_create_background_thd(const char* name)
 	return thd;
 }
 
+/** Determine if thd is one of InnoDB's own background threads
+(persistent statistics recalculation, purge, defragmentation, ...)
+rather than a client connection, i.e. one created by
+innobase_create_background_thd().
+@param thd  MYSQL_THD to check
+@return whether thd is an InnoDB background thread */
+bool thd_is_background_thread(MYSQL_THD thd)
+{
+	return THDVAR(thd, background_thread);
+}
+
 /******************************************************************//**
 Returns the NUL terminated value of glob_hostname.
 @return pointer to glob_hostname. */
@@ -19128,6 +19139,15 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
   if (THD *vthd= find_thread_by_id(thd_id))
   {
     bool aborting= false;
+    /* Whether the victim was itself blocked in a lock wait at the point
+       the decision to abort it was made. Captured here, before
+       wsrep_thd_bf_abort() below, because that call can itself cancel
+       this same wait as a side effect (THD::awake_no_mutex() ->
+       ha_kill_query() -> innobase_kill_query()) for a wsrep_on=OFF
+       victim. Re-reading trx->lock.wait_lock afterwards would then
+       make an actively-waiting victim look the same as one that was
+       never waiting at all. */
+    bool was_waiting= false;
     wsrep_thd_LOCK(vthd);
     trx_t *vtrx= thd_to_trx(vthd);
     if (vtrx)
@@ -19149,6 +19169,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
             break;
           /* fall through */
         case TRX_STATE_ACTIVE:
+          was_waiting= vtrx->lock.wait_lock != nullptr;
           WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
           WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %llu "
                       "seqno: %lld client_state: %s "
@@ -19179,7 +19200,15 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
     }
 
     DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-    if (aborting && wsrep_thd_bf_abort(bf_thd, vthd, true))
+    /* wsrep_thd_bf_abort() itself returns whether its wsrep-lib
+       transaction was BF aborted, which never happens for a victim
+       that has wsrep_on=OFF (wsrep-lib never saw that transaction
+       start, so there is nothing for it to abort there). Such a
+       victim still needs its InnoDB lock wait cancelled below: it
+       already sends the kill signal in that case (see the
+       wsrep_on(victim_thd) check in wsrep_thd_bf_abort() itself). */
+    bool bf_aborted= wsrep_thd_bf_abort(bf_thd, vthd, true);
+    if (aborting && (bf_aborted || !wsrep_on(vthd)))
     {
       /* Need to grab mutexes again to ensure that the trx is still in
          right state. */
@@ -19188,8 +19217,10 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
       vtrx->mutex_lock();
 
       /* if victim is waiting for some other lock, we have to cancel
-         that waiting
+         that waiting; otherwise, for a wsrep_on=OFF victim, there is
+         no wait to cancel here (see below).
       */
+      bool kill_idle_non_wsrep_victim= false;
       if (vtrx->id == trx_id)
       {
         switch (vtrx->state) {
@@ -19197,12 +19228,30 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, my_thread_id thd_id, trx_id_t trx_id)
           break;
         case TRX_STATE_ACTIVE:
         case TRX_STATE_PREPARED:
-          lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+          if (vtrx->lock.wait_lock)
+            lock_sys.cancel_lock_wait_for_wsrep_bf_abort(vtrx);
+          else if (!was_waiting && !wsrep_on(vthd))
+            kill_idle_non_wsrep_victim= true;
         }
       }
       lock_sys.wr_unlock();
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
+
+      if (kill_idle_non_wsrep_victim)
+      {
+        /* The victim holds the lock bf_trx conflicts on, but is not
+           itself waiting for anything: there was no wait to cancel
+           above, and wsrep-lib has no transaction of its own to roll
+           back in the background for a wsrep_on=OFF session (see the
+           comment above wsrep_thd_bf_abort()). Kill the connection
+           outright, as a plain KILL CONNECTION would, so it wakes
+           from its blocked read for the next command and rolls back
+           when it notices it was killed. This must run without
+           lock_sys held: ha_kill_query(), which this can reach, takes
+           lock_sys.wait_mutex itself. */
+        vthd->awake_no_mutex(KILL_CONNECTION_HARD);
+      }
     }
     else
     {

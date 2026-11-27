@@ -1,0 +1,128 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-42061: BF immunity of local sessions with wsrep_on = OFF
+--echo #
+--echo # The wsrep_on=OFF idle-victim code path must only ever apply to a
+--echo # real user session, never to one of InnoDB's own background
+--echo # threads (persistent statistics recalculation, purge, ...), which
+--echo # also run with wsrep_on=OFF but are not a client connection to
+--echo # kill. Pause the statistics recalculation thread while it holds
+--echo # the lock on mysql.innodb_table_stats/innodb_index_stats, then
+--echo # conflict with it from node_2 two different ways: a TOI-applied
+--echo # DDL-like statement (ANALYZE TABLE) and a plain replicated DML
+--echo # statement (certification-based row replication) against the
+--echo # exact stats row the recalculation is about to write. Both are a
+--echo # different kind of wsrep high-priority applier. Either way, the
+--echo # incoming statement must simply wait for the lock; the background
+--echo # recalculation must be left to finish normally and remain usable
+--echo # afterwards.
+--echo #
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB
+  STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+ANALYZE TABLE t1;
+
+--connect(node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1)
+
+--echo # Phase 1: conflict via a TOI-applied statement (ANALYZE TABLE).
+
+--let $last_update_before = `SELECT UNIX_TIMESTAMP(last_update) FROM mysql.innodb_table_stats WHERE table_name = 't1'`
+
+--connection node_1
+SET GLOBAL debug_dbug = '+d,dict_stats_save_locked_notify_and_wait';
+DELETE FROM t1;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+
+--connection node_1a
+# Blocks here until the background thread has acquired the LOCK_X above
+# and reached the sync point: proof by itself that it is holding the
+# lock, with no need to re-read the (now locked) stats tables.
+SET DEBUG_SYNC = 'now WAIT_FOR dict_stats_save_locked';
+
+--connection node_2
+--send ANALYZE TABLE t1
+
+--connection node_1a
+# Give node_2's statement time to replicate and actually request the
+# same lock on node_1 before releasing it.
+--sleep 2
+SET DEBUG_SYNC = 'now SIGNAL dict_stats_save_locked_continue';
+
+--connection node_1
+--disable_query_log
+SET GLOBAL debug_dbug = '';
+--enable_query_log
+
+--connection node_2
+--reap
+
+--connection node_1
+--let $wait_timeout = 10
+--let $wait_condition = SELECT UNIX_TIMESTAMP(last_update) > $last_update_before FROM mysql.innodb_table_stats WHERE table_name = 't1'
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+
+--echo # Phase 2: conflict via a plain replicated DML statement (not TOI)
+--echo # against the exact row the recalculation is about to write.
+
+--let $last_update_before = `SELECT UNIX_TIMESTAMP(last_update) FROM mysql.innodb_table_stats WHERE table_name = 't1'`
+
+--connection node_1
+SET GLOBAL debug_dbug = '+d,dict_stats_save_locked_notify_and_wait';
+DELETE FROM t1;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+
+--connection node_1a
+# Can take up to MIN_RECALC_INTERVAL (10s) on top of the usual delay:
+# dict_stats_thd rate-limits recalculations of the same table and only
+# does the real work (reaching the sync point) once that has elapsed
+# since the previous one (phase 1, just above).
+SET DEBUG_SYNC = 'now WAIT_FOR dict_stats_save_locked';
+
+--connection node_2
+--send UPDATE mysql.innodb_table_stats SET n_rows = n_rows WHERE database_name = 'test' AND table_name = 't1'
+
+--connection node_1a
+# Give node_2's statement time to replicate and actually request the
+# same lock on node_1 before releasing it.
+--sleep 2
+SET DEBUG_SYNC = 'now SIGNAL dict_stats_save_locked_continue';
+
+--connection node_1
+--disable_query_log
+SET GLOBAL debug_dbug = '';
+--enable_query_log
+
+--connection node_2
+--reap
+
+--connection node_1
+--let $wait_timeout = 10
+--let $wait_condition = SELECT UNIX_TIMESTAMP(last_update) > $last_update_before FROM mysql.innodb_table_stats WHERE table_name = 't1'
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+
+--echo # The background stats thread must still be usable afterwards.
+--let $last_update_after = `SELECT UNIX_TIMESTAMP(last_update) FROM mysql.innodb_table_stats WHERE table_name = 't1'`
+DELETE FROM t1;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_100;
+# MIN_RECALC_INTERVAL (10s) applies again here, same as phase 2's own
+# wait above; allow comfortable margin over that hard limit.
+--let $wait_timeout = 20
+--let $wait_condition = SELECT UNIX_TIMESTAMP(last_update) > $last_update_after FROM mysql.innodb_table_stats WHERE table_name = 't1'
+--source include/wait_condition.inc
+
+--connection node_1a
+SET DEBUG_SYNC = 'RESET';
+--disconnect node_1a
+
+--connection node_1
+DROP TABLE t1;
+--source include/galera_end.inc

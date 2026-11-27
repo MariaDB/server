@@ -1,0 +1,28 @@
+connection node_2;
+connection node_1;
+#
+# MDEV-42061: BF immunity of local sessions with wsrep_on = OFF
+#
+# A local session with wsrep_on=OFF must still be BF aborted by a
+# conflicting applier transaction at the InnoDB lock level, the same
+# way it already is at the MDL level. Here the session is idle,
+# holding the lock the applier conflicts on, when the conflict
+# happens. There is no wait of its own to cancel, and no wsrep
+# transaction for the background rollbacker to pick up, so the
+# connection itself is killed, the same as a plain KILL CONNECTION
+# would: the client sees its connection drop.
+#
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(6)) ENGINE=InnoDB;
+connect node_1a,127.0.0.1,root,,test,$NODE_MYPORT_1;
+connection node_1;
+SET SESSION wsrep_on=OFF;
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1,'node_1');
+connection node_2;
+INSERT INTO t1 VALUES (1,'node_2');
+connection node_1a;
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_2;
+disconnect node_1;
