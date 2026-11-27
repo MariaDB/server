@@ -36,6 +36,9 @@ InnoDB implementation of binlog.
 struct chunk_data_base;
 struct binlog_header_data;
 
+/* Placeholder for "not present" binlog file_no. */
+static constexpr uint64_t IBB_NONE= ~0ULL;
+
 /* 4-byte "magic" identifying InnoDB binlog file (little endian). */
 static constexpr uint32_t IBB_MAGIC= 0x010dfefe;
 static constexpr uint32_t IBB_FILE_VERS_MAJOR= 1;

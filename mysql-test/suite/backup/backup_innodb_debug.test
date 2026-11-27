@@ -1,0 +1,34 @@
+--source ../innodb/include/log_archive_recovery_setup.inc
+
+--let $target_directory=$MYSQLTEST_VARDIR/backup_stream
+--error 0,1
+--rmdir $target_directory
+evalp BACKUP SERVER TO '$target_directory';
+
+if ($MARIADB_UPGRADE_EXE) {
+let target_directory=$target_directory;
+perl;
+open IN, "<", "$ENV{MYSQLTEST_VARDIR}/my.cnf";
+open OUT, ">>", "$ENV{target_directory}/backup.cnf";
+print OUT while (<IN>);
+close(IN);
+close(OUT);
+EOF
+}
+if (!$MARIADB_UPGRADE_EXE) {
+  --exec cat $MYSQLTEST_VARDIR/my.cnf >> $target_directory/backup.cnf
+}
+
+--let $restart_parameters=--defaults-file=$target_directory/backup.cnf --datadir=$target_directory
+--source include/restart_mysqld.inc
+SELECT COUNT(*) FROM t1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+--rmdir $target_directory
+
+SELECT COUNT(*) FROM t1;
+SET GLOBAL innodb_log_archive=OFF;
+--remove_files_wildcard $MARIADB_DATADIR ib_*.log
+evalp SET GLOBAL innodb_log_archive=$archive;
+DROP TABLE t1;

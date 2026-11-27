@@ -406,6 +406,7 @@ SYMBOL symbols[] = {
   { "MICROSECOND",	SYM(MICROSECOND_SYM)},
   { "MIDDLEINT",	SYM(MEDIUMINT)},	/* For powerbuilder */
   { "MIGRATE",          SYM(MIGRATE_SYM)},
+  { "MINIMAL",          SYM(MINIMAL_SYM)},
   { "MINUS",            SYM(MINUS_ORACLE_SYM)},
   { "MINUTE",		SYM(MINUTE_SYM)},
   { "MINUTE_MICROSECOND", SYM(MINUTE_MICROSECOND_SYM)},

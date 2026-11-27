@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+
+--echo ### Testing the binlog options of BACKUP SERVER
+# Also see test binlog_in_engine.server_backup.
+
+--let $target_directory=$MYSQLTEST_VARDIR/tmp/backup_dir
+--error ER_REQUIRES_BINLOG_ENGINE
+evalp BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=FULL;
+--error ER_REQUIRES_BINLOG_ENGINE
+evalp BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=MINIMAL;
+evalp BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=NONE;
+--echo # There should be no binlog files when BINLOG=NONE
+--list_files  $target_directory *.ibb
+--rmdir $target_directory

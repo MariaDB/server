@@ -1,0 +1,24 @@
+include/reset_master.inc
+### Various tests for BACKUP SERVER with binlog-in-engine.
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=NONE;
+# There should be no binlog files when BINLOG=NONE
+FLUSH BINARY LOGS;
+FLUSH BINARY LOGS;
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=MINIMAL;
+# Only most recent binlog file with MINIMAL.
+binlog-000002.ibb
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=FULL;
+# All binlog files in FULL.
+binlog-000000.ibb
+binlog-000001.ibb
+binlog-000002.ibb
+BACKUP SERVER TO '$target_directory';
+# No options default to FULL.
+binlog-000000.ibb
+binlog-000001.ibb
+binlog-000002.ibb
+BACKUP SERVER TO '$target_directory'
+  OPTIONS BINLOG=FULL, BINLOG=NONE, BINLOG=NONE,
+BINLOG=FULL, BINLOG=MINIMAL;
+# Only most recent binlog file, repeated option override.
+binlog-000002.ibb

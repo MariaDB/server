@@ -1,0 +1,7 @@
+### Testing the binlog options of BACKUP SERVER
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=FULL;
+ERROR HY000: Using non-default BINLOG backup option requires using binlog_storage_engine
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=MINIMAL;
+ERROR HY000: Using non-default BINLOG backup option requires using binlog_storage_engine
+BACKUP SERVER TO '$target_directory' OPTIONS BINLOG=NONE;
+# There should be no binlog files when BINLOG=NONE
