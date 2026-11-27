@@ -567,6 +567,29 @@ SELECT f3, f5 FROM t1 USE INDEX(v2);
 f3	f5
 4	1
 DROP TABLE t1;
+#
+# MDEV-37685 BtrBulk compression level changes during bulk load cause index inconsistency
+#
+SET @save_level = @@GLOBAL.innodb_compression_level;
+SET GLOBAL innodb_compression_level = 9;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100))
+ENGINE=InnoDB CHARSET=latin1 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+INSERT INTO t1 SELECT seq, REPEAT('x', 100) FROM seq_1_to_20;
+connect  con1,localhost,root,,;
+SET DEBUG_SYNC = 'btr_bulk_finish_before_root SIGNAL top_done WAIT_FOR go';
+ALTER TABLE t1 ADD INDEX (b), ALGORITHM=INPLACE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR top_done';
+SET GLOBAL innodb_compression_level = 0;
+SET DEBUG_SYNC = 'now SIGNAL go';
+connection con1;
+disconnect con1;
+connection default;
+SET GLOBAL innodb_compression_level = @save_level;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;

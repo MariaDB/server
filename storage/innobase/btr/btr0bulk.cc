@@ -560,14 +560,15 @@ void PageBulk::commit(bool success)
 }
 
 /** Compress a page of compressed table
+@param level  compression level
 @return	true	compress successfully or no need to compress
 @return	false	compress failed. */
 bool
-PageBulk::compress()
+PageBulk::compress(uint level)
 {
 	ut_ad(m_page_zip != NULL);
 
-	return page_zip_compress(m_block, m_index, page_zip_level, &m_mtr);
+	return page_zip_compress(m_block, m_index, level, &m_mtr);
 }
 
 /** Get node pointer
@@ -936,7 +937,8 @@ BtrBulk::pageCommit(
 	ut_ad(!m_index->lock.have_any());
 
 	/* Compress page if it's a compressed table. */
-	if (page_bulk->getPageZip() != NULL && !page_bulk->compress()) {
+	if (page_bulk->getPageZip() != NULL
+	    && !page_bulk->compress(m_compression_level)) {
 		return(pageSplit(page_bulk, next_page_bulk));
 	}
 
@@ -1170,6 +1172,11 @@ BtrBulk::finish(dberr_t	err)
 
 		UT_DELETE(page_bulk);
 	}
+
+	/* Every level has been committed and no page latch is held.
+	The top-level page has been compressed (for ROW_FORMAT=COMPRESSED)
+	but has not yet been copied to the root page. */
+	DEBUG_SYNC_C("btr_bulk_finish_before_root");
 
 	if (err == DB_SUCCESS) {
 		rec_t*		first_rec;
