@@ -22,6 +22,12 @@
 #                                     server_2
 #   $server_3_frag_threshold (uint) : binlog_row_event_fragment_threshold on
 #                                     server_3
+#   $log_bin_compress        (bool) : Whether or not log_bin_compress is ON.
+#                                     The inserted data then compresses
+#                                     poorly, so the row events still need
+#                                     fragments. The number of fragments
+#                                     depends on the zlib library, so only
+#                                     the fragmented events are counted.
 #
 
 if ($server_1_frag_threshold)
@@ -93,7 +99,17 @@ if ($insert_size)
 }
 if (!$insert_size)
 {
-  insert into t1 select seq,repeat(seq,512) from seq_1_to_10;
+  if (!$log_bin_compress)
+  {
+    insert into t1 select seq,repeat(seq,512) from seq_1_to_10;
+  }
+  if ($log_bin_compress)
+  {
+    # Hex strings of distinct hashes only compress to about half
+    insert into t1 select seq, concat(sha2(seq,512), sha2(seq+10,512),
+                                      sha2(seq+20,512), sha2(seq+30,512))
+                   from seq_1_to_10;
+  }
   BEGIN;
   # Do the insert into t2 first; otherwise, this insert would also concat
   # the second statement into t1
@@ -141,12 +157,21 @@ while (`SELECT $i <= $n_servers`)
   --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
   --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
-  --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
   --let SEARCH_FILE= $binlog_analysis_file
-  --let SEARCH_OUTPUT= count
-  --source include/search_pattern_in_file.inc
-  --let SEARCH_OUTPUT= matches
-  --source include/search_pattern_in_file.inc
+  if (!$log_bin_compress)
+  {
+    --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_OUTPUT= matches
+    --source include/search_pattern_in_file.inc
+  }
+  if ($log_bin_compress)
+  {
+    --let SEARCH_PATTERN= Partial_rows \(1 / [0-9]+\)
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
+  }
 
   if ($test_show_binlog_events)
   {
@@ -205,12 +230,21 @@ if ($test_update)
     --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
     --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
-    --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
     --let SEARCH_FILE= $binlog_analysis_file
-    --let SEARCH_OUTPUT= count
-    --source include/search_pattern_in_file.inc
-    --let SEARCH_OUTPUT= matches
-    --source include/search_pattern_in_file.inc
+    if (!$log_bin_compress)
+    {
+      --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+      --let SEARCH_OUTPUT= count
+      --source include/search_pattern_in_file.inc
+      --let SEARCH_OUTPUT= matches
+      --source include/search_pattern_in_file.inc
+    }
+    if ($log_bin_compress)
+    {
+      --let SEARCH_PATTERN= Partial_rows \(1 / [0-9]+\)
+      --let SEARCH_OUTPUT= count
+      --source include/search_pattern_in_file.inc
+    }
 
     if ($test_show_binlog_events)
     {
@@ -271,12 +305,21 @@ if ($test_delete)
     --echo # MYSQL_BINLOG binlog_file_param --result-file=binlog_analysis_file --base64-output=never
     --exec $MYSQL_BINLOG $binlog_file_param --result-file=$binlog_analysis_file --base64-output=never
 
-    --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
     --let SEARCH_FILE= $binlog_analysis_file
-    --let SEARCH_OUTPUT= count
-    --source include/search_pattern_in_file.inc
-    --let SEARCH_OUTPUT= matches
-    --source include/search_pattern_in_file.inc
+    if (!$log_bin_compress)
+    {
+      --let SEARCH_PATTERN= Partial_rows \([0-9]+ / [0-9]+\)
+      --let SEARCH_OUTPUT= count
+      --source include/search_pattern_in_file.inc
+      --let SEARCH_OUTPUT= matches
+      --source include/search_pattern_in_file.inc
+    }
+    if ($log_bin_compress)
+    {
+      --let SEARCH_PATTERN= Partial_rows \(1 / [0-9]+\)
+      --let SEARCH_OUTPUT= count
+      --source include/search_pattern_in_file.inc
+    }
 
     if ($test_show_binlog_events)
     {
@@ -303,17 +346,21 @@ if ($test_mysqlbinlog_replay)
   --echo # MYSQL_BINLOG mysqld_datadir/binlog_insert_filename --result-file=binlog_analysis_file
   --exec $MYSQL_BINLOG $mysqld_datadir/$binlog_insert_filename --result-file=$binlog_analysis_file
 
-  --echo # Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
-  --let SEARCH_FILE= $binlog_analysis_file
-  --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
-  --let SEARCH_OUTPUT= count
-  --source include/search_pattern_in_file.inc
+  # The fragment sizes of compressed row events depend on the zlib library
+  if (!$log_bin_compress)
+  {
+    --echo # Show how many Partial_rows_log_events use mysqlbinlog @0, @1 fragmentation (ev_len > 1024)
+    --let SEARCH_FILE= $binlog_analysis_file
+    --let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
 
-  --echo # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
-  --echo #  Note: 1 always comes from the Format_description_log_event
-  --let SEARCH_PATTERN= BINLOG '
-  --let SEARCH_OUTPUT= count
-  --source include/search_pattern_in_file.inc
+    --echo # Show how many Partial_rows_log_events use regular BINLOG base64 output (ev_len <= 1024)
+    --echo #  Note: 1 always comes from the Format_description_log_event
+    --let SEARCH_PATTERN= BINLOG '
+    --let SEARCH_OUTPUT= count
+    --source include/search_pattern_in_file.inc
+  }
 
   --echo # MYSQL_SLAVE --init-command="set sql_log_bin=0" < binlog_analysis_file
   --exec $MYSQL_SLAVE --init-command="set sql_log_bin=0" < $binlog_analysis_file

@@ -235,6 +235,28 @@ set @@global.debug_dbug= @old_dbug;
 --source include/start_slave.inc
 
 --echo #
+--echo #
+--echo # Error Case 7) If a compressed row event can't be compressed before
+--echo # fragmenting, it is fragmented as a regular row event (MDEV-40851)
+--connection master
+--let $old_compress= `SELECT @@global.log_bin_compress`
+set @@global.log_bin_compress= 1;
+set @old_dbug= @@debug_dbug;
+set debug_dbug= "+d,binlog_compress_rows_buf_fail";
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1)
+--eval insert into t1 values ($ins_num, repeat("a",1536))
+--source include/show_binlog_events.inc
+set debug_dbug= @old_dbug;
+--eval set @@global.log_bin_compress= $old_compress
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--eval select a, length(b), b = repeat("a",1536) as b_ok from t1 where a = $ins_num
+--inc $ins_num
+
+--echo #
 --echo # Cleanup
 --connection master
 drop table t1;
