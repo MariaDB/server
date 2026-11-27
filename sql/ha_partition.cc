@@ -359,6 +359,7 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share,
   m_clone_mem_root= clone_mem_root_arg;
   part_share= clone_arg->part_share;
   m_tot_parts= clone_arg->m_tot_parts;
+  m_err_part= NO_CURRENT_PART_ID;
   DBUG_VOID_RETURN;
 }
 
@@ -408,6 +409,7 @@ void ha_partition::init_handler_variables()
   m_top_entry= NO_CURRENT_PART_ID;
   m_rec_length= 0;
   m_last_part= 0;
+  m_err_part= NO_CURRENT_PART_ID;
   m_err_rec= NULL;
   m_curr_key_info[0]= NULL;
   m_curr_key_info[1]= NULL;
@@ -4654,6 +4656,7 @@ int ha_partition::write_row(const uchar * buf)
   sql_mode_t org_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
   DBUG_ENTER("ha_partition::write_row");
+  m_err_part= NO_CURRENT_PART_ID;
   DBUG_PRINT("enter", ("partition this: %p", this));
 
   /*
@@ -4728,6 +4731,7 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
   int error= 0;
   DBUG_ENTER("ha_partition::update_row");
   m_err_rec= NULL;
+  m_err_part= NO_CURRENT_PART_ID;
 
   // Need to read partition-related columns, to locate the row's partition:
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
@@ -4796,7 +4800,12 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     error= m_file[new_part_id]->ha_write_row((uchar*) new_data);
     table->next_number_field= saved_next_number_field;
     if (unlikely(error))
+    {
+      /* print_error() must use the handler that reported the write error,
+         without changing m_last_part, which still refers to the old row. */
+      m_err_part= new_part_id;
       goto exit;
+    }
 
     error= m_file[old_part_id]->ha_delete_row(old_data);
     if (unlikely(error))
@@ -4884,6 +4893,8 @@ int ha_partition::delete_row(const uchar *buf)
 
   DBUG_ASSERT(!m_file[m_last_part]->row_logging);
   error= m_file[m_last_part]->ha_delete_row(buf);
+  if (unlikely(error))
+    m_err_part= m_last_part;
   DBUG_RETURN(error);
 }
 
@@ -10392,6 +10403,7 @@ void ha_partition::print_error(int error, myf errflag)
          (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE)))
   {
     m_part_info->print_no_partition_found(table, errflag);
+    m_err_part= NO_CURRENT_PART_ID;
     DBUG_VOID_RETURN;
   }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
@@ -10435,6 +10447,7 @@ void ha_partition::print_error(int error, myf errflag)
       }
       my_error(ER_ROW_IN_WRONG_PARTITION, MYF(0), str.c_ptr_safe());
       m_err_rec= NULL;
+      m_err_part= NO_CURRENT_PART_ID;
       DBUG_VOID_RETURN;
     }
     /* fall through to generic error handling. */
@@ -10448,15 +10461,18 @@ void ha_partition::print_error(int error, myf errflag)
   */
   if (m_file && lookup_errkey == (uint)-1)
   {
-    if (m_last_part >= m_tot_parts)
+    uint err_part= (m_err_part != NO_CURRENT_PART_ID ?
+                    m_err_part : m_last_part);
+    if (err_part >= m_tot_parts)
     {
       DBUG_ASSERT(0);
-      m_last_part= 0;
+      err_part= 0;
     }
-    m_file[m_last_part]->print_error(error, errflag);
+    m_file[err_part]->print_error(error, errflag);
   }
   else
     handler::print_error(error, errflag);
+  m_err_part= NO_CURRENT_PART_ID;
   DBUG_VOID_RETURN;
 }
 
@@ -10469,7 +10485,13 @@ bool ha_partition::get_error_message(int error, String *buf)
 
   /* In case m_file has not been initialized, like in bug#42438 */
   if (m_file)
-    DBUG_RETURN(m_file[m_last_part]->get_error_message(error, buf));
+  {
+    uint err_part= (m_err_part != NO_CURRENT_PART_ID ?
+                    m_err_part : m_last_part);
+    if (err_part >= m_tot_parts)
+      err_part= 0;
+    DBUG_RETURN(m_file[err_part]->get_error_message(error, buf));
+  }
   DBUG_RETURN(handler::get_error_message(error, buf));
 
 }
