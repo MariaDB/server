@@ -367,11 +367,15 @@ private:
   same transaction.
   @param	tuple		tuple contains primary key value
   @param	index		clustered index
-  @param[out]	clust_rec	current clustered index record
+  @param	clust_rec	current clustered index record,
+				or nullptr if it could not be found
   @param	offsets		offsets points to the record
   @return clustered index record which was changed by
   the undo log record or nullptr when there is no clustered
-  index record changed by undo log record */
+  index record changed by undo log record.
+  If nullptr is returned and *clust_rec is also nullptr, the clustered
+  index record was not found, and the caller must abort the
+  online DDL operation. */
   const rec_t* get_old_rec(const dtuple_t &tuple, dict_index_t *index,
                            const rec_t **clust_rec, rec_offs **offsets);
 };
