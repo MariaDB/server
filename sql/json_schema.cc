@@ -1575,6 +1575,13 @@ bool Json_schema_required::validate(const json_engine_t *je,
         if (my_hash_insert(&required, (const uchar*)str))
           goto error;
         malloc_mem_list.push_back(str);
+        if (json_read_value(&curr_je))
+          goto error;
+        if (!json_value_scalar(&curr_je))
+        {
+          if (json_skip_level(&curr_je))
+            goto error;
+        }
       }
     }
   }
@@ -1674,6 +1681,13 @@ bool Json_schema_dependent_required::validate(const json_engine_t *je,
         if (my_hash_insert(&properties, (const uchar*)str))
           goto error;
         malloc_mem_list.push_back(str);
+        if (json_read_value(&curr_je))
+          goto error;
+        if (!json_value_scalar(&curr_je))
+        {
+          if (json_skip_level(&curr_je))
+            goto error;
+        }
       }
     }
   }
@@ -2196,7 +2210,6 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
 {
   json_engine_t curr_je= *je;
   int level= je->stack_p;
-  bool match_found= false;
 
   if (je->value_type != JSON_VALUE_OBJECT)
     return false;
@@ -2219,6 +2232,7 @@ bool Json_schema_pattern_properties::validate(const json_engine_t *je,
         if (json_read_value(&curr_je))
           return true;
 
+        bool match_found= false;
         List_iterator <st_pattern_to_property> it1 (pattern_properties);
         st_pattern_to_property *curr_pattern_property= NULL;
 
@@ -2588,11 +2602,11 @@ bool Json_schema_dependent_schemas::validate(const json_engine_t *je,
         {
           if (validate_schema_items(je, curr_property->curr_schema))
             return true;
-          if (!json_value_scalar(&curr_je))
-          {
-            if (json_skip_level(&curr_je))
-              return true;
-          }
+        }
+        if (!json_value_scalar(&curr_je))
+        {
+          if (json_skip_level(&curr_je))
+            return true;
         }
       }
     }

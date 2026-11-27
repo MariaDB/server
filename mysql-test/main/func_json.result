@@ -5831,4 +5831,20 @@ JSON_SCHEMA_VALID(@schema, @value)
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 r
 0
+#
+# MDEV-42577: JSON_SCHEMA_VALID wrong result for required, dependentRequired, dependentSchemas and patternProperties
+#
+SELECT JSON_SCHEMA_VALID('{"type":"object","required":["x"]}', '{"o":{"x":1}}') AS req_nested,
+JSON_SCHEMA_VALID('{"type":"object","dependentRequired":{"o":["x"]}}', '{"o":{"x":1}}') AS dreq_nested,
+JSON_SCHEMA_VALID('{"type":"object","dependentSchemas":{"x":{"required":["zz"]}}}', '{"o":{"x":1}}') AS dsch_nested,
+JSON_SCHEMA_VALID('{"type":"object","patternProperties":{"^a":{}},"additionalProperties":false}', '{"a":1,"b":2}') AS pp_reset;
+req_nested	dreq_nested	dsch_nested	pp_reset
+0	0	1	0
+SELECT JSON_SCHEMA_VALID('{"type":"object","required":["x"]}', '{"x":{"y":1}}') AS req_obj_value,
+JSON_SCHEMA_VALID('{"type":"object","required":["z"]}', '{"o":{"a":1},"z":2}') AS req_after_nested,
+JSON_SCHEMA_VALID('{"type":"object","dependentRequired":{"o":["x"]}}', '{"o":{"k":1},"x":2}') AS dreq_obj_value,
+JSON_SCHEMA_VALID('{"type":"object","dependentSchemas":{"x":{"required":["zz"]}}}', '{"x":{"k":1}}') AS dsch_trigger,
+JSON_SCHEMA_VALID('{"type":"object","patternProperties":{"^a":{}},"additionalProperties":false}', '{"a":1,"aa":2}') AS pp_all_match;
+req_obj_value	req_after_nested	dreq_obj_value	dsch_trigger	pp_all_match
+1	1	1	0	1
 # End of 11.4 tests
