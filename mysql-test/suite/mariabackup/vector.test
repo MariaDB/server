@@ -1,3 +1,4 @@
+--source include/have_mariabackup_combination.inc
 create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v)) engine=innodb;
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),

@@ -1,0 +1,41 @@
+CREATE TABLE tr(a INT PRIMARY KEY) ENGINE=ROCKSDB;
+INSERT INTO tr VALUES (1),(2),(3);
+# Backup 1: directory target. The checkpoint is renamed into
+# the target at BACKUP_FINISHED; then the backup pauses.
+connect con1, localhost, root;
+SET debug_sync='rocksdb_backup_step SIGNAL b1_finished WAIT_FOR b1_go';
+BACKUP SERVER TO 'targetdir';
+connection default;
+SET debug_sync='now WAIT_FOR b1_finished';
+# Backup 2: stream target, which keeps its checkpoint
+# in rocksdb_datadir until backup_end(BACKUP_FINISHED).
+connect con2, localhost, root;
+SET debug_sync='rocksdb_backup_step SIGNAL b2_finished WAIT_FOR b2_go';
+BACKUP SERVER WITH 'cat';
+connection default;
+# Backup 2 must not reach BACKUP_FINISHED while backup 1 is active.
+SET debug_sync='now WAIT_FOR b2_finished TIMEOUT 3';
+SET debug_sync='now SIGNAL b1_go';
+connection con1;
+disconnect con1;
+connection default;
+SET debug_sync='now SIGNAL b2_go';
+connection con2;
+disconnect con2;
+connection default;
+SET debug_sync='RESET';
+# Both backups must contain the RocksDB data.
+# restart: with restart_parameters
+SELECT * FROM tr;
+a
+1
+2
+3
+# restart: with restart_parameters
+SELECT * FROM tr;
+a
+1
+2
+3
+# restart
+DROP TABLE tr;

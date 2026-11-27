@@ -73,6 +73,7 @@
 /* MyRocks includes */
 #include "./event_listener.h"
 #include "./ha_rocksdb_proto.h"
+#include "./rdb_backup_server.h"
 #include "./logger.h"
 #include "./nosql_access.h"
 #include "./rdb_cf_manager.h"
@@ -371,44 +372,38 @@ static std::string rdb_normalize_dir(std::string dir) {
   return dir;
 }
 
-static int rocksdb_create_checkpoint(
-    THD *const thd MY_ATTRIBUTE((__unused__)),
-    struct st_mysql_sys_var *const var MY_ATTRIBUTE((__unused__)),
-    void *const save MY_ATTRIBUTE((__unused__)),
-    struct st_mysql_value *const value) {
-  char buf[FN_REFLEN];
-  int len = sizeof(buf);
-  const char *const checkpoint_dir_raw = value->val_str(value, buf, &len);
-  if (checkpoint_dir_raw) {
-    if (rdb != nullptr) {
-      std::string checkpoint_dir = rdb_normalize_dir(checkpoint_dir_raw);
-      // NO_LINT_DEBUG
-      sql_print_information("RocksDB: creating checkpoint in directory : %s\n",
-                            checkpoint_dir.c_str());
-      rocksdb::Checkpoint *checkpoint;
-      auto status = rocksdb::Checkpoint::Create(rdb, &checkpoint);
-      // We can only return HA_EXIT_FAILURE/HA_EXIT_SUCCESS here which is why
-      // the return code is ignored, but by calling into rdb_error_to_mysql,
-      // it will call my_error for us, which will propogate up to the client.
-      int rc __attribute__((__unused__));
-      if (status.ok()) {
-        status = checkpoint->CreateCheckpoint(checkpoint_dir.c_str());
-        delete checkpoint;
-        if (status.ok()) {
-          // NO_LINT_DEBUG
-          sql_print_information(
-              "RocksDB: created checkpoint in directory : %s\n",
-              checkpoint_dir.c_str());
-          return HA_EXIT_SUCCESS;
-        } else {
-          rc = ha_rocksdb::rdb_error_to_mysql(status);
-        }
-      } else {
-        rc = ha_rocksdb::rdb_error_to_mysql(status);
-      }
-    }
+/** Create a RocksDB checkpoint (a consistent, hardlink-based
+snapshot of the live database).
+@param checkpoint_dir_raw  directory to create
+@retval HA_EXIT_SUCCESS on success
+@retval HA_EXIT_FAILURE on failure */
+int rdb_create_checkpoint(const char *checkpoint_dir_raw)
+{
+  if (!checkpoint_dir_raw || !rdb)
+    return HA_EXIT_FAILURE;
+
+  std::string checkpoint_dir = rdb_normalize_dir(checkpoint_dir_raw);
+  // NO_LINT_DEBUG
+  sql_print_information("RocksDB: creating checkpoint in directory : %s",
+                        checkpoint_dir.c_str());
+  rocksdb::Checkpoint *checkpoint;
+  auto status = rocksdb::Checkpoint::Create(rdb, &checkpoint);
+  if (status.ok()) {
+    status = checkpoint->CreateCheckpoint(checkpoint_dir.c_str());
+    delete checkpoint;
+    if (status.ok())
+      return HA_EXIT_SUCCESS;
   }
+  std::ignore = ha_rocksdb::rdb_error_to_mysql(status);
   return HA_EXIT_FAILURE;
+}
+
+static int rocksdb_create_checkpoint(THD *, st_mysql_sys_var *, void *,
+                                     st_mysql_value *value) noexcept
+{
+  char buf[FN_REFLEN];
+  int len{sizeof(buf)};
+  return rdb_create_checkpoint(value->val_str(value, buf, &len));
 }
 
 /* This method is needed to indicate that the
@@ -635,7 +630,7 @@ static long long rocksdb_compaction_sequential_deletes = 0l;
 static long long rocksdb_compaction_sequential_deletes_window = 0l;
 static long long rocksdb_compaction_sequential_deletes_file_size = 0l;
 static uint32_t rocksdb_validate_tables = 1;
-static char *rocksdb_datadir;
+char *rocksdb_datadir;
 static uint32_t rocksdb_table_stats_sampling_pct;
 static my_bool rocksdb_enable_bulk_load_api = 1;
 static my_bool rocksdb_print_snapshot_conflict_queries = 0;
@@ -725,6 +720,13 @@ static int rmdir_force(const char *dir) {
 }
 
 
+/** Remove a RocksDB checkpoint directory created by rdb_create_checkpoint().
+@param checkpoint_dir checkpoint directory to be removed */
+void rdb_remove_checkpoint(const char *checkpoint_dir)
+{
+  rmdir_force(checkpoint_dir);
+}
+
 static void rocksdb_remove_mariabackup_checkpoint(
     my_core::THD *const,
     struct st_mysql_sys_var *const ,
@@ -733,10 +735,7 @@ static void rocksdb_remove_mariabackup_checkpoint(
 
   mariabackup_checkpoint_dir.append("/mariabackup-checkpoint");
 
-  if (unlink(mariabackup_checkpoint_dir.c_str())  == 0)
-    return;
-
-  rmdir_force(mariabackup_checkpoint_dir.c_str());
+  rdb_remove_checkpoint(mariabackup_checkpoint_dir.c_str());
 }
 
 
@@ -5341,6 +5340,11 @@ static int rocksdb_init_func(void *const p) {
 
   */
   rocksdb_hton->check_version = rocksdb_check_version;
+
+  /* BACKUP SERVER hooks (see rdb_backup_server.cc) */
+  rocksdb_hton->backup_start = backup_start;
+  rocksdb_hton->backup_step = backup_step;
+  rocksdb_hton->backup_end = backup_end;
 
   rocksdb_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED |
                         HTON_SUPPORTS_EXTENDED_KEYS | HTON_CAN_RECREATE;
