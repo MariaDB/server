@@ -1,0 +1,103 @@
+#
+# MDEV-41759 MyISAM and Aria: an excluded phrase in boolean mode excludes all rows that contain its words, in any order
+#
+# MyISAM
+CREATE TABLE t1 (id INT PRIMARY KEY, c TEXT, FULLTEXT(c))
+ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1, 'xxxx alpha beta'),
+(2, 'xxxx beta alpha'),
+(3, 'xxxx alpha gamma beta'),
+(4, 'xxxx');
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+id
+2
+3
+4
+# through an enclosing excluded group
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx -("alpha beta")' IN BOOLEAN MODE);
+id
+2
+3
+4
+# inside a required group
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx +(+xxxx -"alpha beta")' IN BOOLEAN MODE);
+id
+2
+3
+4
+# next to a required phrase
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+"xxxx beta" -"alpha beta"' IN BOOLEAN MODE);
+id
+2
+DROP TABLE t1;
+# several indexed columns, with NULLs
+CREATE TABLE t1
+(id INT PRIMARY KEY, c1 TEXT, c2 TEXT, FULLTEXT(c1,c2)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1, 'xxxx alpha', 'beta'),
+(2, 'xxxx', 'alpha beta'),
+(3, 'xxxx beta', 'alpha'),
+(4, 'xxxx', NULL),
+(5, NULL, 'xxxx alpha beta');
+SELECT id FROM t1
+WHERE MATCH(c1,c2) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+id
+1
+3
+4
+DROP TABLE t1;
+# Aria
+CREATE TABLE t1 (id INT PRIMARY KEY, c TEXT, FULLTEXT(c))
+ENGINE=Aria;
+INSERT INTO t1 VALUES
+(1, 'xxxx alpha beta'),
+(2, 'xxxx beta alpha'),
+(3, 'xxxx alpha gamma beta'),
+(4, 'xxxx');
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+id
+2
+3
+4
+# through an enclosing excluded group
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx -("alpha beta")' IN BOOLEAN MODE);
+id
+2
+3
+4
+# inside a required group
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+xxxx +(+xxxx -"alpha beta")' IN BOOLEAN MODE);
+id
+2
+3
+4
+# next to a required phrase
+SELECT id FROM t1
+WHERE MATCH(c) AGAINST('+"xxxx beta" -"alpha beta"' IN BOOLEAN MODE);
+id
+2
+DROP TABLE t1;
+# several indexed columns, with NULLs
+CREATE TABLE t1
+(id INT PRIMARY KEY, c1 TEXT, c2 TEXT, FULLTEXT(c1,c2)) ENGINE=Aria;
+INSERT INTO t1 VALUES
+(1, 'xxxx alpha', 'beta'),
+(2, 'xxxx', 'alpha beta'),
+(3, 'xxxx beta', 'alpha'),
+(4, 'xxxx', NULL),
+(5, NULL, 'xxxx alpha beta');
+SELECT id FROM t1
+WHERE MATCH(c1,c2) AGAINST('+xxxx -"alpha beta"' IN BOOLEAN MODE);
+id
+1
+3
+4
+DROP TABLE t1;
