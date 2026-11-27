@@ -1872,7 +1872,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
                       &thd->security_ctx->priv_user[0],
                       (char *) thd->security_ctx->host_or_ip);
     char *packet_end= thd->query() + thd->query_length();
-    general_log_write(thd, command, thd->query(), thd->query_length());
+    if (opt_log_raw)
+      general_log_write(thd, command, thd->query(), thd->query_length());
     DBUG_PRINT("query",("query_id=%lld, %.*s", thd->query_id, thd->query_length(), thd->query()));
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
@@ -1883,6 +1884,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
     Parser_state parser_state;
     if (unlikely(parser_state.init(thd, thd->query(), thd->query_length())))
       break;
+    parser_state.m_write_general_log= true;
 
 #ifdef WITH_WSREP
     if (WSREP(thd))
@@ -1981,6 +1983,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command,
         thd->set_time(); /* Reset the query start time. */
 
       parser_state.reset(beginning_of_next_stmt, length);
+      parser_state.m_write_general_log= true;
 
 #ifdef WITH_WSREP
       if (WSREP(thd))
@@ -2612,8 +2615,8 @@ void log_slow_statement(THD *thd)
       goto end;
 
     THD_STAGE_INFO(thd, stage_logging_slow_query);
-    slow_log_print(thd, thd->query(), thd->query_length(), 
-                   thd->utime_after_query);
+    LEX_CSTRING query= thd->query_for_log();
+    slow_log_print(thd, query.str, query.length, thd->utime_after_query);
   }
 
 end:
@@ -7931,6 +7934,60 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 #endif /* WITH_WSREP */
 
 
+static void mask_and_log_query(THD *thd, Parser_state *parser_state,
+                               char *rawbuf, size_t length, bool err)
+{
+  Lex_input_stream *lip= &parser_state->m_lip;
+  LEX_CSTRING log= { rawbuf, length };
+  LEX_CSTRING masked;
+
+  /* After a parse error, found_semicolon may point into the statement */
+  if (lip->found_semicolon && !err)
+    log.length= lip->found_semicolon - rawbuf - 1;
+  thd->reset_query_for_log();
+  if (lip->has_secrets())
+  {
+    /* A query cache hit is logged without parsing */
+    thd->lex->safe_to_cache_query= 0;
+    if (!thd->mask_secrets(log.str, log.length, lip->m_secrets, &masked) &&
+        masked.str)
+    {
+      thd->set_query_for_log(rawbuf, masked);
+      log= masked;
+    }
+  }
+
+  /*
+    A statement that failed to parse may hold a password that was not
+    found, so it goes to neither the general nor the slow log.
+  */
+  if (err && !opt_log_raw)
+    thd->enable_slow_log= false;
+  if (!parser_state->m_write_general_log)
+    return;
+  parser_state->m_write_general_log= false;
+  if (opt_log_raw || err)
+    return;
+
+  if (lip->m_prepare_source &&
+      (thd->lex->sql_command == SQLCOM_PREPARE ||
+       thd->lex->sql_command == SQLCOM_EXECUTE_IMMEDIATE))
+  {
+    static const LEX_CSTRING hidden= { STRING_WITH_LEN(" <secret>") };
+    LEX_CSTRING row= thd->strcat(Lex_cstring(rawbuf, lip->m_prepare_source),
+                                 hidden);
+    if (row.str)
+    {
+      thd->m_deferred_log= log;
+      thd->m_deferred_log_hidden= row;
+      thd->m_deferred_log_source= rawbuf;
+      return;
+    }
+  }
+  general_log_write(thd, COM_QUERY, log.str, log.length);
+}
+
+
 /*
   When you modify mysql_parse(), you may need to modify
   mysql_test_parse_for_slave() in this same file.
@@ -7975,6 +8032,8 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     LEX *lex= thd->lex;
 
     bool err= parse_sql(thd, parser_state, NULL, true);
+
+    mask_and_log_query(thd, parser_state, rawbuf, length, err);
 
     if (likely(!err))
     {
@@ -8039,6 +8098,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 
       query_cache_abort(thd, &thd->query_cache_tls);
     }
+    thd->write_deferred_general_log(true);
     THD_STAGE_INFO(thd, stage_freeing_items);
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
@@ -8050,6 +8110,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   }
   else
   {
+    /* Queries with passwords are not cached, see mask_and_log_query() */
+    if (parser_state->m_write_general_log && !opt_log_raw)
+      general_log_write(thd, COM_QUERY, rawbuf, length);
+    parser_state->m_write_general_log= false;
     /* Update statistics for getting the query from the cache */
     thd->lex->sql_command= SQLCOM_SELECT;
     thd->m_statement_psi=

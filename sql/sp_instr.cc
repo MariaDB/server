@@ -1194,6 +1194,8 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
   int res;
   bool save_enable_slow_log;
   const CSET_STRING query_backup= thd->query_string;
+  const LEX_CSTRING query_for_log_backup= thd->m_query_for_log;
+  const char *query_for_log_source_backup= thd->m_query_for_log_source;
   Sub_statement_state backup_state;
   DBUG_ENTER("sp_instr_stmt::execute");
   DBUG_PRINT("info", ("command: %d", m_lex_keeper.sql_command()));
@@ -1215,7 +1217,10 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       (the order of query cache and subst_spvars calls is irrelevant because
       queries with SP vars can't be cached)
     */
-    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+    if (m_query_for_log.str)
+      thd->set_query_for_log(thd->query(), m_query_for_log);
+    LEX_CSTRING log= thd->query_for_log();
+    general_log_write(thd, COM_QUERY, log.str, log.length);
 
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
@@ -1265,6 +1270,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
 #endif
     }
     thd->set_query(query_backup);
+    thd->set_query_for_log(query_for_log_source_backup, query_for_log_backup);
     thd->query_name_consts= 0;
 
     if (likely(!thd->is_error()))

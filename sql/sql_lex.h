@@ -2966,6 +2966,12 @@ public:
                                CHARSET_INFO *txt_cs,
                                const char *end_ptr,
                                my_wc_t sep);
+  bool add_secret(const char *after);
+  bool has_secrets() const
+  { return !m_secrets.is_empty(); }
+
+  List<Lex_cstring> m_secrets;
+  const char *m_prepare_source;
 
 private:
   /**
@@ -3058,6 +3064,10 @@ private:
     m_cpp_utf_processed_ptr is converted to UTF8-body.
   */
   const char *m_cpp_utf8_processed_ptr;
+
+  /* Raw bounds of the last text literal */
+  const char *m_last_text_start;
+  const char *m_last_text_end;
 
 public:
 
@@ -5635,6 +5645,8 @@ public:
 
   Lex_input_stream m_lip;
   Yacc_state m_yacc;
+  /* Only client queries write a general log row in mysql_parse() */
+  bool m_write_general_log= false;
 
   /**
     Current performance digest instrumentation. 

@@ -623,6 +623,8 @@ class sp_instr_stmt : public sp_lex_instr
   LEX_STRING m_query;		///< For thd->query
 
 public:
+  LEX_CSTRING m_query_for_log= {NULL, 0};
+
   sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex, const LEX_STRING& query)
     : sp_lex_instr(ip, ctx, lex, true),
       m_valid(true),

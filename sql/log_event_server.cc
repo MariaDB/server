@@ -2187,7 +2187,10 @@ START SLAVE; . Query: '%s'", expected_error, thd->query());
     /* If the query was not ignored, it is printed to the general log */
     if (likely(!thd->is_error()) ||
         thd->get_stmt_da()->sql_errno() != ER_SLAVE_IGNORED_TABLE)
-      general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+    {
+      LEX_CSTRING log= thd->query_for_log();
+      general_log_write(thd, COM_QUERY, log.str, log.length);
+    }
     else
     {
       /*
@@ -2240,7 +2243,9 @@ compare_errors:
                   expected_error,
                   actual_error ? thd->get_stmt_da()->message() : "no error",
                   actual_error,
-                  safe_str(db), query_arg);
+                  safe_str(db),
+                  thd->m_query_for_log_source == query_arg ?
+                  thd->m_query_for_log.str : query_arg);
       thd->is_slave_error= 1;
     }
     /*
@@ -2277,7 +2282,9 @@ compare_errors:
                     "Error '%s' on query. Default database: '%s'. Query: '%s'",
                     (actual_error ? thd->get_stmt_da()->message() :
                      "unexpected success or fatal error"),
-                    thd->get_db(), query_arg);
+                    thd->get_db(),
+                    thd->m_query_for_log_source == query_arg ?
+                    thd->m_query_for_log.str : query_arg);
       thd->is_slave_error= 1;
 #ifdef WITH_WSREP
       if (wsrep_thd_is_toi(thd) && wsrep_must_ignore_error(thd))

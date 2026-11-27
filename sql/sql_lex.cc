@@ -864,6 +864,28 @@ Lex_input_stream::reset(char *buffer, size_t length)
   in_comment=NO_COMMENT;
   m_underscore_cs= NULL;
   m_cpp_ptr= m_cpp_buf;
+  m_last_text_start= NULL;
+  m_last_text_end= NULL;
+  m_secrets.empty();
+  m_prepare_source= NULL;
+}
+
+
+bool Lex_input_stream::add_secret(const char *after)
+{
+  if (opt_log_raw)
+    return false;
+  if (!m_last_text_start || m_last_text_start < after)
+  {
+    /* The grammar must call this right after the password literal */
+    DBUG_ASSERT(0);
+    return false;
+  }
+  Lex_cstring *secret= m_thd->alloc<Lex_cstring>(1);
+  if (!secret)
+    return true;
+  *secret= Lex_cstring(m_last_text_start + 1, m_last_text_end - 1);
+  return m_secrets.push_back(secret, m_thd->mem_root);
 }
 
 
@@ -2470,6 +2492,8 @@ int Lex_input_stream::lex_one_token(YYSTYPE *yylval, THD *thd)
       body_utf8_append_escape(thd, &yylval->lex_string_with_metadata,
                                    strcs, m_cpp_text_end, sep);
       m_underscore_cs= NULL;
+      m_last_text_start= m_tok_start;
+      m_last_text_end= m_ptr;
       return(TEXT_STRING);
     }
     case MY_LEX_COMMENT:                       //  Comment
@@ -12545,6 +12569,30 @@ bool LEX::new_sp_instr_stmt(THD *thd,
   if (!(i= new (thd->mem_root) sp_instr_stmt(sphead->instructions(),
                                              spcont, this, qbuff)))
     return true;
+
+  Lex_input_stream *lip= &thd->m_parser_state->m_lip;
+  if (lip->has_secrets())
+  {
+    List<Lex_cstring> secrets;
+    List_iterator_fast<Lex_cstring> it(lip->m_secrets);
+    while (const Lex_cstring *s= it++)
+    {
+      if (s->str < suffix.str ||
+          s->str + s->length > suffix.str + suffix.length)
+        continue;
+      Lex_cstring *moved= thd->alloc<Lex_cstring>(1);
+      if (!moved)
+        return true;
+      *moved= Lex_cstring(qbuff.str + prefix.length + (s->str - suffix.str),
+                          s->length);
+      if (secrets.push_back(moved, thd->mem_root))
+        return true;
+    }
+    if (!secrets.is_empty() &&
+        thd->mask_secrets(qbuff.str, qbuff.length, secrets,
+                          &i->m_query_for_log))
+      return true;
+  }
 
   return sphead->add_instr(i);
 }
