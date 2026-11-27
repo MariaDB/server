@@ -5369,6 +5369,12 @@ no_gap_lock:
 			break;
 		case DB_LOCK_WAIT_TIMEOUT:
 			if (prebuilt->skip_locked) {
+				/* With innodb_lock_wait_timeout=0,
+				lock_rec_enqueue_waiting() also stored the
+				error in trx->error_state. Clear it, or
+				innobase_commit() would roll back the
+				transaction at the end of the statement. */
+				trx->error_state = DB_SUCCESS;
 				err = DB_SUCCESS;
 				goto next_rec;
 			}
@@ -5577,6 +5583,11 @@ requires_clust_rec:
 		case DB_LOCK_WAIT_TIMEOUT:
 		case DB_LOCK_WAIT:
 			if (prebuilt->skip_locked) {
+				/* With innodb_lock_wait_timeout=0, the
+				error is also in trx->error_state. Clear it,
+				or innobase_commit() would roll back the
+				transaction at the end of the statement. */
+				trx->error_state = DB_SUCCESS;
 				err = DB_SUCCESS;
 				goto next_rec;
 			}
