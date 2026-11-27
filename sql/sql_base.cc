@@ -10530,11 +10530,16 @@ int TABLE::hlindex_open(uint nr)
       s->unlock_share();
 
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
-    if (!table || open_table_from_share(in_use, s->hls->s, &empty_clex_str,
-                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0)
+    my_bitmap_map *kc_buf= (my_bitmap_map*)
+      alloc_root(&mem_root, bitmap_buffer_size(s->fields));
+    if (!table || !kc_buf ||
+        open_table_from_share(in_use, s->hls->s, &empty_clex_str, db_stat,
+                              EXTRA_RECORD, in_use->open_options, table, 0)
         || !(hli= s->hls->create(table, &mem_root)))
       return 1;
     table->in_use= NULL;
+    my_bitmap_init(&hli->key_columns, kc_buf, s->fields);
+    mark_index_columns(nr, &hli->key_columns);
   }
   return 0;
 }
@@ -10578,8 +10583,6 @@ int TABLE::open_hlindexes_for_write()
   for (uint i= s->keys; i < s->total_keys; i++)
     if (hlindex_open(i) || hlindex_lock(i))
       return 1;
-    else
-      hli->update_needed= is_key_used(this, i, write_set);
   return 0;
 }
 
@@ -10605,7 +10608,8 @@ int TABLE::hlindexes_on_insert()
 int TABLE::hlindexes_on_update()
 {
   DBUG_ASSERT(s->hlindexes() == (hli != NULL));
-  if (hli && hli->update_needed)
+  if (hli && hli->table->in_use &&
+      bitmap_is_overlapping(&hli->key_columns, write_set))
   {
     int err;
     // mark deleted node invalid and insert node for new row

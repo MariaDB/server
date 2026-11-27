@@ -30,8 +30,8 @@ class hlindex : public Sql_alloc
 {
 public:
   TABLE *table;
-  bool update_needed; // index columns are in write_set, only used for UPDATE
-  hlindex(TABLE *t) : table(t), update_needed(false) { }
+  MY_BITMAP key_columns;
+  hlindex(TABLE *t) : table(t) { my_bitmap_clear(&key_columns); }
   virtual ~hlindex();
 
   virtual int read_first(TABLE *tbl, KEY *keyinfo, const uchar *value,

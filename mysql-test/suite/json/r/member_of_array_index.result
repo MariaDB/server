@@ -933,4 +933,77 @@ id	tags
 8	[3, 992]
 13	[3, 987]
 DROP TABLE t20;
+# REPLACE ... SELECT, j from its DEFAULT: not in write_set yet
+CREATE TABLE t21 (id INT PRIMARY KEY, x INT, j JSON DEFAULT '[7]',
+INDEX arr_idx (CAST(j AS UNSIGNED ARRAY)));
+INSERT INTO t21 VALUES (1, 0, '[1, 2]'), (2, 0, '[3]'), (3, 0, '[4]');
+REPLACE INTO t21 (id, x) SELECT 1, 5;
+SELECT id, j FROM t21 ORDER BY id;
+id	j
+1	[7]
+2	[3]
+3	[4]
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 7 MEMBER OF (j);
+id
+1
+SELECT id FROM t21 IGNORE INDEX (arr_idx) WHERE 7 MEMBER OF (j);
+id
+1
+DROP TABLE t21;
+#
+# 21. UPDATE-path reindexing must look at the write_set as it is when
+# the row is written, not at prepare_for_modify() time.
+#
+# INSERT ... SELECT ... ODKU on a generated column
+CREATE TABLE t21 (id INT PRIMARY KEY, doc JSON,
+j JSON AS (JSON_EXTRACT(doc, '$.a')),
+INDEX arr_idx (CAST(j AS UNSIGNED ARRAY)));
+INSERT INTO t21 (id, doc) VALUES (1, '{"a": [1]}'), (2, '{"a": [3]}'), (3, '{"a": [4]}');
+INSERT INTO t21 (id, doc) SELECT 1, '{"a": [2]}'
+  ON DUPLICATE KEY UPDATE doc = VALUES(doc);
+SELECT id, j FROM t21 ORDER BY id;
+id	j
+1	[2]
+2	[3]
+3	[4]
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 2 MEMBER OF (j);
+id
+1
+SELECT id FROM t21 IGNORE INDEX (arr_idx) WHERE 2 MEMBER OF (j);
+id
+1
+DROP TABLE t21;
+# MULTI UPDATE. A regression guard
+CREATE TABLE t21 (
+id INT PRIMARY KEY,
+tags JSON NOT NULL,
+INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t21 VALUES (1, '[1]'), (2, '[2]'), (3, '[3]');
+CREATE TABLE t21_src (id INT PRIMARY KEY, v INT);
+INSERT INTO t21_src VALUES (1, 11), (3, 33);
+UPDATE t21, t21_src SET t21.tags = JSON_ARRAY(t21_src.v)
+WHERE t21.id = t21_src.id;
+UPDATE t21_src, t21 SET t21_src.v = t21_src.v + 1,
+t21.tags = JSON_ARRAY(t21_src.id + 100)
+WHERE t21.id = t21_src.id AND t21.id = 3;
+SELECT id, tags FROM t21 ORDER BY id;
+id	tags
+1	[11]
+2	[2]
+3	[103]
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 11 MEMBER OF (tags);
+id
+1
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 103 MEMBER OF (tags);
+id
+3
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 33 MEMBER OF (tags);
+id
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 1 MEMBER OF (tags);
+id
+SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 2 MEMBER OF (tags);
+id
+2
+DROP TABLE t21, t21_src;
 # End of 13.3 tests
