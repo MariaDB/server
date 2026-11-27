@@ -5831,4 +5831,24 @@ JSON_SCHEMA_VALID(@schema, @value)
 SELECT JSON_SCHEMA_VALID( '{"enum": ["x"]}', CONVERT(CONCAT('"', REPEAT('e', 100000), '"') USING ucs2)) AS r;
 r
 0
+#
+# MDEV-39633: Incorrect result of JSON_SCHEMA_VALID
+#
+SET @obj= '{"outer":{"x":"ok"}}';
+SELECT JSON_SCHEMA_VALID('{"type":"object","additionalProperties":{"type":"object","properties":{"x":{"type":"string"}},"required":["x"]}}', @obj) AS ap,
+JSON_SCHEMA_VALID('{"type":"object","unevaluatedProperties":{"type":"object","properties":{"x":{"type":"string"}},"required":["x"]}}', @obj) AS up,
+JSON_SCHEMA_VALID('{"type":"object","additionalProperties":{"type":"array"}}', '{"a":[{"k":1}]}') AS ap_arr,
+JSON_SCHEMA_VALID('{"type":"object","unevaluatedProperties":true}', '{"a":[1]}') AS up_true,
+JSON_SCHEMA_VALID('{"type":"object","patternProperties":{".":{"type":"object"}}}', @obj) AS pp,
+JSON_SCHEMA_VALID('{"type":"object","patternProperties":{"^z":{"type":"string"}},"additionalProperties":{"type":"object"}}', @obj) AS pp_ap,
+JSON_SCHEMA_VALID('{"type":"array","unevaluatedItems":{"type":"array"}}', '[[1]]') AS ui;
+ap	up	ap_arr	up_true	pp	pp_ap	ui
+1	1	1	1	1	1	1
+SELECT JSON_SCHEMA_VALID('{"type":"object","additionalProperties":{"type":"object","required":["x"]}}', '{"outer":{"y":1}}') AS ap_bad,
+JSON_SCHEMA_VALID('{"type":"object","additionalProperties":{"type":"string"}}', '{"o":{"x":"y"}}') AS ap_obj_vs_str,
+JSON_SCHEMA_VALID('{"type":"object","unevaluatedProperties":false}', '{"a":{"b":1}}') AS up_false,
+JSON_SCHEMA_VALID('{"type":"array","unevaluatedItems":{"type":"array"}}', '[[1],2]') AS ui_bad,
+JSON_SCHEMA_VALID('{"type":"object","additionalProperties":{"type":["object","string"]}}', '{"o":{"x":"y"},"s":1}') AS outer_after_nested;
+ap_bad	ap_obj_vs_str	up_false	ui_bad	outer_after_nested
+0	0	0	0	0
 # End of 11.4 tests
