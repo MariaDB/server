@@ -892,15 +892,15 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 
 /**
   Convert TIME/DATE/DATETIME value to String.
-  @param l_time   DATE value
+  @param ltime    TIME, DATE or DATETIME value
   @param OUT str  String to convert to
   @param dec      Number of fractional digits.
+  @return true on out of memory (already reported)
 */
 bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec)
 {
-  if (str->alloc(MAX_DATE_STRING_REP_LENGTH))
+  if (Temporal::to_string_alloc(str))
     return true;
-  str->set_charset(&my_charset_numeric);
   str->length(my_TIME_to_str(ltime, const_cast<char*>(str->ptr()), dec));
   return false;
 }
@@ -934,6 +934,14 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
 
   sign= (interval.neg == (bool)ltime->neg ? 1 : -1);
 
+  /*
+    Years are 0..9999, so no interval of 10000 years or more, or of
+    120000 months or more, gives a valid date. Check it before the
+    signed arithmetic below, which can overflow.
+  */
+  if (interval.year >= 10000L || interval.month >= 120000L)
+    goto invalid_date;
+
   switch (int_type) {
   case INTERVAL_SECOND:
   case INTERVAL_SECOND_MICROSECOND:
@@ -958,7 +966,8 @@ bool date_add_interval(THD *thd, MYSQL_TIME *ltime, interval_type int_type,
     if (((ulonglong) interval.day +
          (ulonglong) interval.hour / 24 +
          (ulonglong) interval.minute / 24 / 60 +
-         (ulonglong) interval.second / 24 / 60 / 60) > MAX_DAY_NUMBER)
+         (ulonglong) interval.second / 24 / 60 / 60 +
+         interval.second_part / 24 / 60 / 60 / 1000000) > MAX_DAY_NUMBER)
       goto invalid_date;
 
     if (time_type != MYSQL_TIMESTAMP_TIME)

@@ -3416,4 +3416,44 @@ t1	CREATE TABLE `t1` (
   `c2` varchar(3) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t0, t1;
+#
+# MDEV-41643 Temporal to_string() returns a String with unset length
+#            when allocation fails
+#
+# A subquery value that fails conversion to a temporal value
+create table t1 (s varchar(10));
+insert into t1 values ('abc');
+select (select s from t1) = date'2000-01-01' as d,
+'abc' = date'2000-01-01' as d2;
+d	d2
+0	0
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'abc'
+Warning	1292	Truncated incorrect datetime value: 'abc'
+select (select s from t1) = timestamp'2000-01-01 00:00:00' as dt,
+'abc' = timestamp'2000-01-01 00:00:00' as dt2;
+dt	dt2
+0	0
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'abc'
+Warning	1292	Truncated incorrect datetime value: 'abc'
+create table t2 (t timestamp);
+insert into t2 values ('2000-01-01 00:00:00');
+select t = (select s from t1) as ts from t2;
+ts
+0
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'abc'
+select t = 'abc' as ts2 from t2;
+ts2
+0
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'abc'
+select (select s from t1) in (date'2000-01-01', 0) as i;
+i
+1
+Warnings:
+Warning	1292	Truncated incorrect datetime value: 'abc'
+Warning	1292	Truncated incorrect DECIMAL value: 'abc'
+drop table t1, t2;
 # End of 10.11 tests

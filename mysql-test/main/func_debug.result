@@ -1967,3 +1967,140 @@ Warning	1292	Truncated incorrect DECIMAL value: '0x'
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";
+#
+# MDEV-41643 Temporal to_string() returns a String with unset length
+#            when allocation fails
+#
+# NULL from to_string() does not stick to the next execution
+set @save_dbug= @@debug_dbug;
+prepare s1 from "select trim(time'10:00:00') as t";
+prepare s2 from "select trim(date'2000-01-01') as d";
+prepare s3 from "select trim(timestamp'2000-01-01 10:00:00') as dt";
+set debug_dbug= '+d,temporal_to_string_oom';
+execute s1;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s2;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s3;
+ERROR HY000: Out of memory (Needed 32 bytes)
+set debug_dbug= @save_dbug;
+execute s1;
+t
+10:00:00
+execute s2;
+d
+2000-01-01
+execute s3;
+dt
+2000-01-01 10:00:00
+deallocate prepare s1;
+deallocate prepare s2;
+deallocate prepare s3;
+# NULL from val_str() of a subquery, a cache or a function is not
+# taken for a value
+create table t1 (t time, d date, dt datetime, ts timestamp);
+insert into t1 values
+('10:00:00', '2000-01-01', '2000-01-01 10:00:00', '2000-01-01 10:00:00'),
+('11:00:00', '2000-01-02', '2000-01-02 11:00:00', '2000-01-02 11:00:00');
+prepare s4 from "select left((select t from t1 order by t limit 1), 2) as l";
+prepare s5 from "select left((select d from t1 order by t limit 1), 4) as l";
+prepare s6 from "select left((select dt from t1 order by t limit 1), 4) as l";
+prepare s7 from "select left((select ts from t1 order by t limit 1), 4) as l";
+prepare s8 from "select left(greatest(time'10:00:00', time'09:00:00'), 2) as l";
+prepare s9 from "select left(addtime(time'10:00:00', '01:00:00'), 2) as l";
+prepare s10 from
+"select left(cast(time'10:00:00' as interval day_second(0)), 2) as l";
+set debug_dbug= '+d,temporal_to_string_oom';
+execute s4;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s5;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s6;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s7;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s8;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s9;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s10;
+ERROR HY000: Out of memory (Needed 32 bytes)
+set debug_dbug= @save_dbug;
+execute s4;
+l
+10
+execute s5;
+l
+2000
+execute s6;
+l
+2000
+execute s7;
+l
+2000
+execute s8;
+l
+10
+execute s9;
+l
+11
+execute s10;
+l
+10
+deallocate prepare s4;
+deallocate prepare s5;
+deallocate prepare s6;
+deallocate prepare s7;
+deallocate prepare s8;
+deallocate prepare s9;
+deallocate prepare s10;
+# NULL from val_str() does not stick for the other accessors
+prepare s5 from "select t + 0 as n, concat(t) as c
+                 from (select time'10:00:00' as t from t1) dt";
+prepare s6 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select curtime() as t from t1) dt";
+prepare s7 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select curdate() as t from t1) dt";
+prepare s8 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select now() as t from t1) dt";
+prepare s9 from "select t + 0 >= 0 as n, concat(t) is null as c
+                 from (select sysdate() as t from t1) dt";
+set debug_dbug= '+d,temporal_to_string_oom';
+execute s5;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s6;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s7;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s8;
+ERROR HY000: Out of memory (Needed 32 bytes)
+execute s9;
+ERROR HY000: Out of memory (Needed 32 bytes)
+set debug_dbug= @save_dbug;
+execute s5;
+n	c
+100000	10:00:00
+100000	10:00:00
+execute s6;
+n	c
+1	0
+1	0
+execute s7;
+n	c
+1	0
+1	0
+execute s8;
+n	c
+1	0
+1	0
+execute s9;
+n	c
+1	0
+1	0
+deallocate prepare s5;
+deallocate prepare s6;
+deallocate prepare s7;
+deallocate prepare s8;
+deallocate prepare s9;
+drop table t1;
+# End of 10.11 tests

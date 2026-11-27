@@ -1384,22 +1384,22 @@ bool get_interval_value(THD *thd, Item *args,
 
   switch (int_type) {
   case INTERVAL_YEAR:
-    interval->year= (ulong) value;
+    interval->year= adjust_interval_field_uint32(value, 1);
     break;
   case INTERVAL_QUARTER:
     interval->month= adjust_interval_field_uint32(value, 3);
     break;
   case INTERVAL_MONTH:
-    interval->month= (ulong) value;
+    interval->month= adjust_interval_field_uint32(value, 1);
     break;
   case INTERVAL_WEEK:
     interval->day= adjust_interval_field_uint32(value, 7);
     break;
   case INTERVAL_DAY:
-    interval->day= (ulong) value;
+    interval->day= adjust_interval_field_uint32(value, 1);
     break;
   case INTERVAL_HOUR:
-    interval->hour= (ulong) value;
+    interval->hour= adjust_interval_field_uint32(value, 1);
     break;
   case INTERVAL_MICROSECOND:
     interval->second_part=value;
@@ -1413,20 +1413,20 @@ bool get_interval_value(THD *thd, Item *args,
   case INTERVAL_YEAR_MONTH:			// Allow YEAR-MONTH YYYYYMM
     if (get_interval_info(str,length,cs,2,array,0))
       return (1);
-    interval->year=  (ulong) array[0];
-    interval->month= (ulong) array[1];
+    interval->year=  adjust_interval_field_uint32(array[0], 1);
+    interval->month= adjust_interval_field_uint32(array[1], 1);
     break;
   case INTERVAL_DAY_HOUR:
     if (get_interval_info(str,length,cs,2,array,0))
       return (1);
-    interval->day=  (ulong) array[0];
-    interval->hour= (ulong) array[1];
+    interval->day=  adjust_interval_field_uint32(array[0], 1);
+    interval->hour= adjust_interval_field_uint32(array[1], 1);
     break;
   case INTERVAL_DAY_MICROSECOND:
     if (get_interval_info(str,length,cs,5,array,1))
       return (1);
-    interval->day=    (ulong) array[0];
-    interval->hour=   (ulong) array[1];
+    interval->day=    adjust_interval_field_uint32(array[0], 1);
+    interval->hour=   adjust_interval_field_uint32(array[1], 1);
     interval->minute= array[2];
     interval->second= array[3];
     interval->second_part= array[4];
@@ -1434,22 +1434,22 @@ bool get_interval_value(THD *thd, Item *args,
   case INTERVAL_DAY_MINUTE:
     if (get_interval_info(str,length,cs,3,array,0))
       return (1);
-    interval->day=    (ulong) array[0];
-    interval->hour=   (ulong) array[1];
+    interval->day=    adjust_interval_field_uint32(array[0], 1);
+    interval->hour=   adjust_interval_field_uint32(array[1], 1);
     interval->minute= array[2];
     break;
   case INTERVAL_DAY_SECOND:
     if (get_interval_info(str,length,cs,4,array,0))
       return (1);
-    interval->day=    (ulong) array[0];
-    interval->hour=   (ulong) array[1];
+    interval->day=    adjust_interval_field_uint32(array[0], 1);
+    interval->hour=   adjust_interval_field_uint32(array[1], 1);
     interval->minute= array[2];
     interval->second= array[3];
     break;
   case INTERVAL_HOUR_MICROSECOND:
     if (get_interval_info(str,length,cs,4,array,1))
       return (1);
-    interval->hour=   (ulong) array[0];
+    interval->hour=   adjust_interval_field_uint32(array[0], 1);
     interval->minute= array[1];
     interval->second= array[2];
     interval->second_part= array[3];
@@ -1457,13 +1457,13 @@ bool get_interval_value(THD *thd, Item *args,
   case INTERVAL_HOUR_MINUTE:
     if (get_interval_info(str,length,cs,2,array,0))
       return (1);
-    interval->hour=   (ulong) array[0];
+    interval->hour=   adjust_interval_field_uint32(array[0], 1);
     interval->minute= array[1];
     break;
   case INTERVAL_HOUR_SECOND:
     if (get_interval_info(str,length,cs,3,array,0))
       return (1);
-    interval->hour=   (ulong) array[0];
+    interval->hour=   adjust_interval_field_uint32(array[0], 1);
     interval->minute= array[1];
     interval->second= array[2];
     break;
@@ -1549,7 +1549,8 @@ bool Item_func_curdate::get_date(THD *thd, MYSQL_TIME *res,
     ltime.time_type= MYSQL_TIMESTAMP_DATE;
   }
   *res=ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 
@@ -1575,7 +1576,8 @@ bool Item_func_curtime::get_date(THD *thd, MYSQL_TIME *res,
     store_now_in_TIME(thd, &ltime);
   }
   *res= ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 void Item_func_curtime::print(String *str, enum_query_type query_type)
@@ -1705,7 +1707,8 @@ bool Item_func_now::get_date(THD *thd, MYSQL_TIME *res,
     store_now_in_TIME(thd, &ltime);
   }
   *res= ltime;
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 
@@ -1726,7 +1729,8 @@ bool Item_func_sysdate_local::get_date(THD *thd, MYSQL_TIME *res,
                                        date_mode_t fuzzydate __attribute__((unused)))
 {
   store_now_in_TIME(thd, res);
-  return 0;
+  /* Reset null_value that check_str() may have set. */
+  return (null_value= false);
 }
 
 bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
