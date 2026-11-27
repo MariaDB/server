@@ -1,0 +1,19 @@
+#
+# MDEV-41675 SIGSEGV in rtr_ins_enlarge_mbr() after a non-leaf
+#            R-tree page split had to be retried
+#
+SET @save_dbug=@@SESSION.debug_dbug;
+CREATE TABLE t1 (id VARBINARY(800) PRIMARY KEY, g POINT NOT NULL)
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT LPAD(seq, 800, '0'), POINT(seq, seq)
+FROM seq_1_to_12000;
+SET debug_dbug='+d,rtr_nonleaf_page_need_second_split';
+ALTER TABLE t1 ADD SPATIAL INDEX(g);
+INSERT INTO t1 SELECT LPAD(seq, 800, '0'), POINT(seq, seq)
+FROM seq_12001_to_20000;
+SET debug_dbug=@save_dbug;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 10.11 tests

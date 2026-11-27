@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-41675 SIGSEGV in rtr_ins_enlarge_mbr() after a non-leaf
+--echo #            R-tree page split had to be retried
+--echo #
+
+SET @save_dbug=@@SESSION.debug_dbug;
+
+# The long PRIMARY KEY makes the R-tree leaf pages hold few records,
+# so that the tree will grow to 3 levels. Every new point lies outside
+# the MBR of all existing points, so that the MBRs of all ancestor
+# pages must be enlarged on each insert.
+CREATE TABLE t1 (id VARBINARY(800) PRIMARY KEY, g POINT NOT NULL)
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT LPAD(seq, 800, '0'), POINT(seq, seq)
+FROM seq_1_to_12000;
+
+SET debug_dbug='+d,rtr_nonleaf_page_need_second_split';
+# spatial_index_info::insert() in row0merge.cc
+ALTER TABLE t1 ADD SPATIAL INDEX(g);
+# row_ins_sec_index_entry_low()
+INSERT INTO t1 SELECT LPAD(seq, 800, '0'), POINT(seq, seq)
+FROM seq_12001_to_20000;
+SET debug_dbug=@save_dbug;
+
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo # End of 10.11 tests
