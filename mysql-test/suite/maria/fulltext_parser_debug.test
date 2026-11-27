@@ -1,0 +1,82 @@
+--source include/have_maria.inc
+--source include/have_simple_parser.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/not_valgrind.inc
+--source include/not_crashrep.inc
+
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+
+--echo # Keep the durable repair result without replaying it
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+  ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t1 VALUES
+  ('abc-def'), ('abcd-efgh'), ('plain words'), ('other text'), ('more rows');
+
+# Closing the share makes repair log a new FILE_ID before REDO_REPAIR_TABLE.
+# The repair record is then strictly newer than protect_against_repair_crash's
+# skip_redo_lsn, even without concurrent writes to the log.
+FLUSH TABLES t1;
+SET SESSION debug_dbug='+d,maria_crash_after_repair_log';
+--source include/expect_crash.inc
+--disable_result_log
+# send/reap, so that --sp-protocol does not wrap the crashing statement
+--send REPAIR TABLE t1
+--error 2013,2026
+--reap
+--enable_result_log
+--source include/start_mysqld.inc
+
+# The table must be usable immediately, with the plugin's index intact.
+SELECT a FROM t1 WHERE MATCH(a) AGAINST('abc-def abcd') ORDER BY a;
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1;
+
+--echo # Recover changes committed after a bulk-insert repair record
+CREATE TABLE t_src (a TEXT) ENGINE=Aria;
+INSERT INTO t_src VALUES
+  ('abcd-efgh'), ('keep-one'), ('keep-two'),
+  ('update-before'), ('delete-before');
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+  ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+CREATE TABLE t_flush (a INT) ENGINE=Aria ROW_FORMAT=PAGE TRANSACTIONAL=1;
+INSERT INTO t_flush VALUES (0);
+
+# Establish an empty on-disk t1 before the bulk insert.
+--source include/restart_mysqld.inc
+--connect (bulk,localhost,root,,test)
+SET DEBUG_SYNC=
+  'maria_before_repair_log SIGNAL repair_ready WAIT_FOR log_advanced';
+--send INSERT INTO t1 SELECT a FROM t_src
+
+--connection default
+SET DEBUG_SYNC= 'now WAIT_FOR repair_ready';
+# The quick, keys-only repair has written t1's state. Advance the log before
+# its repair record, making that record strictly newer than is_of_horizon.
+# T_NO_CREATE_RENAME_LSN prevents the repair from updating the LSNs later.
+INSERT INTO t_flush VALUES (1);
+SET DEBUG_SYNC= 'now SIGNAL log_advanced';
+
+--connection bulk
+--reap
+SET DEBUG_SYNC= 'RESET';
+# Each statement commits. Keep the table open and its changed pages cached:
+# the .opt file disables checkpoints, and we do not flush or check t1.
+INSERT INTO t1 VALUES ('commit-one'), ('commit-two');
+UPDATE t1 SET a= 'update-after' WHERE a= 'update-before';
+DELETE FROM t1 WHERE a= 'delete-before';
+
+--connection default
+INSERT INTO t_flush VALUES (2);
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+--disconnect bulk
+
+SELECT a FROM t1 ORDER BY a;
+SELECT a FROM t1
+  WHERE MATCH(a) AGAINST('abcd-efgh commit-one update-after update-before')
+  ORDER BY a;
+CHECK TABLE t1 EXTENDED;
+DROP TABLE t1, t_src, t_flush;
+UNINSTALL PLUGIN simple_parser;
