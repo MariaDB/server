@@ -1,0 +1,96 @@
+# MDEV-42118: ordinary comments must not enter hint parsing
+SELECT 1 AS n /* arithmetic + isn't executable */;
+n
+1
+SELECT 2 AS n;
+n
+2
+SELECT 3 AS n /* punctuation ! isn't executable */;
+n
+3
+SELECT 4 AS n;
+n
+4
+SELECT 5 AS n /* later + "unmatched */;
+n
+5
+SELECT 6 AS n;
+n
+6
+SELECT 7 AS n /* later ! `unmatched */;
+n
+7
+SELECT 8 AS n;
+n
+8
+SELECT 9 AS n /* later *+ isn't an introducer */;
+n
+9
+SELECT 10 AS n;
+n
+10
+SELECT 11 AS n /* M! isn't at the introducer */;
+n
+11
+SELECT 12 AS n;
+n
+12
+SELECT 13 AS n /*M+ isn't executable */;
+n
+13
+SELECT 14 AS n;
+n
+14
+SELECT 15 AS n /**/;
+n
+15
+# Real hints and executable comments remain supported
+SELECT /*+ QB_NAME(q1) */ 16 AS n;
+n
+16
+SELECT /*+ QB_NAME(q2) */* FROM (SELECT 17 AS n) AS t;
+n
+17
+SELECT /*! 18 + */ 1 AS n;
+n
+19
+SELECT /*!100000 19 + */ 1 AS n;
+n
+20
+SELECT /*M! 20 + */ 1 AS n;
+n
+21
+SELECT /*M!100000 21 + */ 1 AS n;
+n
+22
+SELECT /*! 'mysql;comment' */ AS s;
+s
+mysql;comment
+SELECT /*M! 'maria;comment' */ AS s;
+s
+maria;comment
+# Ordinary comments also preserve a custom delimiter
+SELECT 23 AS n /* later + isn't executable *///
+n
+23
+SELECT 24 AS n//
+n
+24
+# Leading comments, line breaks and closing-comment transitions
+/*!40101 SET @comment_probe='mysql;leading' */;
+SELECT @comment_probe AS s;
+s
+mysql;leading
+/*M!100000 SET @comment_probe='maria;leading' */;
+SELECT @comment_probe AS s;
+s
+maria;leading
+/* ordinary
++ isn't executable
+*/ SELECT 25 AS n;
+n
+25
+/* + */ SELECT 'after;comment' AS s;
+s
+after;comment
+SET @comment_probe=NULL;
