@@ -2362,35 +2362,29 @@ private:
     return true;
   }
 
-  /* Get the current position, accounting for the offset value, if present.
-     NOTE: This function does not check over/underflow.
-  */
+  /* Get the current position and detect unsigned wraparound. */
   void get_current_position()
   {
-    position = position_cursor.get_curr_rownum();
+    position= position_cursor.get_curr_rownum();
     overflowed= false;
     if (offset)
     {
-      if (offset_value < 0 &&
-          position + offset_value > position)
-      {
-        overflowed= true;
-      }
-      if (offset_value > 0 &&
-          position + offset_value < position)
-      {
-        overflowed= true;
-      }
-      position += offset_value;
+      const bool preceding= negative_offset != offset_value.neg();
+      const ulonglong magnitude= offset_value.abs();
+      const ha_rows target= preceding ? position - magnitude :
+                                         position + magnitude;
+      overflowed= preceding ? target > position : target < position;
+      position= target;
     }
   }
 
   void save_offset_value()
   {
     if (offset)
-      offset_value= offset->val_int() * (negative_offset ? -1 : 1);
-    else
-      offset_value= 0;
+    {
+      const longlong value= offset->val_int();
+      offset_value= Longlong_hybrid(value, offset->unsigned_flag);
+    }
   }
 
   void save_positional_value()
@@ -2412,7 +2406,7 @@ private:
   Item *offset;
   Table_read_cursor cursor;
   ha_rows position;
-  longlong offset_value;
+  Longlong_hybrid offset_value{0, false};
   bool overflowed;
 
   bool negative_offset;
