@@ -25,12 +25,12 @@ ERROR 42000: INSERT command denied to user 'u1'@'localhost' for table `d2`.`secr
 # DEFINER other than the current user needs SET USER
 CREATE DEFINER=root@localhost TRIGGER d1.tr BEFORE INSERT ON d1.t1
 FOR EACH ROW INSERT INTO d2.secret VALUES (CURRENT_USER());
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 CREATE DEFINER=root@localhost SQL SECURITY DEFINER VIEW d1.v1 AS SELECT a FROM d1.t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 # ALTER VIEW without DEFINER keeps the existing DEFINER (root)
 ALTER VIEW d1.v_root AS SELECT a + 1 AS a FROM d1.t1;
-ERROR 42000: Access denied; you need (at least one of) the SUPER, SET USER privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the SET USER privilege(s) for this operation
 # The view would give more column privileges than u1 has on d3.t2
 CREATE VIEW d4.v12 AS SELECT c1, c2 FROM d3.t1, d3.t2;
 ERROR 42000: create view command denied to user 'u1'@'localhost' for column 'c2' in table 'v12'
