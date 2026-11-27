@@ -374,10 +374,6 @@ row_merge_fts_doc_add_word_for_parser(
 	str.f_n_char = fts_get_token_size(
 		(CHARSET_INFO*)param->cs, word, ulint(word_len));
 
-	/* JAN: TODO: MySQL 5.7 FTS
-	ut_ad(boolean_info->position >= 0);
-	*/
-
 	ptr = static_cast<byte*>(ut_malloc_nokey(sizeof(row_fts_token_t)
 			+ sizeof(fts_string_t) + str.f_len));
 	fts_token = reinterpret_cast<row_fts_token_t*>(ptr);
@@ -390,9 +386,19 @@ row_merge_fts_doc_add_word_for_parser(
 	fts_token->text->f_n_char = str.f_n_char;
 	memcpy(fts_token->text->f_str, str.f_str, str.f_len);
 
-	/* JAN: TODO: MySQL 5.7 FTS
-	fts_token->position = boolean_info->position;
-	*/
+	/* The plugin API has no token position. Compute it as
+	fts_tokenize_add_word_for_parser() does: the byte offset of the
+	word in the document, kept increasing across its fields. Every
+	word takes a position, also one that row_merge_fts_doc_tokenize()
+	will not index (too short, too long or a stopword), so that
+	INSERT and ALTER TABLE store the same positions. */
+	ut_ad(!t_ctx->processed_len);
+	ulint	position = t_ctx->init_pos;
+	if (word >= param->doc && word < param->doc + param->length) {
+		position += ulint(word - param->doc);
+	}
+	fts_token->position = std::max(position, t_ctx->next_pos);
+	t_ctx->next_pos = fts_token->position + 1;
 
 	/* Add token to list */
 	UT_LIST_ADD_LAST(t_ctx->fts_token_list, fts_token);
@@ -628,11 +634,14 @@ row_merge_fts_doc_tokenize(
 		/* The third field is the position.
 		MySQL 5.7 changed the fulltext parser plugin interface
 		by adding MYSQL_FTPARSER_BOOLEAN_INFO::position.
-		Below we assume that the field is always 0. */
+		Without it, row_merge_fts_doc_add_word_for_parser()
+		computes the position of a parser token. */
 		ulint	pos = t_ctx->init_pos;
 		byte		position[4];
 		if (parser == NULL) {
 			pos += t_ctx->processed_len + inc - str.f_len;
+		} else {
+			pos = fts_token->position;
 		}
 		len = 4;
 		mach_write_to_4(position, pos);
@@ -849,6 +858,7 @@ loop:
 
 		if (doc_item && last_doc_id != doc_item->doc_id) {
 			t_ctx.init_pos = 0;
+			t_ctx.next_pos = 0;
 		}
 	}
 
@@ -909,6 +919,7 @@ loop:
 	if (doc_item != NULL) {
 		if (last_doc_id != doc_item->doc_id) {
 			t_ctx.init_pos = 0;
+			t_ctx.next_pos = 0;
 		}
 
 		retried = 0;
