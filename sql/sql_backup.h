@@ -34,7 +34,7 @@ private:
   /** argument of my_popen() for streaming backup, or nullptr */
   const char *const command{nullptr};
   /** number of concurrent threads to use */
-  int threads;
+  int threads{1};
   /** option for backing up binlog files */
   enum_binlog_option m_binlog_option{BINLOG_FULL};
 
@@ -42,17 +42,14 @@ public:
   /**
      Constructor.
      @param target   name of target or scratch directory
-     @param threads  number of concurrent threads to use
   */
-  Sql_cmd_backup(LEX_CSTRING target, int threads) :
-    target(target.str), threads(threads) {}
+  Sql_cmd_backup(LEX_CSTRING target) : target(target.str) {}
   /**
      Constructor.
-     @param threads  number of concurrent threads to use
-     @param command  nullptr, or a shell command for handling a backup stream
+     @param command  a shell command for handling a backup stream
   */
-  Sql_cmd_backup(int threads, LEX_CSTRING command) :
-    command(command.str), threads(threads) {}
+  Sql_cmd_backup(LEX_CSTRING command, bool) : command(command.str) {}
+  Sql_cmd_backup()= default;
   ~Sql_cmd_backup()= default;
 
   bool execute(THD *thd) override;

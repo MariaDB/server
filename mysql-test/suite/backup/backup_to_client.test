@@ -1,0 +1,5 @@
+--error ER_DATA_OUT_OF_RANGE
+BACKUP SERVER OPTIONS CONCURRENT=2;
+--disable_ps_protocol
+BACKUP SERVER;
+--enable_ps_protocol
