@@ -211,3 +211,12 @@ format_pico_time(5e3)
 SELECT format_pico_time(6e2);
 format_pico_time(6e2)
 600 ps
+#
+# MDEV-42322 Preserve the unit for negative values with three-digit exponents
+#
+SELECT FORMAT_PICO_TIME(-1e126) AS time, LENGTH(FORMAT_PICO_TIME(-1e126)) AS len;
+time	len
+-1.16e+109 d	12
+#
+# End of 11.4 tests
+#
