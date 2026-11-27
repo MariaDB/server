@@ -1191,3 +1191,20 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-41929 NULLIF-wrapped integer multiplication reports VARCHAR(3) for
+--echo # the value 9801
+--echo #
+--sorted_result
+SELECT CONCAT(NULLIF(99,0) * NULLIF(99,0)) AS c UNION SELECT 'x';
+CREATE TABLE t1 AS SELECT CONCAT(NULLIF(99,0) * NULLIF(99,0)) AS wrapped,
+                          CONCAT(99 * 99) AS direct,
+                          NULLIF(99,0) * NULLIF(99,0) AS product;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
