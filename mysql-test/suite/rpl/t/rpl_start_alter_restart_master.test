@@ -11,6 +11,10 @@
 
 --connection slave
 --source include/stop_slave.inc
+# The slave binary log shown below depends on whether mysql.gtid_slave_pos
+# is non-transactional, and previous tests may have changed its engine
+SET STATEMENT sql_log_bin=0 FOR
+  ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 CHANGE MASTER TO MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 
