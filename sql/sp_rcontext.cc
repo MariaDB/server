@@ -141,8 +141,27 @@ bool Row_definition_list::
   Item *arg;
   while ((def= it++) && (arg= it_args++))
   {
+    if (!(arg= thd->sp_fix_func_item(&arg)))
+      return true;
+    if (def->type_handler()->adjust_spparam_charset(def, arg))
+      return true;
     if (def->type_handler()->adjust_spparam_type(def, arg))
       return true;
+  }
+  while (def)
+  {
+    Item *default_item= def->default_item_value;
+
+    if (default_item && def->any_cs)
+    {
+      if (!(default_item= thd->sp_fix_func_item(&default_item)))
+        return true;
+      if (def->type_handler()->adjust_spparam_charset(def, default_item))
+        return true;
+      if (def->type_handler()->adjust_spparam_type(def, default_item))
+        return true;
+    }
+    def= it++;
   }
   return false;
 }
@@ -157,8 +176,27 @@ bool Row_definition_list::
   Spvar_definition *def;
   for (uint i= 0; (def= it++) && (i < arg_count) ; i++)
   {
-    if (def->type_handler()->adjust_spparam_type(def, args[i]))
+    Item *arg= args[i];
+    if (!(arg= thd->sp_fix_func_item(&arg)))
       return true;
+    if (def->type_handler()->adjust_spparam_charset(def, arg))
+      return true;
+    if (def->type_handler()->adjust_spparam_type(def, arg))
+      return true;
+  }
+  while (def)
+  {
+    Item *default_item= def->default_item_value;
+    if (default_item && def->any_cs)
+    {
+      if (!(default_item= thd->sp_fix_func_item(&default_item)))
+        return true;
+      if (def->type_handler()->adjust_spparam_charset(def, default_item))
+        return true;
+      if (def->type_handler()->adjust_spparam_type(def, default_item))
+        return true;
+    }
+    def= it++;
   }
   return false;
 }
@@ -349,6 +387,44 @@ bool Row_definition_list::resolve_type_refs(THD *thd)
   return false;
 };
 
+/*
+  Resolve CHARACTER SET OF var / var%CHARSET at call time.
+
+  The list is ordered by variable offset (see
+  sp_pcontext::retrieve_field_definitions), and an anchor source always has
+  a smaller offset than the variable anchored to it. So one forward pass
+  sees every source resolved before the variables that use it.
+*/
+bool Row_definition_list::resolve_charset_refs(THD *thd)
+{
+  Spvar_definition **by_offset=
+    (Spvar_definition **) thd->alloc(elements * sizeof(Spvar_definition *));
+  if (!by_offset)
+    return true;
+
+  List_iterator<Spvar_definition> it(*this);
+  Spvar_definition *def;
+  for (uint i= 0; (def= it++); i++)
+  {
+    by_offset[i]= def;
+    if (!def->has_charset_anchor())
+      continue;
+
+    const uint src_offset= def->charset_anchor_offset();
+    DBUG_ASSERT(src_offset < i);
+    if (src_offset >= i)                 // should not happen, parse time checks it
+      return true;
+
+    const Spvar_definition *src= by_offset[src_offset];
+    CHARSET_INFO *old_cs= def->charset;
+    CHARSET_INFO *new_cs= src->charset;
+    if (!old_cs || !new_cs || old_cs == new_cs)
+      continue;
+    if (def->type_handler()->adjust_spparam_charset_to(def, new_cs))
+      return true;
+  }
+  return false;
+}
 
 Item_field_row *Spvar_definition::make_item_field_row(THD *thd,
                                                       Field_row *field)

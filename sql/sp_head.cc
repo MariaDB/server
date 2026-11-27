@@ -1023,8 +1023,12 @@ sp_head::create_result_field(uint field_max_length,
     has not been called yet. It's called after create_result_field().
 
     2b. During EXEC:
-    field_max_length is set to the maximum possible octet length of the
-    RETURNS data type.
+    field_max_length is 0, because Item_func_sp::cleanup() and
+    Item_sum_sp::cleanup() reset max_length, so a value left from the
+    previous execution is not passed here.
+    Item_sum_sp::copy_or_same() (ROLLUP) is the exception: it passes
+    the max_length of an already fixed item, set according to the
+    RETURNS data type:
     - N for CHAR(N) CHARACTER SET latin1  (octet length)
     - 3*N for CHAR(N) CHARACTER SET utf8  (octet length)
     - 255 for TINYBLOB                    (octet length, not packed length !!!)
@@ -1703,6 +1707,8 @@ sp_rcontext *sp_head::rcontext_create(THD *thd, Field *ret_value,
                                       Row_definition_list *defs,
                                       bool switch_security_ctx)
 {
+  if ((m_flags & HAS_CHARSET_REFS) && defs->resolve_charset_refs(thd))
+    return NULL;
   if (!(m_flags & HAS_COLUMN_TYPE_REFS))
     return sp_rcontext::create(thd, this, m_pcont, ret_value, *defs);
   sp_rcontext *res= NULL;
@@ -1997,6 +2003,22 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   */
   if (!(*func_ctx))
   {
+    for (arg_no= 0; arg_no < argcount; arg_no++)
+    {
+      /* Arguments must be fixed in Item_func_sp::fix_fields */
+      DBUG_ASSERT(argp[arg_no]->fixed());
+
+      sp_variable *spvar= m_pcont->find_variable(arg_no);
+      if (spvar->mode != sp_variable::MODE_IN)
+      {
+        Settable_routine_parameter *srp=
+        argp[arg_no]->get_settable_routine_parameter();
+        if (srp)
+        {
+          srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
+        }
+      }
+    }
     thd->set_n_backup_active_arena(call_arena, &backup_arena);
 
     if (!(*func_ctx= rcontext_create(thd, return_value_fld, argp, argcount)))
@@ -2227,6 +2249,26 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (m_parent && m_parent->instantiate_if_needed(thd))
     DBUG_RETURN(true);
 
+  List_iterator<Item> it_args(*args);
+  for (uint i= 0 ; i < params ; i++)
+  {
+    Item *arg_item= it_args++;
+
+    if (!arg_item)
+      break;
+
+    sp_variable *spvar= m_pcont->find_variable(i);
+    if (spvar->mode != sp_variable::MODE_IN)
+    {
+      Settable_routine_parameter *srp=
+      arg_item->get_settable_routine_parameter();
+      if (srp)
+      {
+        srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
+      }
+    }
+  }
+
   if (args->elements < (params - default_params) ||
       args->elements > params)
   {
@@ -2281,7 +2323,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
   if (params > 0)
   {
-    List_iterator<Item> it_args(*args);
+    it_args.rewind();
 
     DBUG_PRINT("info",(" %.*s: eval args", (int) m_name.length, m_name.str));
 
@@ -2461,11 +2503,17 @@ sp_head::bind_input_param(THD *thd,
     DBUG_RETURN(true);
   }
 
+  Settable_routine_parameter *srp=
+      arg_item->get_settable_routine_parameter();
+  if (spvar->mode != sp_variable::MODE_IN &&
+      srp && spvar->field_def.any_cs && !srp->can_handle_any_cs())
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS", "this kind of argument");
+    DBUG_RETURN(TRUE);
+  }
+
   if (spvar->mode != sp_variable::MODE_IN)
   {
-    Settable_routine_parameter *srp=
-      arg_item->get_settable_routine_parameter();
-
     if (!srp)
     {
       my_error(ER_SP_NOT_VAR_ARG, MYF(0), arg_no+1, ErrConvDQName(this).ptr());
@@ -2489,8 +2537,6 @@ sp_head::bind_input_param(THD *thd,
         DBUG_RETURN(TRUE);
       }
     }
-
-    srp->set_required_privilege(spvar->mode == sp_variable::MODE_INOUT);
   }
 
   if (spvar->mode == sp_variable::MODE_OUT)

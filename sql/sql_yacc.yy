@@ -392,6 +392,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <NONE> IMPOSSIBLE_ACTION      /* To avoid warning for yyerrlab1 */
 %token  <NONE> FORCE_LOOKAHEAD        /* INTERNAL never returned by the lexer */
 %token  <NONE> END_OF_INPUT           /* INTERNAL */
+%token  <NONE> CHARSET_OF_SYM         /* INTERNAL */
 %token  <kwd>  COLON_ORACLE_SYM       /* INTERNAL */
 %token  <kwd>  PARAM_MARKER           /* INTERNAL */
 %token  <NONE> FOR_SYSTEM_TIME_SYM    /* INTERNAL */
@@ -1883,7 +1884,7 @@ rule:
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spname> sp_name
 %type <spvar> sp_param_name sp_param_name_and_mode sp_param
-%type <spvar> sp_param_init_vars sp_param_default
+%type <spvar> sp_param_init_vars sp_param_type_done sp_param_default
 %type <spvar> sp_param_name_and_mode_init_vars
 %type <spvar> sp_param_anchored
 %type <for_loop> sp_for_loop_index_and_bounds
@@ -3355,7 +3356,19 @@ sp_param_name:
 sp_param_name_and_mode_init_vars:
           sp_param_name_and_mode
           {
+            const bool any_cs_allowed= !Lex->m_sp_cursor_params;
             Lex->sp_variable_declarations_init(thd, 1);
+            Lex->m_charset_anchor_allowed= true;
+            Lex->m_any_cs_allowed= any_cs_allowed;
+            $$= $1;
+          }
+        ;
+
+sp_param_type_done:
+          sp_param_init_vars
+          {
+            Lex->m_any_cs_allowed= false;
+            Lex->m_charset_anchor_allowed= false;
             $$= $1;
           }
         ;
@@ -3390,7 +3403,7 @@ sp_parenthesized_pdparam_list:
         ;
 
 sp_param_default:
-          sp_param_init_vars sp_opt_default
+          sp_param_type_done sp_opt_default
           {
             if (unlikely(Lex->sp_param_set_default_and_finalize(($$= $1), $2.expr, $2.expr_str)))
               MYSQL_YYABORT;
@@ -3398,7 +3411,7 @@ sp_param_default:
         ;
 
 sp_param:
-          sp_param_init_vars
+          sp_param_type_done
           {
             if (unlikely(Lex->sp_param_set_default_and_finalize(($$= $1), nullptr, empty_clex_str)))
               MYSQL_YYABORT;
@@ -3516,6 +3529,7 @@ sp_decl_idents_init_vars:
           sp_decl_idents
           {
             Lex->sp_variable_declarations_init(thd, $1);
+            Lex->m_charset_anchor_allowed= true;
           }
         ;
 
@@ -3525,6 +3539,7 @@ sp_decl_variable_list:
           {
             Lex->last_field->set_attributes(thd, $2,
                                             COLUMN_DEFINITION_ROUTINE_LOCAL);
+            Lex->m_charset_anchor_allowed= false;
           }
           sp_opt_default
           {
@@ -3536,12 +3551,16 @@ sp_decl_variable_list:
             $$.init_using_vars($1);
           }
         | sp_decl_idents_init_vars
-          ROW_SYM row_type_body
+          ROW_SYM
+          {
+            Lex->m_charset_anchor_allowed= false;
+          }
+          row_type_body
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_row_finalize(thd, $1, $3,
-                                                                    $4.expr,
-                                                                    $4.expr_str)))
+            if (unlikely(Lex->sp_variable_declarations_row_finalize(thd, $1, $4,
+                                                                    $5.expr,
+                                                                    $5.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -3565,7 +3584,14 @@ sp_decl_handler:
 
 opt_parenthesized_cursor_formal_parameters:
           /* Empty */
-        | '(' sp_fdparams_no_default ')'
+        | '('
+          {
+            Lex->m_sp_cursor_params= true;
+          }
+          sp_fdparams_no_default ')'
+          {
+            Lex->m_sp_cursor_params= false;
+          }
         ;
 
 
@@ -6858,10 +6884,28 @@ charset:
 charset_name:
           ident_or_text
           {
-            myf utf8_flag= thd->get_utf8_flag();
-            if (unlikely(!($$=get_charset_by_csname($1.str, MY_CS_PRIMARY,
-                                                    MYF(utf8_flag)))))
-              my_yyabort_error((ER_UNKNOWN_CHARACTER_SET, MYF(0), $1.str));
+            /*
+              ANY_CS is valid only in the data type of a routine parameter.
+              m_any_cs_allowed is set in sp_param_name_and_mode_init_vars and
+              cleared in sp_param_type_done, and for ROW and cursor parameters.
+            */
+            if (lex_string_eq(&$1, STRING_WITH_LEN("ANY_CS")))
+            {
+              if (unlikely(!Lex->m_any_cs_allowed))
+              {
+                my_error(ER_WRONG_USAGE, MYF(0), "CHARACTER SET ANY_CS",
+                         "non-parameter definitions");
+                MYSQL_YYABORT;
+              }
+              $$= &my_collation_contextually_typed_any_cs;
+            }
+            else
+            {
+              myf utf8_flag= thd->get_utf8_flag();
+              if (unlikely(!($$=get_charset_by_csname($1.str, MY_CS_PRIMARY,
+                                                      MYF(utf8_flag)))))
+                my_yyabort_error((ER_UNKNOWN_CHARACTER_SET, MYF(0), $1.str));
+            }
           }
         | BINARY { $$= &my_charset_bin; }
         ;
@@ -6939,21 +6983,30 @@ binary:
           }
         | charset_or_alias
           {
-            $$.set_charset(Lex_exact_charset($1));
+            if ($1 == &my_collation_contextually_typed_any_cs)
+              $$.set_collation_contextually_typed_any_cs();
+            else
+              $$.set_charset(Lex_exact_charset($1));
           }
         | charset_or_alias BINARY
           {
+            if (unlikely(Lex->reject_any_cs_combination($1)))
+              MYSQL_YYABORT;
             if ($$.set_charset_collate_binary(Lex_exact_charset($1)))
               MYSQL_YYABORT;
           }
         | BINARY { $$.set_contextually_typed_binary_style(); }
         | BINARY charset_or_alias
           {
+            if (unlikely(Lex->reject_any_cs_combination($2)))
+              MYSQL_YYABORT;
             if ($$.set_charset_collate_binary(Lex_exact_charset($2)))
               MYSQL_YYABORT;
           }
         | charset_or_alias COLLATE_SYM DEFAULT
           {
+            if (unlikely(Lex->reject_any_cs_combination($1)))
+              MYSQL_YYABORT;
             $$.set_charset_collate_default(
                  thd,
                  thd->variables.character_set_collations,
@@ -6961,6 +7014,8 @@ binary:
           }
         | charset_or_alias COLLATE_SYM collation_name
           {
+            if (unlikely(Lex->reject_any_cs_combination($1)))
+              MYSQL_YYABORT;
             if ($3.merge_exact_charset(
                      thd,
                      thd->variables.character_set_collations,
@@ -6978,6 +7033,8 @@ binary:
           }
         | charset_or_alias COLLATE_SYM BINARY // MySQL compatibility
           {
+            if (unlikely(Lex->reject_any_cs_combination($1)))
+              MYSQL_YYABORT;
             const Lex_exact_collation bin(&my_charset_bin);
             Lex_extended_collation tmp(bin);
             if (tmp.merge_exact_charset(thd,
@@ -6992,6 +7049,27 @@ binary:
             const Lex_extended_collation tmp(bin);
             $$= Lex_exact_charset_extended_collation_attrs(tmp);
           }
+%ifdef ORACLE
+        | charset sp_decl_ident PERCENT_ORACLE_SYM CHARSET
+          {
+            if (unlikely(!Lex->m_charset_anchor_allowed))
+            {
+              my_error(ER_WRONG_USAGE, MYF(0), "CHARSET OF",
+                       "non-routine definitions");
+              MYSQL_YYABORT;
+            }
+            $$.set_collate_default();
+            Lex->set_pending_charset_anchor(&$2);
+          }
+%else
+        | CHARSET_OF_SYM ident
+          {
+            /* The lexer returns CHARSET_OF_SYM only where CHARSET OF is valid */
+            DBUG_ASSERT(Lex->m_charset_anchor_allowed);
+            $$.set_collate_default();
+            Lex->set_pending_charset_anchor(&$2);
+          }
+%endif
         ;
 
 opt_bin_mod:
@@ -18855,8 +18933,12 @@ sf_returned_type_clause:
           {
             Lex->init_last_field(&Lex->sphead->m_return_field_def,
                                  &empty_clex_str);
+            Lex->m_charset_anchor_allowed= true;
           }
           sf_return_type
+          {
+            Lex->m_charset_anchor_allowed= false;
+          }
         ;
 
 sf_return_type:
@@ -18865,9 +18947,13 @@ sf_return_type:
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
           }
-        | ROW_SYM row_type_body
+        | ROW_SYM
           {
-            if (Lex->sf_return_fill_definition_row($2))
+            Lex->m_charset_anchor_allowed= false;
+          }
+          row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($3))
               MYSQL_YYABORT;
           }
         | ROW_SYM TYPE_SYM OF_SYM ident
@@ -19072,9 +19158,14 @@ sp_param_init_vars:
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name_and_mode_init_vars ROW_SYM row_type_body
+        | sp_param_name_and_mode_init_vars ROW_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+            Lex->m_any_cs_allowed= false;
+            Lex->m_charset_anchor_allowed= false;
+          }
+          row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $4)))
               MYSQL_YYABORT;
           }
         | sp_param_anchored
@@ -19349,8 +19440,12 @@ sf_returned_type_clause:
             LEX *lex= Lex;
             lex->init_last_field(&lex->sphead->m_return_field_def,
                                  &empty_clex_str);
+            Lex->m_charset_anchor_allowed= true;
           }
           sf_return_type
+          {
+            Lex->m_charset_anchor_allowed= false;
+          }
         ;
 
 sf_return_type:
@@ -19359,9 +19454,13 @@ sf_return_type:
             if (unlikely(Lex->sf_return_fill_definition($1)))
               MYSQL_YYABORT;
           }
-        | ROW_SYM row_type_body
+        | ROW_SYM
           {
-            if (Lex->sf_return_fill_definition_row($2))
+            Lex->m_charset_anchor_allowed= false;
+          }
+          row_type_body
+          {
+            if (Lex->sf_return_fill_definition_row($3))
               MYSQL_YYABORT;
           }
         | sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
@@ -19950,9 +20049,14 @@ sp_param_init_vars:
             if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name_and_mode_init_vars ROW_SYM row_type_body
+        | sp_param_name_and_mode_init_vars ROW_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+            Lex->m_any_cs_allowed= false;
+            Lex->m_charset_anchor_allowed= false;
+          }
+          row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $4)))
               MYSQL_YYABORT;
           }
         | sp_param_anchored
