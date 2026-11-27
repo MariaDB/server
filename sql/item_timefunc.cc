@@ -1846,16 +1846,33 @@ uint Item_func_date_format::format_length(const String *format)
   uint size= (is_time_format ||
               args[0]->type_handler()->mysql_timestamp_type() ==
               MYSQL_TIMESTAMP_TIME) ? 1 : 0;
-  const char *ptr=format->ptr();
-  const char *end=ptr+format->length();
+  const uchar *ptr= (const uchar*) format->ptr();
+  const uchar *end= ptr + format->length();
+  CHARSET_INFO *cs= format->charset();
+  MY_CHARSET_HANDLER *cset= cs->cset;
+  my_wc_t wc;
 
-  for (; ptr != end ; ptr++)
+  auto next_wc= [&]() -> bool {
+    int mblen= cset->mb_wc(cs, &wc, ptr, end);
+    if (mblen < 1)
+      return false;
+    ptr+= mblen;
+    return true;
+  };
+
+  while (ptr < end)
   {
-    if (*ptr != '%' || ptr == end-1)
+    if (!next_wc())
+      break;
+
+    if (wc != (my_wc_t) '%' || ptr >= end)
       size++;
     else
     {
-      switch(*++ptr) {
+      if (!next_wc())
+        break;
+
+      switch(wc) {
       case 'M': /* month, textual */
       case 'W': /* day (of the week), textual */
 	size += 64; /* large for UTF8 locale data */
