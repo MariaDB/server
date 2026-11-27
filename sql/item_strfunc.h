@@ -2612,8 +2612,7 @@ public:
 
 class Item_func_format_bytes : public Item_str_ascii_func
 {
-  /* Format is '-A.AAe+BB UUU' = 13 or 'AAAA.BB UUU' = 11 characters or 'AAAA bytes' = 10 characters. */
-  char m_value_buffer[14];
+  char m_value_buffer[sizeof("-9.99e+999 EiB")];
   String m_value;
 
 public:
@@ -2627,7 +2626,7 @@ public:
   bool fix_length_and_dec(THD *thd) override
   {
     m_value.set(m_value_buffer, sizeof(m_value_buffer), default_charset());
-    fix_length_and_charset(sizeof(m_value_buffer), default_charset());
+    fix_length_and_charset(sizeof(m_value_buffer) - 1, default_charset());
     return false;
   }
   Item *shallow_copy(THD *thd) const override
