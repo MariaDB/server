@@ -844,44 +844,91 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 
 
 /*
+  The repertoire the given character belongs to, as a constant expression,
+  so that it can also fill my_byte_repertoire[].
+*/
+#define MY_UINT_REPERTOIRE(ch)                                      \
+  ((ch) > 0x7F ? MY_REPERTOIRE_EXTENDED :                           \
+   (ch) >= 'A' && (ch) <= 'Z' ? MY_REPERTOIRE_ASCII_LETTERS_UPPER : \
+   (ch) >= 'a' && (ch) <= 'z' ? MY_REPERTOIRE_ASCII_LETTERS_LOWER : \
+   (ch) >= '0' && (ch) <= '9' ? MY_REPERTOIRE_ASCII_DIGITS :        \
+   (ch) == '_' ? MY_REPERTOIRE_ASCII_UNDERSCORE :                   \
+   (ch) == '.' ? MY_REPERTOIRE_ASCII_DOT :                          \
+   (ch) == '-' ? MY_REPERTOIRE_ASCII_MINUS :                        \
+   MY_REPERTOIRE_ASCII_NOT_IDENT)
+
+#define MY_UINT_REPERTOIRE_4(ch)                                    \
+  MY_UINT_REPERTOIRE(ch), MY_UINT_REPERTOIRE((ch) + 1),             \
+  MY_UINT_REPERTOIRE((ch) + 2), MY_UINT_REPERTOIRE((ch) + 3)
+#define MY_UINT_REPERTOIRE_16(ch)                                   \
+  MY_UINT_REPERTOIRE_4(ch), MY_UINT_REPERTOIRE_4((ch) + 4),         \
+  MY_UINT_REPERTOIRE_4((ch) + 8), MY_UINT_REPERTOIRE_4((ch) + 12)
+#define MY_UINT_REPERTOIRE_64(ch)                                   \
+  MY_UINT_REPERTOIRE_16(ch), MY_UINT_REPERTOIRE_16((ch) + 16),      \
+  MY_UINT_REPERTOIRE_16((ch) + 32), MY_UINT_REPERTOIRE_16((ch) + 48)
+
+/*
+  The repertoire of every byte value. All the MY_REPERTOIRE_XXX bits,
+  MY_REPERTOIRE_UNICODE30 included, fit into a byte: see the
+  compile_time_assert() in my_string_repertoire_8bit().
+*/
+static const uchar my_byte_repertoire[256]=
+{
+  MY_UINT_REPERTOIRE_64(0x00), MY_UINT_REPERTOIRE_64(0x40),
+  MY_UINT_REPERTOIRE_64(0x80), MY_UINT_REPERTOIRE_64(0xC0)
+};
+
+
+/*
   Return a repertoire the given character belongs to.
 */
 static inline uint my_uint_repertoire_generic(uint ch)
 {
-  if (ch > 0x7F)
-    return MY_REPERTOIRE_EXTENDED;
-  if (ch >= 'A' && ch <= 'Z')
-    return MY_REPERTOIRE_ASCII_LETTERS_UPPER;
-  if (ch >= 'a' && ch <= 'z')
-    return MY_REPERTOIRE_ASCII_LETTERS_LOWER;
-  if (ch >= '0' && ch <= '9')
-    return MY_REPERTOIRE_ASCII_DIGITS;
-  if (ch == '_')
-    return MY_REPERTOIRE_ASCII_UNDERSCORE;
-  if (ch == '.')
-    return MY_REPERTOIRE_ASCII_DOT;
-  if (ch == '-')
-    return MY_REPERTOIRE_ASCII_MINUS;
-  return MY_REPERTOIRE_ASCII_NOT_IDENT;
+  return MY_UINT_REPERTOIRE(ch);
 }
 
 
 uint
 my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, size_t length)
 {
-  const char *strend;
+  const uchar *s, *end;
   uint res= 0;
+  /* my_byte_repertoire[] holds every repertoire in a byte */
+  compile_time_assert(MY_REPERTOIRE_UNICODE30 <= 0xFF);
   if ((cs->state & MY_CS_NONASCII) && length > 0)
     return MY_REPERTOIRE_UNICODE30;
   if (!str) // Avoid UBSAN nullptr-with-offset
     return MY_REPERTOIRE_NONE;
-  for (strend= str + length; str < strend; str++)
+  /*
+    A string can be megabytes long, e.g. a BLOB parameter of a prepared
+    statement, and it is read to the end unless it has characters of
+    every repertoire. Look the bytes up in a table, 8 at a time.
+    Once every ASCII repertoire is found, only a byte above 0x7F can
+    change the result: test a machine word at a time for one.
+  */
+  for (s= (const uchar *) str, end= s + length;
+       end - s >= 8 &&
+       !my_repertoire_is_subset_of(MY_REPERTOIRE_ASCII, res);
+       s+= 8)
+    res|= my_byte_repertoire[s[0]] | my_byte_repertoire[s[1]] |
+          my_byte_repertoire[s[2]] | my_byte_repertoire[s[3]] |
+          my_byte_repertoire[s[4]] | my_byte_repertoire[s[5]] |
+          my_byte_repertoire[s[6]] | my_byte_repertoire[s[7]];
+  if (res == MY_REPERTOIRE_UNICODE30)
+    return res;
+#if SIZEOF_SIZE_T <= 8
+  if (my_repertoire_is_subset_of(MY_REPERTOIRE_ASCII, res))
   {
-    uint byte_repertoire= my_uint_repertoire_generic((uchar) *str);
-    res|= byte_repertoire;
-    if (res == MY_REPERTOIRE_UNICODE30)
-      return res;
+    for (size_t f; (size_t) (end - s) >= sizeof f; s+= sizeof f)
+    {
+      memcpy(&f, s, sizeof f);
+      if (f & (size_t) 0x8080808080808080ULL)
+        return MY_REPERTOIRE_UNICODE30;
+    }
   }
+#endif
+  for ( ; s < end; s++)
+    res|= my_byte_repertoire[*s];
   return res;
 }
 
@@ -894,6 +941,38 @@ my_string_metadata_init(MY_STRING_METADATA *metadata)
 }
 
 
+/*
+  Add the bytes below 0x80 at the start of a string of an ASCII based
+  character set to its metadata, as characters of one byte each.
+  Return the first byte above 0x7F, or the end of the string.
+  The bytes are tested 8 at a time, and looked up in a table until
+  every ASCII repertoire is found.
+*/
+static const char *
+my_string_metadata_add_ascii(MY_STRING_METADATA *metadata,
+                             const char *str, const char *strend)
+{
+  const uchar *s= (const uchar *) str, *end= (const uchar *) strend;
+  uint res= metadata->repertoire;
+  for (ulonglong f; end - s >= 8; s+= 8)
+  {
+    memcpy(&f, s, 8);
+    if (f & 0x8080808080808080ULL)
+      break;
+    if (!my_repertoire_is_subset_of(MY_REPERTOIRE_ASCII, res))
+      res|= my_byte_repertoire[s[0]] | my_byte_repertoire[s[1]] |
+            my_byte_repertoire[s[2]] | my_byte_repertoire[s[3]] |
+            my_byte_repertoire[s[4]] | my_byte_repertoire[s[5]] |
+            my_byte_repertoire[s[6]] | my_byte_repertoire[s[7]];
+  }
+  for ( ; s < end && *s < 0x80; s++)
+    res|= my_byte_repertoire[*s];
+  metadata->repertoire= (my_repertoire_t) res;
+  metadata->char_length+= s - (const uchar *) str;
+  return (const char *) s;
+}
+
+
 /**
   This should probably eventually go as a virtual function into
   MY_CHARSET_HANDLER or MY_COLLATION_HANDLER.
@@ -903,34 +982,55 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
                           CHARSET_INFO *cs, const char *str, ulong length)
 {
   const char *strend= str ? str + length : NULL; // Avoid UB nullptr+0
-  for (my_string_metadata_init(metadata) ;
+  /*
+    In an ASCII based character set a byte below 0x80 at the start of a
+    character is an ASCII character of its own. A string can be
+    megabytes long, e.g. a parameter of a prepared statement: when an
+    ASCII character is followed by more of them, take them without
+    decoding them. Test for them only after an ASCII character, so that
+    the characters above 0x7F are read as fast as before.
+  */
+  my_bool ascii_based= cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII);
+  /*
+    my_ci_mb_wc() is called through a pointer: in a local variable, the
+    metadata is not stored and loaded again around every call.
+  */
+  MY_STRING_METADATA m;
+  for (my_string_metadata_init(&m) ;
        str < strend;
-       metadata->char_length++)
+       m.char_length++)
   {
     my_wc_t wc;
     int mblen= my_ci_mb_wc(cs, &wc, (const uchar *) str, (const uchar *) strend);
     if (mblen > 0) /* Assigned character */
     {
-      uint wc_repertoire= my_uint_repertoire_generic((uint) wc);
-      metadata->repertoire|= wc_repertoire;
       str+= mblen;
+      if (wc > 0x7F)
+        m.repertoire|= MY_REPERTOIRE_EXTENDED;
+      else
+      {
+        m.repertoire|= my_byte_repertoire[wc];
+        if (ascii_based && str < strend && (uchar) *str < 0x80)
+          str= my_string_metadata_add_ascii(&m, str, strend);
+      }
     }
     else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      m.repertoire|= MY_REPERTOIRE_EXTENDED;
       str++;
     }
     else if (mblen > MY_CS_TOOSMALL) /* Unassigned character */ 
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      m.repertoire|= MY_REPERTOIRE_EXTENDED;
       str+= (-mblen);
     }
     else /* Incomplete character, premature end-of-line */
     {
-      metadata->repertoire|= MY_REPERTOIRE_EXTENDED; /* Just in case */
+      m.repertoire|= MY_REPERTOIRE_EXTENDED; /* Just in case */
       break;
     }
   }
+  *metadata= m;
 }
 
 

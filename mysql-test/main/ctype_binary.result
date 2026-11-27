@@ -3513,5 +3513,59 @@ DROP DATABASE db1;
 CREATE DATABASE db1 CHARACTER SET latin1 COLLATE binary;
 ERROR 42000: COLLATION 'binary' is not valid for CHARACTER SET 'latin1'
 #
+# MDEV-42316 A binary string parameter is read byte by byte on every execution to compute its repertoire, and since MDEV-41246 this read takes about 1.2 ms per MB of ASCII data
+#
+# The repertoire of a binary parameter is computed from its value.
+# A DATE_FORMAT() result takes the repertoire of its format, and
+# a latin1 result with the ASCII repertoire can be concatenated with
+# a non-ASCII cp1251 string. A byte above 0x7F makes the
+# concatenation an illegal mix, both when the byte is the last byte
+# of a whole machine word of the format and when it is the last
+# byte of the format. The byte is x'A9', the COPYRIGHT SIGN, which
+# cp1251 can also store, so only the repertoire makes the mix
+# illegal.
+#
+SET NAMES latin1;
+PREPARE s FROM 'SELECT HEX(CONCAT(DATE_FORMAT(''2001-01-01'', ?), _cp1251 x''E0'')) AS h';
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 19)) AS BINARY);
+EXECUTE s USING @fmt;
+h
+323030312D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2D2DE0
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 13), x'A9', REPEAT('-', 5)) AS BINARY);
+EXECUTE s USING @fmt;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp1251_general_ci,COERCIBLE) for operation 'concat'
+SET @fmt= CAST(CONCAT('%Y', REPEAT('-', 18), x'A9') AS BINARY);
+EXECUTE s USING @fmt;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp1251_general_ci,COERCIBLE) for operation 'concat'
+DEALLOCATE PREPARE s;
+SET NAMES binary;
+#
 # End of 10.11 tests
+#
+#
+# MDEV-42316 A binary string parameter is read byte by byte on every execution to compute its repertoire, and since MDEV-41246 this read takes about 1.2 ms per MB of ASCII data
+#
+# The format has characters of every ASCII repertoire in its first
+# 8 bytes, so the rest of it is tested a machine word at a time for
+# a byte above 0x7F, and the last bytes one by one. The byte x'A9'
+# makes the concatenation an illegal mix both as the last byte of
+# the word that follows the first 8 bytes and as the last byte of
+# the format.
+#
+SET NAMES latin1;
+PREPARE s FROM 'SELECT HEX(CONCAT(DATE_FORMAT(''2001-01-01'', ?), _cp1251 x''E0'')) AS h';
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 13)) AS BINARY);
+EXECUTE s USING @fmt;
+h
+3230303161305F2E2D3B2D2D2D2D2D2D2D2D2D2D2D2D2DE0
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 7), x'A9', REPEAT('-', 5)) AS BINARY);
+EXECUTE s USING @fmt;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp1251_general_ci,COERCIBLE) for operation 'concat'
+SET @fmt= CAST(CONCAT('%Ya0_.-;', REPEAT('-', 12), x'A9') AS BINARY);
+EXECUTE s USING @fmt;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (cp1251_general_ci,COERCIBLE) for operation 'concat'
+DEALLOCATE PREPARE s;
+SET NAMES binary;
+#
+# End of 11.8 tests
 #
