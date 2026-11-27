@@ -1803,9 +1803,11 @@ bool Item_func_date_format::eq(const Item *item, const Eq_config &config) const
     This needed because format modifiers with different case,
     for example %m and %M, have different meaning.
   */
-  if (!args[1]->eq(item_func->args[1], 1))
+  Eq_config new_config= config;
+  new_config.binary_cmp= true;
+  if (!args[1]->eq(item_func->args[1], new_config))
     return 0;
-  if (arg_count > 2 && !args[2]->eq(item_func->args[2], 1))
+  if (arg_count > 2 && !args[2]->eq(item_func->args[2], new_config))
     return 0;
   return 1;
 }
