@@ -56,7 +56,7 @@ ADD_LIBRARY(import_util STATIC import_util.cc import_util.h)
 IF (PCRE2_DEBIAN_HACK)
   SET_SOURCE_FILES_PROPERTIES(import_util.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
 ENDIF()
-TARGET_LINK_LIBRARIES(import_util PRIVATE pcre2-posix pcre2-8)
+TARGET_LINK_LIBRARIES(import_util PRIVATE MariaDB::pcre2-posix MariaDB::pcre2-8)
 TARGET_INCLUDE_DIRECTORIES(import_util PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
