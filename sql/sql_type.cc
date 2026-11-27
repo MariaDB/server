@@ -5314,6 +5314,14 @@ bool Type_handler::Item_get_date_with_warn(THD *thd, Item *item,
 }
 
 
+bool Type_handler::Item_func_hybrid_field_type_val_bool(
+    Item_func_hybrid_field_type *item) const
+{
+  /* Preserve the existing default boolean evaluation for non-hex types */
+  return item->Item::val_bool();
+}
+
+
 bool Type_handler::Item_func_hybrid_field_type_get_date_with_warn(THD *thd,
                                               Item_func_hybrid_field_type *item,
                                               MYSQL_TIME *ltime,
@@ -9183,6 +9191,17 @@ int Type_handler_hex_hybrid::
       Item_save_in_field(Item *item, Field *field, bool no_conversions) const
 {
   return item->save_hex_hybrid_in_field(field, no_conversions);
+}
+
+
+bool Type_handler_hex_hybrid::Item_func_hybrid_field_type_val_bool(
+    Item_func_hybrid_field_type *item) const
+{
+  /*
+    A hex hybrid is a number in a numeric context. Evaluate its Boolean
+    value from the integer value, not from the string bytes.
+  */
+  return item->val_int_from_hex_hybrid_str_op() != 0;
 }
 
 

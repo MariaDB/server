@@ -4623,6 +4623,8 @@ public:
                                               Item_func_hybrid_field_type *,
                                               my_decimal *) const= 0;
   virtual
+  bool Item_func_hybrid_field_type_val_bool(Item_func_hybrid_field_type *item) const;
+  virtual
   void Item_func_hybrid_field_type_get_date(THD *,
                                             Item_func_hybrid_field_type *,
                                             Temporal::Warn *,
@@ -7457,6 +7459,7 @@ public:
                          const override;
   bool Item_func_round_fix_length_and_dec(Item_func_round *) const override;
   bool Item_func_int_val_fix_length_and_dec(Item_func_int_val*) const override;
+  bool Item_func_hybrid_field_type_val_bool(Item_func_hybrid_field_type *item) const override;
   longlong Item_func_hybrid_field_type_val_int(Item_func_hybrid_field_type *)
                                                const override;
   double Item_func_hybrid_field_type_val_real(Item_func_hybrid_field_type *)
