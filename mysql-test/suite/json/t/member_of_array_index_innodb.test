@@ -55,8 +55,10 @@ CREATE TABLE t2 (
   INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
 ) ENGINE=InnoDB;
 
+SET @save_check_constraint= @@check_constraint_checks;
+SET check_constraint_checks= 0;
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
-INSERT INTO t2 VALUES (1, '{"a": 1}');
+INSERT INTO t2 VALUES (1, 'not json');
 
 --echo # nothing committed, and the table is not actually damaged
 SELECT * FROM t2;
@@ -64,7 +66,8 @@ CHECK TABLE t2;
 
 --echo # same for a multi-row INSERT with one bad row: all-or-nothing
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
-INSERT INTO t2 VALUES (1, '[1, 2]'), (2, '{"a": 1}'), (3, '[3, 4]');
+INSERT INTO t2 VALUES (1, '[1, 2]'), (2, 'not json'), (3, '[3, 4]');
+SET check_constraint_checks= @save_check_constraint;
 SELECT * FROM t2;
 
 --echo # the table must still be perfectly usable afterwards

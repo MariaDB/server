@@ -392,7 +392,7 @@ CREATE TABLE t11 (
   INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
 );
 INSERT INTO t11 VALUES (1, '[5, 6]'), (3, '[7, 8]');
-INSERT IGNORE INTO t11 VALUES (2, NULL);
+INSERT INTO t11 VALUES (2, NULL);
 
 --echo # NULL isn't a member of anything, and must not be found via the
 --echo # index either
@@ -420,7 +420,7 @@ CREATE TABLE t11b (
 --echo # IGNORE for row 3: its path doesn't match, so the generated column
 --echo # comes out NULL, which (like any other unindexable value) isn't a
 --echo # hard error, only an ignorable one -- see section 12
-INSERT IGNORE INTO t11b (id, doc) VALUES
+INSERT INTO t11b (id, doc) VALUES
   (1, '{"a": {"b": {"c": [1, 2, 3]}}}'),
   (2, '{"a": {"b": {"c": [3, 4, 5]}}}'),
   (3, '{"x": "no matching path"}');
@@ -451,16 +451,19 @@ CREATE TABLE t12 (
 );
 
 --echo # not a JSON array at all
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t12 VALUES (1, '{"a": 1}');
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t12 VALUES (2, '42');
 
 --echo # an array, but one of its elements is itself an array/object
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t12 VALUES (3, '[1, [2, 3]]');
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 INSERT INTO t12 VALUES (4, '[1, {"a": 1}]');
+
+--echo # not valid JSON
+SET @save_check_constraint= @@check_constraint_checks;
+SET check_constraint_checks= 0;
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+INSERT INTO t12 VALUES (5, '[1, 2');
+SET check_constraint_checks= @save_check_constraint;
 
 --echo # the base row of a failed INSERT is already written by the time
 --echo # json_index::insert_row() notices the problem (see handler.cc's
@@ -492,7 +495,9 @@ CREATE TABLE t12 (
   tags JSON NOT NULL,
   INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
 );
-INSERT IGNORE INTO t12 VALUES (10, '[3, 4]'), (11, '{"bad": 1}'), (12, '[5, 6]');
+SET check_constraint_checks= 0;
+INSERT IGNORE INTO t12 VALUES (10, '[3, 4]'), (11, 'not json'), (12, '[5, 6]');
+SET check_constraint_checks= @save_check_constraint;
 
 --echo # all three rows are there -- IGNORE doesn't drop the row, only the
 --echo # (impossible) array index entry for the one that can't be indexed
@@ -527,14 +532,18 @@ SELECT * FROM t12;
 --echo # of the (nonexistent) old entries must not block indexing the new
 --echo # value. INSERT IGNORE here only to get the bad value stored to begin
 --echo # with (see section 13)
-INSERT IGNORE INTO t12 VALUES (13, '{"still": "bad"}');
+SET check_constraint_checks= 0;
+INSERT IGNORE INTO t12 VALUES (13, 'still bad');
+SET check_constraint_checks= @save_check_constraint;
 UPDATE t12 SET tags = '[7, 8]' WHERE id=13;
 SELECT id FROM t12 WHERE 7 MEMBER OF (tags);
 
 --echo # an array that's valid up to a point: elements before the bad one
 --echo # are indexed normally (json_index::insert_row() stops at the first
 --echo # error, same as json_index::delete_row() does below)
-INSERT IGNORE INTO t12 VALUES (14, '[20, 21, {"bad": 1}]');
+SET check_constraint_checks= 0;
+INSERT IGNORE INTO t12 VALUES (14, '[20, 21, bad]');
+SET check_constraint_checks= @save_check_constraint;
 SELECT id FROM t12 WHERE 20 MEMBER OF (tags);
 SELECT id FROM t12 WHERE 21 MEMBER OF (tags);
 
@@ -872,5 +881,50 @@ SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 1 MEMBER OF (tags);
 --sorted_result
 SELECT id FROM t21 FORCE INDEX (arr_idx) WHERE 2 MEMBER OF (tags);
 DROP TABLE t21, t21_src;
+
+--echo #
+--echo # 22. MEMBER OF treats a scalar as a 1-element array and looks into
+--echo # nested arrays, so the index must too; objects and NULL have no
+--echo # entries, and none of these is an error
+--echo #
+CREATE TABLE t22 (
+  pk INT PRIMARY KEY,
+  js JSON,
+  INDEX i1 (CAST(js AS UNSIGNED ARRAY))
+);
+INSERT INTO t22 SELECT seq,
+  CONCAT('["value-', seq, '", "value-', seq + 1,
+         '", "value-', seq + 2, '", "value-', seq + 3, '"]') FROM seq_1_to_200;
+INSERT INTO t22 VALUES (5015, '"aaa"'), (5016, '7'),
+  (5017, '[[5000, [5001]], 5002]'), (5018, '[{"a": 6000}, 6001]'),
+  (5019, '{"a": 6000}'), (5020, NULL), (5021, '[]');
+SELECT * FROM t22 WHERE "aaa" MEMBER OF (js);
+SELECT * FROM t22 USE INDEX() WHERE "aaa" MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 7 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 7 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 5000 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 5000 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 5001 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 5001 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 5002 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 5002 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 6000 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 6000 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 6001 MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 6001 MEMBER OF (js);
+
+--echo # UPDATE and DELETE remove exactly the entries INSERT added
+UPDATE t22 SET js = '[8000]' WHERE pk IN (5015, 5017);
+DELETE FROM t22 WHERE pk = 5016;
+UPDATE t22 SET js = '"aaa"' WHERE pk = 5021;
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE "aaa" MEMBER OF (js);
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE "aaa" MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 7 MEMBER OF (js);
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 5001 MEMBER OF (js);
+--sorted_result
+SELECT pk FROM t22 FORCE INDEX (i1) WHERE 8000 MEMBER OF (js);
+--sorted_result
+SELECT pk FROM t22 IGNORE INDEX (i1) WHERE 8000 MEMBER OF (js);
+DROP TABLE t22;
 
 --echo # End of 13.3 tests
