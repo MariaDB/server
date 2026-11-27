@@ -128,16 +128,19 @@ static X509 *vio_gencert(EVP_PKEY *pkey)
   X509_NAME *name;
 
   if (!(x= X509_new()))
+    goto err_x;
+
+  if (!(name= X509_NAME_new()))
     goto err;
 
   if (!X509_set_version(x, X509_VERSION_3))
     goto err;
   if (!ASN1_INTEGER_set(X509_get_serialNumber(x), 1))
     goto err;
-  if (!(name= X509_get_subject_name(x)))
-    goto err;
   if (!X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
          (uchar*)STRING_WITH_LEN("MariaDB Server"), -1, 0))
+    goto err;
+  if (!X509_set_subject_name(x, name))
     goto err;
   if (!X509_set_issuer_name(x, name))
     goto err;
@@ -150,9 +153,12 @@ static X509 *vio_gencert(EVP_PKEY *pkey)
   if (!X509_sign(x, pkey, EVP_sha256()))
     goto err;
 
+  X509_NAME_free(name);
   return x;
 
 err:
+  X509_NAME_free(name);
+err_x:
   X509_free(x);
   return NULL;
 }
