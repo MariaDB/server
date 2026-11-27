@@ -786,7 +786,10 @@ enum class item_base_t : item_flags_t
                                    // Must be evaluated using val_bool().
                                    // Note, not all items used as a search
                                    // condition set this flag yet.
-  AT_TOP_LEVEL=          (1<<6)    // At top (AND) level of item tree
+  AT_TOP_LEVEL=          (1<<6),   // At top (AND) level of item tree
+  NEEDS_NO_METADATA=     (1<<7)    // The item is the whole value assigned
+                                   // to a column or to a variable, see
+                                   // Item::set_needs_no_metadata().
 };
 
 
@@ -1103,6 +1106,8 @@ public:
   { return (bool) (base_flags & item_base_t::IS_IN_WITH_CYCLE); }
   inline bool is_cond() const
   { return (bool) (base_flags & item_base_t::IS_COND); }
+  inline bool needs_no_metadata() const
+  { return (bool) (base_flags & item_base_t::NEEDS_NO_METADATA); }
 
   inline bool with_sp_var() const
   { return (bool) (with_flags & item_with_t::SP_VAR); }
@@ -1387,6 +1392,19 @@ public:
   */
   bool is_top_level_item() const
   { return (bool) (base_flags & item_base_t::AT_TOP_LEVEL); }
+
+  /*
+    Mark the item as the whole value assigned to a column by INSERT,
+    REPLACE, UPDATE or LOAD DATA, to a user variable, to a variable of
+    a stored program, or to a procedure parameter by CALL. Its value is
+    stored as is, and nothing reads it as text, so neither its repertoire
+    nor its length in characters is used. The flag is only ever consulted
+    by Item_param, see Item_param::convert_str_value().
+  */
+  void set_needs_no_metadata()
+  {
+    base_flags|= item_base_t::NEEDS_NO_METADATA;
+  }
 
   void set_typelib(const TYPELIB *typelib) override
   {
@@ -3098,6 +3116,11 @@ protected:
     {
       MY_STRING_METADATA::repertoire= repertoire_arg;
       MY_STRING_METADATA::char_length= str->numchars();
+    }
+    Metadata(my_repertoire_t repertoire_arg, size_t char_length_arg)
+    {
+      MY_STRING_METADATA::repertoire= repertoire_arg;
+      MY_STRING_METADATA::char_length= char_length_arg;
     }
     my_repertoire_t repertoire() const
     {
