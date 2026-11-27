@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, 2020, MariaDB Corporation
+   Copyright (c) 2016, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -585,11 +585,16 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+  /*
+    CONVERT TABLE ... TO PARTITION removes the table it moves in,
+    check_grant() below verifies priv_needed on it too
+  */
   if ((alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN))
   {
     TABLE_LIST *tl= first_table->next_local;
-    tl->grant.privilege= first_table->grant.privilege;
-    tl->grant.m_internal= first_table->grant.m_internal;
+    if (check_access(thd, priv_needed, tl->db.str, &tl->grant.privilege,
+                     &tl->grant.m_internal, 0, 0))
+      DBUG_RETURN(TRUE);
   }
 
 

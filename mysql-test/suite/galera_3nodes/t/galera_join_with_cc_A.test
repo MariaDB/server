@@ -10,6 +10,11 @@
 --source include/have_innodb.inc
 --source include/galera_cluster.inc
 --source include/galera_have_debug_sync.inc
+#
+# Requires fix to spurious wakeup in gu_debug_sync_wait()
+#
+--let $galera_version=26.4.29
+source ../wsrep/include/check_galera_version.inc;
 
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3

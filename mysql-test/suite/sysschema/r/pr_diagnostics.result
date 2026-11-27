@@ -13,3 +13,17 @@ CALL sys.diagnostics(2, 0, 'full');
 ERROR 45000: in_interval must be greater than 0
 CALL sys.diagnostics(1, 2, 'full');
 ERROR 45000: in_max_runtime must be greater than or equal to in_interval
+#
+# MDEV-42005 sys.diagnostics(), sys.ps_trace_thread() and sys.ps_trace_statement_digest() leave session sql_log_bin disabled
+#
+connect  con1,localhost,root,,;
+select @@sql_log_bin;
+@@sql_log_bin
+1
+call sys.diagnostics(1, 1, 'current');
+select @@sql_log_bin;
+@@sql_log_bin
+1
+disconnect con1;
+connection default;
+# End of 10.11 tests

@@ -34,6 +34,7 @@ f1	f2
 14	21
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 2;
 SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
 connection node_2;
 INSERT INTO t1 VALUES (2, 2);
@@ -144,6 +145,7 @@ connection node_1;
 SELECT NEXTVAL(s);
 NEXTVAL(s)
 59
+connection node_1a;
 connection node_2;
 SELECT NEXTVAL(s);
 NEXTVAL(s)

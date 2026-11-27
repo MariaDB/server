@@ -79,7 +79,7 @@ check_lib(Snappy)
 check_lib(ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
-list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARIES})
+list(APPEND THIRDPARTY_LIBS MariaDB::zlib)
 ADD_FEATURE_INFO(ROCKSDB_ZLIB "ON" "zlib Compression in the RocksDB storage engine")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Cygwin")
@@ -532,9 +532,7 @@ int main() {
   unset(CMAKE_REQUIRED_FLAGS)
 endif()
 
-IF(CMAKE_VERSION VERSION_GREATER "2.8.10")
-  STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
-ENDIF()
+STRING(TIMESTAMP GIT_DATE_TIME "%Y-%m-%d %H:%M:%S")
 
 # psergey-added:
 SET(GIT_MOD 0)

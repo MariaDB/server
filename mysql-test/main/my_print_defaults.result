@@ -56,3 +56,9 @@
 --read_buffer_size=1M
 --thread_cache_size=8
 # End of 10.7 test
+#
+# MDEV-41830 ASAN stack-buffer-overflow in option file parser
+#
+error: Wrong option definition in config file: MYSQLTEST_VARDIR/tmp/tmp1.cnf at line 2
+Fatal error in defaults handling. Program aborted
+# End of 10.11 test

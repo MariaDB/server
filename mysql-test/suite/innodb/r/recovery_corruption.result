@@ -1,0 +1,13 @@
+#
+# MDEV-42035 Recovery hangs due corrupted system or undo tablespace
+#
+SET GLOBAL innodb_log_checkpoint_now=ON;
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+# Kill the server
+# restart
+SELECT * FROM t;
+ERROR 42000: Unknown storage engine 'InnoDB'
+# restart
+SELECT * FROM t;
+a
+DROP TABLE t;

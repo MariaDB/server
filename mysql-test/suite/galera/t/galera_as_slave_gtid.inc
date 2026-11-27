@@ -77,7 +77,9 @@ DROP TABLE t1;
 --source include/wait_condition.inc
 
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 SET GLOBAL gtid_slave_pos = "";
 
 --echo #cleanup

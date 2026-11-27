@@ -42,7 +42,6 @@ evalp select variable_value="$pubkey" as 'key did not change'
         from information_schema.global_status
         where variable_name like 'caching_sha2_password%';
 
-
 # again, this time with keys
 connect con1, localhost,test1,pwd,,,,TCP NOSSL;
 call checkme();
@@ -79,17 +78,28 @@ disconnect u2;
 connect u3,localhost,u3,xyz,,,,TCP NOSSL;
 call checkme();
 disconnect u3;
-
-# cleanup
 connection default;
 
+# Test max password length:
+create user t213@'%' identified via caching_sha2_password using PASSWORD('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx');
+create user t214@'%' identified via caching_sha2_password using PASSWORD('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0');
+grant execute on test.* to t213@'%', t214@'%';
+connect t213, localhost, t213, xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx,,,,TCP NOSSL;
+call checkme();
+disconnect t213;
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error 2000, 2013;
+connect t214, localhost, t214, xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx0,,,,TCP NOSSL;
+connection default;
+
+# cleanup
 drop user u1@localhost;
 drop user u2@localhost;
 drop user u3@localhost;
+drop user t213@'%', t214@'%';
 
-let datadir=`select @@datadir`;
-remove_file $datadir/private_key.pem;
-remove_file $datadir/public_key.pem;
+remove_file $MARIADB_DATADIR/private_key.pem;
+remove_file $MARIADB_DATADIR/public_key.pem;
 let $restart_parameters=;
 source include/restart_mysqld.inc;
 show status like 'caching_sha2_password%';

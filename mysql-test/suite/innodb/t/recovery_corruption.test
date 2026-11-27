@@ -1,0 +1,79 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--source include/have_debug.inc # for OPT_PAGE_CHECKSUM
+
+--echo #
+--echo # MDEV-42035 Recovery hangs due corrupted system or undo tablespace
+--echo #
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: OPT_PAGE_CHECKSUM mismatch on \\\[page id: space=0, page number=7\\\]");
+call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore corruption\\.");
+call mtr.add_suppression("Plugin initialization aborted|Plugin 'InnoDB' registration");
+--enable_query_log
+
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let ALGO=`select @@innodb_checksum_algorithm`;
+SET GLOBAL innodb_log_checkpoint_now=ON;
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+--source include/kill_mysqld.inc
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $file = "$ENV{MARIADB_DATADIR}/ibdata1";
+my $backup = "$ENV{MARIADB_DATADIR}/ibdata1.bak";
+my $page;
+open(FILE, "+<$file") || die "Unable to open $file";
+binmode FILE;
+sysseek(FILE, 7*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
+open(BACKUP, ">$backup") || die "Unable to open $backup";
+binmode BACKUP;
+die "Unable to write $backup" unless syswrite(BACKUP, $page, $ps) == $ps;
+close(BACKUP) or die "close";
+substr($page, 8, 8) = chr(170) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($page, 0, $ps - 4), 0, $polynomial);
+    substr($page, $ps - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr ($page, 0, 4) = $ck;
+    substr ($page, $ps - 8, 4) = $ck;
+}
+sysseek(FILE, 7*$ps, 0) || die "Unable to seek $file\n";
+syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
+close FILE or die "close";
+EOF
+
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t;
+
+perl;
+my $file = "$ENV{MARIADB_DATADIR}/ibdata1";
+my $backup = "$ENV{MARIADB_DATADIR}/ibdata1.bak";
+my $ps = $ENV{INNODB_PAGE_SIZE};
+my $page;
+open(BACKUP, "<$backup") || die "Unable to open $backup";
+binmode BACKUP;
+die "Unable to read $backup" unless sysread(BACKUP, $page, $ps) == $ps;
+close(BACKUP) or die "close";
+open(FILE, "+<$file") || die "Unable to open $file";
+sysseek(FILE, 7*$ps, 0) || die "Unable to seek $file\n";
+die "Unable to write $file" unless syswrite(FILE, $page, $ps) == $ps;
+close(FILE) or die "close";
+EOF
+
+--source include/restart_mysqld.inc
+SELECT * FROM t;
+DROP TABLE t;
+--remove_file $MARIADB_DATADIR/ibdata1.bak

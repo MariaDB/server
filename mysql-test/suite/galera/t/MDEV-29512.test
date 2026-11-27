@@ -27,6 +27,13 @@ INSERT INTO t1 VALUES (3, 3, REPEAT('1234567890', 200));
 
 SET SESSION wsrep_sync_wait=0;
 
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
 # set sync point for replication applier
 SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
 
@@ -88,4 +95,10 @@ SET debug_sync='RESET';
 # final read to verify what we got
 select f1,f2 from t1;
 
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
+--connection node_2
 DROP TABLE t1;
+

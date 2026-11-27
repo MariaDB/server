@@ -2,6 +2,7 @@ connection node_2;
 connection node_1;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
 galera_sr_bf_abort_at_commit = 0
 after_replicate_sync
 connection node_1;
@@ -553,3 +554,8 @@ SET SESSION wsrep_trx_fragment_size = 0;
 DELETE FROM t1;
 DROP TABLE t1;
 CALL mtr.add_suppression("WSREP: fragment replication failed: 1");
+connection node_1a;
+connection node_2;
+DROP TABLE IF EXISTS dummy;
+Warnings:
+Note	1051	Unknown table 'test.dummy'

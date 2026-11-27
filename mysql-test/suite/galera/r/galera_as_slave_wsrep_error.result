@@ -1,0 +1,37 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_2;
+START SLAVE;
+SET SESSION wsrep_sync_wait = 0;
+connection node_3;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 VARCHAR(1000)) ENGINE=InnoDB;
+connection node_2;
+SET @@global.wsrep_max_ws_size = 1024;
+connection node_3;
+INSERT INTO t1 VALUES (1,REPEAT('a',1000)),(2,REPEAT('b',1000)),(3,REPEAT('c',1000));
+connection node_2;
+SELECT VARIABLE_VALUE = 'ON' AS wsrep_ready
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+wsrep_ready
+1
+SELECT VARIABLE_VALUE = 'Primary' AS wsrep_cluster_status
+FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+wsrep_cluster_status
+1
+Last_SQL_Errno = 1047
+Last_SQL_Error = wsrep applying failed: size_exceeded_error
+SET @@global.wsrep_max_ws_size = default;
+START SLAVE;
+connection node_1;
+connection node_3;
+DROP TABLE t1;
+connection node_2;
+STOP SLAVE;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos = "";
+CALL mtr.add_suppression("Slave SQL: wsrep applying failed");
+CALL mtr.add_suppression("WSREP: transaction size limit");
+CALL mtr.add_suppression("WSREP: rbr write fail");
+connection node_3;
+RESET MASTER;

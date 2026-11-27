@@ -1,0 +1,24 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-42005 sys.diagnostics(), sys.ps_trace_thread() and sys.ps_trace_statement_digest() leave session sql_log_bin disabled
+--echo #
+
+connect (con1,localhost,root,,);
+let $thread_id = `select thread_id from performance_schema.threads where processlist_id = connection_id()`;
+connection default;
+let $outfile = $MYSQLTEST_VARDIR/tmp/pr_ps_trace_thread.dot;
+--disable_query_log
+eval set @thread_id = $thread_id, @outfile = '$outfile';
+--enable_query_log
+
+select @@sql_log_bin;
+--disable_result_log
+call sys.ps_trace_thread(@thread_id, @outfile, 0, NULL, FALSE, TRUE, FALSE);
+--enable_result_log
+select @@sql_log_bin;
+
+--remove_file $outfile
+disconnect con1;
+
+--echo # End of 10.11 tests

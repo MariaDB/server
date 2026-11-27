@@ -5,6 +5,7 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
 SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_slave_threads = 2;
 connection node_1;
 CREATE PROCEDURE proc_update_insert()
 BEGIN
@@ -344,6 +345,8 @@ f1	f2
 wsrep_local_replays
 1
 DELETE FROM t1;
+connection node_1a;
+connection node_1;
 DROP PROCEDURE proc_update_insert;
 DROP PROCEDURE proc_update_insert_with_continue_handler;
 DROP PROCEDURE proc_update_insert_with_exit_handler;
@@ -353,4 +356,5 @@ DROP PROCEDURE proc_update_insert_transaction_with_exit_handler;
 DROP PROCEDURE proc_insert_insert_conflict;
 DROP PROCEDURE proc_insert_insert_conflict_with_exit_handler;
 DROP PROCEDURE proc_insert_insert_conflict_with_continue_handler;
+connection node_2;
 DROP TABLE t1;

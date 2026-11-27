@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20689,14 +20689,20 @@ static void test_proxy_header_tcp(const char *ipaddr, int port)
   for (; i < array_elements(header_data); i++)
   {
     MYSQL *m;
+    unsigned int err;
     m = mysql_client_init(NULL);
     DIE_UNLESS(m);
     mysql_optionsv(m, MARIADB_OPT_PROXY_HEADER, header_data[i], header_lengths[i]);
     if (mysql_real_connect(m, opt_host, "u", "password", NULL, opt_port, opt_unix_socket, 0))
       DIE(0);
-    printf("pass %zu error %i - %s\n", i, mysql_errno(m),
-           mysql_error(m));
-    DIE_IF(mysql_errno(m) != ER_UNKNOWN_ERROR);
+    err= mysql_errno(m);
+    printf("pass %zu error %u - %s\n", i, err, mysql_error(m));
+    /*
+      Cases 2 and 3 leave header bytes unread, so the close is a TCP reset,
+      which can drop the error before the client reads it.
+    */
+    DIE_IF(err != ER_UNKNOWN_ERROR &&
+           !(err == CR_SERVER_LOST && (i == 2 || i == 3)));
     mysql_close(m);
   }
   snprintf(query, sizeof(query), "DROP USER 'u'@'%s'",normalized_addr);
@@ -20952,10 +20958,17 @@ static void test_proxy_header_limits()
     }
     else
     {
+      /*
+        Bytes after a NUL or past 107 stay unread, see test_proxy_header_tcp().
+      */
+      my_bool unread= len > 107 || memchr(cases[i].header, 0, len) != NULL;
       DIE_UNLESS(!conn);
       /* A rejected header must be the reason of the failure */
-      DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
-      DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+      if (!(unread && mysql_errno(m) == CR_SERVER_LOST))
+      {
+        DIE_UNLESS(mysql_errno(m) == ER_UNKNOWN_ERROR);
+        DIE_UNLESS(!strcmp(mysql_error(m), "Failed to parse proxy header"));
+      }
     }
     mysql_close(m);
   }
@@ -21069,6 +21082,27 @@ static void test_proxy_header_dbug_remote_connection()
 #endif /* !DBUG_OFF */
 }
 
+
+/*
+  Make the server skip the DNS lookup of the test addresses, it can be slow
+  or, on Linux without DNS, fail with a temporary error.
+*/
+static void skip_dns(my_bool on)
+{
+#ifndef DBUG_OFF
+  int rc;
+  if (on)
+  {
+    rc= mysql_query(mysql, "SET @save_debug_dbug= @@global.debug_dbug");
+    myquery(rc);
+    rc= mysql_query(mysql,
+                    "SET GLOBAL debug_dbug='+d,getnameinfo_error_noname'");
+  }
+  else
+    rc= mysql_query(mysql, "SET GLOBAL debug_dbug= @save_debug_dbug");
+  myquery(rc);
+#endif
+}
 
 /*
   Open a raw TCP connection and let the handshake fail (server reads EOF) to
@@ -21296,9 +21330,11 @@ static void test_proxy_header_host_denied()
 
   myheader("test_proxy_header_host_denied");
 
+  skip_dns(TRUE);
   m= proxy_connect_as(client_ip, "root", "", FALSE, &conn_errno);
   DIE_UNLESS(m == NULL);
   DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  skip_dns(FALSE);
 }
 
 /*
@@ -21364,17 +21400,21 @@ static void test_proxy_header_ssl_host_denied()
 
   myheader("test_proxy_header_ssl_host_denied");
 
+  skip_dns(TRUE);
   m= proxy_connect_as(client_ip, "root", "", TRUE, &conn_errno);
   DIE_UNLESS(m == NULL);
   DIE_UNLESS(conn_errno == ER_HOST_NOT_PRIVILEGED);
+  skip_dns(FALSE);
 }
 
 static void test_proxy_header()
 {
   myheader("test_proxy_header");
+  skip_dns(TRUE);
   test_proxy_header_tcp("192.0.2.1",3333);
   test_proxy_header_tcp("2001:db8:85a3::8a2e:370:7334",2222);
   test_proxy_header_tcp("::ffff:192.0.2.1",2222);
+  skip_dns(FALSE);
   test_proxy_header_localhost();
   test_proxy_header_ignore();
   test_proxy_header_limits();
@@ -24069,6 +24109,40 @@ static void test_mdev_41502()
   myquery(rc);
 }
 
+/* COM_FIELD_LIST without the table name / wildcard separator */
+static void test_mdev_41504()
+{
+  MYSQL *con;
+  int rc;
+
+  myheader("test_mdev_41504");
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET @save_general_log= @@global.general_log");
+  myquery(rc);
+  rc= mysql_query(mysql, "SET GLOBAL general_log= 1");
+  myquery(rc);
+
+  con= mysql_client_init(NULL);
+  DIE_UNLESS(con);
+  if (!mysql_real_connect(con, opt_host, opt_user, opt_password, current_db,
+                          opt_port, opt_unix_socket, 0))
+  {
+    fprintf(stdout, "\n connection failed(%s)", mysql_error(con));
+    exit(1);
+  }
+  rc= simple_command(con, COM_FIELD_LIST, (uchar*) "t1", 2, 0);
+  DIE_UNLESS(rc != 0);
+  DIE_UNLESS(mysql_errno(con) == ER_UNKNOWN_COM_ERROR);
+  mysql_close(con);
+
+  rc= mysql_query(mysql, "SET GLOBAL general_log= @save_general_log");
+  myquery(rc);
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 /*
@@ -24815,6 +24889,7 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev_36678", test_mdev_36678 },
   { "test_mdev_23864", test_mdev_23864 },
   { "test_mdev_41502", test_mdev_41502 },
+  { "test_mdev_41504", test_mdev_41504 },
 #endif
   { "test_mdev_10075", test_mdev_10075},
 #ifndef EMBEDDED_LIBRARY

@@ -69,6 +69,26 @@ pr_id	pr_page	pr_type	test
 146	6	six	2
 connection master;
 drop table t1;
+#
+# MDEV-42357 Slave IO thread fails with "Uncompress the compressed
+# binlog failed" on small compressed row events of wide tables
+#
+set binlog_format=row;
+set binlog_row_image=full;
+insert into t1 (id) values (1);
+update t1 set c1= 1 where id= 1;
+insert into t1 (id) values (2);
+delete from t1 where id= 2;
+select id, c1, c99 from t1;
+id	c1	c99
+1	1	0
+connection slave;
+connection slave;
+select id, c1, c99 from t1;
+id	c1	c99
+1	1	0
+connection master;
+drop table t1;
 set global log_bin_compress=@old_log_bin_compress;
 set global log_bin_compress_min_len=@old_log_bin_compress_min_len;
 set binlog_format=@old_binlog_format;

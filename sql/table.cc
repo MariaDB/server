@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -645,7 +645,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
-  char	path[FN_REFLEN];
+  char	path[FN_REFLEN + 1];
   size_t frmlen, read_length;
   uint length;
   DBUG_ENTER("open_table_def");
@@ -654,21 +654,30 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
-                 path);
-  if (flags & GTS_FORCE_DISCOVERY)
+  if (share->normalized_path.length + reg_ext_length > FN_REFLEN)
   {
-    const char *path2= share->normalized_path.str;
-    DBUG_ASSERT(flags & GTS_TABLE);
-    DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
-    /* Delete .frm and .par files */
-    mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
-    mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2, PAR_EXT,
-                                   MYF(0));
+    /* CREATE TABLE refuses such paths, the frm cannot exist */
+    my_errno= ENOENT;
     file= -1;
   }
   else
-    file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  {
+    length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
+                   path);
+    if (flags & GTS_FORCE_DISCOVERY)
+    {
+      const char *path2= share->normalized_path.str;
+      DBUG_ASSERT(flags & GTS_TABLE);
+      DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
+      /* Delete .frm and .par files */
+      mysql_file_delete_with_symlink(key_file_frm, path2, reg_ext, MYF(0));
+      mysql_file_delete_with_symlink(key_file_partition_ddl_log, path2,
+                                     PAR_EXT, MYF(0));
+      file= -1;
+    }
+    else
+      file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  }
 
   if (file < 0)
   {
@@ -3792,9 +3801,13 @@ ret:
   thd->variables.character_set_client= old_cs;
   if (unlikely(thd->is_error() || error))
   {
-    thd->clear_error();
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
-             db.str, table_name.str, sql_copy);
+    /* Keep the kill error, the table definition is not broken. */
+    if (!parser_state.m_lip.stopped_on_kill)
+    {
+      thd->clear_error();
+      my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
+               db.str, table_name.str, sql_copy);
+    }
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */
@@ -4160,7 +4173,12 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
 
   error= parse_sql(thd, &parser_state, NULL);
   if (unlikely(error))
+  {
+    /* The kill error is reported, the .frm is not corrupted. */
+    if (parser_state.m_lip.stopped_on_kill)
+      *error_reported= true;
     goto end;
+  }
 
   if ((sequence= lex.current_select->table_list.first[0].next_global))
   {
@@ -4668,6 +4686,16 @@ partititon_err:
         */
         error_reported= TRUE;
       }
+      else if (thd->is_error() &&
+               thd->get_stmt_da()->sql_errno() == uint(thd->killed_errno()))
+      {
+        /*
+          The kill error is reported, the .frm is not corrupted.
+          mysql_unpack_partition() does not return stopped_on_kill, so the
+          reported error is checked.
+        */
+        error_reported= true;
+      }
       goto err;
     }
   }
@@ -4995,7 +5023,7 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
 {
-  char buff[FN_REFLEN];
+  char buff[FN_REFLEN + 1];
   const myf errortype= ME_ERROR_LOG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
   DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
@@ -5010,7 +5038,8 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
       my_error(ER_NO_SUCH_TABLE, MYF(0), share->db.str, share->table_name.str);
     else
     {
-      strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+      strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+               NullS);
       my_error((db_errno == EMFILE) ? ER_CANT_OPEN_FILE : ER_FILE_NOT_FOUND,
                errortype, buff, db_errno);
     }
@@ -5032,11 +5061,13 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
   case OPEN_FRM_CORRUPTED:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_NOT_FORM_FILE, errortype, buff);
     break;
   case OPEN_FRM_READ_ERROR:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    strxnmov(buff, sizeof(buff)-1, share->normalized_path.str, reg_ext,
+             NullS);
     my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
     break;
   case OPEN_FRM_NEEDS_REBUILD:
@@ -9037,6 +9068,28 @@ void TABLE_LIST::reinit_before_use(THD *thd)
     were closed in the end of previous prepare or execute call.
   */
   table= 0;
+  /*
+    linked_table points into the owner's internal_tables list, built the
+    last time the owner was opened.
+
+    That list lives on the owner's TABLE object. Once the owner is
+    closed, that TABLE object is freed, and so is the list. linked_table
+    then points to freed memory.
+
+    relink_internal_tables() (sql_base.cc) fixes linked_table up again,
+    but only while processing the owner itself, earlier in this same
+    execution. If the owner's open is skipped this round, it never runs,
+    and linked_table stays stale.
+
+    open_table() writes through linked_table whenever it is not NULL.
+    A stale linked_table there is a write to freed memory.
+
+    So: clear it here, before the owner is processed again. Either
+    relink_internal_tables() sets it to the new list this round, or it
+    stays NULL and open_table() skips the write.
+  */
+  if (linked_table_owner)
+    linked_table= nullptr;
   /* Reset is_schema_table_processed value(needed for I_S tables */
   schema_table_state= NOT_PROCESSED;
 

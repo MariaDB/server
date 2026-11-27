@@ -1667,3 +1667,37 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.2 tests
 --echo #
+
+--echo #
+--echo # Assertion `m_using_unique_constraint || m_group_buff <=
+--echo # param->group_buff + param->group_length' failed in
+--echo # Create_tmp_table::finalize for grouped derived table on the
+--echo # inner side of an outer join
+--echo #
+
+CREATE TABLE t1 (name VARCHAR(64)) CHARSET=utf8mb3;
+INSERT INTO t1 VALUES ('a'),('b');
+CREATE TABLE t2 (u CHAR(128) NOT NULL) CHARSET=utf8mb3;
+INSERT INTO t2 VALUES ('a'),('a'),('c');
+CREATE VIEW v2 AS SELECT u FROM t2;
+
+--sorted_result
+SELECT t1.*, sq.cnt FROM t1
+  LEFT JOIN (SELECT v.u AS fld1, COUNT(*) AS cnt FROM v2 v GROUP BY fld1) sq
+  ON sq.fld1= t1.name;
+
+PREPARE stmt FROM 'SELECT t1.*, sq.cnt FROM t1
+  LEFT JOIN (SELECT v.u AS fld1, COUNT(*) AS cnt FROM v2 v GROUP BY fld1) sq
+  ON sq.fld1= t1.name';
+--sorted_result
+EXECUTE stmt;
+--sorted_result
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP VIEW v2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

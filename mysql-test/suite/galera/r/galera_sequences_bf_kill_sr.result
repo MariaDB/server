@@ -9,6 +9,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES (4, 0);
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET SESSION wsrep_sync_wait=0;
+SET GLOBAL wsrep_slave_threads = 2;
 # The transaction above must have replicated a fragment, otherwise
 # this test degenerates into galera_sequences_bf_kill
 SELECT COUNT(*) > 0 AS EXPECT_1 FROM mysql.wsrep_streaming_log;
@@ -205,12 +206,15 @@ connection node_1a;
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 EXPECT_0
 0
+connection node_1a;
 connection node_1;
 SET SESSION wsrep_trx_fragment_size=DEFAULT;
 SET SESSION wsrep_trx_fragment_unit=DEFAULT;
+connection node_2;
 DROP SEQUENCE s;
 DROP TABLE t1;
 connection node_1;
 wsrep_local_replays
 1
+connection node_1;
 disconnect node_1a;

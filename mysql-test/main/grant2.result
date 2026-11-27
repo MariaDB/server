@@ -945,8 +945,7 @@ Grants for u@localhost
 GRANT USAGE ON *.* TO `u`@`localhost`
 GRANT USAGE ON `mysql`.`user` TO `u`@`localhost` WITH GRANT OPTION
 show tables from mysql;
-Tables_in_mysql
-user
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'mysql'
 select * from information_schema.tables where table_schema='mysql';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
 def	mysql	user	VIEW	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
@@ -962,7 +961,7 @@ Grants for u@localhost
 GRANT USAGE ON *.* TO `u`@`localhost`
 GRANT USAGE ON PROCEDURE `mysql`.`p1` TO `u`@`localhost` WITH GRANT OPTION
 show tables from mysql;
-Tables_in_mysql
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'mysql'
 select * from information_schema.tables where table_schema='mysql';
 TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
 disconnect con1;
@@ -1154,3 +1153,46 @@ connection default;
 drop user u@localhost;
 drop database db;
 # End of 10.11 tests
+#
+# MDEV-40730 SHOW DATABASES allows users with only GRANT OPTION privilege to read all databases names
+#
+create user u@localhost;
+grant grant option on *.* to u@localhost;
+create database d1;
+create table d1.t1 (id int);
+connect u,localhost,u;
+show grants for current_user;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost` WITH GRANT OPTION
+show databases like '%1';
+Database (%1)
+select schema_name from information_schema.schemata where schema_name like '%1';
+schema_name
+select schema_name from information_schema.schemata where schema_name='d1';
+schema_name
+show tables from d1;
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'd1'
+show create table d1.t1;
+ERROR 42000: SHOW command denied to user 'u'@'localhost' for table `d1`.`t1`
+connection default;
+grant grant option on d1.t1 to u@localhost;
+connection u;
+show grants for current_user;
+Grants for u@localhost
+GRANT USAGE ON *.* TO `u`@`localhost` WITH GRANT OPTION
+GRANT USAGE ON `d1`.`t1` TO `u`@`localhost` WITH GRANT OPTION
+show databases like '%1';
+Database (%1)
+select schema_name from information_schema.schemata where schema_name like '%1';
+schema_name
+select schema_name from information_schema.schemata where schema_name='d1';
+schema_name
+show tables from d1;
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'd1'
+show create table d1.t1;
+ERROR 42000: SHOW command denied to user 'u'@'localhost' for table `d1`.`t1`
+disconnect u;
+connection default;
+drop user u@localhost;
+drop database d1;
+# End of 11.4 tests

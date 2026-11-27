@@ -96,3 +96,17 @@ let $FILE_EXT=VEC;
 --source grant.inc
 
 set sql_mode=default;
+
+--echo #
+--echo # Discovery of a CSV table requires the FILE privilege
+--echo #
+CREATE USER user@localhost;
+GRANT CREATE ON test.* TO user@localhost;
+--connect(user,localhost,user,,test)
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=CSV HEADER=1 FILE_NAME='nonexistent.csv';
+--disconnect user
+--connection default
+DROP USER user@localhost;
+
+--echo # End of 10.11 tests

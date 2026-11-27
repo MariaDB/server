@@ -1,0 +1,30 @@
+--source include/have_unix_socket.inc
+
+--echo #
+--echo # unix_socket must not authenticate the server connecting to itself
+--echo #
+--replace_result $USER USER
+eval create user '$USER' identified via unix_socket;
+--replace_result $USER USER
+eval grant all on *.* to '$USER';
+create table t1 (a int);
+insert t1 values (1);
+--replace_result $USER USER
+eval create table t2 (a int) engine=connect table_type=proxy tabname='t1'
+  option_list='user=$USER';
+--replace_result $USER USER
+--error ER_GET_ERRMSG
+select * from t2;
+
+--echo # a separate client process is still authenticated
+connect c1,localhost,$USER,,;
+--replace_result $USER USER
+select current_user();
+disconnect c1;
+connection default;
+
+drop table t1, t2;
+--replace_result $USER USER
+eval drop user '$USER';
+
+--echo # End of 10.11 tests

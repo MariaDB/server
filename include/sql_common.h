@@ -39,6 +39,8 @@ struct st_mysql_options_extention {
                           double progress,
                           const char *proc_info,
                           uint proc_info_length);
+  void (*vio_callback)(void *arg, void *vio);   /* MYSQL_OPT_VIO_CALLBACK */
+  void *vio_callback_arg;
   HASH connection_attributes;
   size_t connection_attributes_length;
   my_bool tls_allow_invalid_server_cert;

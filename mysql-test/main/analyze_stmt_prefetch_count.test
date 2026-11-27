@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
-
+# The test assumes the engine uses 16KB pages
+--source include/have_innodb_16k.inc
 
 # Each row is 1K.
 create table t1 (
@@ -30,14 +31,23 @@ commit;
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
 
-set @innodb_pages_read0= 
-  (select variable_value 
-   from information_schema.session_status 
+set @innodb_pages_read0=
+  (select variable_value
+   from information_schema.session_status
    where variable_name like 'innodb_pages_read');
 
-let $analyze_output= `analyze format=json 
+let $analyze_output= `analyze format=json
 select * from t1 force index (PRIMARY) order by a,b,c,d`;
 evalp set @js='$analyze_output';
+
+set @innodb_pages_read1=
+  (select variable_value
+   from information_schema.session_status
+   where variable_name like 'innodb_pages_read');
+set @innodb_pages_read_incr= (@innodb_pages_read1 - @innodb_pages_read0);
+--echo #
+--echo #  innodb_pages_read counter global counter between 1000 and 1500
+select @innodb_pages_read_incr > 1000, @innodb_pages_read_incr < 1500;
 
 set @js=json_extract(@js, '$.query_block.nested_loop[0].table.r_engine_stats');
 #select @js;
@@ -45,25 +55,61 @@ set @pages_accessed= cast(json_value(@js,'$.pages_accessed') as INT);
 set @pages_read_count= cast(json_value(@js,'$.pages_read_count') as INT);
 set @pages_prefetch_read_count= cast(json_value(@js,'$.pages_prefetch_read_count') as INT);
 
-select @pages_accessed > 1000 and @pages_accessed < 1500;
+--echo #  pages_accessed:
+--echo #  - The query must have accessed each page in the table.
+--echo #  - But it may have accessed certain pages multiple times.
+--echo #    so the counter may be larger than total # of pages the table has.
+select IF(@pages_accessed > 1000 and @pages_accessed < 1500, "OK",
+          @pages_accessed)
+       AS check_result;
 
-set @total_read = (@pages_read_count + @pages_prefetch_read_count);
-set @low_ok= @pages_accessed*0.75 < @total_read;
-set @high_ok= @total_read < @pages_accessed*1.50;
+--echo #  The query was ran over over a cold innodb buffer pool. It will read
+--echo #  every page into the buffer pool. The buffer pool is large enough, so
+--echo #  every page will be read once.
+--echo #  Each page can be read using one of these scenarios:
+--echo #    1. Just read the page. This is recorded pages_read_count.
+--echo #    2. Request the page to be prefetched. Then, prefetch thread reads
+--echo #       it for us. This is recorded in pages_prefetch_read_count.
+--echo #    3. Request the page to be prefetched. But prefetcher is not fast
+--echo #       enough, query thread waits for the page read to complete in
+--echo #       buf_page_t::read_wait(). This causes both pages_read_count and
+--echo #       pages_prefetch_read_count to be incremented.
 
-select @low_ok, @high_ok;
-select
-if(@low_ok and @high_ok,0,@pages_accessed) unexpected_accessed,
-if(@low_ok and @high_ok,0,@total_read) unexpected_read;
+--echo # pages_read_count must be less that innodb_pages_read_incr. The
+--echo # difference comes from pages being pre-fetched.
+select IF(@pages_read_count < @innodb_pages_read_incr, "OK",
+          concat(@pages_read_count,' > ',@innodb_pages_read_incr))
+       AS check_result;
 
-set @innodb_pages_read1= 
-  (select variable_value 
-   from information_schema.session_status 
-   where variable_name like 'innodb_pages_read');
+--echo # Prefetch was requested for some pages.
+select IF(@pages_prefetch_read_count > 500, "OK",
+          @pages_prefetch_read_count)
+       AS check_result;
 
-set @innodb_pages_read_incr= (@innodb_pages_read1 - @innodb_pages_read0);
+--echo # We had prefetched some pages, but in any case we didn't
+--echo # prefetch more than there are in the table.
+select IF(@pages_prefetch_read_count <= @innodb_pages_read_incr, "OK",
+          concat(@pages_prefetch_read_count,' > ',@innodb_pages_read_incr))
+       AS check_result;
 
-select @innodb_pages_read_incr > 1000, @innodb_pages_read_incr < 1500;
+--echo # Pages we've waited to be read OR requested to be prefetched. This
+--echo # may count some pages twice.
+set @read_and_prefetch_possibly_dups =
+  (@pages_read_count + @pages_prefetch_read_count);
+
+--echo # In the worst case, we've requested prefetch of every page but then
+--echo #  had to wait for read completion anyway.
+select IF(@read_and_prefetch_possibly_dups < 2* @innodb_pages_read_incr, "OK",
+          concat(@read_and_prefetch_possibly_dups,' > 2* ',
+                 @innodb_pages_read_incr))
+       AS check_result;
+
+--echo # For each page in the table, we've either read it directly or
+--echo # had prefetched it.
+select IF(@read_and_prefetch_possibly_dups > @innodb_pages_read_incr - 100, "OK",
+          concat(@read_and_prefetch_possibly_dups,' < ',
+                 @innodb_pages_read_incr))
+       AS check_result;
 
 let $analyze_output= `analyze format=json 
 select * from t1 force index (PRIMARY) order by a,b,c,d`;

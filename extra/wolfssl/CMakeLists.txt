@@ -40,6 +40,9 @@ SET(WOLFCRYPT_SRCDIR ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl/wolfcrypt/src)
 ADD_DEFINITIONS(${SSL_DEFINES})
 ADD_DEFINITIONS(-DWOLFSSL_LIB -DBUILDING_WOLFSSL)
 ADD_DEFINITIONS(-DWOLFSSL_SP_4096)
+
+check_type_size("__uint128_t" __UINT128_T)
+
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_CURRENT_SOURCE_DIR}/wolfssl)
 INCLUDE_DIRECTORIES(${SSL_INCLUDE_DIRS})
 
@@ -140,6 +143,10 @@ if(MSVC)
   # Workaround https://github.com/wolfSSL/wolfssl/issues/9004
   target_compile_definitions(wolfssl PRIVATE WOLFSSL_NO_SOCK SOCKET_INVALID=-1)
 endif()
+
+# Usage requirements: wolfssl's headers are configured by these macros
+# (user_settings.h), so consumers must compile with the same set.
+target_compile_definitions(wolfssl PUBLIC HAVE_WOLFSSL WOLFSSL_USER_SETTINGS)
 
 CONFIGURE_FILE(user_settings.h.in user_settings.h)
 

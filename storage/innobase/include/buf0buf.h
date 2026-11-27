@@ -750,9 +750,8 @@ public:
 
   void fix_on_recovery() noexcept
   {
-    ut_d(const auto f=) zip.fix.fetch_sub(READ_FIX - UNFIXED - 1);
-    ut_ad(f >= READ_FIX);
-    ut_ad(f < WRITE_FIX);
+    ut_d(const auto f=) zip.fix.fetch_sub(READ_FIX - UNFIXED);
+    ut_ad(f == READ_FIX + 1);
   }
 
   uint32_t fix(uint32_t count= 1) noexcept

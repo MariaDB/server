@@ -224,5 +224,16 @@ MACRO (MYSQL_CHECK_READLINE)
     SET(CMAKE_REQUIRED_INCLUDES)
   ENDIF(NOT WIN32)
   CHECK_INCLUDE_FILES ("curses.h;term.h" HAVE_TERM_H)
+
+  # MariaDB::readline - bundled readline or system readline/libedit (+curses).
+  # Empty on Windows (no readline there); consumers may link it unconditionally.
+  ADD_LIBRARY(mariadb_readline INTERFACE)
+  IF(MY_READLINE_LIBRARY)
+    TARGET_LINK_LIBRARIES(mariadb_readline INTERFACE ${MY_READLINE_LIBRARY})
+  ENDIF()
+  IF(MY_READLINE_INCLUDE_DIR)
+    TARGET_INCLUDE_DIRECTORIES(mariadb_readline INTERFACE ${MY_READLINE_INCLUDE_DIR})
+  ENDIF()
+  ADD_LIBRARY(MariaDB::readline ALIAS mariadb_readline)
 ENDMACRO()
 

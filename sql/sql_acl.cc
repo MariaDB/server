@@ -3557,17 +3557,6 @@ static const uchar *check_get_key(const void *buff_, size_t *length, my_bool)
 }
 
 
-static void acl_update_role(const char *rolename, const privilege_t privileges)
-{
-  ACL_ROLE *role= find_acl_role(rolename, true);
-  if (role)
-  {
-    role->initial_role_access= role->access= privileges;
-    DBUG_ASSERT(strcasecmp(rolename, public_name.str) || acl_public == role);
-  }
-}
-
-
 ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
                    const Account_options &options,
                    const privilege_t privileges)
@@ -4837,6 +4826,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   LEX *lex= thd->lex;
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
+  ACL_ROLE *role= NULL;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -4932,6 +4922,12 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   {
     if (old_row_exists && !old_row_is_role)
     {
+      goto end;
+    }
+    role= find_acl_role(combo->user.str, true);
+    if ((role != NULL) != old_row_exists)
+    {
+      my_error(ER_PASSWORD_NO_MATCH, MYF(0));
       goto end;
     }
     if (user_table.set_is_role(true))
@@ -5091,7 +5087,7 @@ end:
     {
       if (old_row_exists)
       {
-        acl_update_role(combo->user.str, rights);
+        role->initial_role_access= role->access= rights;
         if (cleanup_tables)
         {
           /*
@@ -5101,12 +5097,8 @@ end:
             role got its new (empty) privileges, so that roles and users that
             had this role granted don't keep its old privileges cached.
           */
-          ACL_ROLE *role= find_acl_role(combo->user.str, true);
-          if (role)
-          {
-            unlink_role_and_propagate(role);
-            reset_dynamic(&role->parent_grantee);
-          }
+          unlink_role_and_propagate(role);
+          reset_dynamic(&role->parent_grantee);
         }
       }
       else
@@ -7844,6 +7836,35 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
 }
 
 
+/**
+  Find the role and, if @a check_privilege is set, check that
+  the current user may also grant it.
+
+  The caller must hold acl_cache->lock.
+
+  @return the role, or NULL with the error reported by my_error()
+*/
+static ACL_ROLE *find_grantable_role(THD *thd, const char *rolename,
+                                     bool check_privilege)
+{
+  mysql_mutex_assert_owner(&acl_cache->lock);
+
+  ACL_ROLE *role= find_acl_role(rolename, false);
+  if (!role)
+  {
+    my_error(ER_INVALID_ROLE, MYF(0), rolename);
+    return NULL;
+  }
+  if (check_privilege && !can_grant_role(thd, role))
+  {
+    my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
+             thd->security_ctx->priv_user, thd->security_ctx->priv_host);
+    return NULL;
+  }
+  return role;
+}
+
+
 bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 {
   DBUG_ENTER("mysql_grant_role");
@@ -7854,6 +7875,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   DBUG_ASSERT(list.elements >= 2);
   int result;
   bool create_new_user, no_auto_create_user;
+  bool check_privilege; /* no initializer: the TOI goto jumps past it */
   String wrong_users;
   LEX_USER *user, *granted_role;
   LEX_CSTRING rolename;
@@ -7873,25 +7895,55 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   no_auto_create_user= thd->variables.sql_mode & MODE_NO_AUTO_CREATE_USER;
 
   Grant_tables tables;
+
+#ifdef WITH_WSREP
+  /*
+    With wsrep, check the privilege before TOI replicates the statement:
+    the applier runs with a non-user security context, for which
+    can_grant_role() always succeeds, so a statement refused here would
+    otherwise still be applied by the other nodes.
+
+    Appliers and replayers do not begin TOI (see wsrep_to_isolation_begin()),
+    so for them the check below under the locks is enough.
+  */
+  if (WSREP(thd) && wsrep_thd_is_local(thd))
+  {
+    mysql_mutex_lock(&acl_cache->lock);
+    role= find_grantable_role(thd, rolename.str, true);
+    mysql_mutex_unlock(&acl_cache->lock);
+    if (!role)
+      DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
+
+  DEBUG_SYNC(thd, "grant_role_before_toi");
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  /*
+    The role or the privileges may change before the locks below are
+    taken, so the role is looked up and the privilege checked again.
+
+    Under TOI, the privilege check done before replication is final: the
+    appliers on the other nodes skip it, so checking again here could
+    refuse the statement on this node only, if an ACL change was ordered
+    between the check and the start of TOI. The role lookup is repeated
+    in any case, it gives the same result on every node.
+  */
+  check_privilege= true;
+#ifdef WITH_WSREP
+  if (WSREP(thd) && wsrep_thd_is_local_toi(thd))
+    check_privilege= false;
+#endif /* WITH_WSREP */
+
   if ((result= tables.open_and_lock(thd, Table_user | Table_roles_mapping, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-  if (!(role= find_acl_role(rolename.str, false)))
+  if (!(role= find_grantable_role(thd, rolename.str, check_privilege)))
   {
     mysql_mutex_unlock(&acl_cache->lock);
     mysql_rwlock_unlock(&LOCK_grant);
-    my_error(ER_INVALID_ROLE, MYF(0), rolename.str);
-    DBUG_RETURN(TRUE);
-  }
-
-  if (!can_grant_role(thd, role))
-  {
-    mysql_mutex_unlock(&acl_cache->lock);
-    mysql_rwlock_unlock(&LOCK_grant);
-    my_error(ER_ACCESS_DENIED_NO_PASSWORD_ERROR, MYF(0),
-             thd->security_ctx->priv_user, thd->security_ctx->priv_host);
     DBUG_RETURN(TRUE);
   }
 
@@ -8091,6 +8143,11 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
   mysql_rwlock_unlock(&LOCK_grant);
 
   DBUG_RETURN(result);
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
 }
 
 
@@ -9049,7 +9106,8 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
-
+    if (item->privs == GRANT_ACL)
+      continue;
     if (strcmp(item->user, sctx->priv_user) == 0 &&
         strcmp(item->db, db) == 0 &&
         compare_hostname(&item->host, sctx->host, sctx->ip))
@@ -9113,6 +9171,8 @@ bool check_grant_db(THD *thd, const char *db)
   {
     GRANT_TABLE *grant_table= (GRANT_TABLE*) my_hash_element(&column_priv_hash,
                                                              idx);
+    if ((grant_table->cols | grant_table->privs) == GRANT_ACL)
+      continue;
     if (len < grant_table->key_length &&
         !memcmp(grant_table->hash_key, helping, len) &&
         compare_hostname(&grant_table->host, sctx->host, sctx->ip))
@@ -14314,6 +14374,15 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   char *next_field;
   const char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
+
+  /*
+    A valid name has at most SAFE_NAME_LEN characters. A longer one
+    stays invalid when cut to SAFE_NAME_LEN+1 characters, and
+    mysql_change_db() rejects it.
+  */
+  if (db)
+    db_len= MY_MIN(db_len, thd->charset()->charpos(db, db + db_len,
+                                                   SAFE_NAME_LEN + 1));
 
   /*
     Since 4.1 all database names are stored in utf8

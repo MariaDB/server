@@ -29,3 +29,4 @@ select count(a) from t1;
 count(a)
 0
 drop table t1;
+# End of 5.5 tests

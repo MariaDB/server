@@ -77,12 +77,13 @@ MACRO(MARIADB_ADD_PLUGIN)
   )
   IF(NOT WITHOUT_SERVER OR ARG_CLIENT)
 
-  # Add common include directories
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include 
-                    ${CMAKE_SOURCE_DIR}/sql
-                    ${PCRE_INCLUDE_DIRS}
-                    ${SSL_INCLUDE_DIRS}
-                    ${ZLIB_INCLUDE_DIRS})
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/sql)
+  # violite.h pulls in <openssl/ssl.h> under HAVE_OPENSSL
+  IF(TARGET mariadb_ssl)
+    INCLUDE_DIRECTORIES(SYSTEM
+                      $<TARGET_PROPERTY:mariadb_ssl,INTERFACE_INCLUDE_DIRECTORIES>)
+  ENDIF()
 
   LIST(GET ARG_UNPARSED_ARGUMENTS 0 plugin)
   SET(SOURCES ${ARG_UNPARSED_ARGUMENTS})

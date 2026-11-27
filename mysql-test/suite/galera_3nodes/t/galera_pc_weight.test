@@ -34,8 +34,11 @@ SHOW STATUS LIKE 'wsrep_ready';
 SHOW STATUS LIKE 'wsrep_local_state';
 SHOW STATUS LIKE 'wsrep_local_state_comment';
 
+# node_1 is isolated above, so node_3 joins a non-Primary component
+# and will not become ready.
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
+--let $galera_no_wait_ready = 1
 --source include/galera_connect.inc
 --connection node_3
 SET SESSION wsrep_sync_wait=0;

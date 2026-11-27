@@ -101,6 +101,18 @@ delimiter ;|
 # Purge resets DB_TRX_ID in the inserted records. Let it finish, so that it
 # reads no pages into the free blocks that the procedure counts.
 set global innodb_max_purge_lag_wait= 0;
+# Stop purge. While history exists, the purge coordinator runs once per
+# second. It reads undo log pages and the header page of each rollback
+# segment, and these reads can take the free blocks that the procedure
+# counts. A read view does not stop these reads. FLUSH TABLES ... FOR
+# EXPORT stops the purge coordinator. With purge_stop_wait_truncation, it
+# also waits for the rollback segment reads that the coordinator submitted
+# before it stopped.
+create table t5 (a int) engine=innodb;
+connect (stop_purge,localhost,root);
+set debug_dbug= '+d,purge_stop_wait_truncation';
+flush tables t5 for export;
+connection default;
 
 set @old_size= @@global.innodb_buffer_pool_size;
 set @new_size= 12582912;
@@ -133,9 +145,6 @@ connection con1;
 --reap
 connection default;
 set global innodb_buffer_pool_size= @old_size;
-# Purge was blocked by the read view of the paused read. Let it finish, so
-# that it reads no pages into the new blocks of the next case.
-set global innodb_max_purge_lag_wait= 0;
 
 --echo #
 --echo # An UPDATE that continues from a stale position
@@ -165,9 +174,13 @@ connection default;
 select group_concat(pk) from t2 where val = 'b';
 
 set debug_sync= 'reset';
+connection stop_purge;
+unlock tables;
+disconnect stop_purge;
+connection default;
 drop procedure read_into_first_new_block;
 drop function hold;
-drop table t1, t2, t3, t4;
+drop table t1, t2, t3, t4, t5;
 set global innodb_buffer_pool_size= @old_size;
 set global innodb_lru_scan_depth= @save_scan_depth;
 --source include/wait_until_count_sessions.inc

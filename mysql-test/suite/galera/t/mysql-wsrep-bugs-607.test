@@ -30,6 +30,13 @@ set session wsrep_sync_wait=0;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM test.t1;
 --source include/wait_condition.inc
 
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
 # block applier before applying
 SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
 
@@ -67,4 +74,11 @@ SET DEBUG_SYNC = "RESET";
 --reap
 select * from t1;
 
+--connection node_2b
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
+--connection node_1
 DROP TABLE t1;
+

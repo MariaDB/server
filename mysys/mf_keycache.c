@@ -492,6 +492,7 @@ int init_simple_key_cache(void *keycache_,
     DBUG_RETURN(0);
   }
 
+  keycache->warm_blocks= 0;
   keycache->blocks_used= keycache->blocks_unused= 0;
   keycache->global_blocks_changed= 0;
   keycache->global_cache_w_requests= keycache->global_cache_r_requests= 0;

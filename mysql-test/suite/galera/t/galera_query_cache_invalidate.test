@@ -110,7 +110,9 @@ drop table t1;
 
 --connection node_3
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 --connection node_1
 SET SESSION WSREP_ON=OFF;

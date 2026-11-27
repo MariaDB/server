@@ -210,7 +210,8 @@ extern uint32_t srv_undo_tablespaces_active;
 extern unsigned long long	srv_max_undo_log_size;
 
 extern uint	srv_n_fil_crypt_threads;
-extern uint	srv_n_fil_crypt_threads_started;
+/** count of active fil_crypt_thread(); protected by fil_crypt_threads_mutex */
+extern Atomic_relaxed<uint>	srv_n_fil_crypt_threads_started;
 
 /** Enable or Disable Truncate of UNDO tablespace. */
 extern my_bool	srv_undo_log_truncate;

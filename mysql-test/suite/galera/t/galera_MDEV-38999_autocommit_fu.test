@@ -1,0 +1,51 @@
+#
+# MDEV-38999: wsrep_trx_locking_read_done must not leak across autocommit
+# statements. An autocommit SELECT ... FOR UPDATE sets the flag while it
+# executes, but its own implicit transaction ends (releasing the lock) via
+# trans_commit_stmt() right after - the flag must be cleared there too, or
+# every later, unrelated statement on this connection would skip its own
+# causal wait until an explicit BEGIN/COMMIT/ROLLBACK happened to reset it.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_init.inc
+
+--connection node_2
+# Plain autocommit locking read: takes and immediately releases (autocommit)
+# an X-lock, but used to leave wsrep_trx_locking_read_done stuck at true.
+SELECT * FROM t1 WHERE id=1 FOR UPDATE;
+
+--source include/galera_mdev38999_pause_applier.inc
+
+--connection node_1
+INSERT INTO t1 VALUES (2, 200);
+
+--source include/galera_mdev38999_wait_applier_paused.inc
+
+--connection node_2
+# Unrelated later autocommit SELECT: must still perform its own causal wait
+# and time out here - before the fix, the stale flag from the FOR UPDATE
+# above let it through silently instead.
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT COUNT(*) FROM t1;
+
+--source include/galera_mdev38999_resume_applier.inc
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 2 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_cleanup.inc

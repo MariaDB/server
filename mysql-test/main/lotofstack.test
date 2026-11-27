@@ -211,4 +211,22 @@ evalp select $(repeat("row(1,", $n)) 1 $(repeat(")", $n));
 --enable_result_log
 select 1;
 
+--echo #
+--echo # MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
+--echo #
+let $n=5000;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp explain extended select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+--enable_result_log
+--replace_regex /overrun:  [0-9]* bytes used of a [0-9]* byte stack, and [0-9]* bytes needed/overrun:  'used bytes' used of a 'available' byte stack, and 'X' bytes needed/
+show warnings;
+create view v1 as select 1;
+--disable_result_log
+--error ER_STACK_OVERRUN_NEED_MORE
+evalp create or replace view v1 as select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
+--enable_result_log
+select * from v1;
+drop view v1;
+
 --echo # End of 10.11 tests

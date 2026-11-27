@@ -39,7 +39,6 @@
 #endif
 #include "my_readline.h"
 #include <signal.h>
-#include <violite.h>
 #include <my_sys.h>
 #include <source_revision.h>
 #if defined(HAVE_LOCALE_H)
@@ -59,6 +58,10 @@ static char *server_version= NULL;
 
 #include "sql_string.h"
 #include "client_metadata.h"
+
+#ifdef GWINSZ_IN_SYS_IOCTL
+#include <sys/ioctl.h>
+#endif
 
 extern "C" {
 #if defined(HAVE_CURSES_H) && defined(HAVE_TERM_H)

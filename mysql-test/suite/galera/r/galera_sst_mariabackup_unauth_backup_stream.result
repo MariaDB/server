@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+connection node_2;
+connection node_1;
+connection node_2;
+# Shutting down node_2 so its datadir is inert
+# Launching the joiner-role SST script directly, with its
+# progress-reporting wrapper active, then delivering an
+# unauthenticated two-stage backup stream to it ourselves
+# Tearing down the attacker-launched joiner script
+# Restoring node_2 with a clean, legitimate full SST
+connection node_2;
+connection node_1;
+disconnect node_2;
+disconnect node_1;

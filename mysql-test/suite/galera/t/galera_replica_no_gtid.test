@@ -103,7 +103,9 @@ SELECT COUNT(*) AS EXPECT_10000 FROM t1;
 #
 --connection node_2
 STOP SLAVE;
+--disable_warnings
 RESET SLAVE ALL;
+--enable_warnings
 
 --connection node_3
 RESET MASTER;

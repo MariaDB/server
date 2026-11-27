@@ -1,0 +1,61 @@
+#
+# MDEV-38999: a trailing FOR UPDATE on a UNION applies to the whole
+# statement, but the parser attaches it only to the unit's last SELECT_LEX
+# (see SELECT_LEX_UNIT::set_lock_to_the_last_select()), not the first.
+# wsrep_sync_wait() must look at the right one when deciding whether this
+# transaction now holds a lock from this read.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT PRIMARY KEY, f1 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 100);
+INSERT INTO t2 VALUES (1, 100);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_init.inc
+
+--connection node_2
+BEGIN;
+# The FOR UPDATE here locks a row in t2 (the last branch), but is attached
+# by the parser to t2's SELECT_LEX, not t1's.
+SELECT id FROM t1 WHERE id=1 UNION SELECT id FROM t2 WHERE id=1 FOR UPDATE;
+
+--source include/galera_mdev38999_pause_applier.inc
+
+--connection node_1
+# Certified, but stuck applying on node_2 - conflicts with the X-lock above.
+UPDATE t2 SET f1=0 WHERE id=1;
+
+--source include/galera_mdev38999_wait_applier_paused.inc
+
+--connection node_2
+# This must NOT attempt its own causal wait - this transaction already
+# holds a lock from the UNION FOR UPDATE above, so if the trailing lock
+# went undetected, this would block until the applier is released and
+# then hit the causal_read_timeout on top of it (nothing but ending this
+# transaction can make the stuck applier's position catch up).
+SELECT COUNT(*) FROM t1;
+
+--source include/galera_mdev38999_resume_applier.inc
+
+--connection node_2
+# The transaction holding the FOR UPDATE lock on t2's row genuinely
+# conflicts with node_1's UPDATE to that same row, so it may already have
+# been BF-aborted by the time this runs - don't assume which.
+--error 0,ER_LOCK_DEADLOCK
+ROLLBACK;
+--let $wait_condition = SELECT f1 = 0 FROM t2 WHERE id=1
+--source include/wait_condition.inc
+
+--source include/galera_mdev38999_cleanup.inc
+DROP TABLE t2;

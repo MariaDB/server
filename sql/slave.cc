@@ -160,6 +160,7 @@ typedef enum { SLAVE_THD_IO, SLAVE_THD_SQL} SLAVE_THD_TYPE;
 static int process_io_rotate(Master_info* mi, Rotate_log_event* rev);
 static bool wait_for_relay_log_space(Relay_log_info* rli);
 static bool io_slave_killed(Master_info* mi);
+static void slave_io_vio_callback(void *arg, void *vio);
 static bool sql_slave_killed(rpl_group_info *rgi);
 static int init_slave_thread(THD*, Master_info *, SLAVE_THD_TYPE);
 static void make_slave_skip_errors_printable(void);
@@ -4152,22 +4153,60 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
 	exec_res = 0;
         break;
       default:
+        {
           WSREP_DEBUG("SQL apply failed, res %d conflict state: %s",
                       exec_res, wsrep_thd_transaction_state_str(thd));
           /*
-            async replication thread should be stopped, if failure was
-            not due to optimistic parallel applying or if node
-            has dropped from cluster
+            wsrep_ready can stay ON for a while after the node has
+            actually dropped, since group communication fails before
+            the non-Primary view is delivered - use the wsrep client
+            error state instead. Stop and report on node-dropped, or
+            a wsrep error not covered by optimistic/aggressive
+            parallel retrying. A wsrep error left to that retrying
+            still needs a MariaDB error raised here, or nothing
+            retries or reports it; ER_LOCK_DEADLOCK is a normal
+            temporary error.
            */
+          const bool node_dropped= !wsrep_ready_get();
+          const bool wsrep_failed=
+            thd->wsrep_cs().current_error() != wsrep::e_success;
+          const bool conservative_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE;
+          const bool optimistic_parallel=
+            rli->mi->using_parallel() &&
+            rli->mi->parallel_mode > SLAVE_PARALLEL_CONSERVATIVE;
+
+          WSREP_DEBUG("apply_event_and_update_pos_apply: thd %lld exec_res %d "
+                      "node_dropped %d wsrep_failed %d conservative_parallel %d "
+                      "optimistic_parallel %d wsrep_err %s wsrep_trx_state %s "
+                      "query: %s",
+                      thd->thread_id, exec_res, node_dropped, wsrep_failed,
+                      conservative_parallel, optimistic_parallel,
+                      wsrep::to_c_string(thd->wsrep_cs().current_error()),
+                      wsrep_thd_transaction_state_str(thd),
+                      wsrep_thd_query(thd));
+
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
-              ((rli->mi->using_parallel() &&
-                rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-                !wsrep_ready_get())) {
+              (conservative_parallel || node_dropped ||
+               (wsrep_failed && !optimistic_parallel))) {
             rli->abort_slave= 1;
-            rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
-                        "Node has dropped from cluster");
+            if (node_dropped)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Node has dropped from cluster");
+            else if (wsrep_failed)
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "wsrep applying failed: %s",
+                          wsrep::to_c_string(thd->wsrep_cs().current_error()));
+            else
+              rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
+                          "Failed to apply event, wsrep transaction state: %s",
+                          wsrep_thd_transaction_state_str(thd));
           }
+          else if (wsrep_failed && optimistic_parallel && !thd->is_error())
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
           break;
+        }
       }
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
@@ -7532,25 +7571,35 @@ void end_relay_log_info(Relay_log_info* rli)
 
 
 /**
-  Hook to detach the active VIO before closing a connection handle.
+  The MYSQL_OPT_VIO_CALLBACK of the connection to the master. The client calls
+  it with the vio as soon as it is created, i.e. before connect() and the wait
+  for the server greeting, and with NULL right before the vio is deleted.
 
-  The client API might close the connection (and associated data)
-  in case it encounters a unrecoverable (network) error. This hook
-  is called from the client code before the VIO handle is deleted
-  allows the thread to detach the active vio so it does not point
-  to freed memory.
+  Until the connect succeeds the vio is not THD::active_vio, so for a master
+  that accepts the TCP connection but never answers (frozen host, dropped
+  packets) THD::awake() cannot interrupt the IO thread, and STOP SLAVE waits
+  for slave_net_timeout. With the vio set as active_vio, awake() shuts it
+  down and the blocking wait returns at once.
 
-  Other calls to THD::clear_active_vio throughout this module are
-  redundant due to the hook but are left in place for illustrative
-  purposes.
+  The client might also delete the vio on an unrecoverable (network) error, the
+  NULL notification makes the THD forget it, so that active_vio never points to
+  freed memory.
+
+  STOP SLAVE sets mi->abort_slave before it calls awake(). If it already did,
+  the vio is shut down here, since awake() found no active vio.
 */
 
-extern "C" void slave_io_thread_detach_vio()
+static void slave_io_vio_callback(void *arg, void *vio_arg)
 {
 #ifdef SIGNAL_WITH_VIO_CLOSE
-  THD *thd= current_thd;
-  if (thd && thd->slave_thread)
-    thd->clear_active_vio();
+  Master_info *mi= static_cast<Master_info *>(arg);
+  Vio *vio= static_cast<Vio *>(vio_arg);
+  THD *thd= mi->io_thd;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  thd->active_vio= vio;
+  if (vio && mi->abort_slave)
+    vio_shutdown(vio, SHUT_RDWR);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 #endif
 }
 
@@ -7605,6 +7654,8 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   setup_mysql_connection_for_master(mi->mysql, mi, slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  mysql_options(mysql, MYSQL_OPT_VIO_CALLBACK, (void *) slave_io_vio_callback);
+  mysql_options(mysql, MYSQL_OPT_VIO_CALLBACK_ARG, mi);
 
   /* we disallow empty users */
   if (mi->user[0] == 0)

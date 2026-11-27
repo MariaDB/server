@@ -196,4 +196,12 @@ SELECT ST_AsGeoJSON(GeomFromText('MultiPoint EMPTY'));
 SELECT ST_AsGeoJSON(GeomFromText('MultiLineString EMPTY'));
 SELECT ST_AsGeoJSON(GeomFromText('MultiPolygon EMPTY'));
 
+--echo #
+--echo # MDEV-40423: use-of-uninitialized-value in Gis_point::get_data_as_wkt
+--echo #
+
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"Point","coordinates":[]}',4)) as a;
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"Point","coordinates":[1]}',4)) as a;
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type":"LineString","coordinates":[[1,2],[]]}')) as a;
+
 --echo # End of 10.11 tests

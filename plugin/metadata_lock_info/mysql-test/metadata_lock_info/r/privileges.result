@@ -1,0 +1,60 @@
+#
+# MDEV-40374 I_S.metadata_lock_info shows schema/table that user has no privileges on
+#
+create database db1;
+create table db1.t1 (a int);
+create table t2 (b int);
+create user u1@localhost;
+grant select, execute on test.* to u1@localhost;
+create user u2@localhost;
+grant process on *.* to u2@localhost;
+create definer=u1@localhost function f1() returns int
+sql security definer return get_lock('l1', 100);
+begin;
+select * from db1.t1;
+a
+connect u1a,localhost,u1;
+begin;
+select * from t2;
+b
+connect u1b,localhost,u1;
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+lock_mode	lock_type	table_schema	table_name
+MDL_SHARED_READ	Table metadata lock	test	t2
+select get_lock('l1', 0);
+get_lock('l1', 0)
+1
+# a thread in a routine of u1 does not belong to u1
+connection default;
+select f1();
+connect u2,localhost,u2;
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+lock_mode	lock_type	table_schema	table_name
+MDL_SHARED	Stored function metadata lock	test	f1
+MDL_SHARED_NO_WRITE	User lock	l1	
+MDL_SHARED_READ	Table metadata lock	db1	t1
+MDL_SHARED_READ	Table metadata lock	test	t2
+disconnect u2;
+connection u1b;
+select lock_mode, lock_type, table_schema, table_name from information_schema.metadata_lock_info;
+lock_mode	lock_type	table_schema	table_name
+MDL_SHARED_NO_WRITE	User lock	l1	
+MDL_SHARED_READ	Table metadata lock	test	t2
+select release_lock('l1');
+release_lock('l1')
+1
+disconnect u1b;
+connection default;
+f1()
+1
+connection u1a;
+commit;
+disconnect u1a;
+connection default;
+commit;
+drop function f1;
+drop user u1@localhost;
+drop user u2@localhost;
+drop table t2;
+drop database db1;
+# End of 10.11 tests

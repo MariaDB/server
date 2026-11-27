@@ -24,6 +24,12 @@ SAVEPOINT my_sp;
 # Block the applier on node #1 and issue a conflicting update on node #2
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 SET SESSION wsrep_sync_wait=0;
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -82,4 +88,11 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'b';
 SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'c';
 
+--connection node_1a
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
+--connection node_2
 DROP TABLE t1;
+

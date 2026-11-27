@@ -5,6 +5,13 @@ wsrep-debug=SERVER
 loose-wsrep-duplicate-primary-value=1
 wsrep-auto-increment-control=OFF
 auto-increment-offset=1
+# The test parks one applier at the wsrep_after_kill sync point while a
+# second, independent write set must be applied concurrently to reach
+# wsrep_after_kill_2. That needs at least two appliers on node 1; with
+# the default of 1 the second write set can never be applied and the
+# test stalls until --debug-sync-timeout (300s) before passing without
+# ever reaching the state it is meant to test.
+wsrep-slave-threads=2
 
 [mysqld.2]
 wsrep-debug=SERVER

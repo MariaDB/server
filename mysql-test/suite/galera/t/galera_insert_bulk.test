@@ -9,6 +9,17 @@
 --source include/have_debug.inc
 
 #
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--connection node_1
+--let $wsrep_slave_threads_orig_1 = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+--connection node_2
+--let $wsrep_slave_threads_orig_2 = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
+#
 # Make bulk insert BF-abort, but regular insert succeed.
 #
 
@@ -117,7 +128,20 @@ SET DEBUG_SYNC = 'wsrep_after_certification SIGNAL signal.wsrep_apply_cb';
 --error ER_LOCK_DEADLOCK
 COMMIT;
 
-DROP TABLE t1;
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig_2
+--enable_query_log
+
+--connection node_1
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig_1
+--enable_query_log
+
+DROP TABLE IF EXISTS t1;
+
+--connection node_2
 SET GLOBAL DEBUG_DBUG = '';
 SET DEBUG_SYNC = 'RESET';
+DROP TABLE IF EXISTS t1;
+
 --source include/galera_end.inc

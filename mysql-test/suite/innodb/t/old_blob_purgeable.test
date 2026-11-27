@@ -17,7 +17,7 @@ SET @old_dbug= @@SESSION.debug_dbug;
 --echo # row_vers_impl_x_locked_purgeable: report no implicit lock.
 --echo #
 
-CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
 
@@ -47,12 +47,13 @@ CHECK TABLE t EXTENDED;
 DROP TABLE t;
 
 --echo #
---echo # row_undo_mod_sec_is_unsafe_purgeable: report the secondary index entry
---echo # as still needed, which only makes the rollback delete-mark an entry it
---echo # could have removed.
+--echo # row_undo_mod_sec_is_unsafe_purgeable: end the walk as if purge had
+--echo # seen the writer before the walk got there, so that the rollback removes
+--echo # the secondary index entry. Delete-marking it instead would leave an entry
+--echo # that no undo log record refers to, which purge never removes.
 --echo #
 
-CREATE TABLE t(a INT PRIMARY KEY, pad INT, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, pad INT, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, 0, REPEAT('x', @@innodb_page_size));
 # The pad update produces a version that merely inherits the reference to the
@@ -67,14 +68,23 @@ ROLLBACK;
 SET SESSION debug_dbug= @old_dbug;
 
 SELECT a, pad, LEFT(b, 2) FROM t FORCE INDEX(b) WHERE b LIKE 'yy%';
+
+# CHECK TABLE ... EXTENDED would report such an entry as an orphan only once
+# purge_sys.end_view sees the transaction that rolled back. A purge batch for a
+# later transaction makes it so; without one, the report depends on timing.
+# Under --debug-dbug=+d,row_undo_mod_sec_is_unsafe_keep the rollback leaves the
+# entry delete-marked, and the check below reports it.
+CREATE TABLE t2(a INT) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t2 VALUES (1);
+--source include/wait_all_purged.inc
 CHECK TABLE t EXTENDED;
-DROP TABLE t;
+DROP TABLE t, t2;
 
 --echo #
 --echo # row_check_index_purgeable: stop the walk and report nothing.
 --echo #
 
-CREATE TABLE t(a INT PRIMARY KEY, b TEXT, UNIQUE(b(700)))
+CREATE TABLE t(a INT PRIMARY KEY, b MEDIUMTEXT, UNIQUE(b(700)))
 ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=DYNAMIC;
 INSERT INTO t VALUES (1, REPEAT('x', @@innodb_page_size));
 

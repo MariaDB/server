@@ -1,0 +1,108 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+ 
+--connection node_1
+CREATE ROLE r1;
+GRANT ALL ON *.* TO r1;
+CREATE USER u1@localhost;
+CREATE DATABASE d1;
+CREATE TABLE d1.t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO d1.t1 VALUES (1);
+ 
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.global_priv WHERE User = 'u1'
+--source include/wait_condition.inc
+ 
+--connect (con1,127.0.0.1,u1,,,$NODE_MYPORT_1)
+--connection con1
+SELECT PRIVILEGE_TYPE FROM information_schema.USER_PRIVILEGES WHERE GRANTEE = "'u1'@'localhost'";
+--error ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+GRANT r1 TO u1@localhost;
+ 
+--connection node_1
+--echo # node_1 roles_mapping after the refused statement
+SELECT User, Role FROM mysql.roles_mapping WHERE User = 'u1';
+ 
+--connection node_2
+--echo # node_2 roles_mapping after the same statement
+SELECT User, Role FROM mysql.roles_mapping WHERE User = 'u1';
+--let $granted = query_get_value(SELECT COUNT(*) AS c FROM mysql.roles_mapping WHERE User = 'u1' AND Role = 'r1', c, 1)
+ 
+--connect (con2,127.0.0.1,u1,,,$NODE_MYPORT_2)
+--connection con2
+--disable_abort_on_error
+SET ROLE r1;
+--let $role_set = $mysql_errno
+SELECT a FROM d1.t1;
+SELECT COUNT(*) AS c FROM mysql.global_priv;
+--enable_abort_on_error
+ 
+--echo #
+--echo # Race: the granting user loses the admin option after the
+--echo # privilege check, but before the GRANT enters TOI. All nodes
+--echo # must reach the same outcome.
+--echo #
+--connection node_1
+CREATE USER admin@localhost;
+# SUPER is only needed for SET DEBUG_SYNC, it does not allow granting roles
+GRANT SUPER ON *.* TO admin@localhost;
+GRANT r1 TO admin@localhost WITH ADMIN OPTION;
+CREATE USER u2@localhost;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.global_priv WHERE User = 'u2'
+--source include/wait_condition.inc
+
+--connect (con_admin,127.0.0.1,admin,,,$NODE_MYPORT_1)
+--connection con_admin
+SET DEBUG_SYNC = 'grant_role_before_toi SIGNAL checked WAIT_FOR go';
+--send GRANT r1 TO u2@localhost
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR checked';
+
+--connection node_2
+REVOKE ADMIN OPTION FOR r1 FROM admin@localhost;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM mysql.roles_mapping WHERE User = 'admin' AND Role = 'r1' AND Admin_option = 'N'
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL go';
+
+--connection con_admin
+# The privilege check before TOI passed, so the GRANT succeeds everywhere
+--error 0,ER_ACCESS_DENIED_NO_PASSWORD_ERROR
+--reap
+
+--connection node_1
+--echo # node_1 roles_mapping after the race
+SELECT User, Role FROM mysql.roles_mapping WHERE User = 'u2';
+--let $race_n1 = query_get_value(SELECT COUNT(*) AS c FROM mysql.roles_mapping WHERE User = 'u2', c, 1)
+
+--connection node_2
+--echo # node_2 roles_mapping after the race
+SELECT User, Role FROM mysql.roles_mapping WHERE User = 'u2';
+--let $race_n2 = query_get_value(SELECT COUNT(*) AS c FROM mysql.roles_mapping WHERE User = 'u2', c, 1)
+
+--connection node_1
+--disconnect con_admin
+SET DEBUG_SYNC = 'RESET';
+DROP USER admin@localhost;
+DROP USER u2@localhost;
+
+if ($race_n1 != $race_n2) {
+  --die The nodes disagree on whether the GRANT that raced with REVOKE was applied
+}
+
+--connection node_1
+--disconnect con1
+--disconnect con2
+DROP USER u1@localhost;
+DROP ROLE r1;
+DROP DATABASE d1;
+ 
+--echo # rows granting r1 to u1 on node_2: $granted
+if ($granted == 1) {
+  --die A statement the originating node refused on a privilege check was applied by the other node, so the account holds the role there
+}

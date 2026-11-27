@@ -42,6 +42,12 @@ INSERT INTO t1 VALUES (4, 0); # No conflict in cert
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 SET SESSION wsrep_sync_wait=0;
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
 
 --echo # The transaction above must have replicated a fragment, otherwise
 --echo # this test degenerates into galera_sequences_bf_kill
@@ -291,9 +297,16 @@ SELECT COUNT(f2) = COUNT(DISTINCT f2) AS EXPECT_1 FROM t1;
 --source include/wait_condition.inc
 SELECT COUNT(*) AS EXPECT_0 FROM mysql.wsrep_streaming_log;
 
+--connection node_1a
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+
 --connection node_1
 SET SESSION wsrep_trx_fragment_size=DEFAULT;
 SET SESSION wsrep_trx_fragment_unit=DEFAULT;
+
+--connection node_2
 DROP SEQUENCE s;
 DROP TABLE t1;
 
@@ -305,4 +318,5 @@ DROP TABLE t1;
 --eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 0 AS wsrep_local_replays;
 --enable_query_log
 
+--connection node_1
 --disconnect node_1a

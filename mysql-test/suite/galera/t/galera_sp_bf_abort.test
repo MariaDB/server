@@ -14,6 +14,13 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1));
 --connection node_1a
 SET SESSION wsrep_sync_wait = 0;
 
+#
+# Use 2 applier threads, a paused applier cannot process the periodic
+# COMMIT_CUT action, and local certification would wait for it (MDEV-42383)
+#
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
 --connection node_1
 #
 # Case 1a: Procedure does and UPDATE which will suffer BF abort
@@ -334,7 +341,12 @@ SELECT * FROM t1;
 
 DELETE FROM t1;
 
+--connection node_1a
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
 
+--connection node_1
 DROP PROCEDURE proc_update_insert;
 DROP PROCEDURE proc_update_insert_with_continue_handler;
 DROP PROCEDURE proc_update_insert_with_exit_handler;
@@ -344,4 +356,7 @@ DROP PROCEDURE proc_update_insert_transaction_with_exit_handler;
 DROP PROCEDURE proc_insert_insert_conflict;
 DROP PROCEDURE proc_insert_insert_conflict_with_exit_handler;
 DROP PROCEDURE proc_insert_insert_conflict_with_continue_handler;
+
+--connection node_2
 DROP TABLE t1;
+

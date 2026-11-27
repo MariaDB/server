@@ -8,9 +8,7 @@ MACRO(BUNDLE_LIBFMT)
   SET(dir "${CMAKE_BINARY_DIR}/extra/libfmt")
   SET(LIBFMT_INCLUDE_DIR "${dir}/src/libfmt/include")
 
-  IF(CMAKE_VERSION VERSION_GREATER "3.0")
-    SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
-  ENDIF()
+  SET(fmt_byproducts BUILD_BYPRODUCTS ${LIBFMT_INCLUDE_DIR}/fmt/format-inl.h)
 
   IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.9")
     # it's for RHEL-7, gcc 4.8.5
@@ -56,6 +54,15 @@ MACRO (CHECK_LIBFMT)
   ELSE()
     FIND_FILE(Libfmt_core_h fmt/core.h) # for build_depends.cmake
   ENDIF()
+  # MariaDB::fmt - header-only fmt, pointing at the bundled or the system copy.
+  # (the sources that use it #define FMT_HEADER_ONLY themselves)
+  ADD_LIBRARY(mariadb_fmt INTERFACE)
+  TARGET_INCLUDE_DIRECTORIES(mariadb_fmt INTERFACE ${LIBFMT_INCLUDE_DIR})
+  IF(TARGET libfmt)
+    # bundled: make sure the headers are downloaded before consumers compile
+    ADD_DEPENDENCIES(mariadb_fmt libfmt)
+  ENDIF()
+  ADD_LIBRARY(MariaDB::fmt ALIAS mariadb_fmt)
 ENDMACRO()
 
 MARK_AS_ADVANCED(LIBFMT_INCLUDE_DIR)
