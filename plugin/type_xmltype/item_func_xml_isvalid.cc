@@ -763,10 +763,11 @@ public:
   XMLSchema_std_attributes m_attributes;
   XMLSchema_attributeGroup_def *m_next_group;
   XMLSchema_tag_attribute m_atr_name;
+  bool m_in_check_type;
 
   XMLSchema_type *m_type;
   XMLSchema_attributeGroup_def(): XMLSchema_tag(),
-    m_atr_name(&xs_name)
+    m_atr_name(&xs_name), m_in_check_type(false)
   {
     declare_attribute(&m_atr_name);
   }
@@ -781,6 +782,12 @@ public:
 
     return res > 0 ? MY_XML_OK : MY_XML_ERROR;
   }
+  void get_group_name(LEX_CSTRING *name) const
+  {
+    name->str= m_atr_name.m_val;
+    name->length= m_atr_name.m_val_len;
+  }
+  int check_type(int nesting_depth) override;
 };
 
 
@@ -803,6 +810,10 @@ public:
   bool resolve_type(MY_XML_VALIDATION_DATA *st,
                     LEX_CSTRING *bad_type) override;
 
+  int check_type(int nesting_depth) override
+  {
+    return m_group->check_type(nesting_depth);
+  }
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
                      const char *attr, size_t len) override
   {
@@ -2940,6 +2951,34 @@ int XMLSchema_std_attributes::validate_attr(MY_XML_VALIDATION_DATA *st,
   return st->validation_failed();
 }
 
+int XMLSchema_attributeGroup_def::check_type(int nesting_depth)
+{
+  int res= CT_OK;
+
+  if (m_in_check_type)
+    return CT_CIRCULAR;   /* circular groups are not allowed. */
+
+  /*
+    Guard against declaring a long list of attributeGroups
+    nesting one another.
+  */
+  if (nesting_depth++ >= MAX_SCHEMA_NESTING_DEPTH)
+    return CT_DEPTH;
+
+  m_in_check_type= true;
+
+  for (XMLSchema_attributeGroup_reference *atr= m_attributes.m_groups;
+      atr;
+      atr= atr->m_next_ref)
+  {
+    if ((res= atr->check_type(nesting_depth)))
+      break;
+  }
+
+  m_in_check_type= false;
+  return res;
+}
+
 
 bool XMLSchema_attribute::enter_tag(MY_XML_VALIDATION_DATA *st,
                                     const char *attr, size_t len)
@@ -3832,6 +3871,19 @@ int XMLSchema_schema::check_types(LEX_CSTRING *tag_name,
       if ((res= grp->check_type(0)))
       {
         *tag_name= xs_group.m_w;
+        grp->get_group_name(bad_tag);
+        return res;
+      }
+    }
+  }
+
+  {
+    XMLSchema_attributeGroup_def *grp;
+    for(grp= m_global_attr_groups; grp; grp= grp->m_next_group)
+    {
+      if ((res= grp->check_type(0)))
+      {
+        *tag_name= xs_attributeGroup.m_w;
         grp->get_group_name(bad_tag);
         return res;
       }

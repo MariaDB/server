@@ -3232,3 +3232,89 @@ SET @s= '
 </xs:schema>';
 SELECT XMLISVALID('<R><E></E><F>abc</F></R>', @s) AS no_attr, XMLISVALID('<R><E a="1"></E><F>abc</F></R>', @s) AS with_attr_0;
 
+--echo
+--echo MDEV-42389 XMLISVALID: stack overflow in XMLSchema_std_attributes::validate_attr with circular xs:attributeGroup.
+--echo
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:attributeGroup name="g">
+        <xs:attributeGroup ref="g"/>
+    </xs:attributeGroup>
+    <xs:element name="r">
+        <xs:complexType>
+            <xs:attributeGroup ref="g"/>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+
+--error ER_UNKNOWN_ERROR
+SELECT XMLISVALID('<r a="1"/>', @s);
+
+--echo # indirect cycle g1 -> g2 -> g1
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:attributeGroup name="g1">
+        <xs:attributeGroup ref="g2"/>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="g2">
+        <xs:attributeGroup ref="g1"/>
+    </xs:attributeGroup>
+    <xs:element name="r">
+        <xs:complexType>
+            <xs:attributeGroup ref="g1"/>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+--error ER_UNKNOWN_ERROR
+SELECT XMLISVALID('<r a="1"/>', @s);
+
+--echo # valid nesting, group reached twice (not a cycle)
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:attributeGroup name="g1">
+        <xs:attributeGroup ref="g3"/>
+        <xs:attributeGroup ref="g2"/>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="g2">
+        <xs:attributeGroup ref="g3"/>
+    </xs:attributeGroup>
+    <xs:attributeGroup name="g3">
+        <xs:attribute name="a" type="xs:string"/>
+    </xs:attributeGroup>
+    <xs:element name="r">
+        <xs:complexType>
+            <xs:attributeGroup ref="g1"/>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+SELECT XMLISVALID('<r a="1"/>', @s) AS valid_1, XMLISVALID('<r b="1"/>', @s) AS invalid_0;
+
+--echo # too long chain of nested attributeGroups
+
+DELIMITER //;
+CREATE PROCEDURE p_attrgroup_chain(n INT, doc VARCHAR(100))
+BEGIN
+  DECLARE i INT DEFAULT 1;
+  SET @g= '';
+  WHILE i <= n DO
+    SET @g= CONCAT(@g, '<xs:attributeGroup name="g', i, '">',
+      IF(i < n, CONCAT('<xs:attributeGroup ref="g', i+1, '"/>'),
+                '<xs:attribute name="a" type="xs:string"/>'),
+      '</xs:attributeGroup>');
+    SET i= i+1;
+  END WHILE;
+  SET @s= CONCAT('<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">',
+                 '<xs:element name="r"><xs:complexType>',
+                 '<xs:attributeGroup ref="g1"/>',
+                 '</xs:complexType></xs:element>', @g, '</xs:schema>');
+  SELECT n, XMLISVALID(doc, @s);
+END//
+DELIMITER ;//
+
+CALL p_attrgroup_chain(1000, '<r a="x"/>');
+CALL p_attrgroup_chain(1000, '<r b="x"/>');
+--error ER_UNKNOWN_ERROR
+CALL p_attrgroup_chain(5000, '<r a="x"/>');
+DROP PROCEDURE p_attrgroup_chain;
+
