@@ -1023,8 +1023,12 @@ sp_head::create_result_field(uint field_max_length,
     has not been called yet. It's called after create_result_field().
 
     2b. During EXEC:
-    field_max_length is set to the maximum possible octet length of the
-    RETURNS data type.
+    field_max_length is 0, because Item_func_sp::cleanup() and
+    Item_sum_sp::cleanup() reset max_length, so a value left from the
+    previous execution is not passed here.
+    Item_sum_sp::copy_or_same() (ROLLUP) is the exception: it passes
+    the max_length of an already fixed item, set according to the
+    RETURNS data type:
     - N for CHAR(N) CHARACTER SET latin1  (octet length)
     - 3*N for CHAR(N) CHARACTER SET utf8  (octet length)
     - 255 for TINYBLOB                    (octet length, not packed length !!!)
