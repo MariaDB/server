@@ -1,0 +1,12 @@
+#
+# DROP TABLE of an Aria table with a fulltext parser plugin
+# must not warn about an unsupported extension
+#
+INSTALL PLUGIN simple_parser SONAME 'mypluglib';
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser) ENGINE=Aria;
+INSERT INTO t1 VALUES ('hello world');
+DROP TABLE t1;
+CREATE TABLE t1 (a TEXT, FULLTEXT(a) WITH PARSER simple_parser)
+ENGINE=Aria TRANSACTIONAL=0;
+DROP TABLE t1;
+UNINSTALL PLUGIN simple_parser;
