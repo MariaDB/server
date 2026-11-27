@@ -68,6 +68,7 @@
 #include "create_tmp_table.h"
 #include "optimizer_defaults.h"
 #include "derived_handler.h"
+#include "opt_plan_refinement.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -12815,6 +12816,9 @@ int JOIN_TAB::make_scan_filter()
                                   join->const_table_map | table->map,
                                   table->map, -1, FALSE, TRUE)))
     {
+      move_expensive_args_last(join->thd, tmp);
+      if (join->thd->is_error())
+        DBUG_RETURN(1);
       DBUG_EXECUTE("where",print_where(tmp,"cache", QT_ORDINARY););
       if (!(cache_select=
             (SQL_SELECT*) join->thd->memdup((uchar*) select,
@@ -14682,12 +14686,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           if (pseudo_cond)
           {
             add_cond_and_fix(thd, &pseudo_cond, join->outer_ref_cond);
+            move_expensive_args_last(thd, pseudo_cond);
             join->outer_ref_cond= pseudo_cond;
 
             Json_writer_object trace(thd);
             trace.add("outer_ref_cond", pseudo_cond);
           }
-          else if (thd->is_error())
+          if (thd->is_error())
             DBUG_RETURN(1);
         }
       }
@@ -15336,6 +15341,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
       if (!tab->bush_children)
         i++;
     }
+
+    for (tab= first_depth_first_tab(join); tab;
+         tab= next_depth_first_tab(join, tab))
+    {
+      if (tab->select_cond)
+        move_expensive_args_last(thd, tab->select_cond);
+      if (tab->select && tab->select->cond &&
+          tab->select->cond != tab->select_cond)
+        move_expensive_args_last(thd, tab->select->cond);
+      if (tab->on_precond)
+        move_expensive_args_last(thd, tab->on_precond);
+    }
+    if (thd->is_error())
+      DBUG_RETURN(1);
 
     if (unlikely(thd->trace_started()))
     {
