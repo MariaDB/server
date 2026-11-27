@@ -1,0 +1,290 @@
+#
+# Writes on a mariabackup SST donor while its mariabackup holds a backup
+# stage. Node 3 requests SST from node 1. The donor's mariabackup stops
+# after BACKUP STAGE START, BLOCK_DDL or BLOCK_COMMIT. Writes run on node 1
+# (local) or on node 2 (applied on node 1). Print one line for each write:
+#
+#   <stage> <local|applier> <write>: <outcome>
+#
+# Outcomes as in galera/include/galera_backup_lock_matrix.inc. If the
+# donor pauses the provider depends on the version.
+#
+# Local DML runs in parallel at the start of each stage. A TOI or applier
+# write that waits for the backup lock holds the provider order, so the
+# writes after it run in a new SST.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
+--source include/have_debug_sync.inc
+--source include/have_mariabackup.inc
+
+--let $galera_connection_name= node_3
+--let $galera_server_number= 3
+--source include/galera_connect.inc
+
+--let $node_1= node_1
+--let $node_2= node_2
+--let $node_3= node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+SET SESSION wsrep_sync_wait= 0;
+--connection node_1
+SET SESSION wsrep_sync_wait= 0;
+# A paused provider rejects local TOI.
+CALL mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+CREATE TABLE t_i (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t_at (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t_an (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t_m (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+CREATE USER u1, u2;
+# An insert into an empty Aria table waits for the backup lock already
+# when it opens the table.
+INSERT INTO t_at VALUES (NULL);
+INSERT INTO t_an VALUES (NULL);
+INSERT INTO t_m VALUES (NULL);
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $op_id= `SELECT CONNECTION_ID()`
+--connect (node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $dml_id_1= `SELECT CONNECTION_ID()`
+--connect (node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $dml_id_2= `SELECT CONNECTION_ID()`
+--connect (node_1e, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $dml_id_3= `SELECT CONNECTION_ID()`
+--connect (node_1f, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $dml_id_4= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+SET @debug_dbug_saved= @@GLOBAL.debug_dbug;
+
+--disable_query_log
+--disable_connect_log
+--let $sst_i= 1
+while ($sst_i <= 3)
+{
+  --let $sst_stage= START
+  if ($sst_i == 2)
+  {
+    --let $sst_stage= BLOCK_DDL
+  }
+  if ($sst_i == 3)
+  {
+    --let $sst_stage= BLOCK_COMMIT
+  }
+  --let $paused= 0
+  --let $item= 0
+  while ($item <= 9)
+  {
+    # Node 3 requests SST. The donor's mariabackup stops after $sst_stage.
+    --connection node_3
+    --source include/shutdown_mysqld.inc
+    --remove_file $MYSQLTEST_VARDIR/mysqld.3/data/grastate.dat
+    --connection node_1b
+    --let $wait_condition= SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+    --source include/wait_condition.inc
+    --disable_query_log
+    --eval SET GLOBAL debug_dbug= '+d,sst_hold_$sst_stage'
+    --write_line "restart" $_expect_file_name
+    SET DEBUG_SYNC= 'now WAIT_FOR sst_held';
+    SET GLOBAL debug_dbug= @debug_dbug_saved;
+
+    --let $dml= 0
+    if ($item == 0)
+    {
+      # Local DML, each on its own connection.
+      --let $replicated= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated'`
+      --let $dml= 1
+      while ($dml <= 4)
+      {
+        --let $count= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_insert'`
+        if ($dml == 1)
+        {
+          --connection node_1c
+          --send INSERT INTO t_i VALUES (NULL)
+        }
+        if ($dml == 2)
+        {
+          --connection node_1d
+          --send INSERT INTO t_at VALUES (NULL)
+        }
+        if ($dml == 3)
+        {
+          --connection node_1e
+          --send INSERT INTO t_an VALUES (NULL)
+        }
+        if ($dml == 4)
+        {
+          --connection node_1f
+          --send INSERT INTO t_m VALUES (NULL)
+        }
+        --connection node_1b
+        --let $wait_condition= SELECT VARIABLE_VALUE > $count FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_insert'
+        --source include/wait_condition.inc
+        --disable_query_log
+        --inc $dml
+      }
+      # A paused provider holds the InnoDB write in certification. The
+      # write set is replicated before certification.
+      --let $wait_condition= SELECT COUNT(*) = 4 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID IN ($dml_id_1, $dml_id_2, $dml_id_3, $dml_id_4) AND (COMMAND <> 'Query' OR STATE = 'Waiting for backup lock' OR (ID = $dml_id_1 AND (SELECT VARIABLE_VALUE > $replicated FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_replicated')))
+      --source include/wait_condition.inc
+      --disable_query_log
+      --let $item= 1
+    }
+
+    --let $blocked= 0
+    --let $op_pending= 0
+    while ($item <= 9)
+    {
+      --source include/galera_sst_backup_lock_write.inc
+      --disable_query_log
+      --disable_connect_log
+      --inc $item
+      if ($blocked)
+      {
+        --let $item_end= $item
+        --let $item= 10
+      }
+    }
+    if ($blocked)
+    {
+      --let $item= $item_end
+    }
+
+    if ($dml)
+    {
+      # Write 1 has set $paused. Without a pause the InnoDB write ends.
+      --connection node_1b
+      if (!$paused)
+      {
+        --let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $dml_id_1 AND (COMMAND <> 'Query' OR STATE = 'Waiting for backup lock')
+        --source include/wait_condition.inc
+        --disable_query_log
+      }
+      --let $dml_outcome_1= `SELECT CASE WHEN COMMAND <> 'Query' THEN 'ended' WHEN STATE = 'Waiting for backup lock' THEN 'waits:backup_lock' ELSE 'waits:certification' END FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $dml_id_1`
+      --let $dml_outcome_2= `SELECT IF(COMMAND <> 'Query', 'ended', 'waits:backup_lock') FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $dml_id_2`
+      --let $dml_outcome_3= `SELECT IF(COMMAND <> 'Query', 'ended', 'waits:backup_lock') FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $dml_id_3`
+      --let $dml_outcome_4= `SELECT IF(COMMAND <> 'Query', 'ended', 'waits:backup_lock') FROM INFORMATION_SCHEMA.PROCESSLIST WHERE ID = $dml_id_4`
+    }
+
+    --connection node_1b
+    SET DEBUG_SYNC= 'now SIGNAL sst_continue';
+
+    if ($dml)
+    {
+      --let $dml= 1
+      while ($dml <= 4)
+      {
+        if ($dml == 1)
+        {
+          --connection node_1c
+          --let $dml_op= innodb
+          --let $outcome= $dml_outcome_1
+        }
+        if ($dml == 2)
+        {
+          --connection node_1d
+          --let $dml_op= aria_trans
+          --let $outcome= $dml_outcome_2
+        }
+        if ($dml == 3)
+        {
+          --connection node_1e
+          --let $dml_op= aria_nontrans
+          --let $outcome= $dml_outcome_3
+        }
+        if ($dml == 4)
+        {
+          --connection node_1f
+          --let $dml_op= myisam
+          --let $outcome= $dml_outcome_4
+        }
+        --error 0, ER_LOCK_DEADLOCK
+        --reap
+        --let $then= committed
+        if ($mysql_errno)
+        {
+          --let $then= error:$mysql_errno
+        }
+        if ($outcome == ended)
+        {
+          --let $outcome= $then
+        }
+        if ($outcome != $then)
+        {
+          --let $outcome= $outcome,then:$then
+        }
+        --let $bug= 0
+        if ($outcome == committed)
+        {
+          --let $bug_stage= $sst_stage
+          --let $bug_op= $dml_op
+          --source suite/galera/include/galera_backup_lock_bug.inc
+        }
+        if ($bug)
+        {
+          --echo BUG: $sst_stage local $dml_op: committed while $bug_lock is held
+        }
+        if (!$bug)
+        {
+          --echo $sst_stage local $dml_op: $outcome
+        }
+        --inc $dml
+      }
+    }
+
+    if ($op_pending)
+    {
+      --connection node_1a
+      --disable_result_log
+      --error 0, ER_UNKNOWN_COM_ERROR
+      --reap
+      --enable_result_log
+      --let $then= committed
+      if ($mysql_errno)
+      {
+        --let $then= error:$mysql_errno
+      }
+      --echo $op_pending_line,then:$then
+    }
+
+    --connection node_3
+    --let $wait_ready_counter= 3000
+    --source include/galera_wait_ready.inc
+    --disable_query_log
+    --connection node_1b
+    --let $wait_condition= SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment'
+    --source include/wait_condition.inc
+    --disable_query_log
+    SET DEBUG_SYNC= 'RESET';
+    # Node 1 applies all that it received before the next SST.
+    SET SESSION wsrep_sync_wait= 1;
+    --disable_result_log
+    SELECT COUNT(*) FROM t_i;
+    --enable_result_log
+    SET SESSION wsrep_sync_wait= 0;
+  }
+  --inc $sst_i
+}
+--enable_connect_log
+--enable_query_log
+
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_1c
+--disconnect node_1d
+--disconnect node_1e
+--disconnect node_1f
+--connection node_1
+DROP USER u1, u2;
+DROP TABLE t_i, t_at, t_an, t_m;
+
+--source ../galera/include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

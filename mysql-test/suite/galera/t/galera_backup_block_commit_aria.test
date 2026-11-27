@@ -1,0 +1,156 @@
+#
+# mariabackup copies the Aria log at BACKUP STAGE BLOCK_COMMIT and expects
+# no more Aria commits. Check that, on a Galera node in BLOCK_COMMIT, each
+# write to an Aria table waits for the backup lock or is held by the
+# provider pause:
+# - local DML to a transactional Aria table,
+# - local GRANT (TOI, writes the Aria privilege tables),
+# - GRANT from another node (applier).
+# If and when BACKUP STAGE pauses the provider depends on the version and
+# on WSREP_MODE_BF_MARIABACKUP.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1;
+# An insert into an empty Aria table waits for the backup lock already
+# when it opens the table.
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (c1 INT) ENGINE=InnoDB;
+CREATE USER u1, u2;
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $block_commit_id= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+
+--echo # Local Aria DML waits for the backup lock.
+--connection node_1
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connection node_1b
+--let $block_commit_com= Com_insert
+--let $block_commit_count= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_insert'`
+--connection node_1a
+--send INSERT INTO t1 VALUES (2)
+
+--connection node_1b
+--source include/galera_wait_block_commit.inc
+if (!$block_commit_waits)
+{
+  --echo BUG: the Aria INSERT committed during BACKUP STAGE BLOCK_COMMIT
+}
+
+--connection node_1
+BACKUP STAGE END;
+
+--connection node_1a
+--reap
+SELECT COUNT(*) FROM t1;
+
+--echo # Local GRANT waits for the backup lock, or the paused provider
+--echo # rejects it.
+--connection node_1
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connection node_1b
+--let $block_commit_com= Com_grant
+--let $block_commit_count= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_grant'`
+--connection node_1a
+--send GRANT SELECT (c1) ON test.t2 TO u1
+
+--connection node_1b
+--source include/galera_wait_block_commit.inc
+# The provider is paused if it rejects the GRANT.
+--let $paused= 0
+if (!$block_commit_waits)
+{
+  --disable_query_log
+  --disable_result_log
+  --connection node_1a
+  --error 0, ER_UNKNOWN_COM_ERROR
+  --reap
+  --enable_result_log
+  --enable_query_log
+  if (!$mysql_errno)
+  {
+    --echo BUG: the GRANT committed during BACKUP STAGE BLOCK_COMMIT
+  }
+  if ($mysql_errno)
+  {
+    --let $paused= 1
+  }
+}
+
+--connection node_1
+BACKUP STAGE END;
+
+if ($block_commit_waits)
+{
+  --disable_query_log
+  --connection node_1a
+  --reap
+  --enable_query_log
+}
+
+--echo # GRANT from node 2: the applier on node 1 waits for the backup
+--echo # lock, or the provider pause holds it.
+--connection node_1
+BACKUP STAGE START;
+BACKUP STAGE FLUSH;
+BACKUP STAGE BLOCK_DDL;
+BACKUP STAGE BLOCK_COMMIT;
+
+--connection node_1b
+--let $received= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'`
+--let $committed= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+--connection node_2
+GRANT SELECT (c1) ON test.t2 TO u2;
+
+--connection node_1b
+--disable_query_log
+if ($paused)
+{
+  --let $wait_condition= SELECT VARIABLE_VALUE > $received FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'
+  --source include/wait_condition.inc
+  if (`SELECT COUNT(*) FROM mysql.columns_priv WHERE User = 'u2'`)
+  {
+    --echo BUG: the applier committed the GRANT during the provider pause
+  }
+}
+if (!$paused)
+{
+  # The applier holds the table lock on the privilege tables while it
+  # waits. Do not read them here.
+  --let $applier_waits= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'Waiting for backup lock' AND INFO = 'GRANT SELECT (c1) ON test.t2 TO u2'
+  --let $wait_condition= SELECT ($applier_waits) OR (SELECT VARIABLE_VALUE > $committed FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed')
+  --source include/wait_condition.inc
+  if (!`$applier_waits`)
+  {
+    --echo BUG: the applier committed the GRANT during BACKUP STAGE BLOCK_COMMIT
+  }
+}
+--enable_query_log
+
+--connection node_1
+BACKUP STAGE END;
+
+--connection node_1b
+--let $wait_condition= SELECT COUNT(*) = 1 FROM mysql.columns_priv WHERE User = 'u2'
+--source include/wait_condition.inc
+SELECT User, Column_name FROM mysql.columns_priv WHERE User = 'u2';
+
+--disconnect node_1a
+--disconnect node_1b
+--connection node_1
+DROP USER u1, u2;
+DROP TABLE t1, t2;

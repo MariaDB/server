@@ -1,0 +1,4 @@
+[bf]
+wsrep_mode=BF_ABORT_MARIABACKUP
+
+[default]

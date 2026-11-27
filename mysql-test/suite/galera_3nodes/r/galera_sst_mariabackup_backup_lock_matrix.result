@@ -1,0 +1,81 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_2;
+SET SESSION wsrep_sync_wait= 0;
+connection node_1;
+SET SESSION wsrep_sync_wait= 0;
+CALL mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+CREATE TABLE t_i (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t_at (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t_an (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t_m (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+CREATE USER u1, u2;
+INSERT INTO t_at VALUES (NULL);
+INSERT INTO t_an VALUES (NULL);
+INSERT INTO t_m VALUES (NULL);
+connect  node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1e, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1f, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+SET @debug_dbug_saved= @@GLOBAL.debug_dbug;
+START local toi_ddl: committed
+START local toi_grant: committed
+START local toi_aria_trans: committed
+START local toi_myisam: committed
+START applier innodb: committed
+START applier toi_ddl: committed
+START applier toi_grant: committed
+START applier toi_aria_trans: committed
+START applier toi_myisam: committed
+START local innodb: committed
+START local aria_trans: committed
+START local aria_nontrans: committed
+START local myisam: committed
+BLOCK_DDL local innodb: committed
+BLOCK_DDL local aria_trans: committed
+BLOCK_DDL local aria_nontrans: waits:backup_lock,then:committed
+BLOCK_DDL local myisam: waits:backup_lock,then:committed
+BLOCK_DDL local toi_ddl: waits:backup_lock,then:committed
+BLOCK_DDL local toi_grant: committed
+BLOCK_DDL local toi_aria_trans: committed
+BLOCK_DDL local toi_myisam: waits:backup_lock,then:committed
+BLOCK_DDL applier innodb: committed
+BLOCK_DDL applier toi_ddl: waits:backup_lock
+BLOCK_DDL applier toi_grant: committed
+BLOCK_DDL applier toi_aria_trans: committed
+BLOCK_DDL applier toi_myisam: waits:backup_lock
+BLOCK_COMMIT local innodb: committed
+BLOCK_COMMIT local aria_trans: waits:backup_lock,then:committed
+BLOCK_COMMIT local aria_nontrans: waits:backup_lock,then:committed
+BLOCK_COMMIT local myisam: waits:backup_lock,then:committed
+BLOCK_COMMIT local toi_ddl: waits:backup_lock,then:committed
+BLOCK_COMMIT local toi_grant: waits:backup_lock,then:committed
+BLOCK_COMMIT local toi_aria_trans: waits:backup_lock,then:committed
+BLOCK_COMMIT local toi_myisam: waits:backup_lock,then:committed
+BLOCK_COMMIT applier innodb: committed
+BLOCK_COMMIT applier toi_ddl: waits:backup_lock
+BLOCK_COMMIT applier toi_grant: waits:backup_lock
+BLOCK_COMMIT applier toi_aria_trans: waits:backup_lock
+BLOCK_COMMIT applier toi_myisam: waits:backup_lock
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+disconnect node_1d;
+disconnect node_1e;
+disconnect node_1f;
+connection node_1;
+DROP USER u1, u2;
+DROP TABLE t_i, t_at, t_an, t_m;
+disconnect node_2;
+disconnect node_1;

@@ -1,0 +1,51 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1;
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (c1 INT) ENGINE=InnoDB;
+CREATE USER u1;
+connect  node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+SET @debug_dbug_saved= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,sst_block_commit';
+# Node 2 requests SST. The donor's mariabackup stops at BLOCK_COMMIT.
+connection node_2;
+connection node_1b;
+SET DEBUG_SYNC= 'now WAIT_FOR sst_block_commit';
+SET GLOBAL debug_dbug= @debug_dbug_saved;
+# Local Aria DML waits for the backup lock.
+connection node_1a;
+INSERT INTO t1 VALUES (2);
+connection node_1b;
+# Local GRANT waits for the backup lock, or the paused provider
+# rejects it.
+connect  node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connection node_1b;
+connection node_1c;
+GRANT SELECT (c1) ON test.t2 TO u1;
+connection node_1b;
+connection node_1b;
+SET DEBUG_SYNC= 'now SIGNAL sst_continue';
+connection node_1a;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+connection node_2;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP USER u1;
+DROP TABLE t1, t2;
+disconnect node_2;
+disconnect node_1;

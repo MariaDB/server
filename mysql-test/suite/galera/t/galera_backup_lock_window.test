@@ -1,0 +1,127 @@
+#
+# A write that is running when node 1 takes a backup lock: the lock
+# statement and the write must not wait for each other. Each write is
+# held at a sync point while node 1 takes the locks, then released.
+# See include/galera_backup_lock_window.inc for the outcomes.
+#
+# Local writes are held after they took their backup lock MDL, before
+# they replicate. Local TOI and applier writes are held in the provider
+# order: TOI DDL and GRANT before they take the backup lock MDL, TOI DML
+# after it. The writes are as in galera_backup_lock_matrix, without the
+# mixed transactions.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
+--source include/have_debug_sync.inc
+
+--connection node_1
+# A paused provider rejects local TOI.
+CALL mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+CREATE TABLE t_i (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t_at (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t_an (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t_m (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+CREATE USER u1, u2;
+--let $lock_id= `SELECT CONNECTION_ID()`
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $op_id= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+SET @debug_dbug_saved= @@GLOBAL.debug_dbug;
+
+--echo # Local writes on node 1
+--let $op_node= 1
+--let $op_toi= 0
+--let $op_before_mdl= 0
+--let $op_sync= ha_write_row_start
+
+--let $op= innodb
+--let $op_stmt= INSERT INTO t_i VALUES (NULL)
+--source include/galera_backup_lock_window.inc
+
+--let $op= aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--source include/galera_backup_lock_window.inc
+
+--let $op= aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--source include/galera_backup_lock_window.inc
+
+--let $op= myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--source include/galera_backup_lock_window.inc
+
+--let $op_toi= 1
+
+--let $op= toi_aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--let $op_mode= REPLICATE_MYISAM
+--source include/galera_backup_lock_window.inc
+
+--let $op_before_mdl= 1
+--let $op= toi_ddl
+--let $op_sync= alter_table_before_open_tables
+--let $op_stmt= ALTER TABLE t_i COMMENT 'local'
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_grant
+--let $op_sync= open_and_process_table
+--let $op_stmt= GRANT SELECT (a) ON test.t_i TO u1
+--source include/galera_backup_lock_window.inc
+
+--echo # Writes on node 2, applied on node 1
+--let $op_node= 2
+--let $op_toi= 1
+--let $op_before_mdl= 1
+
+--let $op= innodb
+--let $op_sync= wsrep_apply_cb
+--let $op_stmt= INSERT INTO t_i VALUES (NULL)
+--source include/galera_backup_lock_window.inc
+
+--let $op_sync= wsrep_apply_toi
+
+--let $op= toi_aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--let $op_mode= REPLICATE_MYISAM
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_ddl
+--let $op_stmt= ALTER TABLE t_i COMMENT 'applier'
+--source include/galera_backup_lock_window.inc
+
+--let $op= toi_grant
+--let $op_stmt= GRANT SELECT (a) ON test.t_i TO u2
+--source include/galera_backup_lock_window.inc
+
+--connection node_1b
+SET GLOBAL debug_dbug= @debug_dbug_saved;
+--disconnect node_1a
+--disconnect node_1b
+--connection node_1
+DROP USER u1, u2;
+DROP TABLE t_i, t_at, t_an, t_m;

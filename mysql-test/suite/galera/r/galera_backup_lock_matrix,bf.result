@@ -1,0 +1,124 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CALL mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+CREATE TABLE t_i (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t_at (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t_an (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t_m (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+CREATE USER u1, u2;
+CREATE PROCEDURE p_innodb_aria_trans()
+BEGIN
+START TRANSACTION;
+INSERT INTO t_i VALUES (NULL);
+INSERT INTO t_at VALUES (NULL);
+COMMIT;
+END|
+CREATE PROCEDURE p_innodb_myisam()
+BEGIN
+START TRANSACTION;
+INSERT INTO t_i VALUES (NULL);
+INSERT INTO t_m VALUES (NULL);
+COMMIT;
+END|
+INSERT INTO t_at VALUES (NULL);
+INSERT INTO t_an VALUES (NULL);
+INSERT INTO t_m VALUES (NULL);
+connect  node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+connect  node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET SESSION wsrep_sync_wait= 0;
+# Local writes on node 1
+START synced local innodb: committed
+FLUSH synced local innodb: committed
+BLOCK_DDL synced local innodb: committed
+BLOCK_COMMIT paused local innodb: waits:certification,then:committed
+FTWRL paused local innodb: waits:backup_lock,then:committed
+START synced local aria_trans: committed
+FLUSH synced local aria_trans: committed
+BLOCK_DDL synced local aria_trans: committed
+BLOCK_COMMIT paused local aria_trans: waits:backup_lock,then:committed
+FTWRL paused local aria_trans: waits:backup_lock,then:committed
+START synced local aria_nontrans: committed
+FLUSH synced local aria_nontrans: waits:backup_lock,then:committed
+BLOCK_DDL synced local aria_nontrans: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local aria_nontrans: waits:backup_lock,then:committed
+FTWRL paused local aria_nontrans: waits:backup_lock,then:committed
+START synced local myisam: committed
+FLUSH synced local myisam: waits:backup_lock,then:committed
+BLOCK_DDL synced local myisam: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local myisam: waits:backup_lock,then:committed
+FTWRL paused local myisam: waits:backup_lock,then:committed
+START synced local toi_aria_trans: committed
+FLUSH synced local toi_aria_trans: committed
+BLOCK_DDL synced local toi_aria_trans: committed
+BLOCK_COMMIT paused local toi_aria_trans: error:1047
+FTWRL paused local toi_aria_trans: waits:backup_lock,then:committed
+START synced local toi_aria_nontrans: committed
+FLUSH synced local toi_aria_nontrans: waits:backup_lock,then:committed
+BLOCK_DDL synced local toi_aria_nontrans: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local toi_aria_nontrans: waits:backup_lock,then:committed
+FTWRL paused local toi_aria_nontrans: waits:backup_lock,then:committed
+START synced local toi_myisam: committed
+FLUSH synced local toi_myisam: waits:backup_lock,then:committed
+BLOCK_DDL synced local toi_myisam: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local toi_myisam: waits:backup_lock,then:committed
+FTWRL paused local toi_myisam: waits:backup_lock,then:committed
+START synced local innodb+aria_trans: error:1180
+FLUSH synced local innodb+aria_trans: error:1180
+BLOCK_DDL synced local innodb+aria_trans: error:1180
+BLOCK_COMMIT paused local innodb+aria_trans: waits:backup_lock,then:error:1180
+FTWRL paused local innodb+aria_trans: waits:backup_lock,then:error:1180
+START synced local innodb+myisam: committed
+FLUSH synced local innodb+myisam: waits:backup_lock,then:committed
+BLOCK_DDL synced local innodb+myisam: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local innodb+myisam: waits:backup_lock,then:committed
+FTWRL paused local innodb+myisam: waits:backup_lock,then:committed
+START synced local toi_ddl: committed
+FLUSH synced local toi_ddl: committed
+BLOCK_DDL synced local toi_ddl: waits:backup_lock,then:committed
+BLOCK_COMMIT paused local toi_ddl: error:1047
+FTWRL paused local toi_ddl: error:1047
+START synced local toi_grant: committed
+FLUSH synced local toi_grant: committed
+BLOCK_DDL synced local toi_grant: committed
+BLOCK_COMMIT paused local toi_grant: error:1047
+FTWRL paused local toi_grant: error:1047
+# Writes on node 2, applied on node 1
+START synced applier innodb: committed
+FLUSH synced applier innodb: committed
+BLOCK_DDL synced applier innodb: committed
+BLOCK_COMMIT paused applier innodb: held:pause
+FTWRL paused applier innodb: held:pause
+START synced applier toi_aria_trans: committed
+FLUSH synced applier toi_aria_trans: committed
+BLOCK_DDL synced applier toi_aria_trans: committed
+BLOCK_COMMIT paused applier toi_aria_trans: held:pause
+FTWRL paused applier toi_aria_trans: held:pause
+START synced applier toi_aria_nontrans: committed
+FLUSH synced applier toi_aria_nontrans: waits:backup_lock
+BLOCK_DDL synced applier toi_aria_nontrans: waits:backup_lock
+BLOCK_COMMIT paused applier toi_aria_nontrans: held:pause
+FTWRL paused applier toi_aria_nontrans: held:pause
+START synced applier toi_myisam: committed
+FLUSH synced applier toi_myisam: waits:backup_lock
+BLOCK_DDL synced applier toi_myisam: waits:backup_lock
+BLOCK_COMMIT paused applier toi_myisam: held:pause
+FTWRL paused applier toi_myisam: held:pause
+START synced applier toi_ddl: committed
+FLUSH synced applier toi_ddl: committed
+BLOCK_DDL synced applier toi_ddl: waits:backup_lock
+BLOCK_COMMIT paused applier toi_ddl: held:pause
+FTWRL paused applier toi_ddl: held:pause
+START synced applier toi_grant: committed
+FLUSH synced applier toi_grant: committed
+BLOCK_DDL synced applier toi_grant: committed
+BLOCK_COMMIT paused applier toi_grant: held:pause
+FTWRL paused applier toi_grant: held:pause
+disconnect node_1a;
+disconnect node_1b;
+connection node_1;
+DROP PROCEDURE p_innodb_aria_trans;
+DROP PROCEDURE p_innodb_myisam;
+DROP USER u1, u2;
+DROP TABLE t_i, t_at, t_an, t_m;

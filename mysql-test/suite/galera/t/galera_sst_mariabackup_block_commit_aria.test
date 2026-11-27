@@ -1,0 +1,119 @@
+#
+# mariabackup copies the Aria log at BACKUP STAGE BLOCK_COMMIT and expects
+# no more Aria commits. Stop the mariabackup SST donor at BLOCK_COMMIT and
+# check that each write to an Aria table on the donor waits for the backup
+# lock or is held by the provider pause:
+# - local DML to a transactional Aria table,
+# - local GRANT (TOI, writes the Aria privilege tables).
+# If the SST donor pauses the provider depends on the version.
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/have_mariabackup.inc
+
+--let $node_1= node_1
+--let $node_2= node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria TRANSACTIONAL=1;
+# An insert into an empty Aria table waits for the backup lock already
+# when it opens the table.
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (c1 INT) ENGINE=InnoDB;
+CREATE USER u1;
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $block_commit_id= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+SET @debug_dbug_saved= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,sst_block_commit';
+
+--echo # Node 2 requests SST. The donor's mariabackup stops at BLOCK_COMMIT.
+--connection node_2
+--source include/shutdown_mysqld.inc
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+
+--connection node_1b
+--let $wait_condition= SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--write_line "restart" $_expect_file_name
+SET DEBUG_SYNC= 'now WAIT_FOR sst_block_commit';
+SET GLOBAL debug_dbug= @debug_dbug_saved;
+
+--echo # Local Aria DML waits for the backup lock.
+--let $block_commit_com= Com_insert
+--let $block_commit_count= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_insert'`
+--connection node_1a
+--send INSERT INTO t1 VALUES (2)
+
+--connection node_1b
+--source include/galera_wait_block_commit.inc
+if (!$block_commit_waits)
+{
+  --echo BUG: the Aria INSERT committed during BACKUP STAGE BLOCK_COMMIT
+}
+
+--echo # Local GRANT waits for the backup lock, or the paused provider
+--echo # rejects it.
+--connect (node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $block_commit_id= `SELECT CONNECTION_ID()`
+--connection node_1b
+--let $block_commit_com= Com_grant
+--let $block_commit_count= `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'Com_grant'`
+--connection node_1c
+--send GRANT SELECT (c1) ON test.t2 TO u1
+
+--connection node_1b
+--source include/galera_wait_block_commit.inc
+if (!$block_commit_waits)
+{
+  --disable_query_log
+  --disable_result_log
+  --connection node_1c
+  --error 0, ER_UNKNOWN_COM_ERROR
+  --reap
+  --enable_result_log
+  --enable_query_log
+  if (!$mysql_errno)
+  {
+    --echo BUG: the GRANT committed during BACKUP STAGE BLOCK_COMMIT
+  }
+}
+
+--connection node_1b
+SET DEBUG_SYNC= 'now SIGNAL sst_continue';
+
+--connection node_1a
+--reap
+SELECT COUNT(*) FROM t1;
+
+if ($block_commit_waits)
+{
+  --disable_query_log
+  --connection node_1c
+  --reap
+  --enable_query_log
+}
+
+--connection node_2
+--let $wait_ready_counter= 3000
+--source include/galera_wait_ready.inc
+# The joiner does not get the row committed after BLOCK_COMMIT.
+SELECT COUNT(*) FROM t1;
+
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_1c
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP USER u1;
+DROP TABLE t1, t2;
+
+--source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

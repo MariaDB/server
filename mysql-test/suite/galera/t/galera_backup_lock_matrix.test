@@ -1,0 +1,151 @@
+#
+# How each kind of write on a Galera node is held while the node holds a
+# backup lock (BACKUP STAGE START ... BLOCK_COMMIT, FTWRL), and if the
+# provider is paused. Writes run on node 1 (local) or on node 2 (applied
+# on node 1). See include/galera_backup_lock_matrix.inc for the outcomes.
+#
+# Writes:
+#   innodb               InnoDB DML, replicated
+#   aria_trans           Aria TRANSACTIONAL=1 DML, not replicated
+#   aria_nontrans        Aria TRANSACTIONAL=0 DML, not replicated
+#   myisam               MyISAM DML, not replicated
+#   innodb+aria_trans    one transaction with InnoDB and Aria DML
+#   innodb+myisam        one transaction with InnoDB and MyISAM DML
+#   toi_ddl              ALTER TABLE in TOI
+#   toi_grant            GRANT in TOI, writes the Aria privilege tables
+#   toi_aria_trans       Aria TRANSACTIONAL=1 DML, TOI by REPLICATE_ARIA
+#   toi_aria_nontrans    Aria TRANSACTIONAL=0 DML, TOI by REPLICATE_ARIA
+#   toi_myisam           MyISAM DML, TOI by REPLICATE_MYISAM
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_aria.inc
+
+--connection node_1
+# A paused provider rejects local TOI.
+CALL mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+CREATE TABLE t_i (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=InnoDB;
+CREATE TABLE t_at (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=1;
+CREATE TABLE t_an (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=Aria TRANSACTIONAL=0;
+CREATE TABLE t_m (a INT PRIMARY KEY AUTO_INCREMENT) ENGINE=MyISAM;
+CREATE USER u1, u2;
+--delimiter |
+CREATE PROCEDURE p_innodb_aria_trans()
+BEGIN
+  START TRANSACTION;
+  INSERT INTO t_i VALUES (NULL);
+  INSERT INTO t_at VALUES (NULL);
+  COMMIT;
+END|
+CREATE PROCEDURE p_innodb_myisam()
+BEGIN
+  START TRANSACTION;
+  INSERT INTO t_i VALUES (NULL);
+  INSERT INTO t_m VALUES (NULL);
+  COMMIT;
+END|
+--delimiter ;
+# An insert into an empty Aria table waits for the backup lock already
+# when it opens the table.
+INSERT INTO t_at VALUES (NULL);
+INSERT INTO t_an VALUES (NULL);
+INSERT INTO t_m VALUES (NULL);
+
+--connect (node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+--let $op_id= `SELECT CONNECTION_ID()`
+--connect (node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1)
+SET SESSION wsrep_sync_wait= 0;
+
+--echo # Local writes on node 1
+--let $op_node= 1
+--let $op_com= Com_insert
+
+--let $op= innodb
+--let $op_stmt= INSERT INTO t_i VALUES (NULL)
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--let $op_mode= REPLICATE_MYISAM
+--source include/galera_backup_lock_matrix.inc
+
+--let $op_com= Com_call_procedure
+--let $op= innodb+aria_trans
+--let $op_stmt= CALL p_innodb_aria_trans()
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= innodb+myisam
+--let $op_stmt= CALL p_innodb_myisam()
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_ddl
+--let $op_com= Com_alter_table
+--let $op_stmt= ALTER TABLE t_i COMMENT 'local'
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_grant
+--let $op_com= Com_grant
+--let $op_stmt= GRANT SELECT (a) ON test.t_i TO u1
+--source include/galera_backup_lock_matrix.inc
+
+--echo # Writes on node 2, applied on node 1
+--let $op_node= 2
+
+--let $op= innodb
+--let $op_stmt= INSERT INTO t_i VALUES (NULL)
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_aria_trans
+--let $op_stmt= INSERT INTO t_at VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_aria_nontrans
+--let $op_stmt= INSERT INTO t_an VALUES (NULL)
+--let $op_mode= REPLICATE_ARIA
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_myisam
+--let $op_stmt= INSERT INTO t_m VALUES (NULL)
+--let $op_mode= REPLICATE_MYISAM
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_ddl
+--let $op_stmt= ALTER TABLE t_i COMMENT 'applier'
+--source include/galera_backup_lock_matrix.inc
+
+--let $op= toi_grant
+--let $op_stmt= GRANT SELECT (a) ON test.t_i TO u2
+--source include/galera_backup_lock_matrix.inc
+
+--disconnect node_1a
+--disconnect node_1b
+--connection node_1
+DROP PROCEDURE p_innodb_aria_trans;
+DROP PROCEDURE p_innodb_myisam;
+DROP USER u1, u2;
+DROP TABLE t_i, t_at, t_an, t_m;

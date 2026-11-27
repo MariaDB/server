@@ -1,0 +1,24 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+
+[mysqld.1]
+# A paused provider holds each received write set in its applier thread.
+wsrep_slave_threads=6
+
+[mysqld.3]
+wsrep_sst_donor=node1
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
+streamfmt=mbstream
+inno-backup-opts="--dbug=+d,mariabackup_events"
+
+[ENV]
+# The donor's mariabackup runs these after each backup stage. It waits
+# only at the stage that the test enables, not in other SSTs.
+after_backup_stage_start=SET DEBUG_SYNC= IF((SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'DEBUG_DBUG') LIKE '%sst_hold_START%', 'now SIGNAL sst_held WAIT_FOR sst_continue', 'RESET')
+after_backup_stage_block_ddl=SET DEBUG_SYNC= IF((SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'DEBUG_DBUG') LIKE '%sst_hold_BLOCK_DDL%', 'now SIGNAL sst_held WAIT_FOR sst_continue', 'RESET')
+after_backup_stage_block_commit=SET DEBUG_SYNC= IF((SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'DEBUG_DBUG') LIKE '%sst_hold_BLOCK_COMMIT%', 'now SIGNAL sst_held WAIT_FOR sst_continue', 'RESET')
