@@ -586,6 +586,15 @@ void Protocol::end_statement()
   if (thd->get_stmt_da()->is_sent())
     DBUG_VOID_RETURN;
 
+  /*
+    Nothing is left to abort when the last reply of the command is sent, but
+    not when it is a local statement inside a command (the SQL service).
+  */
+  bool last_reply= !(thd->server_status & SERVER_MORE_RESULTS_EXISTS) ||
+                   thd->get_stmt_da()->is_error();
+  if (last_reply && type() != PROTOCOL_LOCAL)
+    thd->set_disconnect_uninterruptible();
+
   switch (thd->get_stmt_da()->status()) {
   case Diagnostics_area::DA_ERROR:
     thd->stop_collecting_unit_results();

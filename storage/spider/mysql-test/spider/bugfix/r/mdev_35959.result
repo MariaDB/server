@@ -4,6 +4,7 @@
 for master_1
 for child2
 for child3
+call mtr.add_suppression("Client disconnected");
 SET spider_same_server_link=ON, spider_net_read_timeout=1;
 CREATE SERVER srv FOREIGN DATA WRAPPER mysql
 OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');

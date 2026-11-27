@@ -1,1 +1,2 @@
+call mtr.add_suppression("Client disconnected");
 SET default_storage_engine=InnoDB;

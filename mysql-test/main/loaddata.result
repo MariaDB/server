@@ -1,4 +1,5 @@
 ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+call mtr.add_suppression("Client disconnected");
 create table t1 (a date, b date, c date not null, d date);
 load data infile '../../std_data/loaddata1.dat' ignore into table t1 fields terminated by ',';
 Warnings:

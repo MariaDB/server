@@ -1,0 +1,157 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_disconnect_watcher.inc
+# A protocol (ps, view, cursor) runs one statement as several commands, for
+# example prepare and execute. The last case stops the thread at a sync point
+# after the first of them, which then never reads the next, and the test hangs.
+--source include/no_protocol.inc
+
+--echo #
+--echo # MDEV-38741 Client disconnect fails to abort a lock wait
+--echo # The client disconnects after its statement is read, but before the
+--echo # statement starts. The watcher finds the idle connection gone, and the
+--echo # statement is aborted when it starts.
+--echo #
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+connect (blocker,localhost,root);
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+
+connect (con1,localhost,root);
+let $con1_id= `SELECT CONNECTION_ID()`;
+SET innodb_lock_wait_timeout=3600;
+SET DEBUG_SYNC='dispatch_command_before_set_command SIGNAL at_start WAIT_FOR go';
+send SELECT * FROM t1 FOR UPDATE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_start';
+connection con1;
+dirty_close con1;
+
+connection default;
+--echo # The watcher finds the idle connection gone and notes it
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con1_id AND state = 'Client disconnected';
+--source include/wait_condition.inc
+
+SET DEBUG_SYNC='now SIGNAL go';
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $con1_id;
+--source include/wait_condition.inc
+
+--echo # The connection is logged once, with the reason
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= Aborted connection $con1_id to db[^\n]*Client disconnected;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+
+--echo # COM_QUIT after the disconnect was noted is not a failure, nothing is logged
+--echo # The client process quits at once, mysqltest would wait for the server
+SET DEBUG_SYNC='RESET';
+--exec $MYSQL test -e "SET DEBUG_SYNC='dispatch_command_before_set_command SIGNAL at_quit WAIT_FOR go2'"
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_quit';
+let $con2_id= `SELECT id FROM information_schema.processlist
+  WHERE state IN ('Client disconnected',
+                  'debug sync point: dispatch_command_before_set_command')`;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con2_id AND state = 'Client disconnected';
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go2';
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $con2_id;
+--source include/wait_condition.inc
+let SEARCH_PATTERN= Aborted connection $con2_id to db;
+let SEARCH_OUTPUT= count;
+--source include/search_pattern_in_file.inc
+
+--echo # A connection killed by someone else is not logged as a disconnect
+SET DEBUG_SYNC='RESET';
+--exec $MYSQL test -e "SET DEBUG_SYNC='dispatch_command_before_set_command SIGNAL at_kill WAIT_FOR go3'"
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR at_kill';
+let $con3_id= `SELECT id FROM information_schema.processlist
+  WHERE state IN ('Client disconnected',
+                  'debug sync point: dispatch_command_before_set_command')`;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con3_id AND state = 'Client disconnected';
+--source include/wait_condition.inc
+--disable_query_log
+eval KILL $con3_id;
+--enable_query_log
+SET DEBUG_SYNC='now SIGNAL go3';
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist WHERE id = $con3_id;
+--source include/wait_condition.inc
+let SEARCH_PATTERN= Aborted connection $con3_id to db[^\n]*Client disconnected;
+--source include/search_pattern_in_file.inc
+
+--echo # A command with only its reply left is not aborted, if the client leaves
+--echo # after getting it. The lost connection is logged as usual.
+connect (con4,localhost,root);
+let $con4_id= `SELECT CONNECTION_ID()`;
+SET DEBUG_SYNC='dispatch_command_after_end_statement SIGNAL answered WAIT_FOR go4';
+send SELECT 1;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR answered';
+connection con4;
+reap;
+dirty_close con4;
+
+connection default;
+--echo # The watcher notes the disconnect, the command is not killed
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con4_id AND state = 'Client disconnected';
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go4';
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con4_id;
+--source include/wait_condition.inc
+let SEARCH_PATTERN= Aborted connection $con4_id to db[^\n]*Got an error reading communication packets;
+--source include/search_pattern_in_file.inc
+
+--echo # A read-only SELECT sends its result before the statement ends, a
+--echo # client that quits then is not aborted either
+connect (con5,localhost,root);
+let $con5_id= `SELECT CONNECTION_ID()`;
+SET DEBUG_SYNC='select_send_after_early_eof SIGNAL early WAIT_FOR go5';
+send SELECT 1;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR early';
+connection con5;
+reap;
+dirty_close con5;
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.processlist
+  WHERE id = $con5_id AND state = 'Client disconnected';
+--source include/wait_condition.inc
+SET DEBUG_SYNC='now SIGNAL go5';
+let $wait_condition=
+  SELECT COUNT(*) = 0 FROM information_schema.processlist
+  WHERE id = $con5_id;
+--source include/wait_condition.inc
+let SEARCH_PATTERN= Aborted connection $con5_id to db[^\n]*Got an error reading communication packets;
+--source include/search_pattern_in_file.inc
+
+disconnect blocker;
+SET DEBUG_SYNC='reset';
+DROP TABLE t1;
+
+--echo # End of 13.2 tests

@@ -1,3 +1,4 @@
+call mtr.add_suppression("Client disconnected");
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connection con1;

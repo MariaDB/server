@@ -1,3 +1,4 @@
+call mtr.add_suppression("Client disconnected");
 # Check for unknown options in command-line
 # Check for unknown options in "mariabackup" group
 # Check for unknown options in "xtrabackup" group
