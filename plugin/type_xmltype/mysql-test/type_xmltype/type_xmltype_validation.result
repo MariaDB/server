@@ -3177,3 +3177,27 @@ SET @s= '
 SELECT XMLISVALID('<c><e/></c>', @s) ex_required_trailing;
 ex_required_trailing
 0
+
+MDEV-42393 XMLISVALID returns 1 for invalid XML after a previous row stopped inside xs:any.
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="R">
+        <xs:complexType>
+            <xs:sequence>
+                 <xs:any/>
+                 <xs:element name="z" type="xs:int"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+</xs:schema>';
+CREATE TABLE t (id INT, x TEXT);
+INSERT INTO t VALUES (1, '<R><x><y>'), (2, '<R><x/></R>');
+SELECT XMLISVALID('<R><x/></R>', @s);
+XMLISVALID('<R><x/></R>', @s)
+0
+SELECT id, XMLISVALID(x, @s) exp0 FROM t ORDER BY id;
+id	exp0
+1	0
+2	0
+DROP TABLE t;

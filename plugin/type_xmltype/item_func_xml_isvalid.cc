@@ -260,6 +260,11 @@ public:
     return MY_XML_OK;
   }
 
+  bool validate_prepare(MY_XML_VALIDATION_DATA *st) override
+  {
+    m_level= 0;
+    return XMLSchema_item::validate_prepare(st);
+  }
   bool validate_leave(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override
   {
@@ -711,6 +716,7 @@ public:
     if (m_counter >= m_maxOccurs.m_value_int)
       return VTN_CONTINUE;
 
+    (void) st->annotation.validate_prepare(st);
     st->push(&st->annotation);
     m_counter++;
     return VTN_ACCEPTED;
@@ -1354,6 +1360,7 @@ public:
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,
                     const char *attr, size_t len) override
   {
+    (void) st->annotation.validate_prepare(st);
     st->push(&st->annotation);
     return VTN_ACCEPTED;
   }
