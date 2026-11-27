@@ -115,7 +115,7 @@ extern char *opt_binlog_storage_engine;
 extern const char *opt_binlog_directory;
 extern handlerton *opt_binlog_engine_hton;
 extern uint opt_bin_log_compress_min_len;
-extern my_bool opt_log, opt_bootstrap;
+extern my_bool opt_log, opt_log_raw, opt_bootstrap;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
 extern my_bool opt_disable_networking, opt_skip_show_db;

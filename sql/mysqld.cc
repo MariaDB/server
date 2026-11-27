@@ -380,6 +380,7 @@ handlerton *opt_binlog_engine_hton;
 bool opt_bin_log_compress;
 uint opt_bin_log_compress_min_len;
 my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_log_raw= 0;
 my_bool opt_validate_config= 0;
 my_bool validate_config_has_warnings= 0;
 my_bool debug_assert_on_not_freed_memory= 0;
@@ -7251,6 +7252,10 @@ struct my_option my_long_options[]=
   {"log-isam", OPT_ISAM_LOG, "Log all MyISAM changes to file",
    &myisam_log_filename, &myisam_log_filename, 0, GET_STR,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"log-raw", 0,
+   "Do not mask passwords in the logs, and write queries to the general "
+   "log as received, before parsing",
+   &opt_log_raw, &opt_log_raw, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"log-short-format", 0,
    "Don't log extra information to update and slow-query logs",
    &opt_short_log_format, &opt_short_log_format,

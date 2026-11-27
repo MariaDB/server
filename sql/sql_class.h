@@ -5949,7 +5949,42 @@ public:
     PSI_CALL_set_thread_info(query(), query_length());
   }
   void reset_query()               /* Mutex protected */
-  { set_query(CSET_STRING()); }
+  {
+    set_query(CSET_STRING());
+    reset_query_for_log();
+    m_deferred_log= null_clex_str;
+  }
+
+  LEX_CSTRING m_query_for_log= {NULL, 0};
+  const char *m_query_for_log_source= NULL;
+  /*
+    The general log row of PREPARE .. FROM / EXECUTE IMMEDIATE waits until
+    the source is parsed, because the source may hold passwords
+  */
+  LEX_CSTRING m_deferred_log= {NULL, 0};
+  LEX_CSTRING m_deferred_log_hidden= {NULL, 0};
+  const char *m_deferred_log_source= NULL;
+
+  LEX_CSTRING query_for_log() const
+  {
+    if (m_query_for_log.str && m_query_for_log_source == query())
+      return m_query_for_log;
+    return Lex_cstring(query(), query_length());
+  }
+  void set_query_for_log(const char *source, const LEX_CSTRING &masked)
+  {
+    m_query_for_log= masked;
+    m_query_for_log_source= source;
+  }
+  void reset_query_for_log()
+  {
+    m_query_for_log= null_clex_str;
+    m_query_for_log_source= NULL;
+  }
+  bool mask_secrets(const char *text, size_t length,
+                    const List<Lex_cstring> &secrets, LEX_CSTRING *to);
+  void write_deferred_general_log(bool hide_source);
+
   void set_query_and_id(char *query_arg, uint32 query_length_arg,
                         CHARSET_INFO *cs, query_id_t new_query_id);
   void set_query_id(query_id_t new_query_id)

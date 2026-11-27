@@ -6821,6 +6821,58 @@ bool THD::check_slave_ignored_db_with_error(const Lex_ident_db &db) const
 
 
 /**
+  Copy text with each of the secrets inside it replaced by <secret>.
+
+  @retval false  OK. to->str is NULL if text holds no secret.
+  @retval true   Out of memory
+*/
+
+bool THD::mask_secrets(const char *text, size_t length,
+                       const List<Lex_cstring> &secrets, LEX_CSTRING *to)
+{
+  static const LEX_CSTRING placeholder= { STRING_WITH_LEN("<secret>") };
+  const char *end= text + length, *pos= text;
+  List_iterator_fast<Lex_cstring> it(const_cast<List<Lex_cstring>&>(secrets));
+  char *buf, *dst;
+  *to= null_clex_str;
+
+  if (!(dst= buf= (char*) alloc(length + secrets.elements *
+                                placeholder.length + 1)))
+    return true;
+  while (const Lex_cstring *secret= it++)
+  {
+    if (secret->str < pos || secret->str + secret->length > end)
+      continue;
+    memcpy(dst, pos, secret->str - pos);
+    dst+= secret->str - pos;
+    memcpy(dst, placeholder.str, placeholder.length);
+    dst+= placeholder.length;
+    pos= secret->str + secret->length;
+  }
+  if (pos == text)
+    return false;
+  memcpy(dst, pos, end - pos);
+  dst+= end - pos;
+  *dst= 0;
+  to->str= buf;
+  to->length= dst - buf;
+  return false;
+}
+
+
+void THD::write_deferred_general_log(bool hide_source)
+{
+  if (!m_deferred_log.str)
+    return;
+  LEX_CSTRING log= hide_source ? m_deferred_log_hidden : m_deferred_log;
+  m_deferred_log= null_clex_str;
+  general_log_write(this, COM_QUERY, log.str, log.length);
+  if (hide_source)
+    set_query_for_log(m_deferred_log_source, m_deferred_log_hidden);
+}
+
+
+/**
   Mark transaction to rollback and mark error as fatal to a sub-statement.
 
   @param  all   TRUE <=> rollback main transaction.

@@ -327,6 +327,7 @@ private:
   MEM_ROOT main_mem_root;
   sql_mode_t m_sql_mode;
   LEX_CSTRING m_sql_path;
+  LEX_CSTRING m_query_for_log= {NULL, 0};
   THD::used_t m_prepare_time_thd_used_flags;
   uint m_prepare_time_charset_collation_map_version;
   bool check_charset_collation_map_version(THD *thd,
@@ -4549,6 +4550,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   error= (parse_sql(thd, & parser_state, NULL) ||
           thd->is_error() ||
           init_param_array(this));
+  if (parser_state.m_lip.has_secrets())
+    thd->mask_secrets(thd->query(), thd->query_length(),
+                      parser_state.m_lip.m_secrets, &m_query_for_log);
+  thd->write_deferred_general_log(error || parser_state.m_lip.has_secrets());
   if (likely(!error) && param_count)
     lex->subquery_with_placeholder= lex->subquery_has_placeholder();
 
@@ -4691,7 +4696,13 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
       the general log.
     */
     if (thd->spcont == NULL)
-      general_log_write(thd, COM_STMT_PREPARE, query(), query_length());
+    {
+      if (m_query_for_log.str)
+        general_log_write(thd, COM_STMT_PREPARE, m_query_for_log.str,
+                          m_query_for_log.length);
+      else
+        general_log_write(thd, COM_STMT_PREPARE, query(), query_length());
+    }
   }
   // The same format as for triggers to compare
   hr_prepare_time= my_hrtime();
@@ -5414,6 +5425,7 @@ Prepared_statement::swap_prepared_statement(Prepared_statement *copy)
                  copy->m_prepare_time_thd_used_flags);
 
   swap_variables(LEX_CSTRING, m_sql_path, copy->m_sql_path);
+  swap_variables(LEX_CSTRING, m_query_for_log, copy->m_query_for_log);
 
   swap_variables(bool,
                  m_prepare_time_default_used,
@@ -5456,6 +5468,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
   DBUG_ASSERT(cursor_arg);
   DBUG_ASSERT(!thd->in_sub_stmt_ps_unsafe());
   Statement stmt_backup;
+  const LEX_CSTRING query_for_log_backup= thd->m_query_for_log;
+  const char *query_for_log_source_backup= thd->m_query_for_log_source;
   Query_arena *old_stmt_arena;
   bool error= TRUE;
   bool qc_executed= FALSE;
@@ -5589,8 +5603,14 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
     the general log.
   */
 
+  /* The masked text is the prepared one, without parameter values */
+  if (m_query_for_log.str)
+    thd->set_query_for_log(thd->query(), m_query_for_log);
   if (thd->spcont == nullptr)
-    general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
+  {
+    LEX_CSTRING log= thd->query_for_log();
+    general_log_write(thd, COM_STMT_EXECUTE, log.str, log.length);
+  }
 
   if (open_cursor)
     error= mysql_open_cursor(thd, result_arg, cursor_arg,
@@ -5713,6 +5733,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor,
 
   thd->set_statement(&stmt_backup);
   thd->stmt_arena= old_stmt_arena;
+  /* The outer statement comes back, unless the expanded query is kept */
+  if (is_sql_prepare() || thd->query() != thd->m_query_for_log_source)
+    thd->set_query_for_log(query_for_log_source_backup, query_for_log_backup);
 
   if (state == Query_arena::STMT_PREPARED && !qc_executed)
     state= Query_arena::STMT_EXECUTED;

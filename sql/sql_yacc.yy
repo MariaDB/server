@@ -2294,6 +2294,7 @@ prepare:
             thd->where= THD_WHERE::USE_WHERE_STRING;
             thd->where_str=
             Lex->clause_that_disallows_subselect= "PREPARE..FROM";
+            YYLIP->m_prepare_source= $3.end();
           }
           expr
           {
@@ -2314,6 +2315,7 @@ execute:
             thd->where= THD_WHERE::USE_WHERE_STRING;
             thd->where_str=
             Lex->clause_that_disallows_subselect= "EXECUTE IMMEDIATE";
+            YYLIP->m_prepare_source= $2.end();
           }
           expr
           { Lex->clause_that_disallows_subselect= NULL; }
@@ -2394,6 +2396,8 @@ master_def:
         | MASTER_PASSWORD_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.password = $3.str;
+            if (YYLIP->add_secret($1.pos()))
+              MYSQL_YYABORT;
           }
         | MASTER_PORT_SYM '=' ulong_num
           {
@@ -3168,6 +3172,8 @@ server_option:
           }
         | PASSWORD_SYM TEXT_STRING_sys
           {
+            if (YYLIP->add_secret($1.pos()))
+              MYSQL_YYABORT;
             engine_option_value *new_option=
               new (thd->mem_root) engine_option_value(
                 engine_option_value::Name(
@@ -5994,6 +6000,8 @@ create_table_option:
           {
             Lex->create_info.password=$3.str;
             Lex->create_info.used_fields|= HA_CREATE_USED_PASSWORD;
+            if (YYLIP->add_secret($1.pos()))
+              MYSQL_YYABORT;
           }
         | COMMENT_SYM opt_equal TEXT_STRING_sys
           {
@@ -18329,11 +18337,15 @@ text_or_password:
           {
             $$= new (thd->mem_root) USER_AUTH();
             $$->pwtext= $3;
+            if (YYLIP->add_secret($1.pos()))
+              MYSQL_YYABORT;
           }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
             $$= new (thd->mem_root) USER_AUTH();
             $$->pwtext= $3;
+            if (YYLIP->add_secret($1.pos()))
+              MYSQL_YYABORT;
             $$->auth_str.str= Item_func_password::alloc(thd,
                                    $3.str, $3.length, Item_func_password::OLD);
             $$->auth_str.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
@@ -18956,6 +18968,8 @@ grant_user:
             $$= $1;
             $1->auth= new (thd->mem_root) USER_AUTH();
             $1->auth->pwtext= $4;
+            if (YYLIP->add_secret($2.pos()))
+              MYSQL_YYABORT;
           }
         | user IDENTIFIED_SYM BY PASSWORD_SYM TEXT_STRING
           { 
@@ -19012,6 +19026,8 @@ opt_auth_str:
           if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
           $$->pwtext= $4;
+          if (YYLIP->add_secret($2.pos()))
+            MYSQL_YYABORT;
         }
       ;
 
