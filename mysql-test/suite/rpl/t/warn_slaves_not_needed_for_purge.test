@@ -6,6 +6,9 @@
 --let $rpl_skip_start_slave= 1
 --source include/master-slave.inc
 
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+--connection master
 
 --let SEARCH_FILE= `SELECT @@log_error`
 --let SEARCH_PATTERN= slave_connections_needed_for_purge
