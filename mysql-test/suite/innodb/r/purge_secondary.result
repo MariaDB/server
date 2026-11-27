@@ -169,5 +169,40 @@ page 5: N_RECS=0x0001
 UNLOCK TABLES;
 DROP TABLE t1;
 # End of 10.3 tests
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 # End of 10.6 tests
+#
+# MDEV-39647 Purge does not remove secondary index records
+#            on virtual columns
+#
+SET @save_purge_batch_size = @@GLOBAL.innodb_purge_batch_size;
+SET @save_purge_threads = @@GLOBAL.innodb_purge_threads;
+SET GLOBAL innodb_purge_batch_size = 1;
+SET GLOBAL innodb_purge_threads = 1;
+CREATE TABLE t1 (id INT PRIMARY KEY, value VARCHAR(2),
+vresult CHAR(1) AS (SUBSTR(value,2)), KEY(vresult)) ENGINE=InnoDB;
+INSERT INTO t1(id,value) VALUES (1,'0A');
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connect  stop_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+BEGIN;
+UPDATE t1 SET value = '1B';
+UPDATE t1 SET value = '2C';
+UPDATE t1 SET value = '3D';
+UPDATE t1 SET value = '4E';
+UPDATE t1 SET value = '5F';
+UPDATE t1 SET value = '6G';
+COMMIT;
+disconnect stop_purge;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE t1 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+id	value	vresult
+1	6G	G
+DROP TABLE t1;
+SET GLOBAL innodb_purge_batch_size = @save_purge_batch_size;
+SET GLOBAL innodb_purge_threads = @save_purge_threads;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+# End of 11.4 tests
