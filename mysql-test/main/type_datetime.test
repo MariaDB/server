@@ -1077,3 +1077,17 @@ DROP TABLE t0;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+--echo #
+--echo # MDEV-41836 Wrong result for indexed column = constant with fractional part
+--echo #
+
+CREATE TABLE t1 (d DATETIME, KEY(d));
+INSERT INTO t1 VALUES ('2001-01-01 10:00:00'),('2001-01-01 10:00:01');
+SELECT d FROM t1 WHERE d = '2001-01-01 10:00:00.5';
+SELECT d FROM t1 WHERE d = '2001-01-01 10:00:00';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

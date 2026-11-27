@@ -1,6 +1,11 @@
 include/master-slave.inc
 [connection master]
 connection slave;
+include/stop_slave.inc
+include/rpl_restart_server.inc [server_number=2]
+include/start_slave.inc
+connection master;
+connection slave;
 call mtr.add_suppression("Slave SQL: Invalid variable length at User var event");
 connection master;
 create table t1 (a decimal(10,5));
