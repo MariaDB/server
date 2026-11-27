@@ -1250,8 +1250,9 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_enum Sys_event_scheduler(
        "event_scheduler", "Enable the event scheduler. Possible values are "
-       "ON, OFF, and DISABLED (keep the event scheduler completely "
-       "deactivated, it cannot be activated run-time)",
+       "ON, OFF, DISABLED (keep the event scheduler completely "
+       "deactivated, it cannot be activated run-time), and ORIGINAL "
+       "(reset to the value the server was started with)",
        GLOBAL_VAR(Events::opt_event_scheduler), CMD_LINE(OPT_ARG),
        event_scheduler_names, DEFAULT(Events::EVENTS_OFF),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,

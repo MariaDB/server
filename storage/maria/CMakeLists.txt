@@ -14,8 +14,6 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
-INCLUDE_DIRECTORIES(${SSL_INCLUDE_DIRS})
-
 IF(SSL_DEFINES)
   SET_SOURCE_FILES_PROPERTIES(ma_crypt.c PROPERTIES COMPILE_FLAGS ${SSL_DEFINES})
 ENDIF()
@@ -124,7 +122,7 @@ ENDIF()
 IF (CURL_FOUND)
   INCLUDE_DIRECTORIES(${CURL_INCLUDE_DIRS})
   MYSQL_ADD_PLUGIN(s3 ha_s3.cc ${S3_SOURCES} COMPONENT s3-engine
-    LINK_LIBRARIES ${CURL_LIBRARIES} ${ZLIB_LIBRARIES} STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
+    LINK_LIBRARIES ${CURL_LIBRARIES} MariaDB::zlib STORAGE_ENGINE NOT_EMBEDDED CONFIG s3.cnf)
 ENDIF()
 
 SET(CPACK_RPM_s3-engine_PACKAGE_SUMMARY "Amazon S3 archival storage engine for MariaDB" PARENT_SCOPE)
@@ -133,7 +131,7 @@ SET(CPACK_RPM_s3-engine_PACKAGE_DESCRIPTION "The S3 storage engine allows one to
 IF(TARGET s3)
   ADD_SUBMODULE(libmarias3 Makefile.am)
   MYSQL_ADD_EXECUTABLE(aria_s3_copy aria_s3_copy.cc ${S3_SOURCES} COMPONENT s3-engine)
-  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl ${CURL_LIBRARIES} ${ZLIB_LIBRARIES})
+  TARGET_LINK_LIBRARIES(aria_s3_copy aria myisam mysys mysys_ssl ${CURL_LIBRARIES} MariaDB::zlib)
   INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/libmarias3)
   ADD_DEFINITIONS(-DWITH_S3_STORAGE_ENGINE)
   INSTALL_MANPAGES(s3-engine aria_s3_copy.1)
