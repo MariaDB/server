@@ -1339,22 +1339,18 @@ class XMLSchema_type: public XMLSchema_tag
 class XMLSchema_any_type: public XMLSchema_type
 {
 public:
-  int m_level;
-  XMLSchema_any_type(): XMLSchema_type(), m_level(0) {}
+  XMLSchema_any_type(): XMLSchema_type() {}
 
   bool validate_leave(MY_XML_VALIDATION_DATA *st,
                       const char *attr, size_t len) override
   {
-    if (m_level == 0)
-      return MY_XML_ERROR;
-
-    m_level--;
     return MY_XML_OK;
   }
   bool validate_attr(MY_XML_VALIDATION_DATA *st,
                      const char *attr, size_t len) override
   {
-    m_level++;
+    (void) st->annotation.validate_prepare(st);
+    st->push(&st->annotation);
     return MY_XML_OK;
   }
   enum vtn_result validate_tag_name(MY_XML_VALIDATION_DATA *st,

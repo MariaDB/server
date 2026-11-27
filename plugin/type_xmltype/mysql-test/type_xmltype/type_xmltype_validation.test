@@ -3207,3 +3207,28 @@ SELECT XMLISVALID('<R><x/></R>', @s);
 SELECT id, XMLISVALID(x, @s) exp0 FROM t ORDER BY id;
 DROP TABLE t;
 
+--echo
+--echo MDEV-42392 XMLISVALID: attribute on xs:anyType element ends validation of that element, invalid XML accepted.
+--echo
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="r"/>
+</xs:schema>';
+
+SELECT XMLISVALID('<r><x/></r>', @s) AS no_attr, XMLISVALID('<r a="1"><x/></r>', @s) AS with_attr_1;
+
+SET @s= '
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:element name="R">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="E" type="xs:anyType"/>
+                <xs:element name="F" type="xs:int" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+    <xs:element name="F" type="xs:string"/>
+</xs:schema>';
+SELECT XMLISVALID('<R><E></E><F>abc</F></R>', @s) AS no_attr, XMLISVALID('<R><E a="1"></E><F>abc</F></R>', @s) AS with_attr_0;
+
