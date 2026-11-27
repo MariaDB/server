@@ -757,7 +757,7 @@ public:
   bool is_fatal_error(int error, uint flags) override
   {
     if (!handler::is_fatal_error(error, flags) ||
-        error == HA_ERR_NO_PARTITION_FOUND ||
+        (error == HA_ERR_NO_PARTITION_FOUND && !ha_thd()->is_error()) ||
         error == HA_ERR_NOT_IN_LOCK_PARTITIONS)
       return FALSE;
     return TRUE;

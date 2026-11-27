@@ -2848,12 +2848,10 @@ static inline int part_val_int(Item *item_expr, longlong *result)
     DBUG_ASSERT(0);
     break;
   }
+  if (unlikely(current_thd->is_error()))
+    return true;
   if (item_expr->null_value)
-  {
-    if (unlikely(current_thd->is_error()))
-      return true;
     *result= LONGLONG_MIN;
-  }
   return false;
 }
 

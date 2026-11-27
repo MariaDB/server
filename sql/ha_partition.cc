@@ -10356,7 +10356,8 @@ void ha_partition::print_error(int error, myf errflag)
       ! (thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
          (thd->lex->alter_info.partition_flags & ALTER_PARTITION_TRUNCATE)))
   {
-    m_part_info->print_no_partition_found(table, errflag);
+    if (!thd->is_error())
+      m_part_info->print_no_partition_found(table, errflag);
     DBUG_VOID_RETURN;
   }
   else if (error == HA_ERR_ROW_IN_WRONG_PARTITION)
