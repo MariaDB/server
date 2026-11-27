@@ -46,6 +46,7 @@ class json_index : public hlindex
   int parse_array_first(TABLE *tbl, const uchar *rec, json_engine_t *je,
                         String *str);
   int parse_array_next(json_engine_t *je);
+  int parse_value(json_engine_t *je);
   uchar match_key[JSON_INDEX_KEY_MAX_LEN];
   uint match_key_len;
   bool match_started;
@@ -82,12 +83,10 @@ int json_index::parse_array_first(TABLE *tbl, const uchar *rec,
                               JSON_DEPTH_DEFAULT, JSON_DEPTH_INC, MYF(0));
 
   if (json_scan_start(je, str->charset(), (const uchar*)str->ptr(),
-                      (const uchar*)str->end()) ||
-      json_read_value(je) || je->value_type != JSON_VALUE_ARRAY ||
-      je->state != JST_ARRAY_START)
+                      (const uchar*)str->end()))
     return HA_ERR_BAD_FIELD_VALUE;
 
-  return parse_array_next(je);
+  return parse_value(je);
 }
 
 /*
@@ -168,20 +167,41 @@ static int json_index_encode_token(json_engine_t *je, uchar *tag_out,
   return 0;
 }
 
+static int json_index_next_value(json_engine_t *je)
+{
+  do
+  {
+    if (json_scan_next(je))
+      return je->s.error ? HA_ERR_BAD_FIELD_VALUE : EOF;
+  } while (je->state != JST_VALUE);
+  return 0;
+}
+
 int json_index::parse_array_next(json_engine_t *je)
 {
-  if (json_scan_next(je))
-    return HA_ERR_BAD_FIELD_VALUE;
+  int err;
+  if ((err= json_index_next_value(je)))
+    return err;
+  return parse_value(je);
+}
 
-  if (je->state == JST_ARRAY_END)
-    return EOF;
-  if (je->state != JST_VALUE)
-    return HA_ERR_BAD_FIELD_VALUE;
-  if (json_read_value(je))
-    return HA_ERR_BAD_FIELD_VALUE;
+int json_index::parse_value(json_engine_t *je)
+{
+  int err;
+  for (;;)
+  {
+    if (json_read_value(je))
+      return HA_ERR_BAD_FIELD_VALUE;
+    if (json_value_scalar(je))
+      break;
+    if (je->value_type == JSON_VALUE_OBJECT && json_skip_level(je))
+      return HA_ERR_BAD_FIELD_VALUE;
+    if ((err= json_index_next_value(je)))
+      return err;
+  }
 
   uchar tag, buf[JSON_INDEX_VALUE_MAX_LEN];
-  int len, err;
+  int len;
   if ((err= json_index_encode_token(je, &tag, buf, sizeof(buf), &len)))
     return err;
   table->field[FIELD_TYP]->store((longlong) tag, true);
@@ -327,7 +347,7 @@ int json_index::insert_row(TABLE *tbl, KEY *keyinfo)
   Field *json_field= keyinfo->key_part->field;
   StringBuffer<1024> buf;
   String *res= json_field->val_str(&buf);
-  int err= HA_ERR_BAD_FIELD_VALUE;
+  int err= 0;
   json_engine_t je;
 
   DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_ARRAY);
