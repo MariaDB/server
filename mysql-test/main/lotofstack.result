@@ -142,6 +142,7 @@ select 1;
 #
 # MDEV-40847 Server crash on EXPLAIN EXTENDED or CREATE VIEW of a deeply nested JSON_TABLE
 #
+# restart: --thread-stack=192K
 explain extended select * from json_table('[{}]', '\$[*]' columns ($(repeat("nested path '\$' columns (", $n)) a int path '\$.a' $(repeat(")", $n)))) jt;
 show warnings;
 Level	Code	Message
@@ -152,4 +153,5 @@ select * from v1;
 1
 1
 drop view v1;
+# restart
 # End of 10.11 tests
