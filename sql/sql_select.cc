@@ -27471,20 +27471,22 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
 
   if (order_item->is_order_clause_position() && !from_window_spec)
   {						/* Order by position */
-    int count;
+    longlong count;
     if (order->counter_used)
       count= order->counter; // counter was once resolved
     else
-      count= (uint) order_item->val_int();
-    if (count <= 0 || count > (int)fields.elements)
+      count= order_item->val_int();
+    if (count <= 0 || count > (longlong) fields.elements)
     {
       char buf[64];
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), llstr(count, buf), thd_where(thd));
+      my_error(ER_BAD_FIELD_ERROR, MYF(0),
+               order_item->unsigned_flag ? ullstr(count, buf) : llstr(count, buf),
+               thd_where(thd));
       return TRUE;
     }
     thd->change_item_tree((Item **)&order->item, (Item *)&ref_pointer_array[count - 1]);
     order->in_field_list= 1;
-    order->counter= count;
+    order->counter= (int) count;
     order->counter_used= 1;
     return FALSE;
   }
