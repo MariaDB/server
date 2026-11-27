@@ -35,14 +35,50 @@ then
     /etc/init.d/mariadb start
   fi
 else
-  # If systemd (and systemctl) is available, but the service did not start, then
-  # this smoke test is supposed to fail if next commands don't work.
   echo "Found systemctl, continuing smoke test.."
   # Compression plugins are separated from main server package
   # to own packages (for example LZ4 package mariadb-plugin-provider-lz4)
   # and they are installed after mariadb-server.
   # which means that they don't exist if MariaDB is not restarted
-  systemctl restart mariadb
+  systemctl restart mariadb ||
+  {
+    status=$?
+    # Keep the unfiltered kernel journal out of the shell trace.
+    set +x
+
+    echo "=== Systemd service status ==="
+    systemctl --no-pager status mariadb.service || true
+    echo "=== Systemd journal ==="
+    journalctl --no-pager -xeu mariadb.service || true
+
+    echo "=== MariaDB error log ==="
+    log_found=false
+    for error_log in /var/log/mysql/error.log /var/lib/mysql/*.err
+    do
+      if [ -f "$error_log" ]
+      then
+        log_found=true
+        printf '%s\n' "--- $error_log (last 50 lines) ---"
+        tail -n 50 -- "$error_log" || true
+      fi
+    done
+    [ "$log_found" = true ] || echo "No MariaDB error log found"
+
+    echo "=== MariaDB data directory and socket permissions ==="
+    ls -ld -- /var/lib/mysql /run/mysqld /run/mysqld/mysqld.sock || true
+
+    echo "=== MariaDB AppArmor denials ==="
+    if kernel_log=$(journalctl --quiet --no-pager -k -b 2>/dev/null) &&
+       [ -n "$kernel_log" ]
+    then
+      printf '%s\n' "$kernel_log" | grep -Fi 'apparmor="DENIED"' |
+        grep -Ei 'mariadb|mysqld' || echo "No MariaDB AppArmor denials found"
+    else
+      echo "Kernel journal unavailable or empty"
+    fi
+
+    exit "$status"
+  }
 fi
 
 mysql <<EOT
