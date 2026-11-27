@@ -1282,6 +1282,13 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_distance") };
     return name;
   }
+  bool fix_length_and_dec(THD *thd) override
+  {
+    if (Item_real_func::fix_length_and_dec(thd))
+      return TRUE;
+    set_maybe_null();
+    return FALSE;
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override
