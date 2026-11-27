@@ -1,0 +1,56 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-42376 MHNSW: rows become unreachable when an insert prunes a neighbor list
+--echo #
+--echo # Inserts make nodes choose their neighbors again and drop links. Layer 0
+--echo # must stay connected: with an ef_search above the number of rows, a
+--echo # search with the vector of any row finds that row.
+--echo #
+create table t1 (
+  id int unsigned auto_increment primary key,
+  v vector(16) not null,
+  vector index (v) m=3 distance=cosine
+) engine=innodb;
+
+set rand_seed1=1234567890, rand_seed2=3;
+# 16 clusters: each vector is its cluster's centre plus noise
+insert t1 (v) select vec_fromtext(json_arrayagg((d.seq % 16 = r.seq % 16) + rand()/2 order by d.seq))
+  from seq_1_to_16 d, seq_1_to_2000 r group by r.seq;
+
+delimiter //;
+create procedure unreachable(out n int)
+begin
+  declare i int default 2000;
+  declare found int;
+  set n= 0;
+  while i > 0 do
+    select count(*) into found from (
+      select id from t1
+      order by vec_distance_cosine(v, (select v from t1 where id = i)) limit 20) x
+    where id = i;
+    if found = 0 then
+      # the default ef_search is approximate: search the whole layer
+      set session mhnsw_ef_search= 10000;
+      select count(*) into found from (
+        select id from t1
+        order by vec_distance_cosine(v, (select v from t1 where id = i)) limit 20) x
+      where id = i;
+      set session mhnsw_ef_search= default;
+      if found = 0 then
+        set n= n + 1;
+      end if;
+    end if;
+    set i= i - 1;
+  end while;
+end//
+delimiter ;//
+
+call unreachable(@n);
+select @n as rows_no_search_reaches;
+
+drop procedure unreachable;
+drop table t1;
+
+--echo # End of 11.8 tests

@@ -430,7 +430,7 @@ public:
   mysql_rwlock_t commit_lock;
   size_t vec_len= 0;
   size_t byte_len= 0;
-  Atomic_relaxed<double> ef_power{0.6}; // for the bloom filter size heuristic
+  Atomic_relaxed<double> ef_power{0.6}; // for the visited set size heuristic
   Atomic_relaxed<float>  diameter{0};   // for the generosity heuristic
   FVectorNode *start= 0;
   const uint tref_len;
@@ -443,6 +443,24 @@ public:
       gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
       metric(t->s->key_info[t->s->keys].option_struct->metric)
+  {
+    init();
+  }
+
+  /*
+    An empty cache of the same graph that starts from what the searches of
+    `prev` learned about it: ef_power and diameter describe the graph, not
+    the cache.
+  */
+  MHNSW_Share(MHNSW_Share &prev)
+    : version(prev.version), ef_power(prev.ef_power),
+      diameter(prev.diameter), tref_len(prev.tref_len),
+      gref_len(prev.gref_len), M(prev.M), metric(prev.metric)
+  {
+    init();
+  }
+
+  void init()
   {
     mysql_rwlock_init(PSI_INSTRUMENT_ME, &commit_lock);
     mysql_mutex_init(PSI_INSTRUMENT_ME, &cache_lock, MY_MUTEX_INIT_FAST);
@@ -488,12 +506,23 @@ public:
   static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
   static MHNSW_Share *get_from_share(TABLE_SHARE *share, TABLE *table);
 
+  /*
+    Drop the cached graph. The share that replaces this one keeps what the
+    searches learned about the graph: a graph larger than
+    mhnsw_max_cache_size resets its cache after nearly every query, and
+    with the defaults each of those searches sized its visited set for far
+    fewer nodes than it visits and stopped early (diameter 0), missing rows,
+    even a row equal to the query.
+  */
   virtual void reset(TABLE_SHARE *share)
   {
     share->lock_share();
     if (static_cast<MHNSW_Share*>(share->hlindex->hlindex_data) == this)
     {
-      share->hlindex->hlindex_data= nullptr;
+      MHNSW_Share *next= new (&share->hlindex->mem_root) MHNSW_Share(*this);
+      if (next)
+        next->refcnt++;
+      share->hlindex->hlindex_data= next;
       --refcnt;
     }
     share->unlock_share();
@@ -948,39 +977,80 @@ struct Visited : public Sql_alloc
 /*
   a factory to create Visited and keep track of already seen nodes
 
-  note that PatternedSimdBloomFilter works in blocks of 8 elements,
-  so on insert they're accumulated in nodes[], on search the caller
-  provides 8 addresses at once. we record 0x0 as "seen" so that
-  the caller could pad the input with nullptr's
+  the seen nodes are an open addressing hash set of their addresses. it is
+  exact: a Bloom filter sometimes says a node was seen when it was not, and
+  the search then skips it and every node reachable only through it. the set
+  starts with room for the expected number of nodes and doubles when it is
+  half full. nullptr is always seen, so that the caller can pass the padding
+  at the end of a neighbor list
 */
 class VisitedSet
 {
   MEM_ROOT *root;
   const FVector *target;
-  PatternedSimdBloomFilter<FVectorNode> map;
-  const FVectorNode *nodes[8]= {0,0,0,0,0,0,0,0};
-  size_t idx= 1; // to record 0 in the filter
+  std::vector<const FVectorNode*> slots; // the size is a power of two
+  uint shift; // 64 - log2(slots.size())
+
+  size_t slot(const FVectorNode *node) const
+  { // Fibonacci hashing: the high bits of the product
+    return static_cast<size_t>((static_cast<ulonglong>(
+             reinterpret_cast<size_t>(node)) * 0x9E3779B97F4A7C15ULL) >> shift);
+  }
+  void insert(const FVectorNode *node)
+  {
+    const size_t mask= slots.size() - 1;
+    size_t i= slot(node);
+    for (; slots[i]; i= (i + 1) & mask)
+      if (slots[i] == node)
+        return;
+    slots[i]= node;
+  }
+  bool contains(const FVectorNode *node) const
+  {
+    const size_t mask= slots.size() - 1;
+    for (size_t i= slot(node); slots[i]; i= (i + 1) & mask)
+      if (slots[i] == node)
+        return true;
+    return false;
+  }
+  void resize(size_t size)
+  {
+    std::vector<const FVectorNode*> old(size, nullptr);
+    old.swap(slots);
+    shift= 64;
+    for (size_t s= size; s > 1; s>>= 1)
+      shift--;
+    for (const FVectorNode *node : old)
+      if (node)
+        insert(node);
+  }
   public:
   uint count= 0;
   VisitedSet(MEM_ROOT *root, const FVector *target, uint size) :
-    root(root), target(target), map(size, 0.01f) {}
+    root(root), target(target)
+  {
+    size_t slots_num= 16;
+    while (slots_num < 2 * static_cast<size_t>(size))
+      slots_num*= 2;
+    resize(slots_num);
+  }
   Visited *create(FVectorNode *node)
   {
     auto *v= new (root) Visited(node, node->distance_to(target));
+    if (2 * (count + 1) > slots.size())
+      resize(2 * slots.size());
     insert(node);
     count++;
     return v;
   }
-  void insert(const FVectorNode *n)
+  uint8_t seen(FVectorNode **nodes) const
   {
-    nodes[idx++]= n;
-    if (idx == 8) flush();
+    uint8_t res= 0;
+    for (size_t i= 0; i < 8; i++)
+      if (!nodes[i] || contains(nodes[i]))
+        res|= 1 << i;
+    return res;
   }
-  void flush() {
-    if (idx) map.Insert(nodes);
-    idx=0;
-  }
-  uint8_t seen(FVectorNode **nodes) { return map.Query(nodes); }
 };
 
 
@@ -1093,10 +1163,113 @@ int FVectorNode::save(TABLE *graph)
   return err;
 }
 
+/*
+  Layer 0 stays strongly connected, so that a search with a large enough ef
+  finds every row from wherever it enters the layer: the first neighbor of
+  every node is its parent, an older node that never drops its link back to
+  it, and a node never drops its parent either. From any node the parents
+  lead to the oldest nodes, and the links back lead from there to any node.
+*/
+static bool is_child(const FVectorNode *node, const FVectorNode *parent)
+{
+  return node->neighbors[0].num && node->neighbors[0].links[0] == parent;
+}
+
+/* how many links `node` cannot drop on layer 0: to its parent and children */
+static int count_tree_links(TABLE *graph, FVectorNode *node, uint *count)
+{
+  *count= 0;
+  if (int err= node->load(graph))
+    return err;
+  Neighborhood &links= node->neighbors[0];
+  for (size_t i= 0; i < links.num; i++)
+  {
+    if (int err= links.links[i]->load(graph))
+      return err;
+    *count+= i == 0 || is_child(links.links[i], node);
+  }
+  return 0;
+}
+
+/*
+  Chooses the parent of a new node on layer 0, before it is saved: its
+  nearest neighbor that has room for one more link it cannot drop, moved to
+  the first place. If none of its neighbors has room, the nearest node that
+  has (breadth-first from them) takes the place of its farthest neighbor.
+*/
+static int choose_parent(MHNSW_Share *ctx, TABLE *graph, FVectorNode *node)
+{
+  const uint max_neighbors= ctx->max_neighbors(0);
+  Neighborhood &own= node->neighbors[0];
+  std::vector<FVectorNode*> seen(own.links, own.links + own.num);
+  for (size_t i= 0; i < seen.size(); i++)
+  {
+    uint count;
+    if (int err= count_tree_links(graph, seen[i], &count))
+      return err;
+    if (count < max_neighbors)
+    {
+      size_t pos= i;
+      if (i >= own.num)
+      {
+        if (own.num < max_neighbors)
+          own.num++;
+        pos= own.num - 1;
+        own.links[pos]= seen[i];
+      }
+      std::swap(own.links[0], own.links[pos]);
+      return 0;
+    }
+    Neighborhood &theirs= seen[i]->neighbors[0];
+    for (size_t j= 0; j < theirs.num; j++)
+      if (std::find(seen.begin(), seen.end(), theirs.links[j]) == seen.end())
+        seen.push_back(theirs.links[j]);
+  }
+  return 0;
+}
+
+/*
+  `neigh` chose its neighbors on layer 0 again, from `before` and `extra`
+  (the node being inserted). It keeps its parent first, and its children,
+  in place of its farthest other neighbors.
+*/
+static void keep_tree_links(FVectorNode *neigh, FVectorNode **before,
+                            size_t before_num, FVectorNode *extra)
+{
+  Neighborhood &neighbors= neigh->neighbors[0];
+  FVectorNode *parent= before[0];
+  auto keep= [&](FVectorNode *tree)
+  {
+    if (std::find(neighbors.links, neighbors.links + neighbors.num, tree) !=
+        neighbors.links + neighbors.num)
+      return;
+    for (size_t i= neighbors.num; i-- > 0; )
+      if (neighbors.links[i] != parent && !is_child(neighbors.links[i], neigh))
+      {
+        neighbors.links[i]= tree;
+        return;
+      }
+  };
+  keep(parent);
+  for (size_t b= 1; b < before_num; b++)
+    if (is_child(before[b], neigh))
+      keep(before[b]);
+  if (is_child(extra, neigh))
+    keep(extra);
+  for (size_t i= 1; i < neighbors.num; i++)
+    if (neighbors.links[i] == parent)
+      std::swap(neighbors.links[0], neighbors.links[i]);
+}
+
 static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
                                           size_t layer, FVectorNode *node)
 {
   const uint max_neighbors= ctx->max_neighbors(layer);
+  FVectorNode **before= (FVectorNode**)my_safe_alloca(sizeof(FVectorNode*) *
+                                                      max_neighbors);
+  SCOPE_EXIT([before, max_neighbors](){
+    my_safe_afree(before, sizeof(FVectorNode*) * max_neighbors);
+  });
   // it seems that one could update nodes in the gref order
   // to avoid InnoDB deadlocks, but it produces no noticeable effect
   for (size_t i=0; i < node->neighbors[layer].num; i++)
@@ -1106,9 +1279,15 @@ static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
     if (neighneighbors.num < max_neighbors)
       neigh->push_neighbor(layer, node);
     else
+    {
+      size_t before_num= neighneighbors.num;
+      memcpy(before, neighneighbors.links, sizeof(*before) * before_num);
       if (int err= select_neighbors(ctx, graph, layer, *neigh, neighneighbors,
                                     node, max_neighbors))
         return err;
+      if (layer == 0)
+        keep_tree_links(neigh, before, before_num, node);
+    }
     if (int err= neigh->save(graph))
       return err;
   }
@@ -1182,8 +1361,6 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
     const Visited &cur= *candidates.pop();
     if (cur.distance_to_target > furthest_best && best.is_full())
       break; // All possible candidates are worse than what we have
-
-    visited.flush();
 
     Neighborhood &neighbors= cur.node->neighbors[layer];
     FVectorNode **links= neighbors.links, **end= links + neighbors.num;
@@ -1323,6 +1500,9 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
                                   0, max_neighbors))
       return err;
   }
+
+  if (int err= choose_parent(ctx, graph, target))
+    return err;
 
   if (int err= target->save(graph))
     return err;
