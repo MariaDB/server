@@ -944,6 +944,7 @@ struct TABLE_SHARE
   /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
+  uint vcol_flags;  /* OR of vcol_info->flags of all virtual columns */
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
   bool long_unique_table;

@@ -1268,6 +1268,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
         goto end;
       }
       table->map= 0;
+      if (vcol && type == VCOL_GENERATED_VIRTUAL)
+        table->s->vcol_flags|= vcol->flags;
       break;
     case VCOL_DEFAULT:
       vcol= unpack_vcol_info_from_frm(thd, table, &expr_str,
