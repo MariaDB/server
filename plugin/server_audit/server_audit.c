@@ -1511,6 +1511,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
 {
   const char *res_start= result;
   const char *res_end= result + result_len - 2;
+  const char *str_end= str + len;
   size_t d_len;
 
   while (len)
@@ -1535,7 +1536,8 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
             goto no_password;
           next_s++;
         }
-        while (*next_s && *next_s != '\'' && *next_s != '"')
+        while (next_s < str_end && *next_s &&
+               *next_s != '\'' && *next_s != '"')
           ++next_s;
       }
       else
@@ -1550,7 +1552,8 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
           next_s+= word2_len;
         }
 
-        while (*next_s && *next_s != '\'' && *next_s != '"')
+        while (next_s < str_end && *next_s &&
+               *next_s != '\'' && *next_s != '"')
           ++next_s;
       }
 
@@ -1561,13 +1564,13 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
       for (c=0; c<d_len; c++)
         result[c]= is_space(str[c]) ? ' ' : str[c];
 
-      if (*next_s)
+      if (next_s < str_end && *next_s)
       {
         const char b_char= *next_s++;
         memset(result + d_len, '*', 5);
         result+= d_len + 5;
 
-        while (*next_s)
+        while (next_s < str_end && *next_s)
         {
           if (*next_s == b_char)
           {
@@ -1576,7 +1579,7 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
           }
           if (*next_s == '\\')
           {
-            if (next_s[1])
+            if (next_s + 1 < str_end && next_s[1])
               next_s++;
           }
           next_s++;

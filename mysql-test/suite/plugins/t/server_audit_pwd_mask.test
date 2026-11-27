@@ -73,3 +73,31 @@ UNINSTALL SONAME 'server_audit';
 --enable_warnings
 
 --echo # end of 10.5 tests
+
+--echo #
+--echo # MDEV-40351 MSAN: use-of-uninitialized-value in escape_string_hide_passwords
+--echo #
+
+INSTALL SONAME 'server_audit';
+# Cut the logged query in the middle of the password
+SET GLOBAL server_audit_query_log_limit=50;
+SET GLOBAL server_audit_logging=ON;
+
+CREATE USER u1 IDENTIFIED BY 'secret_password_secret_password';
+
+SET GLOBAL server_audit_logging=OFF;
+--echo # the password is masked and nothing is logged after it
+--let SEARCH_PATTERN= IDENTIFIED BY \*\*\*\*\*',0
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= secret
+--source include/search_pattern_in_file.inc
+
+# Cleanup
+DROP USER u1;
+--remove_file $SEARCH_FILE
+SET GLOBAL server_audit_query_log_limit=DEFAULT;
+--disable_warnings
+UNINSTALL SONAME 'server_audit';
+--enable_warnings
+
+--echo # end of 10.11 tests
