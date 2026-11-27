@@ -198,8 +198,13 @@ bool DuckdbManager::Initialize()
         throw duckdb::InvalidInputException(
             "DuckDB initialization query failed: %s", result->GetError());
     };
-    init_query("SET autoload_known_extensions=true");
-    init_query("SET autoinstall_known_extensions=true");
+    /* Remote access (httpfs etc.) is off unless explicitly enabled. */
+    const char *remote= allow_remote_access ? "true" : "false";
+    init_query(std::string("SET autoload_known_extensions=") + remote);
+    init_query(std::string("SET autoinstall_known_extensions=") + remote);
+    /* Autoload being off is not enough: LOAD httpfs, by name or by path, still works. This one cannot be undone. */
+    if (!allow_remote_access)
+      init_query("SET enable_external_access=false");
 
     /*
       Register MariaDB-compatible SQL macros for functions that DuckDB
