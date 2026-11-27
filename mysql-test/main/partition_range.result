@@ -1068,3 +1068,24 @@ select * from t partition (p2);
 d
 set time_zone=default;
 drop table t;
+#
+# MDEV-32747 MSAN/Valgrind errors in partition_info::print_no_partition_found upon ER_DATA_OVERFLOW
+#
+create table t (f decimal(50)) partition by range (f)
+(partition p0 values less than (1), partition pn values less than maxvalue);
+insert into t values (18446744073709551615);
+ERROR 22003: Got overflow when converting '18446744073709551615' to INT. Value truncated
+insert ignore into t values (18446744073709551615);
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551615' to INT. Value truncated
+Warning	1526	Table has no partition for value 9223372036854775807
+drop table t;
+create table t (f decimal(50)) partition by list (f) (partition p0 values in (1));
+insert into t values (18446744073709551615);
+ERROR 22003: Got overflow when converting '18446744073709551615' to INT. Value truncated
+insert ignore into t values (18446744073709551615);
+Warnings:
+Warning	1916	Got overflow when converting '18446744073709551615' to INT. Value truncated
+Warning	1526	Table has no partition for value 9223372036854775807
+drop table t;
+# End of 10.11 tests
