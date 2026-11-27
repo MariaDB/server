@@ -1068,24 +1068,32 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
                            int threads,
                            Sql_cmd_backup::enum_binlog_option binlog_opt)
 {
-  assert(!!target == !command);
+  assert(!target || !command);
   assert(threads > 0);
   bool binlog_skip= (binlog_opt == Sql_cmd_backup::BINLOG_NONE);
   bool binlog_minimal= (binlog_opt == Sql_cmd_backup::BINLOG_MINIMAL);
 
   if (!target)
   {
+    if (!command)
+    {
+      if (threads != 1)
+      {
+        my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "CONCURRENT", "BACKUP SERVER");
+        return true;
+      }
+    }
     /*
       Disallow path separators and the quote character.
     */
-    if (false ||
+    else if (false ||
 #ifndef _WIN32
-        strchr(command, '\'') /* quote */ ||
+             strchr(command, '\'') /* quote */ ||
 #else
-        strchr(command, '"') /* quote */ ||
-        strchr(command, '\\') /* special inside quotes */ ||
+             strchr(command, '"') /* quote */ ||
+             strchr(command, '\\') /* special inside quotes */ ||
 #endif
-        strchr(command, '/') /* disallow path separator */)
+             strchr(command, '/') /* disallow path separator */)
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "BACKUP SERVER WITH");
       return true;
@@ -1187,6 +1195,39 @@ static bool backup_execute(THD *thd, const char *target, const char *command,
                                           binlog_skip, binlog_minimal},
           BACKUP_START, backup_sink{t - 1, sink, nullptr}, f, 0, context};
     }
+  }
+  else if (!target)
+  {
+    do
+    {
+      constexpr uint flags{Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF};
+      List<Item> list;
+      if (Item *dummy_string= new (thd->mem_root)
+          Item_string(thd, "", 0, &my_charset_bin))
+      {
+        if (!list.push_back(dummy_string) &&
+            !thd->protocol->send_result_set_metadata(&list, flags))
+          continue;
+      }
+      goto oor;
+    }
+    while (false);
+    /* send dummy data */
+    if (uchar *dummy= static_cast<uchar*>(calloc(65536, 1)))
+    {
+      /* @see net_store_length() for the little-endian encoding */
+      const uchar buf512[]{252, 0x00, 0x02 };
+      const uchar buf64k[]{253, 0x00, 0x00, 0x01 };
+      memcpy(dummy, C_STRING_WITH_LEN("first row"));
+      net_write_command(&thd->net, buf512[0], buf512 + 1, sizeof buf512 - 1,
+                        dummy, 512);
+      memcpy(dummy, C_STRING_WITH_LEN("second row"));
+      net_write_command(&thd->net, buf64k[0], buf64k + 1, sizeof buf64k - 1,
+                        dummy, 65536);
+      free(dummy);
+    }
+    my_eof(thd);
+    goto err_exit;
   }
   else if (my_mkdir(target, 0755, MYF(MY_WME)))
     goto err_exit;

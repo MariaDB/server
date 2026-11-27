@@ -15873,16 +15873,23 @@ backup_statements:
         | SERVER_SYM TO_SYM TEXT_STRING_sys
           {
             Lex->sql_command= SQLCOM_BACKUP_SERVER;
-            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3, 1);
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3);
           }
 	  opt_backup_options
 	  { }
         | SERVER_SYM WITH TEXT_STRING_sys
           {
             Lex->sql_command= SQLCOM_BACKUP_SERVER;
-            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup(1, $3);
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup($3, false);
           }
 	  opt_backup_options
+	  { }
+        | SERVER_SYM
+          {
+            Lex->sql_command= SQLCOM_BACKUP_SERVER;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_backup();
+          }
+          opt_backup_options
 	  { }
         ;
 
