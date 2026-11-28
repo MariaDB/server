@@ -1505,7 +1505,7 @@ public:
     @param source_const - the source's "const" argument, it will be inserted
                           into "target" instead of "expr".
   */
-  bool can_change_cond_ref_to_const(Item_bool_func2 *target, Item *target_expr,
+  bool can_change_cond_ref_to_const(Item_bool_func *target, Item *target_expr,
                                Item *target_value, Item_bool_func2 *source,
                                Item *source_expr, Item *source_const)
                                const override

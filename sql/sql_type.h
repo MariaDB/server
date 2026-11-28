@@ -52,6 +52,7 @@ class Item_func_hex;
 class Item_hybrid_func;
 class Item_func_min_max;
 class Item_func_hybrid_field_type;
+class Item_bool_func;
 class Item_bool_func2;
 class Item_bool_rowready_func2;
 class Item_func_between;
@@ -4439,7 +4440,7 @@ public:
                           into "target" instead of "expr".
   */
   virtual bool
-  can_change_cond_ref_to_const(Item_bool_func2 *target,
+  can_change_cond_ref_to_const(Item_bool_func *target,
                                Item *target_expr, Item *target_value,
                                Item_bool_func2 *source,
                                Item *source_expr, Item *source_const) const= 0;
@@ -4876,7 +4877,7 @@ public:
     return 1;
   }
   String *print_item_value(THD *thd, Item *item, String *str) const override;
-  bool can_change_cond_ref_to_const(Item_bool_func2 *, Item *, Item *,
+  bool can_change_cond_ref_to_const(Item_bool_func *, Item *, Item *,
                                    Item_bool_func2 *, Item *, Item *)
     const override
   {
@@ -5114,7 +5115,7 @@ public:
                                   MYSQL_TIME *, date_mode_t fuzzydate) const
     override;
   virtual ~Type_handler_numeric() = default;
-  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+  bool can_change_cond_ref_to_const(Item_bool_func *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const
@@ -5675,7 +5676,7 @@ public:
                                  const st_value *value) const override;
   uint32 max_display_length(const Item *item) const override;
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
-  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+  bool can_change_cond_ref_to_const(Item_bool_func *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const)
@@ -5816,7 +5817,7 @@ public:
   {
     return print_item_value_csstr(thd, item, str);
   }
-  bool can_change_cond_ref_to_const(Item_bool_func2 *target,
+  bool can_change_cond_ref_to_const(Item_bool_func *target,
                                    Item *target_expr, Item *target_value,
                                    Item_bool_func2 *source,
                                    Item *source_expr, Item *source_const) const
