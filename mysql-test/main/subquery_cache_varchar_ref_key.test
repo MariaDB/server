@@ -1,0 +1,88 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # A ref lookup key built over a VARCHAR is a fixed width image, so the
+--echo # bytes that follow the value take part in the key comparison that
+--echo # decides whether the previous lookup can be reused, although they
+--echo # carry no information.  A storage engine is free to leave that part of
+--echo # a record undefined, and the subquery cache reaches that comparison
+--echo # once per row.  Only a build with memory instrumentation can fail on
+--echo # the read, so each block below also checks that the subquery cache
+--echo # counters moved, which is what shows the comparison was reached at
+--echo # all.  Only whether they moved is checked, because a prepared
+--echo # statement executes the subquery twice and doubles them.
+--echo #
+--echo # The column has to be wider than 255 bytes.  A key field always carries
+--echo # a two byte length prefix, and the full width copy that leaves the
+--echo # bytes after the value in place is taken only when the source field
+--echo # agrees on the width of that prefix.  A narrower column takes a
+--echo # conversion path that writes the value alone.
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(256)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar'),(3,'foo'),(4,'quux'),
+                      (5,'bar'),(6,'foo'),(7,'corge'),(8,'bar');
+
+CREATE TABLE t2 (x INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2);
+
+--echo # Values of differing length, so that the bytes after a short one are
+--echo # whatever the longer row before it left behind
+
+--echo # The predicate is false for every row, so nothing is updated
+FLUSH STATUS;
+UPDATE t1, t2 SET id = id + 100 WHERE a IN ( SELECT 'baz' UNION SELECT 'qux' );
+SELECT VARIABLE_NAME, VARIABLE_VALUE > 0 AS reached
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME LIKE 'SUBQUERY_CACHE%' ORDER BY VARIABLE_NAME;
+SELECT id, a FROM t1 ORDER BY id;
+
+--echo # The same lookups with three rows qualifying
+FLUSH STATUS;
+UPDATE t1, t2 SET id = id + 10 WHERE a IN ( SELECT 'foo' UNION SELECT 'qux' );
+SELECT VARIABLE_NAME, VARIABLE_VALUE > 0 AS reached
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME LIKE 'SUBQUERY_CACHE%' ORDER BY VARIABLE_NAME;
+SELECT id, a FROM t1 ORDER BY id;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # The same comparison is reached from a correlated subquery, which puts
+--echo # the value at a different offset in the same key buffer
+--echo #
+
+CREATE TABLE t3 (a VARCHAR(256)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1),(5),(1),(22),(5),(333),(22),(1);
+
+CREATE TABLE t4 (b INT) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (2),(3);
+
+FLUSH STATUS;
+SELECT a FROM t3 WHERE EXISTS ( SELECT 1 FROM t4 WHERE b <> t3.a ) ORDER BY a;
+SELECT VARIABLE_NAME, VARIABLE_VALUE > 0 AS reached
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME LIKE 'SUBQUERY_CACHE%' ORDER BY VARIABLE_NAME;
+
+DROP TABLE t3, t4;
+
+--echo #
+--echo # Aria leaves the same part of a record undefined, so the outer table's
+--echo # engine makes no difference to what is compared
+--echo #
+
+CREATE TABLE t5 (id INT PRIMARY KEY, a VARCHAR(256)) ENGINE=Aria;
+INSERT INTO t5 VALUES (1,'foo'),(2,'bar'),(3,'foo'),(4,'quux'),
+                      (5,'bar'),(6,'foo'),(7,'corge'),(8,'bar');
+
+CREATE TABLE t6 (x INT) ENGINE=Aria;
+INSERT INTO t6 VALUES (1),(2);
+
+FLUSH STATUS;
+UPDATE t5, t6 SET id = id + 100 WHERE a IN ( SELECT 'baz' UNION SELECT 'qux' );
+SELECT VARIABLE_NAME, VARIABLE_VALUE > 0 AS reached
+FROM information_schema.SESSION_STATUS
+WHERE VARIABLE_NAME LIKE 'SUBQUERY_CACHE%' ORDER BY VARIABLE_NAME;
+SELECT id, a FROM t5 ORDER BY id;
+
+DROP TABLE t5, t6;
