@@ -300,4 +300,82 @@ where table_name='t1';
 table_name	index_name
 rename table mysql.index_stats_save to mysql.index_stats;
 set global userstat= 0;
+#
+# MDEV-33527 Stale data remains in userstat upon renaming table
+#
+set global userstat= 1;
+flush table_statistics;
+flush index_statistics;
+create table t (a int, key(a)) engine=MyISAM;
+insert into t values (1),(2);
+select * from t where a=1;
+a
+1
+select table_name, rows_read, rows_changed
+from information_schema.table_statistics where table_name='t';
+table_name	rows_read	rows_changed
+t	1	2
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name='t';
+table_name	index_name	rows_read
+t	a	1
+# The statistics move to the new name, the old name has none left
+rename table t to t2;
+select table_name, rows_read, rows_changed
+from information_schema.table_statistics where table_name in ('t','t2');
+table_name	rows_read	rows_changed
+t2	1	2
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name in ('t','t2');
+table_name	index_name	rows_read
+t2	a	1
+# A new table with the old name starts from scratch
+create table t (b varchar(8), key(b)) engine=MyISAM;
+insert into t values ('foo'),('bar'),('baz');
+select * from t where b='foo';
+b
+foo
+select table_name, rows_read, rows_changed
+from information_schema.table_statistics where table_name='t';
+table_name	rows_read	rows_changed
+t	1	3
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name='t';
+table_name	index_name	rows_read
+t	b	1
+# ALTER TABLE ... RENAME and RENAME to another database
+alter table t2 add column c int, rename to t3, algorithm=copy;
+select table_name, rows_read from information_schema.table_statistics
+where table_name in ('t2','t3');
+table_name	rows_read
+t3	3
+select table_name, index_name, rows_read
+from information_schema.index_statistics where table_name in ('t2','t3');
+table_name	index_name	rows_read
+t3	a	1
+create database db_mdev33527;
+rename table t3 to db_mdev33527.t4;
+select table_schema, table_name, rows_read
+from information_schema.table_statistics where table_name in ('t3','t4');
+table_schema	table_name	rows_read
+db_mdev33527	t4	3
+select table_schema, table_name, index_name, rows_read
+from information_schema.index_statistics where table_name in ('t3','t4');
+table_schema	table_name	index_name	rows_read
+db_mdev33527	t4	a	1
+# Renaming onto a name that has statistics replaces them
+select * from t where b='bar';
+b
+bar
+rename table t to t5, db_mdev33527.t4 to t;
+select table_schema, table_name, rows_read
+from information_schema.table_statistics order by 1,2;
+table_schema	table_name	rows_read
+test	t	3
+test	t5	2
+drop table t, t5;
+drop database db_mdev33527;
+flush table_statistics;
+flush index_statistics;
+set global userstat= 0;
 # End of 10.11 tests
