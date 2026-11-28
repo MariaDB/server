@@ -7079,3 +7079,13 @@ ERROR HY000: Partition management on a not partitioned table is not possible
 drop procedure p;
 drop view v;
 # End of 10.11 test
+# MDEV-40245 Preserve distinct NULLIF results in views
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (2,NULL),(4,NULL);
+CREATE VIEW v1 AS SELECT DISTINCT b,a/NULLIF(1,0) AS c FROM t1 ORDER BY b,c;
+SELECT * FROM v1;
+b	c
+NULL	2.0000
+NULL	4.0000
+DROP VIEW v1;
+DROP TABLE t1;

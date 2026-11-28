@@ -1490,6 +1490,7 @@ public:
   bool native_op(THD *thd, Native *to) override;
   bool fix_length_and_dec(THD *thd) override;
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
+  bool eq(const Item *item, const Eq_config &config) const override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("nullif") };
