@@ -44,6 +44,7 @@
 #include "duckdb/common/types.hpp"
 #include "duckdb/common/types/blob.hpp"
 #include "duckdb/common/vector_operations/unary_executor.hpp"
+#include "duckdb/common/vector_operations/binary_executor.hpp"
 #include "duckdb/common/vector_operations/vector_operations.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/function/function_set.hpp"
@@ -1318,6 +1319,35 @@ static void weekday_ts_func(duckdb::DataChunk &args,
       });
 }
 
+/*
+  MariaDB '^' is bitwise XOR and returns UNSIGNED BIGINT.  DuckDB uses '^'
+  for POWER(), so SELECT c1^64 against an INT column evaluates 2**64 as a
+  DOUBLE and then aborts while converting it to uint64 (MDEV-40905).
+
+  Register integer overloads of '^' that match MariaDB XOR.
+  Exact integer matches beat the DOUBLE POWER overload during binding.
+*/
+template <class T>
+static void mariadb_bit_xor_int(duckdb::DataChunk &args,
+                                duckdb::ExpressionState &,
+                                duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<T, T, uint64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](T left, T right) -> uint64_t {
+        return (uint64_t) (int64_t) left ^ (uint64_t) (int64_t) right;
+      });
+}
+
+static void mariadb_bit_xor_uint64(duckdb::DataChunk &args,
+                                   duckdb::ExpressionState &,
+                                   duckdb::Vector &result)
+{
+  duckdb::BinaryExecutor::Execute<uint64_t, uint64_t, uint64_t>(
+      args.data[0], args.data[1], result, args.size(),
+      [](uint64_t left, uint64_t right) -> uint64_t { return left ^ right; });
+}
+
 /* ================================================================
    Registration
    ================================================================ */
@@ -1832,6 +1862,39 @@ static void register_dow_functions(duckdb::Catalog &catalog,
   }
 }
 
+static void register_bit_xor_operator(duckdb::Catalog &catalog,
+                                      duckdb::CatalogTransaction transaction)
+{
+  duckdb::ScalarFunctionSet set("^");
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::TINYINT, duckdb::LogicalType::TINYINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<int8_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::SMALLINT, duckdb::LogicalType::SMALLINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<int16_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::INTEGER, duckdb::LogicalType::INTEGER},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<int32_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::BIGINT, duckdb::LogicalType::BIGINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<int64_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::UTINYINT, duckdb::LogicalType::UTINYINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<uint8_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::USMALLINT, duckdb::LogicalType::USMALLINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<uint16_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::UINTEGER, duckdb::LogicalType::UINTEGER},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_int<uint32_t>));
+  set.AddFunction(duckdb::ScalarFunction(
+      {duckdb::LogicalType::UBIGINT, duckdb::LogicalType::UBIGINT},
+      duckdb::LogicalType::UBIGINT, mariadb_bit_xor_uint64));
+  duckdb::CreateScalarFunctionInfo info(std::move(set));
+  info.on_conflict= duckdb::OnCreateConflict::ALTER_ON_CONFLICT;
+  catalog.CreateFunction(transaction, info);
+}
+
 void register_mariadb_compat_functions(duckdb::DatabaseInstance &db)
 {
   auto &catalog= duckdb::Catalog::GetSystemCatalog(db);
@@ -1848,13 +1911,14 @@ void register_mariadb_compat_functions(duckdb::DatabaseInstance &db)
   register_trim_functions(catalog, transaction);
   register_week_functions(catalog, transaction);
   register_dow_functions(catalog, transaction);
+  register_bit_xor_operator(catalog, transaction);
 
   sql_print_information(
       "DuckDB: registered MariaDB-compatible function overloads "
       "(octet_length, length, ascii, ord, hex, oct, bin, locate, mid, "
       "rtrim, ltrim, regexp_instr, regexp_replace, regexp_substr, "
       "json_unquote, json_contains, week, yearweek, to_days, dayofweek, "
-      "weekday)");
+      "weekday, ^)");
 }
 
 } /* namespace myduck */
