@@ -1,0 +1,5 @@
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=DuckDB;
+SHOW INDEX FROM t;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t	0	PRIMARY	1	a	NULL	NULL	NULL	NULL		BTREE			NO
+DROP TABLE t;

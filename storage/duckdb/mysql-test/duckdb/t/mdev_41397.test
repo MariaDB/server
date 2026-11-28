@@ -1,0 +1,11 @@
+--source ../include/have_duckdb.inc
+
+#
+# MDEV-41397: SHOW INDEX on a DuckDB table with a key aborts in debug
+# builds because ha_duckdb did not implement handler::index_type().
+#
+
+CREATE TABLE t (a INT PRIMARY KEY) ENGINE=DuckDB;
+SHOW INDEX FROM t;
+
+DROP TABLE t;

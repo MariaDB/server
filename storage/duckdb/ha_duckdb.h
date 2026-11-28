@@ -89,6 +89,8 @@ public:
 
   const char *table_type() const override { return "DUCKDB"; }
 
+  const char *index_type(uint) override { return "BTREE"; }
+
   ulonglong table_flags() const override
   {
     return (HA_BINLOG_STMT_CAPABLE | HA_BINLOG_ROW_CAPABLE |
