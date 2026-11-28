@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42352: A waiting predicate lock must not be freed when its SPATIAL INDEX
+--echo # page is merged or discarded
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, g GEOMETRY NOT NULL, SPATIAL INDEX(g))
+ENGINE=InnoDB;
+
+connect (con_c,localhost,root,,);
+BEGIN;
+# Create many leaf pages that contain only uncommitted records.
+# These lines cross @w but are not within it.
+INSERT INTO t1 SELECT seq,
+ST_GeomFromText(CONCAT('LINESTRING(', CAST(seq % 19 AS SIGNED) - 9, ' -50,',
+                       CAST(seq % 19 AS SIGNED) - 9, ' 50)'))
+FROM seq_1_to_2000;
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-10 -10,-10 10,10 10,10 -10,-10 -10))');
+BEGIN;
+# Acquire predicate locks covering @w on the leaf pages. No record
+# is within @w, so this does not wait for the records of con_c.
+SELECT COUNT(*) FROM t1 FORCE INDEX(g) WHERE MBRWithin(g, @w)
+LOCK IN SHARE MODE;
+
+connect (con_w,localhost,root,,);
+SET innodb_lock_wait_timeout=10;
+BEGIN;
+# This conflicts with the predicate lock of con_r and has to wait.
+send INSERT INTO t1 VALUES(0, POINT(0, 0));
+
+connection default;
+let $wait_condition=
+  SELECT COUNT(*) = 1 FROM information_schema.innodb_trx
+  WHERE trx_state = 'LOCK WAIT';
+--source include/wait_condition.inc
+
+connection con_c;
+# Empty the leaf pages again, so that they are merged or discarded while
+# con_w is waiting.
+ROLLBACK;
+disconnect con_c;
+
+connection con_r;
+COMMIT;
+disconnect con_r;
+
+connection con_w;
+# The waiting lock must have been granted when con_r committed.
+reap;
+COMMIT;
+disconnect con_w;
+
+connection default;
+SELECT id, ST_AsText(g) FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests
