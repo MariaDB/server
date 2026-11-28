@@ -1,0 +1,79 @@
+# MDEV-41737 Galera async-replica SQL thread stops instead of retrying
+# after a local certification failure
+#
+# node_3 is a plain mysqld, used as node_1's async replication master.
+# node_1 and node_2 form the Galera cluster; node_1 is also node_3's
+# async replica, with parallel replication enabled.
+#
+# While node_1's SQL thread worker is about to locally certify a
+# replicated INSERT, a conflicting TRUNCATE commits on node_2 and
+# reaches node_1 first. By the time the paused worker certifies, its
+# own transaction loses, and the worker must retry the event group
+# instead of stopping the SQL thread.
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_cluster.inc
+
+--connect master, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+
+--connection node_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='mysql' AND TABLE_NAME='gtid_slave_pos' AND ENGINE='InnoDB';
+--source include/wait_condition.inc
+
+--disable_query_log
+--eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_PORT=$NODE_MYPORT_3;
+--enable_query_log
+START SLAVE;
+
+--connection master
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
+--let $debug_dbug_orig = `SELECT @@GLOBAL.debug_dbug`
+SET GLOBAL debug_dbug = '+d,sync.wsrep_before_local_cert_applier';
+
+--connection master
+INSERT INTO t1 VALUES (2);
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR sync.wsrep_before_local_cert_applier_reached';
+--connection node_1
+--eval SET GLOBAL debug_dbug = '$debug_dbug_orig'
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+SET DEBUG_SYNC = 'now SIGNAL signal.wsrep_before_local_cert_applier';
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 2
+--source include/wait_condition.inc
+
+--let $slave_sql_running = query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+if ($slave_sql_running != Yes)
+{
+  --die SQL thread stopped instead of retrying after a local certification failure
+}
+
+--connection node_1a
+SET DEBUG_SYNC = 'RESET';
+
+--connection master
+DROP TABLE t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+
+STOP SLAVE;
+RESET SLAVE ALL;
