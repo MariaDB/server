@@ -2107,3 +2107,140 @@ eval set global default_storage_engine= $default_storage_engine;
 --echo #
 --echo # End of 11.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-42344 Online ALTER TABLE (ALGORITHM=COPY, LOCK=NONE, the default): a statement that fails in a concurrent transaction is rolled back in InnoDB, but the rows it had already logged are applied to the new table at COMMIT; committed rows get deleted
+--echo #
+# Each failed statement writes several row events into the online ALTER
+# cache (also with a binlog_row_event_max_size of 64K), and only the
+# last, pending, event used to be rolled back.
+--disable_view_protocol
+create table t (a int primary key, b int, c varchar(100), unique (b))
+  engine=innodb;
+insert t select seq, seq, repeat('o', 100) from seq_1_to_3000;
+let $q= select count(*), sum(a > 3000) as failed_inserts,
+               sum(c = 'failed') as failed_updates,
+               sum(a between 1501 and 3000) as not_deleted,
+               sum(c = 'committed') as committed from t;
+
+--connect (con1, localhost, root,,)
+set debug_sync= 'alter_table_online_progress signal copying wait_for go';
+--send
+alter table t modify b bigint, algorithm=copy, lock=none;
+
+--connect (con2, localhost, root,,)
+set debug_sync= 'now wait_for copying';
+begin;
+select a from t where a = 3000 for update;
+
+--connection default
+set innodb_lock_wait_timeout= 1;
+begin;
+update t set c= 'committed' where a = 1;
+--error ER_DUP_ENTRY
+insert t select seq + 10000, seq + 10000, repeat('x', 100)
+         from seq_1_to_2000 union all select 1, 1, 'duplicate';
+--error ER_DUP_ENTRY
+update t set c= 'failed', b= if(a = 1500, 1600, b + 10000)
+         where a between 2 and 1500;
+--error ER_LOCK_WAIT_TIMEOUT
+delete from t where a between 1501 and 3000;
+savepoint s;
+insert t select seq + 20000, seq + 20000, repeat('y', 100)
+         from seq_1_to_2000;
+rollback to savepoint s;
+--error ER_DUP_ENTRY
+insert t select seq + 30000, seq + 30000, repeat('z', 100)
+         from seq_1_to_2000 union all select 1, 1, 'duplicate';
+eval $q;
+commit;
+set innodb_lock_wait_timeout= default;
+
+--connection con2
+commit;
+set debug_sync= 'now signal go';
+
+--connection con1
+--reap
+--connection default
+eval $q;
+drop table t;
+
+--echo # The same when the statement fails because the cache is full
+create table t (a int primary key, c text) engine=innodb;
+insert t select seq, repeat('o', 1000) from seq_1_to_50;
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal copying3 wait_for go3';
+--send
+alter table t add b int, algorithm=copy, lock=none;
+
+--connection default
+set debug_sync= 'now wait_for copying3';
+set @old_dbug= @@debug_dbug;
+set debug_dbug= '+d,online_alter_small_cache';
+begin;
+update t set c= 'committed' where a = 1;
+--error ER_TRANS_CACHE_FULL
+update t set c= repeat('y', 1000) where a > 1;
+select count(*), sum(c = 'committed'), sum(c like 'y%') from t;
+commit;
+set debug_dbug= @old_dbug;
+set debug_sync= 'now signal go3';
+
+--connection con1
+--reap
+--connection default
+select count(*), sum(c = 'committed'), sum(c like 'y%') from t;
+drop table t;
+
+--echo # A failed statement must not truncate the online ALTER cache of
+--echo # another table to an undefined position after ROLLBACK TO SAVEPOINT
+create table t1 (a int primary key) engine=innodb;
+create table t2 (a int primary key) engine=innodb;
+insert t1 values (1), (2);
+insert t2 values (1), (2);
+
+--connection con1
+set debug_sync= 'alter_table_online_progress signal copying1 wait_for go1';
+--send
+alter table t1 add b int, algorithm=copy, lock=none;
+
+--connection con2
+set debug_sync= 'now wait_for copying1';
+set debug_sync= 'alter_table_online_progress signal copying2 wait_for go2';
+--send
+alter table t2 add b int, algorithm=copy, lock=none;
+
+--connection default
+set debug_sync= 'now wait_for copying2';
+begin;
+insert t1 values (5);
+savepoint s;
+insert t2 values (10);
+rollback to savepoint s;
+--error ER_DUP_ENTRY
+insert t1 values (20), (1);
+insert t2 values (30);
+insert t1 values (40);
+commit;
+set debug_sync= 'now signal go1';
+set debug_sync= 'now signal go2';
+
+--connection con1
+--reap
+--connection con2
+--reap
+--connection default
+select * from t1;
+select * from t2;
+drop table t1, t2;
+
+--disconnect con1
+--disconnect con2
+set debug_sync= reset;
+--enable_view_protocol
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

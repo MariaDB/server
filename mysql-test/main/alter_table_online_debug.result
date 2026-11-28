@@ -1835,3 +1835,131 @@ disconnect con2;
 #
 # End of 11.2 tests
 #
+#
+# MDEV-42344 Online ALTER TABLE (ALGORITHM=COPY, LOCK=NONE, the default): a statement that fails in a concurrent transaction is rolled back in InnoDB, but the rows it had already logged are applied to the new table at COMMIT; committed rows get deleted
+#
+create table t (a int primary key, b int, c varchar(100), unique (b))
+engine=innodb;
+insert t select seq, seq, repeat('o', 100) from seq_1_to_3000;
+connect  con1, localhost, root,,;
+set debug_sync= 'alter_table_online_progress signal copying wait_for go';
+alter table t modify b bigint, algorithm=copy, lock=none;
+connect  con2, localhost, root,,;
+set debug_sync= 'now wait_for copying';
+begin;
+select a from t where a = 3000 for update;
+a
+3000
+connection default;
+set innodb_lock_wait_timeout= 1;
+begin;
+update t set c= 'committed' where a = 1;
+insert t select seq + 10000, seq + 10000, repeat('x', 100)
+from seq_1_to_2000 union all select 1, 1, 'duplicate';
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+update t set c= 'failed', b= if(a = 1500, 1600, b + 10000)
+where a between 2 and 1500;
+ERROR 23000: Duplicate entry '1600' for key 'b'
+delete from t where a between 1501 and 3000;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+savepoint s;
+insert t select seq + 20000, seq + 20000, repeat('y', 100)
+from seq_1_to_2000;
+rollback to savepoint s;
+insert t select seq + 30000, seq + 30000, repeat('z', 100)
+from seq_1_to_2000 union all select 1, 1, 'duplicate';
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+select count(*), sum(a > 3000) as failed_inserts,
+sum(c = 'failed') as failed_updates,
+sum(a between 1501 and 3000) as not_deleted,
+sum(c = 'committed') as committed from t;
+count(*)	failed_inserts	failed_updates	not_deleted	committed
+3000	0	0	1500	1
+commit;
+set innodb_lock_wait_timeout= default;
+connection con2;
+commit;
+set debug_sync= 'now signal go';
+connection con1;
+connection default;
+select count(*), sum(a > 3000) as failed_inserts,
+sum(c = 'failed') as failed_updates,
+sum(a between 1501 and 3000) as not_deleted,
+sum(c = 'committed') as committed from t;
+count(*)	failed_inserts	failed_updates	not_deleted	committed
+3000	0	0	1500	1
+drop table t;
+# The same when the statement fails because the cache is full
+create table t (a int primary key, c text) engine=innodb;
+insert t select seq, repeat('o', 1000) from seq_1_to_50;
+connection con1;
+set debug_sync= 'alter_table_online_progress signal copying3 wait_for go3';
+alter table t add b int, algorithm=copy, lock=none;
+connection default;
+set debug_sync= 'now wait_for copying3';
+set @old_dbug= @@debug_dbug;
+set debug_dbug= '+d,online_alter_small_cache';
+begin;
+update t set c= 'committed' where a = 1;
+update t set c= repeat('y', 1000) where a > 1;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mariadbd variable and try again
+select count(*), sum(c = 'committed'), sum(c like 'y%') from t;
+count(*)	sum(c = 'committed')	sum(c like 'y%')
+50	1	0
+commit;
+set debug_dbug= @old_dbug;
+set debug_sync= 'now signal go3';
+connection con1;
+connection default;
+select count(*), sum(c = 'committed'), sum(c like 'y%') from t;
+count(*)	sum(c = 'committed')	sum(c like 'y%')
+50	1	0
+drop table t;
+# A failed statement must not truncate the online ALTER cache of
+# another table to an undefined position after ROLLBACK TO SAVEPOINT
+create table t1 (a int primary key) engine=innodb;
+create table t2 (a int primary key) engine=innodb;
+insert t1 values (1), (2);
+insert t2 values (1), (2);
+connection con1;
+set debug_sync= 'alter_table_online_progress signal copying1 wait_for go1';
+alter table t1 add b int, algorithm=copy, lock=none;
+connection con2;
+set debug_sync= 'now wait_for copying1';
+set debug_sync= 'alter_table_online_progress signal copying2 wait_for go2';
+alter table t2 add b int, algorithm=copy, lock=none;
+connection default;
+set debug_sync= 'now wait_for copying2';
+begin;
+insert t1 values (5);
+savepoint s;
+insert t2 values (10);
+rollback to savepoint s;
+insert t1 values (20), (1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+insert t2 values (30);
+insert t1 values (40);
+commit;
+set debug_sync= 'now signal go1';
+set debug_sync= 'now signal go2';
+connection con1;
+connection con2;
+connection default;
+select * from t1;
+a	b
+1	NULL
+2	NULL
+5	NULL
+40	NULL
+select * from t2;
+a	b
+1	NULL
+2	NULL
+30	NULL
+drop table t1, t2;
+disconnect con1;
+disconnect con2;
+set debug_sync= reset;
+#
+# End of 11.4 tests
+#
