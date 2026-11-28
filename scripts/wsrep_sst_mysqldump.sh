@@ -21,7 +21,11 @@ set -ue
 
 # This is a reference script for mariadb-dump-based state snapshot transfer.
 
-. $(dirname "$0")/wsrep_sst_common
+wsrep_sst_common_dir=$(dirname "$0")
+if [ ! -f "$wsrep_sst_common_dir/wsrep_sst_common" ]; then
+    wsrep_sst_common_dir="@INSTALL_MYSQLSHAREDIRABS@"
+fi
+. "$wsrep_sst_common_dir/wsrep_sst_common"
 
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
