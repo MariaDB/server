@@ -84,6 +84,16 @@
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 LOGGER logger;
+Log_counters log_counters;
+
+SHOW_VAR log_statistics[]= {
+  {"errors",   (char*) &log_counters.count[ERROR_LEVEL],       SHOW_LONG},
+  {"notes",    (char*) &log_counters.count[INFORMATION_LEVEL], SHOW_LONG},
+  {"warnings", (char*) &log_counters.count[WARNING_LEVEL],     SHOW_LONG},
+  {NullS, NullS, SHOW_LONG}
+};
+static_assert(array_elements(log_statistics) == INFORMATION_LEVEL + 2,
+              "keep log_statistics in sync with enum loglevel");
 
 READ_ONLY_SYSVAR const char *log_bin_index= 0;
 READ_ONLY_SYSVAR const char *log_bin_basename= 0;
@@ -1480,6 +1490,10 @@ bool LOGGER::error_log_print(enum loglevel level, const char *format,
 
   if (likely(thd))
     thd->error_printed_to_log= 1;
+
+  /* Count only when there is an error log to write the message to */
+  if (*error_log_handler_list)
+    log_counters.inc(level);
 
   /* currently we don't need locking here as there is no error_log table */
   for (current_handler= error_log_handler_list ; *current_handler ;)
