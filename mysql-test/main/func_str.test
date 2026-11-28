@@ -2212,6 +2212,20 @@ use test;
 --enable_service_connection
 
 --echo #
+--echo # MDEV-42268: CHR(NULL) returns an empty string instead of NULL in a view or a generated column
+--echo #
+SELECT CHR(NULL) AS v, CHR(NULL) IS NULL AS is_null;
+CREATE VIEW vchr AS SELECT CHR(NULL) AS c;
+SELECT c, c IS NULL AS is_null FROM vchr;
+SHOW CREATE VIEW vchr;
+DROP VIEW vchr;
+
+CREATE TABLE tg (a INT DEFAULT 1, c VARCHAR(30) AS (CHR(NULL)) VIRTUAL);
+INSERT INTO tg (a) VALUES (1);
+SELECT c, c IS NULL AS is_null FROM tg;
+DROP TABLE tg;
+
+--echo #
 --echo # MDEV-12592 Illegal mix of collations with the HEX function
 --echo #
 
