@@ -1,0 +1,41 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+set global spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test', user 'root');
+#
+# MDEV-10526: Spider pushdown for binary bitwise aggregate functions
+#
+# The group by handler would push the whole query down
+SET spider_disable_group_by_handler= 1;
+CREATE TABLE t1 (id INT PRIMARY KEY, val_int BIGINT UNSIGNED,
+val_bin VARBINARY(4)) ENGINE=InnoDB;
+CREATE TABLE t1_s (id INT PRIMARY KEY, val_int BIGINT UNSIGNED,
+val_bin VARBINARY(4)) ENGINE=SPIDER
+REMOTE_SERVER='srv' REMOTE_TABLE='t1';
+INSERT INTO t1 VALUES (1, 1, x'FF00'), (2, 2, x'00FF');
+# A data node returns NULL as a partial result
+SET STATEMENT debug_dbug= '+d,spider_direct_bit_null' FOR
+SELECT BIT_OR(val_bin) FROM t1_s;
+ERROR HY000: Got error 12500 'unknown' from SPIDER
+SET STATEMENT debug_dbug= '+d,spider_direct_bit_null' FOR
+SELECT BIT_OR(val_int) FROM t1_s;
+ERROR HY000: Got error 12500 'unknown' from SPIDER
+SHOW WARNINGS LIMIT 2;
+Level	Code	Message
+Warning	1292	Truncated incorrect INTEGER value: ''
+Error	1296	Got error 12500 'unknown' from SPIDER
+SELECT HEX(BIT_OR(val_bin)), BIT_OR(val_int) FROM t1_s;
+HEX(BIT_OR(val_bin))	BIT_OR(val_int)
+FFFF	3
+DROP TABLE t1_s, t1;
+SET spider_disable_group_by_handler= DEFAULT;
+DROP SERVER srv;
+for master_1
+for child2
+for child3
+#
+# End of 13.2 tests
+#

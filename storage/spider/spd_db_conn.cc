@@ -2191,13 +2191,60 @@ int spider_db_fetch_for_item_sum_func(
         row->next();
       }
       break;
+    case Item_sum::SUM_BIT_FUNC:
+      {
+        Item_sum_bit *item_sum_bit= (Item_sum_bit *) item_sum;
+        const bool binary_mode= item_sum_bit->is_binary_mode();
+        char buf[MAX_FIELD_WIDTH];
+        spider_string tmp_str(buf, MAX_FIELD_WIDTH, share->access_charset);
+        tmp_str.init_calc_mem(SPD_MID_DB_FETCH_FOR_ITEM_SUM_FUNC_3);
+        tmp_str.length(0);
+        /*
+          BIT_AND, BIT_OR and BIT_XOR never return NULL. A wrong partial
+          result can not be merged: any value, e.g. 0 for BIT_AND, would
+          silently corrupt the final result.
+        */
+        bool wrong_value= row->is_null() ||
+                          DBUG_IF("spider_direct_bit_null") ||
+                          row->append_to_str(&tmp_str);
+        if (!wrong_value && binary_mode)
+          wrong_value= item_sum_bit->direct_add(*tmp_str.get_str());
+        else if (!wrong_value)
+        {
+          /*
+            row->val_int() can not be used: it overflows for values
+            above LONGLONG_MAX.
+          */
+          int conv_error= 0;
+          char *endptr;
+          const char *end= tmp_str.ptr() + tmp_str.length();
+          ulonglong bits= system_charset_info->strntoull10rnd(
+                            tmp_str.ptr(), tmp_str.length(),
+                            1, &endptr, &conv_error);
+          wrong_value= (conv_error && conv_error != MY_ERRNO_ERANGE) ||
+                       endptr != end;
+          item_sum_bit->direct_add(bits);
+        }
+        if (wrong_value)
+        {
+          ErrConvString err(tmp_str.ptr(), tmp_str.length(),
+                            binary_mode ? &my_charset_bin :
+                                          system_charset_info);
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_TRUNCATED_WRONG_VALUE,
+                              ER_THD(thd, ER_TRUNCATED_WRONG_VALUE),
+                              binary_mode ? "BINARY" : "INTEGER", err.ptr());
+          DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
+        }
+        row->next();
+      }
+      break;
     case Item_sum::COUNT_DISTINCT_FUNC:
     case Item_sum::SUM_DISTINCT_FUNC:
     case Item_sum::AVG_FUNC:
     case Item_sum::AVG_DISTINCT_FUNC:
     case Item_sum::STD_FUNC:
     case Item_sum::VARIANCE_FUNC:
-    case Item_sum::SUM_BIT_FUNC:
     case Item_sum::UDF_SUM_FUNC:
     case Item_sum::GROUP_CONCAT_FUNC:
     default:

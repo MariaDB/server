@@ -5137,10 +5137,32 @@ public:
 };
 
 
+class Func_handler_bit_or_bin_to_bin: public Func_handler_bit_op2_bin_to_bin
+{
+protected:
+  void combine(uchar *out, const uchar *a, const uchar *b,
+               size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      out[i]= a[i] | b[i];
+  }
+};
+
+
 bool Item_func_bit_or::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_or_bin_to_bin ha_bin_to_bin;
   static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  if (is_binary_string_bitwise_arg(args[0]) &&
+      is_binary_string_bitwise_arg(args[1]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
@@ -5172,10 +5194,32 @@ public:
 };
 
 
+class Func_handler_bit_and_bin_to_bin: public Func_handler_bit_op2_bin_to_bin
+{
+protected:
+  void combine(uchar *out, const uchar *a, const uchar *b,
+               size_t length) const override
+  {
+    for (size_t i= 0; i < length; i++)
+      out[i]= a[i] & b[i];
+  }
+};
+
+
 bool Item_func_bit_and::fix_length_and_dec(THD *thd)
 {
+  static Func_handler_bit_and_bin_to_bin ha_bin_to_bin;
   static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
   static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
+
+  DBUG_ASSERT(arg_count == 2);
+  if (is_binary_string_bitwise_arg(args[0]) &&
+      is_binary_string_bitwise_arg(args[1]))
+  {
+    set_func_handler(&ha_bin_to_bin);
+    return m_func_handler->fix_length_and_dec(this);
+  }
+
   return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 

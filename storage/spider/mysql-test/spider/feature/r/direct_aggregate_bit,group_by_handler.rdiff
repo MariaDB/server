@@ -1,0 +1,65 @@
+--- direct_aggregate_bit.result
++++ direct_aggregate_bit,group_by_handler.reject
+@@ -42,7 +42,7 @@
+ 18446744069414584575	0	18446744069414584575
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	6
++Spider_direct_aggregate	3
+ # Without pushdown the results must be the same
+ SET spider_direct_aggregate= 0;
+ SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+@@ -54,7 +54,7 @@
+ 18446744069414584575	0	18446744069414584575
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	6
++Spider_direct_aggregate	3
+ SET spider_direct_aggregate= DEFAULT;
+ # Aggregates with FILTER (MDEV-24943) are not pushed down
+ SELECT HEX(BIT_OR(val_bin) FILTER (WHERE id < 3)),
+@@ -65,7 +65,7 @@
+ FF0F0F0F	00000000	1080865005785579775
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	6
++Spider_direct_aggregate	3
+ # GROUP BY - reset_field()/update_field() with direct_add()
+ CREATE TABLE t2 (
+ id INT PRIMARY KEY,
+@@ -103,7 +103,7 @@
+ INSERT INTO t3_s VALUES (1, x'FF00'), (2, x'0FF0'), (11, x'00FF'), (12, x'F00F');
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	18
++Spider_direct_aggregate	15
+ SELECT HEX(BIT_OR(val_bin)), HEX(BIT_AND(val_bin)), HEX(BIT_XOR(val_bin))
+ FROM t3_s;
+ HEX(BIT_OR(val_bin))	HEX(BIT_AND(val_bin))	HEX(BIT_XOR(val_bin))
+@@ -114,7 +114,7 @@
+ FFF0	0F00	F0F0
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	30
++Spider_direct_aggregate	27
+ DROP TABLE t3_s, t3_1, t3_2;
+ # GROUP BY: the partial results of a group come from several data nodes
+ # (update_field() with direct_add()). The values are shorter than the
+@@ -135,7 +135,7 @@
+ (16, 6, x'ABCD', 0xABCD);
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	30
++Spider_direct_aggregate	27
+ SELECT grp,
+ HEX(BIT_OR(val_bin)) AS o, HEX(BIT_AND(val_bin)) AS a,
+ HEX(BIT_XOR(val_bin)) AS x,
+@@ -151,7 +151,7 @@
+ 6	ABCD	ABCD	ABCD	ABCD	ABCD	ABCD
+ SHOW STATUS LIKE 'Spider_direct_aggregate';
+ Variable_name	Value
+-Spider_direct_aggregate	96
++Spider_direct_aggregate	93
+ # Without pushdown the results must be the same
+ SET spider_direct_aggregate= 0;
+ SELECT grp,
