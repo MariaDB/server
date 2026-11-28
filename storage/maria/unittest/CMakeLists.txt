@@ -56,6 +56,10 @@ ADD_EXECUTABLE(ma_test_loghandler_purge-t
         ma_test_loghandler_purge-t.c ma_maria_log_cleanup.c ma_loghandler_examples.c)
 MY_ADD_TEST(ma_test_loghandler_purge)
 
+ADD_EXECUTABLE(ma_test_loghandler_rotate-t
+        ma_test_loghandler_rotate-t.c ma_maria_log_cleanup.c ma_loghandler_examples.c)
+MY_ADD_TEST(ma_test_loghandler_rotate)
+
 ADD_EXECUTABLE(ma_test_loghandler_readonly-t
         ma_test_loghandler_multigroup-t.c ma_maria_log_cleanup.c ma_loghandler_examples.c  sequence_storage.c)
 MY_ADD_TEST(ma_test_loghandler_readonly)
