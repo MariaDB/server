@@ -8,7 +8,7 @@
 #   BUG: <name>: deadlock: ...
 #   <name>: no deadlock
 #
-# Then kill node 1 and start it again. This is the only way to end the
+# Then kill node 1 and start it again. This is the only way to end a
 # deadlock. Connections other than node_1 and node_2 to node 1 are lost.
 # Node 1 then runs with other options: source
 # include/galera_restart_default.inc at the end of the test.

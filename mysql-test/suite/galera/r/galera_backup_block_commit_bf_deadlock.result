@@ -60,6 +60,8 @@ connection node_1;
 connection node_2;
 disconnect node_1_lock;
 connection node_1;
+CALL mtr.add_suppression("Table '\\./test/t2' is marked as crashed and should be repaired");
+CALL mtr.add_suppression("Checking table:   '\\./test/t2'");
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 1

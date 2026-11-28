@@ -51,32 +51,44 @@ FTWRL local toi_myisam: lock:FTWRL waits:backup_lock,then:ok write:committed
 START local toi_ddl: lock:ok write:committed
 FLUSH local toi_ddl: lock:ok write:committed
 BLOCK_DDL local toi_ddl: lock:ok write:waits:backup_lock,then:committed
+BLOCK_COMMIT local toi_ddl: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL local toi_ddl: lock:FTWRL waits:pause,then:ok write:committed
 START local toi_grant: lock:ok write:committed
 FLUSH local toi_grant: lock:ok write:committed
 BLOCK_DDL local toi_grant: lock:ok write:committed
 BLOCK_COMMIT local toi_grant: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL local toi_grant: lock:FTWRL waits:pause,then:ok write:committed
 # Writes on node 2, applied on node 1
 START applier innodb: lock:ok write:committed
 FLUSH applier innodb: lock:ok write:committed
 BLOCK_DDL applier innodb: lock:ok write:committed
 BLOCK_COMMIT applier innodb: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier innodb: lock:FTWRL waits:pause,then:ok write:committed
 START applier toi_aria_trans: lock:ok write:committed
 FLUSH applier toi_aria_trans: lock:ok write:committed
 BLOCK_DDL applier toi_aria_trans: lock:ok write:committed
 BLOCK_COMMIT applier toi_aria_trans: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier toi_aria_trans: lock:FTWRL waits:pause,then:ok write:committed
 START applier toi_aria_nontrans: lock:ok write:committed
 FLUSH applier toi_aria_nontrans: lock:ok write:waits:backup_lock
 BLOCK_DDL applier toi_aria_nontrans: lock:ok write:waits:backup_lock
+BLOCK_COMMIT applier toi_aria_nontrans: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier toi_aria_nontrans: lock:FTWRL waits:pause,then:ok write:committed
 START applier toi_myisam: lock:ok write:committed
 FLUSH applier toi_myisam: lock:ok write:waits:backup_lock
 BLOCK_DDL applier toi_myisam: lock:ok write:waits:backup_lock
+BLOCK_COMMIT applier toi_myisam: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier toi_myisam: lock:FTWRL waits:pause,then:ok write:committed
 START applier toi_ddl: lock:ok write:committed
 FLUSH applier toi_ddl: lock:ok write:committed
 BLOCK_DDL applier toi_ddl: lock:ok write:waits:backup_lock
+BLOCK_COMMIT applier toi_ddl: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier toi_ddl: lock:FTWRL waits:pause,then:ok write:committed
 START applier toi_grant: lock:ok write:committed
 FLUSH applier toi_grant: lock:ok write:committed
 BLOCK_DDL applier toi_grant: lock:ok write:committed
 BLOCK_COMMIT applier toi_grant: lock:BLOCK_COMMIT waits:pause,then:ok write:committed
+FTWRL applier toi_grant: lock:FTWRL waits:pause,then:ok write:committed
 connection node_1b;
 SET GLOBAL debug_dbug= @debug_dbug_saved;
 disconnect node_1a;

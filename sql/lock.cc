@@ -1138,8 +1138,6 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     }
   }
 
-  thd->mdl_context.release_lock(m_mdl_global_read_lock);
-
 #ifdef WITH_WSREP
   if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT &&
       thd->wsrep_desynced_backup_stage)
@@ -1167,6 +1165,8 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
   }
 #endif /* WITH_WSREP */
 
+  /* Release after the resume: a waiting TOI fails while paused */
+  thd->mdl_context.release_lock(m_mdl_global_read_lock);
   m_mdl_global_read_lock= NULL;
   m_state= GRL_NONE;
 
@@ -1215,23 +1215,12 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   */
   Wsrep_server_state& server_state= Wsrep_server_state::instance();
   wsrep::seqno paused_seqno;
-  if (server_state.state() == Wsrep_server_state::s_donor ||
-      (WSREP_NNULL(thd) &&
-       server_state.state() != Wsrep_server_state::s_synced))
-  {
-    paused_seqno= server_state.pause();
-    thd->wsrep_desynced_backup_stage= true;
-  }
-  else if (WSREP_NNULL(thd) &&
-           server_state.state() == Wsrep_server_state::s_synced)
-  {
-    paused_seqno= server_state.desync_and_pause();
-    thd->wsrep_desynced_backup_stage= true;
-  }
-  else
-  {
+  if (server_state.state() != Wsrep_server_state::s_donor &&
+      !WSREP_NNULL(thd))
     DBUG_RETURN(FALSE);
-  }
+  paused_seqno= wsrep_backup_pause(thd, m_mdl_global_read_lock,
+                                   server_state.state() ==
+                                   Wsrep_server_state::s_synced);
   WSREP_INFO("Server paused at: %lld", paused_seqno.get());
   if (paused_seqno.get() >= 0)
   {

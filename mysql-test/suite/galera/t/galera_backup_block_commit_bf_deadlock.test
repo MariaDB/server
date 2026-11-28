@@ -2,9 +2,8 @@
 # With wsrep_mode=BF_ABORT_MARIABACKUP, BACKUP STAGE BLOCK_DDL does not
 # pause the provider, and BACKUP STAGE BLOCK_COMMIT takes its backup lock,
 # then pauses the provider. The pause waits for each write in the provider
-# order. A TOI or applier write that waits for a backup lock then
-# deadlocks with BLOCK_COMMIT: in this mode MDL_lock::can_grant_lock()
-# does not grant backup locks to TOI and appliers.
+# order. A TOI or applier write that waits for a backup lock must get it,
+# or it deadlocks with BLOCK_COMMIT.
 #
 # A local ALTER TABLE, an applied ALTER TABLE and an applied
 # REPLICATE_MYISAM INSERT start during BLOCK_DDL and wait for the backup
@@ -88,7 +87,12 @@ SET SESSION wsrep_sync_wait= 0;
 --disconnect node_1_lock
 
 --connection node_1
+# Node 1 was killed after the write to t2: MyISAM repairs t2.
+CALL mtr.add_suppression("Table '\\./test/t2' is marked as crashed and should be repaired");
+CALL mtr.add_suppression("Checking table:   '\\./test/t2'");
+--disable_warnings
 SELECT COUNT(*) FROM t2;
+--enable_warnings
 SELECT TABLE_COMMENT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
 DROP TABLE t1, t2;
 

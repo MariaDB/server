@@ -1748,24 +1748,12 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 
 #ifdef WITH_WSREP
   /*
-    Approve lock request in BACKUP namespace for BF threads.
+    A pending backup lock can wait for a local commit that waits for this
+    BF thread in the provider order.
   */
-  if (!wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP) &&
-      (wsrep_thd_is_toi(requestor_ctx->get_thd()) ||
-       wsrep_thd_is_applying(requestor_ctx->get_thd())) &&
-      key.mdl_namespace() == MDL_key::BACKUP)
-  {
-    bool waiting_incompatible= m_waiting.bitmap() & waiting_incompat_map;
-    bool granted_incompatible= m_granted.bitmap() & granted_incompat_map;
-    if (waiting_incompatible || granted_incompatible)
-    {
-      WSREP_DEBUG("global lock granted for BF%s: %lu %s",
-                  waiting_incompatible ? " (waiting queue)" : "",
-                  thd_get_thread_id(requestor_ctx->get_thd()),
-                  wsrep_thd_query(requestor_ctx->get_thd()));
-    }
-    return true;
-  }
+  if (key.mdl_namespace() == MDL_key::BACKUP &&
+      wsrep_thd_is_BF(requestor_ctx->get_thd(), false))
+    ignore_lock_priority= true;
 #endif /* WITH_WSREP */
 
   if (!ignore_lock_priority && (m_waiting.bitmap() & waiting_incompat_map))
@@ -1781,7 +1769,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       if (ticket.get_ctx() != requestor_ctx &&
           ticket.is_incompatible_when_granted(type_arg))
       {
-        can_grant= false;
 #ifdef WITH_WSREP
         /*
           non WSREP threads must report conflict immediately
@@ -1791,7 +1778,9 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             requestor_ctx->get_thd()->wsrep_cs().mode() ==
             wsrep::client_state::m_rsu)
         {
-          wsrep_handle_mdl_conflict(requestor_ctx, &ticket, &key);
+          if (wsrep_handle_mdl_conflict(requestor_ctx, &ticket, &key))
+            continue;
+          can_grant= false;
           if (wsrep_log_conflicts)
           {
             auto key= ticket.get_key();
@@ -1801,6 +1790,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
           continue;
         }
 #endif /* WITH_WSREP */
+        can_grant= false;
         break;
       }
     }
@@ -3034,6 +3024,22 @@ void MDL_ticket::downgrade_lock(enum_mdl_type type)
   mysql_prlock_unlock(&m_lock->m_rwlock);
   DBUG_VOID_RETURN;
 }
+
+
+#ifdef WITH_WSREP
+/**
+  Grant the lock to waiters that can get it now. Call it after the owner
+  of this ticket starts to let BF waiters through, see
+  wsrep_handle_mdl_conflict().
+*/
+
+void MDL_ticket::reschedule_waiters()
+{
+  mysql_prlock_wrlock(&m_lock->m_rwlock);
+  m_lock->reschedule_waiters();
+  mysql_prlock_unlock(&m_lock->m_rwlock);
+}
+#endif /* WITH_WSREP */
 
 
 /**

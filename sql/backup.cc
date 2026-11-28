@@ -320,12 +320,11 @@ static bool backup_block_ddl(THD *thd)
 
     if (pause_and_desync)
     {
-      if (server_state.desync_and_pause().is_undefined())
+      if (wsrep_backup_pause(thd, backup_flush_ticket, true).is_undefined())
         DBUG_RETURN(1);
 
       WSREP_INFO("Server desynched from group during BACKUP STAGE BLOCK_DDL.");
       DEBUG_SYNC(thd, "wsrep_backup_stage_after_desync_and_pause");
-      thd->wsrep_desynced_backup_stage= true;
     }
     else
     {
@@ -427,11 +426,10 @@ static bool backup_block_commit(THD *thd)
     */
     if (!mariabackup)
     {
-      if (server_state.desync_and_pause().is_undefined())
+      if (wsrep_backup_pause(thd, backup_flush_ticket, true).is_undefined())
         DBUG_RETURN(1);
 
       WSREP_INFO("Server desynched from group during BACKUP STAGE BLOCK_COMMIT.");
-      thd->wsrep_desynced_backup_stage= true;
       DEBUG_SYNC(thd, "wsrep_backup_stage_commit_after_desync_and_pause");
     }
   }
@@ -462,7 +460,6 @@ bool backup_end(THD *thd)
     backup_flush_ticket= 0;
     backup_stage= BACKUP_FINISHED;
     thd->current_backup_stage= BACKUP_FINISHED;
-    thd->mdl_context.release_lock(old_ticket);
 #ifdef WITH_WSREP
     // If node was desynced, resume and resync
     if (thd->wsrep_desynced_backup_stage)
@@ -473,9 +470,13 @@ bool backup_end(THD *thd)
       WSREP_DEBUG("backup_end: waiting for flow control for %s",
                   wsrep_thd_query(thd));
       server_state.resume_and_resync();
-      thd->wsrep_desynced_backup_stage= false;
       DEBUG_SYNC(thd, "wsrep_backup_stage_after_resume_and_resync");
     }
+#endif /* WITH_WSREP */
+    /* Release after the resume: a waiting TOI fails while paused */
+    thd->mdl_context.release_lock(old_ticket);
+#ifdef WITH_WSREP
+    thd->wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
   }
   DBUG_RETURN(0);

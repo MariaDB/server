@@ -1813,7 +1813,8 @@ int ha_commit_trans(THD *thd, bool all)
     MDL_REQUEST_INIT(&mdl_backup, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
                      MDL_EXPLICIT);
 
-    if (!WSREP(thd))
+    /* A provider pause, not this lock, holds provider-ordered commits */
+    if (!IF_WSREP(run_wsrep_hooks, false))
     {
       if (thd->mdl_context.acquire_lock(&mdl_backup,
                                         thd->variables.lock_wait_timeout))

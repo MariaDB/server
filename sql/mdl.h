@@ -721,6 +721,7 @@ public:
 
 #ifdef WITH_WSREP
   void wsrep_report(bool debug) const;
+  void reschedule_waiters();
 #endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 

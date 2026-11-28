@@ -84,23 +84,22 @@ SET SESSION debug_sync = "wsrep_backup_stage_after_resume_and_resync SIGNAL resu
 --connection node_1_ctrl
 SET debug_sync = "now WAIT_FOR resume_and_resync_ready";
 
+# BACKUP STAGE END releases the backup lock after it resumes the
+# provider, so the second BACKUP STAGE START waits for it.
 --connection node_1_a
-BACKUP STAGE START;
-SET SESSION debug_sync = "wsrep_backup_stage_after_desync_and_pause SIGNAL desync_and_pause_ready WAIT_FOR desync_and_pause_continue";
---send BACKUP STAGE BLOCK_DDL
+--send BACKUP STAGE START
 
 --connection node_1_ctrl
-SET debug_sync = "now WAIT_FOR desync_and_pause_ready";
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for backup lock' AND INFO = 'BACKUP STAGE START'
+--source include/wait_condition.inc
 SET debug_sync = "now SIGNAL resume_and_resync_continue";
 
 --connection node_1
 --reap
 
---connection node_1_ctrl
-SET debug_sync = "now SIGNAL desync_and_pause_continue";
-
 --connection node_1_a
 --reap
+BACKUP STAGE BLOCK_DDL;
 BACKUP STAGE END;
 --let $wait_condition = SELECT VARIABLE_VALUE = "Synced" FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = "wsrep_local_state_comment"
 --source include/wait_condition.inc

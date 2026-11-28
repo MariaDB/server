@@ -1,17 +1,17 @@
 #
 # A mariabackup SST donor does not pause the provider at BACKUP STAGE
-# BLOCK_DDL or BLOCK_COMMIT. Without BF_ABORT_MARIABACKUP,
-# MDL_lock::can_grant_lock() grants every backup lock to TOI, so DDL on
-# the donor does not wait for the backup stages:
-# - at BLOCK_DDL, a local ALTER TABLE commits,
-# - at BLOCK_COMMIT, a local GRANT commits, and a local ALTER TABLE
-#   fails an assertion in backup_log_ddl() in a debug build.
+# BLOCK_DDL or BLOCK_COMMIT, so TOI on the donor must wait for the backup
+# locks:
+# - at BLOCK_DDL, a local ALTER TABLE,
+# - at BLOCK_COMMIT, a local GRANT and a local ALTER TABLE. An ALTER TABLE
+#   that is not blocked at BLOCK_COMMIT fails an assertion in
+#   backup_log_ddl() in a debug build.
 #
-# Each write must wait. The test prints a line that starts with "BUG:"
-# for each write that commits or crashes the donor.
+# The test prints a line that starts with "BUG:" for each write that
+# commits or crashes the donor.
 #
 # The donor's mariabackup is held after BLOCK_DDL and after BLOCK_COMMIT.
-# After the assertion, the joiner fails the SST. Both nodes are started
+# After an assertion, the joiner fails the SST. Both nodes are started
 # again.
 #
 --source include/galera_cluster.inc

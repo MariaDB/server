@@ -3629,28 +3629,40 @@ static void wsrep_abort_granted(THD* request_thd,
 
   * If requester is not wsrep thread it must wait for MDL to be released.
   * If requester is not TOI or applying it must wait for MDL to be released.
+  * If granted thread holds a backup lock and pauses the provider, the
+    granted lock does not block the requester. The pause waits for the
+    requester, so a wait would deadlock.
 
   @param  requestor_ctx        The MDL context of the requestor
-  @param  ticket               MDL ticket for the requested lock
+  @param  ticket               Granted MDL ticket that conflicts
   @param  key                  The key of the object (data) being protected
 
+  @retval true   The granted ticket does not block the requester
+  @retval false  The granted ticket blocks the requester
 */
-void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
+bool wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
 {
   THD *request_thd= requestor_ctx->get_thd();
 
-  /* Note here request_thd == current_thd */
   /* Fallback to the non-wsrep behaviour */
-  if (!WSREP(request_thd)) return;
+  if (!WSREP(request_thd)) return false;
 
   /* Fallback to non-wsrep behaviour if request is not TOI or
      applying.
   */
-  if (!wsrep_thd_is_BF(request_thd, FALSE)) return; // requestor needs to wait
+  if (!wsrep_thd_is_BF(request_thd, FALSE)) return false; // requestor needs to wait
 
   THD *granted_thd= ticket->get_ctx()->get_thd();
+
+  if (key->mdl_namespace() == MDL_key::BACKUP &&
+      granted_thd->wsrep_desynced_backup_stage)
+  {
+    wsrep_mdl_log(WSREP_MDL_DEBUG, "MDL conflict, provider paused for backup",
+                  request_thd, granted_thd, ticket, key);
+    return true;
+  }
 
   THD_STAGE_INFO(request_thd, stage_waiting_isolation);
 
@@ -3723,6 +3735,30 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
   mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
   mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
   DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
+  return false;
+}
+
+/**
+  Pause the provider for a backup lock holder. The BF threads that wait
+  for the backup lock get it first: the pause waits for them. See
+  wsrep_handle_mdl_conflict().
+
+  @param thd     backup lock holder
+  @param ticket  its backup lock
+  @param desync  desync the node before the pause
+
+  @return pause seqno, undefined on failure
+*/
+wsrep::seqno wsrep_backup_pause(THD *thd, MDL_ticket *ticket, bool desync)
+{
+  Wsrep_server_state &server_state= Wsrep_server_state::instance();
+  thd->wsrep_desynced_backup_stage= true;
+  ticket->reschedule_waiters();
+  wsrep::seqno seqno= desync ? server_state.desync_and_pause()
+                             : server_state.pause();
+  if (seqno.is_undefined())
+    thd->wsrep_desynced_backup_stage= false;
+  return seqno;
 }
 
 /**/

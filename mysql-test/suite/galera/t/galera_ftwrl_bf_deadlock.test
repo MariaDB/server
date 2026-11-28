@@ -1,10 +1,8 @@
 #
-# With wsrep_mode=BF_ABORT_MARIABACKUP, FLUSH TABLES WITH READ LOCK
-# deadlocks with a write that is in the provider order but has not taken
-# its backup lock MDL yet. FTWRL takes its backup locks, then pauses the
-# provider. The pause waits for the write. The write waits for the backup
-# lock: in this mode MDL_lock::can_grant_lock() does not grant backup
-# locks to TOI and appliers.
+# With wsrep_mode=BF_ABORT_MARIABACKUP, FLUSH TABLES WITH READ LOCK takes
+# its backup locks, then pauses the provider. The pause waits for each
+# write in the provider order. A write that has not taken its backup lock
+# MDL yet must get it, or FTWRL deadlocks with it.
 #
 # Each write is held at a sync point before its MDL while FTWRL starts.
 # include/galera_backup_lock_deadlock.inc prints the outcome and restarts
