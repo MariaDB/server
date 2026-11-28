@@ -45,7 +45,6 @@ GetOptions(\%opt,
     'n=i',	# abstract numbers with at least n digits within names
     'g=s',	# grep: only consider stmts that include this string
     'h=s',	# hostname/basename of db server for *-slow.log filename (can be wildcard)
-    'i=s',	# name of server instance (if using mysql.server startup script)
     'l!',	# don't subtract lock time from total time
 ) or usage("bad option");
 
@@ -55,20 +54,6 @@ unless (@ARGV) {
     my $defaults   = `my_print_defaults --mysqld`;
 
     my $datadir = ($defaults =~ m/--datadir=(.*)/g)[-1];
-    if (!$datadir or $opt{i}) {
-	# determine the datadir from the instances section of /etc/my.cnf, if any
-	my $instances  = `my_print_defaults instances`;
-	die "Can't determine datadir from 'my_print_defaults instances' output: $defaults"
-	    unless $instances;
-	my @instances = ($instances =~ m/^--(\w+)-/mg);
-	die "No -i 'instance_name' specified to select among known instances: @instances.\n"
-	    unless $opt{i};
-	die "Instance '$opt{i}' is unknown (known instances: @instances)\n"
-	    unless grep { $_ eq $opt{i} } @instances;
-	$datadir = ($instances =~ m/--$opt{i}-datadir=(.*)/g)[-1]
-	    or die "Can't determine --$opt{i}-datadir from 'my_print_defaults instances' output: $instances";
-	warn "datadir=$datadir\n" if $opt{v};
-    }
 
     my $slowlog = ($defaults =~ m/--log[-_]slow[-_]queries=(.*)/g)[-1];
     if (!$slowlog)
@@ -221,7 +206,6 @@ Parse and summarize the MySQL slow query log. Options are
   -g PATTERN   grep: only consider stmts that include this string
   -h HOSTNAME  hostname of db server for *-slow.log filename (can be wildcard),
                default is '*', i.e. match all
-  -i NAME      name of server instance (if using mysql.server startup script)
   -l           don't subtract lock time from total time
 
 HERE
