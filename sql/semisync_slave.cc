@@ -165,6 +165,15 @@ void Repl_semi_sync_slave::kill_connection(Master_info *mi)
   if (!mysql)
     return;
 
+  /*
+    No connection to kill: it was closed by end_server() of the failed or
+    interrupted (re)connect, e.g. by STOP SLAVE while the master did not answer.
+    Connecting again here would stall for m_kill_conn_timeout more, and
+    mysql->thread_id is a stale one by now.
+  */
+  if (!mysql->net.vio)
+    return;
+
   char kill_buffer[30];
   MYSQL *kill_mysql = NULL;
   size_t kill_buffer_length;
