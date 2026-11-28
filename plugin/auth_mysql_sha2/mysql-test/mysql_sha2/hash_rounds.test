@@ -1,0 +1,40 @@
+source init.inc;
+
+--echo #
+--echo # MDEV-42384 caching_sha2_password does not enforce limits of
+--echo # caching_sha2_password_digest_rounds for passwords set via SET PASSWORD
+--echo #
+
+create user test3@'%' identified via caching_sha2_password using PASSWORD('pw');
+
+--echo # the number of rounds (in thousands) must be 3 hex digits, 005 to FFF
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$-01$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$000$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$004$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$ 10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$+10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+set password for test3@'%' = '$A$00g$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+--error ER_PASSWD_LENGTH
+create user test4@'%' identified via caching_sha2_password using '$A$-01$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+--echo # the limits themselves are accepted
+set password for test3@'%' = '$A$005$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+set password for test3@'%' = '$A$FFF$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+set password for test3@'%' = '$A$fff$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+--echo # a password set with the limits still works
+set password for test3@'%' = PASSWORD('pw');
+connect con1, localhost,test3,pw,,,,SOCKET;
+select user(), current_user();
+disconnect con1;
+connection default;
+
+drop user test3@'%';
+
+source fini.inc;
