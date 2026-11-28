@@ -630,44 +630,101 @@ bool Item_func_json_equals::val_bool()
   longlong result= 0;
   int arg_num= 0;
   String a_tmp, b_tmp;
+  String *a= nullptr, *b= nullptr;
   THD *thd;
   json_engine_t je;
-
-  String *a= args[0]->val_json(&a_tmp);
-  if ((null_value= a == nullptr || args[0]->null_value))
-    return 1;
-  String *b= args[1]->val_json(&b_tmp);
-  if ((null_value= b == nullptr || args[1]->null_value))
-    return 1;
-
-  DYNAMIC_STRING a_res;
-  if (init_dynamic_string(&a_res, NULL, 0, 0))
-  {
-    null_value= 1;
-    return 1;
-  }
-
-  DYNAMIC_STRING b_res;
-  if (init_dynamic_string(&b_res, NULL, 0, 0))
-  {
-    dynstr_free(&a_res);
-    null_value= 1;
-    return 1;
-  }
+  bzero(&je, sizeof(je));
+  bool a_const= args[0]->const_item(), b_const= args[1]->const_item();
 
   thd= current_thd;
+  null_value= 0;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
   je.killed_ptr= (uint32_t *) &thd->killed;
 
-  if (json_normalize_engine(&je, &a_res, a->ptr(), a->length(), a->charset()))
-    goto return_null;
+  /* Process First Argument */
+  if (a_const && cached_a.str != nullptr)
+  {
+    if (a_null) 
+      goto return_null;
+  }
+  else 
+  {
+    a= args[0]->val_json(&a_tmp);
+    if (!a || args[0]->null_value)
+      goto set_a_null;
+    
+    if (!cached_a.str)
+    {
+      if (init_dynamic_string(&cached_a, NULL, a->length(), 0))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), a->length());
+        goto return_null;
+      }
+    }
+    else 
+    {
+      cached_a.length= 0; /* reset string for next value */
+    }
+
+    if (json_normalize_engine(&je, &cached_a, a->ptr(), a->length(), a->charset())) 
+    {
+      goto set_a_null;
+    }
+
+    a_null= false;
+  }
 
   arg_num++;
-  if (json_normalize_engine(&je, &b_res, b->ptr(), b->length(), b->charset()))
-    goto return_null;
 
-  result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+  /* Process Second Argument */
+  if (b_const && cached_b.str != nullptr) 
+  {
+    if (b_null)
+      goto return_null;
+  }
+  else 
+  {
+    b= args[1]->val_json(&b_tmp);
+    if (!b || args[1]->null_value) 
+      goto set_b_null;
+    
+    if (!cached_b.str)
+    {
+      if (init_dynamic_string(&cached_b, NULL, b->length(), 0))
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), b->length());
+        goto return_null;
+      }
+    }
+    else
+    {
+      cached_b.length= 0; /* reset string for next value */
+    }
+
+    if (json_normalize_engine(&je, &cached_b, b->ptr(), b->length(), b->charset())) 
+    {
+      goto set_b_null;
+    }
+
+    b_null= false;
+  }
+
+  result= strcmp(cached_a.str, cached_b.str) ? 0 : 1;
+  null_value= 0;
   goto end;
+
+set_a_null:
+  if (a_const) 
+  {
+    a_null= true;
+  }
+  goto return_null;
+
+set_b_null:
+  if (b_const) 
+  {
+    b_null= true;
+  }
 
 return_null:
   null_value= 1;
@@ -680,8 +737,6 @@ end:
        a= b;
     report_json_error(a, &je, arg_num);
   }
-  dynstr_free(&b_res);
-  dynstr_free(&a_res);
   return result;
 }
 
@@ -4869,6 +4924,7 @@ int compare_nested_object(json_engine_t *js, json_engine_t *value)
   const char *value_end= (const char*)value->s.c_str;
   const char *js_end= (const char*)js->s.c_str;
   json_engine_t je;
+  bzero(&je, sizeof(je));
   je.killed_ptr= js->killed_ptr;
 
   String a(value_begin, value_end-value_begin,value->s.cs);
@@ -5081,6 +5137,7 @@ bool Item_func_json_overlaps::val_bool()
   json_engine_t je, ve;
   int result;
   THD *thd;
+  bool a2_const= args[1]->const_item();
 
   if ((null_value= (js == nullptr) || args[0]->null_value))
     return 0;
@@ -5088,13 +5145,20 @@ bool Item_func_json_overlaps::val_bool()
   thd= current_thd;
   JSON_DO_PAUSE_EXECUTION(thd, 0.0002);
 
-  if (!a2_parsed)
+  if (a2_const)
+  {
+    if (!a2_parsed)
+    {
+      val= args[1]->val_json(&cached_val);
+      a2_parsed= true;
+    }
+  }
+  else
   {
     val= args[1]->val_json(&tmp_val);
-    a2_parsed= a2_constant;
   }
 
-  if (val == 0)
+  if (val == 0 || args[1]->null_value)
   {
     null_value= 1;
     return 0;
@@ -5115,6 +5179,7 @@ bool Item_func_json_overlaps::val_bool()
   if (unlikely(je.s.error || ve.s.error))
     goto error;
 
+  null_value= 0;
   return result;
 
 error:
@@ -5127,8 +5192,6 @@ error:
 
 bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
 {
-  a2_constant= args[1]->const_item();
-  a2_parsed= FALSE;
   set_maybe_null();
 
   return Item_bool_func::fix_length_and_dec(thd);
