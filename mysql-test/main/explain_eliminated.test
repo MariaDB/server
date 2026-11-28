@@ -1,0 +1,154 @@
+--echo #
+--echo # MDEV-28869: Eliminated tables are not shown in EXPLAIN [FORMAT=JSON] output
+--echo #
+
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3);
+
+create table t2 (a int primary key, b int)
+  as select a, a as b from t1 where a in (1,2);
+
+create table t3 (a int primary key, b int)
+  as select a, a as b from t1 where a in (1,3);
+
+--echo #
+--echo # Elimination of a single table
+--echo #
+explain select t1.a from t1 left join t2 on t2.a=t1.a;
+explain format=json select t1.a from t1 left join t2 on t2.a=t1.a;
+analyze select t1.a from t1 left join t2 on t2.a=t1.a;
+
+--echo #
+--echo # Elimination of multiple tables
+--echo #
+explain select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
+explain format=json select t1.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a;
+
+--echo #
+--echo # EXPLAIN EXTENDED and EXPLAIN PARTITIONS
+--echo #
+explain extended select t1.a from t1 left join t2 on t2.a=t1.a;
+explain partitions select t1.a from t1 left join t2 on t2.a=t1.a;
+
+create table t11 (a int not null, b int, key(a));
+insert into t11 select A.a, A.a+B.a from t1 A, t1 B;
+
+create table t12 (pk int primary key, col1 int);
+insert into t12 select a, a from t1;
+
+--echo #
+--echo # The whole derived table is eliminated (MDEV-26278)
+--echo #
+let $q=
+select t1.* from t1 left join
+  (select t11.a as a, count(*) as b
+   from t11 left join t12 on t12.pk=t11.b
+   group by t11.a) v2b on v2b.a=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval analyze $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval $q;
+
+--echo #
+--echo # Only one table inside the derived table is eliminated
+--echo #
+let $q=
+select t1.* from t1 left join
+  (select t11.a as a, count(*) as b
+   from t11 left join t12 on t12.pk=t11.b
+   group by t11.a) v2b on v2b.b=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval analyze $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval $q;
+
+--echo #
+--echo # A derived table that is a UNION is never eliminated, see
+--echo # create_unique_pseudo_key_if_needed()
+--echo #
+let $q=
+select t1.* from t1 left join
+  (select a from t2 union select a from t3) v on v.a=t1.a;
+
+eval explain $q;
+eval $q;
+
+--echo #
+--echo # A UNION subquery inside an eliminated derived table
+--echo #
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='semijoin=off';
+let $q=
+select t1.* from t1 left join
+  (select t11.a as a, count(*) as b
+   from t11
+   where t11.b in (select pk from t12 union select col1 from t12)
+   group by t11.a) v on v.a=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval analyze $q;
+--source include/analyze-format.inc
+eval analyze format=json $q;
+eval $q;
+set optimizer_switch= @save_optimizer_switch;
+
+--echo #
+--echo # A subquery inside an eliminated derived table
+--echo #
+let $q=
+select t1.* from t1 left join
+  (select t11.a as a, count(*) as b
+   from t11
+   where t11.b in (select pk from t12)
+   group by t11.a) v on v.a=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval $q;
+
+--echo #
+--echo # A degenerate eliminated derived table (it has no tables to show)
+--echo #
+let $q=
+select t1.* from t1 left join
+  (select t11.a as a, count(*) as b from t11 where 1=0 group by t11.a)
+  v on v.a=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval $q;
+
+--echo #
+--echo # An eliminated CTE reference
+--echo #
+let $q=
+with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.* from t1 left join cte on cte.a=t1.a;
+
+eval explain $q;
+eval explain format=json $q;
+eval $q;
+
+--echo #
+--echo # One CTE reference eliminated, another one used
+--echo #
+let $q=
+with cte as (select t11.a as a, count(*) as b from t11 group by t11.a)
+select t1.a, c2.b from t1 left join cte c1 on c1.a=t1.a
+                       left join cte c2 on c2.a=t1.a;
+
+eval explain $q;
+eval $q;
+
+drop table t1, t2, t3, t11, t12;
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
