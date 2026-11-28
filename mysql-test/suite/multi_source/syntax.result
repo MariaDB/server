@@ -17,6 +17,14 @@ show slave 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbb
 ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
 change master 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' to master_host='dummy';
 ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+show slave 'A\0Z' status;
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+show slave 'A\nZ' status;
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+change master 'A\0Z' to master_host='dummy';
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
+change master 'A\nZ' to master_host='dummy';
+ERROR HY000: Incorrect arguments to MASTER_CONNECTION_NAME
 start slave 'qqq';
 ERROR HY000: There is no master connection 'qqq'
 stop slave 'qqq';
@@ -48,6 +56,11 @@ set @@global.default_master_connection='qqq';
 ERROR HY000: Variable 'default_master_connection' is a SESSION variable and can't be used with SET GLOBAL
 set @@default_master_connection='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
 ERROR 42000: Variable 'default_master_connection' can't be set to the value of 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+set @@default_master_connection = 'A\0Z';
+ERROR 42000: Variable 'default_master_connection' can't be set to the value of 'A\0000Z'
+set @@default_master_connection = 'A\nZ';
+ERROR 42000: Variable 'default_master_connection' can't be set to the value of 'A
+Z'
 select @@default_master_connection;
 @@default_master_connection
 
