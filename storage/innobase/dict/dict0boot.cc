@@ -41,9 +41,14 @@ static constexpr page_id_t hdr_page_id{DICT_HDR_SPACE, DICT_HDR_PAGE_NO};
 /** @return the DICT_HDR block, x-latched */
 static buf_block_t *dict_hdr_get(mtr_t *mtr)
 {
-  /* We assume that the DICT_HDR page is always readable and available. */
+  /* The DICT_HDR page must be readable and available; failure to read
+  it is fatal. */
   buf_block_t *b=
     buf_page_get_gen(hdr_page_id, 0, RW_X_LATCH, nullptr, BUF_GET, mtr);
+  if (UNIV_UNLIKELY(!b))
+    ib::fatal() << "Unable to read the dictionary header page "
+                << hdr_page_id << " of the system tablespace; "
+                   "the system tablespace is corrupted or unreadable";
   buf_page_make_young_if_needed(&b->page);
   return b;
 }
