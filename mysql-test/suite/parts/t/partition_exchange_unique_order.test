@@ -1,0 +1,122 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+DROP TABLE IF EXISTS t2, x2, t3, x3, t4, x4, t6, x6, t7, x7, t8, x8;
+
+--echo # Reject different engine-visible unique key order without changing either table.
+CREATE TABLE t2 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a,b), UNIQUE KEY u_b (a,c), UNIQUE KEY u_a (a,d))
+  ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+INSERT INTO t2 VALUES (1,1,1,1);
+CREATE TABLE x2 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a,b), UNIQUE KEY u_a (a,d), UNIQUE KEY u_b (a,c))
+  ENGINE=InnoDB;
+INSERT INTO x2 VALUES (2,1,1,1);
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t2 EXCHANGE PARTITION p2 WITH TABLE x2;
+SELECT * FROM t2 ORDER BY a;
+SELECT * FROM x2 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t2)=1 AND
+          (SELECT COUNT(*) FROM t2 WHERE a=1 AND b=1 AND c=1 AND d=1)=1 AND
+          (SELECT COUNT(*) FROM x2)=1 AND
+          (SELECT COUNT(*) FROM x2 WHERE a=2 AND b=1 AND c=1 AND d=1)=1,
+          't2_after_reject=PASS', 't2_after_reject=FAIL') AS assertion;
+
+--echo # Accept identical engine-visible unique key order.
+CREATE TABLE t3 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a,b), UNIQUE KEY u_a (a,d), UNIQUE KEY u_b (a,c))
+  ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+CREATE TABLE x3 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a,b), UNIQUE KEY u_a (a,d), UNIQUE KEY u_b (a,c))
+  ENGINE=InnoDB;
+INSERT INTO x3 VALUES (2,1,1,1);
+ALTER TABLE t3 EXCHANGE PARTITION p2 WITH TABLE x3;
+SELECT * FROM t3 ORDER BY a;
+SELECT * FROM x3 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t3)=1 AND
+          (SELECT COUNT(*) FROM t3 WHERE a=2 AND b=1 AND c=1 AND d=1)=1 AND
+          (SELECT COUNT(*) FROM x3)=0,
+          't3_exchange=PASS', 't3_exchange=FAIL') AS assertion;
+
+--echo # Non-unique key order is not engine-visible for this check.
+CREATE TABLE t4 (a INT NOT NULL, b INT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_c (a,c), KEY k_b (a,b), KEY k_d (a,d))
+  ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+CREATE TABLE x4 (a INT NOT NULL, b INT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_c (a,c), KEY k_d (a,d), KEY k_b (a,b))
+  ENGINE=InnoDB;
+INSERT INTO x4 VALUES (2,2,2,2);
+ALTER TABLE t4 EXCHANGE PARTITION p2 WITH TABLE x4;
+SELECT * FROM t4 ORDER BY a;
+SELECT * FROM x4 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t4)=1 AND
+          (SELECT COUNT(*) FROM t4 WHERE a=2 AND b=2 AND c=2 AND d=2)=1 AND
+          (SELECT COUNT(*) FROM x4)=0,
+          't4_exchange=PASS', 't4_exchange=FAIL') AS assertion;
+
+--echo # Reject a uniformly flagged partitioned table.
+CREATE TABLE t6 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_c (a,c), KEY k_d (a,d))
+  ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+ALTER TABLE t6 ADD PARTITION (PARTITION p3 VALUES IN (3));
+ALTER TABLE t6 ADD UNIQUE KEY u_b (a,b), ALGORITHM=INPLACE, LOCK=NONE;
+CREATE TABLE x6 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_b (a,b), UNIQUE KEY u_c (a,c),
+  KEY k_d (a,d)) ENGINE=InnoDB;
+INSERT INTO x6 VALUES (2,2,2,2);
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t6 EXCHANGE PARTITION p2 WITH TABLE x6;
+SELECT * FROM t6 PARTITION (p1,p2,p3,pDEF) ORDER BY a;
+SELECT * FROM x6 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t6)=0 AND
+          (SELECT COUNT(*) FROM x6)=1 AND
+          (SELECT COUNT(*) FROM x6 WHERE a=2 AND b=2 AND c=2 AND d=2)=1,
+          't6_after_reject=PASS', 't6_after_reject=FAIL') AS assertion;
+
+--echo # Reject an exchange table whose own unique key order is flagged.
+CREATE TABLE t7 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_c (a,c), KEY k_d (a,d),
+  UNIQUE KEY u_b (a,b)) ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+CREATE TABLE x7 (a INT NOT NULL, b INT NOT NULL, c INT NULL, d INT NULL,
+  PRIMARY KEY (a), UNIQUE KEY u_c (a,c), KEY k_d (a,d))
+  ENGINE=InnoDB;
+ALTER TABLE x7 ADD UNIQUE KEY u_b (a,b), ALGORITHM=INPLACE, LOCK=NONE;
+INSERT INTO x7 VALUES (2,2,2,2);
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t7 EXCHANGE PARTITION p2 WITH TABLE x7;
+SELECT * FROM t7 PARTITION (p1,p2,pDEF) ORDER BY a;
+SELECT * FROM x7 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t7)=0 AND
+          (SELECT COUNT(*) FROM x7)=1 AND
+          (SELECT COUNT(*) FROM x7 WHERE a=2 AND b=2 AND c=2 AND d=2)=1,
+          't7_after_reject=PASS', 't7_after_reject=FAIL') AS assertion;
+
+--echo # Long unique key order is not engine-visible; exchange and data movement still work.
+CREATE TABLE t8 (a INT NOT NULL, b BLOB, c BLOB, d INT NOT NULL,
+  UNIQUE KEY lu_b (a,b), UNIQUE KEY lu_c (a,c), UNIQUE KEY u_d (a,d))
+  ENGINE=InnoDB PARTITION BY LIST (a)
+  (PARTITION p1 VALUES IN (1), PARTITION p2 VALUES IN (2),
+   PARTITION pDEF DEFAULT);
+CREATE TABLE x8 (a INT NOT NULL, b BLOB, c BLOB, d INT NOT NULL,
+  UNIQUE KEY lu_c (a,c), UNIQUE KEY lu_b (a,b), UNIQUE KEY u_d (a,d))
+  ENGINE=InnoDB;
+INSERT INTO x8 VALUES (2,'b2','c2',2);
+ALTER TABLE t8 EXCHANGE PARTITION p2 WITH TABLE x8;
+SELECT a,b,c,d FROM t8 ORDER BY a;
+SELECT a,b,c,d FROM x8 ORDER BY a;
+SELECT IF((SELECT COUNT(*) FROM t8)=1 AND
+          (SELECT COUNT(*) FROM t8 WHERE a=2 AND b='b2' AND c='c2' AND d=2)=1 AND
+          (SELECT COUNT(*) FROM x8)=0,
+          't8_exchange=PASS', 't8_exchange=FAIL') AS assertion;
+
+DROP TABLE t2, x2, t3, x3, t4, x4, t6, x6, t7, x7, t8, x8;
