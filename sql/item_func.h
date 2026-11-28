@@ -2238,6 +2238,8 @@ class Item_func_round :public Item_func_hybrid_field_type
 public:
   Item_func_round(THD *thd, Item *a, Item *b, bool trunc_arg)
     :Item_func_hybrid_field_type(thd, a, b), truncate(trunc_arg) {}
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param) override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING truncate_name= {STRING_WITH_LEN("truncate") };
