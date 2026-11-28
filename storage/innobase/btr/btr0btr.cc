@@ -37,6 +37,8 @@ Created 6/2/1994 Heikki Tuuri
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "trx0trx.h"
+#include "trx0sys.h"
+#include "row0row.h"
 #include "srv0mon.h"
 #include "que0que.h"
 #include "gis0geo.h"
@@ -4541,6 +4543,8 @@ n_field_mismatch:
 		rec_get_nth_field_offs(offsets, i, &len);
 
 		ulint fixed_size;
+		ulint logical_len= len;
+		bool external_invalid= false;
 
 		if (is_alter_metadata && i == index->first_user_field()) {
 			fixed_size = FIELD_REF_SIZE;
@@ -4556,10 +4560,32 @@ n_field_mismatch:
 			if (rec_offs_nth_extern(offsets, i)) {
 				const byte* data = rec_get_nth_field(
 					rec, offsets, i, &len);
+				if (len < BTR_EXTERN_FIELD_REF_SIZE) {
+					goto len_mismatch;
+				}
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				const byte* field_ref= data + len;
 				ulint extern_len = mach_read_from_4(
-					data + len + BTR_EXTERN_LEN + 4);
-				if (fixed_size == extern_len + len) {
+					field_ref + BTR_EXTERN_LEN + 4);
+				logical_len= len + extern_len;
+
+				/* Purge may legitimately have disowned a BLOB of a
+				delete-marked record. A big-record write releases the
+				record latch while its BLOB pages are being created. */
+				const bool active_writer= index->is_primary()
+					&& !is_alter_metadata
+					&& trx_sys.is_registered(
+						current_trx(),
+						row_get_rec_trx_id(rec, index, offsets));
+				if (!active_writer &&
+				    !rec_get_deleted_flag(rec, page_is_comp(page)) &&
+				    !btr_validate_externally_stored_field(field_ref,
+								  *index)) {
+					external_invalid= true;
+					goto len_mismatch;
+				}
+
+				if (fixed_size == logical_len) {
 					goto next_field;
 				}
 			}
@@ -4574,14 +4600,25 @@ n_field_mismatch:
 
 		if (len_is_stored(len)
 		    && (field->prefix_len
-			? len > field->prefix_len
-			: (fixed_size && len != fixed_size))) {
+			? logical_len > field->prefix_len
+			: (fixed_size
+			   ? logical_len != fixed_size
+			   : (!DATA_LARGE_MTYPE(field->col->mtype)
+			      && logical_len > field->col->len)))) {
 len_mismatch:
 			btr_index_rec_validate_report(page, rec, index);
 			ib::error	error;
 
-			error << "Field " << i << " len is " << len
-				<< ", should be " << fixed_size;
+			if (external_invalid) {
+				error << "External field " << i
+					<< " reference is invalid";
+			} else {
+				const ulint max_len= field->prefix_len
+					? field->prefix_len
+					: fixed_size ? fixed_size : field->col->len;
+				error << "Field " << i << " len is " << logical_len
+					<< ", should be " << max_len;
+			}
 
 			if (dump_on_error) {
 				error << "; ";
@@ -4734,6 +4771,7 @@ btr_validate_level(
 	mtr_x_lock_index(index, &mtr);
 
 	dberr_t err;
+	dberr_t validation_err= DB_SUCCESS;
 	block = btr_root_block_get(index, RW_SX_LATCH, &mtr, &err);
 	if (!block) {
 		mtr.commit();
@@ -4820,7 +4858,7 @@ invalid_page:
 		mtr.commit();
 func_exit:
 		mem_heap_free(heap);
-		return err;
+		return validation_err != DB_SUCCESS ? validation_err : err;
 	}
 
 	mem_heap_empty(heap);
@@ -4864,6 +4902,12 @@ func_exit:
 	} else if (block->page.id().page_no() != index->page) {
 		btr_validate_report1(index, level, block);
 		ib::error() << "Empty leaf page is not index root";
+	}
+
+	/* btr_block_get() stores its fetch status in err. Preserve an error
+	from this page before fetching its right sibling. */
+	if (err != DB_SUCCESS) {
+		validation_err= err;
 	}
 
 	uint32_t right_page_no = btr_page_get_next(page);
@@ -5114,6 +5158,11 @@ node_pointer_corrupted:
 	}
 
 node_ptr_fails:
+	/* btr_block_get() stores its fetch status in err. Preserve an error
+	from a preceding page before fetching the next sibling. */
+	if (err != DB_SUCCESS) {
+		validation_err= err;
+	}
 	/* Commit the mini-transaction to release the latch on 'page'.
 	Re-acquire the latch on right_page, which will become 'page'
 	on the next loop.  The page has already been checked. */

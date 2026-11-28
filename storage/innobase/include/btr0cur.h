@@ -594,6 +594,14 @@ btr_copy_externally_stored_field_prefix(
 	const byte*		data,
 	ulint			local_len);
 
+/** Validate an externally stored field reference and its complete BLOB chain.
+The field reference must be protected by a record lock or page latch.
+@return whether the reference and its claimed length are valid */
+bool
+btr_validate_externally_stored_field(
+	const byte*		field_ref,
+	const dict_index_t&	index) noexcept;
+
 /** Copies an externally stored field of a record to mem heap.
 The clustered index record must be protected by a lock or a page latch.
 @param[out]	len		length of the whole field
