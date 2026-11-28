@@ -183,8 +183,8 @@ lock_prdt_rec_move(
 						the receiving record */
 	const page_id_t		donator);	/*!< in: target page */
 
-/** Check whether there are R-tree Page lock on a page
-@param[in]	trx	trx to test the lock
+/** Check whether another transaction holds an R-tree "page" lock on a page
+@param[in]	trx	the transaction whose own locks are ignored, or nullptr
 @param[in]	page_id	page identifier
 @return	true if there is none */
 bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);

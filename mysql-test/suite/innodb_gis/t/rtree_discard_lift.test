@@ -1,0 +1,68 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42351: A search of a SPATIAL INDEX missed records if the height of the
+--echo # tree was reduced after a page was discarded
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+# These records fit in the root page.
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_300;
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+connect (con_w,localhost,root,,);
+
+let $i= 2;
+while ($i)
+{
+  let $x= `SELECT ELT($i, 5000, -3000)`;
+
+  connection con_w;
+  BEGIN;
+  # Split the root page into a leaf page with the old records and
+  # a leaf page with the new records.
+  eval INSERT INTO t1 SELECT seq, POINT($x + seq/1000, $x + seq/1000)
+  FROM seq_10001_to_10200;
+
+  connection con_r;
+  # Pause after the first leaf page was read.
+  SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+  send SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+
+  connection con_w;
+  SET DEBUG_SYNC='now WAIT_FOR paused';
+  # This discards the leaf page with the new records. The remaining
+  # leaf page used to be lifted to the root page and freed, while the
+  # reader was reading it or had yet to read it.
+  ROLLBACK;
+  SET DEBUG_SYNC='now SIGNAL resume';
+
+  connection con_r;
+  reap;
+  SET DEBUG_SYNC='RESET';
+
+  dec $i;
+}
+
+disconnect con_r;
+disconnect con_w;
+connection default;
+CHECK TABLE t1;
+# The height of the tree can be reduced once no search depends on the pages.
+INSERT INTO t1 VALUES(20000, POINT(1, 1));
+DELETE FROM t1 WHERE id=20000;
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

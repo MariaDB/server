@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42351: A search of a SPATIAL INDEX returned wrong results if a page in its
+--echo # search path was split and one of the two pages was then discarded
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_2000;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+connect (con_w,localhost,root,,);
+
+# Insert records far away from the existing ones, into different leaf
+# pages. The page is split so that one page contains the old records and
+# the other one the new records, which ROLLBACK will remove.
+let $i= 6;
+while ($i)
+{
+  let $x= `SELECT ELT($i, 5000, -5000, 500, 500, 5000, -3000)`;
+  let $y= `SELECT ELT($i, 5000, 500, -5000, 5000, 500, -3000)`;
+
+  connection con_r;
+  # Pause after the first leaf page was read.
+  SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+  send SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+
+  connection con_w;
+  SET DEBUG_SYNC='now WAIT_FOR paused';
+  BEGIN;
+  eval INSERT INTO t1 SELECT seq, POINT($x + seq/1000, $y + seq/1000)
+  FROM seq_10001_to_10400;
+  ROLLBACK;
+  SET DEBUG_SYNC='now SIGNAL resume';
+
+  connection con_r;
+  reap;
+  SET DEBUG_SYNC='RESET';
+
+  dec $i;
+}
+
+disconnect con_r;
+disconnect con_w;
+connection default;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

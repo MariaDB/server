@@ -933,25 +933,13 @@ found:
 				goto cleanup;
 			}
 
-			if (index->is_spatial()) {
-				const buf_block_t* block = btr_pcur_get_block(
-					&pcur);
-                                const page_id_t id{block->page.id()};
-
-				if (id.page_no() != index->page
-				    && page_get_n_recs(block->page.frame) < 2
-				    && !lock_test_prdt_page_lock(nullptr, id)){
-					/* this is the last record on page,
-					and it has a "page" lock on it,
-					which mean search is still depending
-					on it, so do not delete */
-					DBUG_LOG("purge",
-						 "skip purging last"
-						 " record on page " << id);
-					goto func_exit;
-				}
-			}
-
+			/* For the last record of a SPATIAL INDEX page,
+			btr_cur_optimistic_delete() fails, and
+			row_purge_remove_sec_if_poss_tree() will discard
+			the page, also if a search depends on it.
+			rtr_check_discard_page() keeps the search paths
+			valid, like it does when a rollback discards a
+			page. */
 			if (btr_cur_optimistic_delete(&pcur.btr_cur, 0, &mtr)
 			    == DB_FAIL) {
 				page_max_trx_id = row_purge_check(
@@ -960,7 +948,6 @@ found:
 		}
 	}
 
-func_exit:
 	mtr.commit();
 cleanup:
 	btr_pcur_close(&pcur);
