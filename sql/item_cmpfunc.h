@@ -1367,7 +1367,7 @@ class Item_func_if :public Item_func_case_abbreviation2_switch
 {
 protected:
   Item *find_item() const override
-  { return args[0]->val_bool() ? args[1] : args[2]; }
+  { return args[0]->val_bool_non_null() ? args[1] : args[2]; }
 
 public:
   Item_func_if(THD *thd, Item *a, Item *b, Item *c):

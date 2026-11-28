@@ -67,3 +67,112 @@ from t1, t2;
 
 drop table t1;
 drop table t2;
+
+--echo #
+--echo # MDEV-42239: JSON_EQUALS() with a NULL argument is accepted by
+--echo # WHERE / IF / CASE although its value is NULL
+--echo #
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j JSON NOT NULL);
+INSERT INTO t1 VALUES (1,'{"k0":1}'),(2,'{}'),(3,'{"a":[1,2]}');
+
+SELECT id, JSON_EQUALS(NULL, j) AS v, JSON_EQUALS(NULL, j) IS NULL AS v_is_null
+FROM t1;
+
+# NULL condition: neither TRUE nor FALSE
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j);
+SELECT id FROM t1 WHERE NOT JSON_EQUALS(NULL, j);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NULL;
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS TRUE;
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) IS NOT TRUE;
+
+# NULL in the second argument, in both, or from an expression
+SELECT id FROM t1 WHERE JSON_EQUALS(j, NULL);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, NULL);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULLIF(j, j), j);
+
+SELECT id, IF(JSON_EQUALS(NULL, j), 'T', 'F') AS if_v,
+       CASE WHEN JSON_EQUALS(NULL, j) THEN 'T' ELSE 'F' END AS case_v
+FROM t1;
+
+# Constant condition evaluated by the optimizer
+SELECT 1 AS matched WHERE JSON_EQUALS(NULL, '{}');
+SELECT COUNT(*) FROM t1 HAVING JSON_EQUALS(NULL, '{}');
+
+# Non-NULL arguments are not affected
+SELECT id FROM t1 WHERE JSON_EQUALS('{}', j);
+SELECT id FROM t1 WHERE NOT JSON_EQUALS('{}', j);
+
+# AND / OR with a NULL operand follow three-valued logic.
+# id+0 keeps the comparison in the AND / OR (no range access on id).
+# NULL AND TRUE is NULL, NULL AND FALSE is FALSE: no rows
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) AND id+0 > 0;
+SELECT id FROM t1 WHERE id+0 > 0 AND JSON_EQUALS(NULL, j);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) AND id+0 > 1;
+# NULL OR FALSE is NULL, NULL OR TRUE is TRUE
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) OR id+0 < 0;
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) OR id+0 > 1;
+SELECT id FROM t1 WHERE id+0 > 1 OR JSON_EQUALS(NULL, j);
+# Not at the top level: NOT NULL is NULL, NOT FALSE is TRUE
+SELECT id FROM t1 WHERE NOT (JSON_EQUALS(NULL, j) AND id+0 > 1);
+SELECT id FROM t1 WHERE NOT (JSON_EQUALS(NULL, j) OR id+0 > 1);
+SELECT id, JSON_EQUALS(NULL, j) AND id > 1 AS v_and,
+       JSON_EQUALS(NULL, j) OR id > 1 AS v_or,
+       NOT (JSON_EQUALS(NULL, j) AND id > 1) AS v_not_and
+FROM t1;
+SELECT id, IF(JSON_EQUALS(NULL, j) OR id > 1, 'T', 'F') AS if_or,
+       CASE WHEN JSON_EQUALS(NULL, j) AND id > 0 THEN 'T' ELSE 'F' END AS case_and
+FROM t1;
+
+# Filesort, joins and HAVING
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) ORDER BY LENGTH(j);
+SELECT id FROM t1 WHERE JSON_EQUALS(NULL, j) OR id+0 = 2 ORDER BY LENGTH(j);
+SELECT a.id, b.id FROM t1 a JOIN t1 b ON JSON_EQUALS(NULL, b.j);
+SELECT a.id, b.id FROM t1 a LEFT JOIN t1 b ON JSON_EQUALS(NULL, b.j)
+ORDER BY a.id;
+SELECT id FROM t1 GROUP BY id HAVING JSON_EQUALS(NULL, MAX(j));
+SELECT COUNT(*) FROM t1 HAVING JSON_EQUALS(NULL, MAX(j));
+
+# User variable and prepared statement parameter
+SET @a= NULL;
+SELECT 1 AS matched WHERE JSON_EQUALS(@a, '{}');
+SELECT id FROM t1 WHERE JSON_EQUALS(@a, j);
+PREPARE s FROM 'SELECT id FROM t1 WHERE JSON_EQUALS(?, j)';
+EXECUTE s USING NULL;
+EXECUTE s USING '{ }';
+DEALLOCATE PREPARE s;
+
+# Stored procedure IF
+DELIMITER |;
+CREATE PROCEDURE p1()
+BEGIN
+  IF JSON_EQUALS(NULL, '{}') THEN SELECT 'T' AS sp_if;
+  ELSE SELECT 'F' AS sp_if;
+  END IF;
+END|
+DELIMITER ;|
+CALL p1();
+DROP PROCEDURE p1;
+
+# UPDATE and DELETE do not change rows where the condition is NULL
+UPDATE t1 SET j= '[]' WHERE JSON_EQUALS(NULL, j);
+UPDATE t1 SET j= '[]' WHERE JSON_EQUALS(NULL, j) OR id+0 = 1;
+SELECT * FROM t1 ORDER BY id;
+DELETE FROM t1 WHERE JSON_EQUALS(NULL, j);
+DELETE FROM t1 WHERE JSON_EQUALS(NULL, j) OR id+0 = 1;
+SELECT * FROM t1 ORDER BY id;
+
+DROP TABLE t1;
+
+# A NULL result still satisfies a CHECK constraint
+CREATE TABLE t1 (a JSON, b JSON, CHECK (JSON_EQUALS(a, b)));
+INSERT INTO t1 VALUES ('{"x":1}', '{ "x" : 1 }');
+INSERT INTO t1 VALUES (NULL, '{}');
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t1 VALUES ('{}', '[]');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
