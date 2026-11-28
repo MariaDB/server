@@ -306,7 +306,7 @@ void UndorecApplier::apply_undo_rec(const trx_undo_rec_t *rec, uint16_t offset)
                                   &cmpl_info,
                                   &updated_extern, &undo_no, &table_id);
   dict_sys.freeze(SRW_LOCK_CALL);
-  dict_table_t *table= dict_sys.find_table(table_id);
+  dict_table_t *table= dict_sys.find_table(table_id, false);
   dict_sys.unfreeze();
 
   ut_ad(table);

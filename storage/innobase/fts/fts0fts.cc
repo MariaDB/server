@@ -1524,6 +1524,7 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
                                                    DICT_ERR_IGNORE_TABLESPACE))
   {
     dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
+    ut_ad(!table->loading());
     /* Wait for purge threads to stop using the table. */
     for (uint n= 15; table->get_ref_count() > 1; )
     {
@@ -1591,6 +1592,7 @@ static void fts_table_no_ref_count(const char *table_name)
   if (!table)
     return;
 
+  ut_ad(!table->loading());
   while (table->get_ref_count() > 1)
   {
     dict_sys.unlock();
