@@ -1,0 +1,58 @@
+source include/not_embedded.inc;
+
+--echo #
+--echo # Optimizer trace: print_range() for a JSON array (HA_KEY_ALG_ARRAY)
+--echo # range must not crash, and must not try to print the raw
+--echo # key_copy()-formatted lookup bytes as if they were a valid key
+--echo # image for the JSON column's own (text) type.
+--echo #
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]');
+SET optimizer_trace='enabled=on';
+SELECT id FROM t WHERE 2 MEMBER OF (tags);
+SELECT * FROM information_schema.OPTIMIZER_TRACE;
+SET optimizer_trace='enabled=off';
+DROP TABLE t;
+
+--echo #
+--echo # AND of two independent MEMBER OF predicates against the same array
+--echo # index: get_claimed_key_part() (opt_range.cc) gives each one its
+--echo # own key part/idx, so the trace shows two independent "arr_idx"
+--echo # candidates (one per predicate) instead of the index being dropped
+--echo # entirely -- the optimizer then picks the cheaper of the two.
+--echo #
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]');
+SET optimizer_trace='enabled=on';
+SELECT id FROM t WHERE 2 MEMBER OF (tags) AND 5 MEMBER OF (tags);
+SELECT * FROM information_schema.OPTIMIZER_TRACE;
+SET optimizer_trace='enabled=off';
+DROP TABLE t;
+
+--echo #
+--echo # OR of two independent MEMBER OF predicates against the same array
+--echo # index: no common key between them any more (each has its own key
+--echo # part/idx), so the trace goes through analyzing_index_merge_union
+--echo # instead of analyzing_range_alternatives/dropping the index entirely
+--echo #
+CREATE TABLE t (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t VALUES (1, '[1, 2, 3]'), (2, '[4, 5, 6]');
+SET optimizer_trace='enabled=on';
+SELECT id FROM t WHERE 2 MEMBER OF (tags) OR 5 MEMBER OF (tags);
+SELECT * FROM information_schema.OPTIMIZER_TRACE;
+SET optimizer_trace='enabled=off';
+DROP TABLE t;
+
+--echo # End of 13.3 tests

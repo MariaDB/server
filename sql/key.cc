@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2018, 2021, MariaDB
+   Copyright (c) 2018, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -448,6 +448,8 @@ void key_unpack(String *to, TABLE *table, KEY *key)
 
 /*
   Check if key uses field that is marked in passed field bitmap.
+
+  This is used to detect if updating the row might change the key value.
 
   SYNOPSIS
     is_key_used()

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -195,7 +196,7 @@ err:
   if (changed)
     key_changed|= HA_STATE_CHANGED;
   if (my_errno == HA_ERR_FOUND_DUPP_KEY || my_errno == HA_ERR_RECORD_FILE_FULL ||
-      my_errno == HA_ERR_NULL_IN_SPATIAL || my_errno == HA_ERR_OUT_OF_MEM)
+      my_errno == HA_ERR_BAD_FIELD_VALUE || my_errno == HA_ERR_OUT_OF_MEM)
   {
     info->errkey= (int) i;
     flag=0;

@@ -49,6 +49,7 @@
 #include "sql_connect.h"
 #include "sql_servers.h"
 #include "sql_repl.h"                       // rpl_load_gtid_state
+#include "sql_type_json.h"                  // Type_handler_json_common
 #include "rpl_mi.h"                         // master_info_index
 #include "authors.h"
 #include "contributors.h"
@@ -71,7 +72,7 @@
 #include "my_cpu.h"
 #include "key.h"
 #include "scope.h"
-#include "vector_mhnsw.h"
+#include "index/hlindex.h"
 #include "lex_symbol.h"
 #include "mysql/plugin_function.h"
 
@@ -1970,7 +1971,7 @@ static bool get_param_default_value(Item *item, String *default_value)
 */
 
 void append_create_options(THD *thd, String *packet, engine_option_value *opt,
-                           bool check_options, ha_create_table_option *rules)
+                      bool check_options, const ha_create_table_option *rules)
 {
   bool in_comment= false;
   for(; opt; opt= opt->next)
@@ -2367,7 +2368,13 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
-    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
+    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)) &&
+        /*
+          The JSON column-type keyword (printed by Field_blob::sql_type()
+          for an is_literal_json_field(), see field.cc) doesn't accept a
+          CHARACTER SET/COLLATE suffix -- it's always utf8mb4_bin.
+        */
+        !Type_handler_json_common::is_literal_json_field(field))
     {
       if (field->charset() != share->table_charset)
       {
@@ -2453,7 +2460,17 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
 
-    if (field->check_constraint)
+    /*
+      A json_valid(...) check on a field printed as "json" is implied by
+      the type itself (see Field_blob::sql_type() above) -- it's not a
+      separate, independently-droppable constraint the user added, it's
+      just how a JSON column gets rebuilt whenever it doesn't already
+      have one (see make_json_valid_expr_if_needed()), so printing it
+      explicitly would be redundant and would wrongly suggest it's not
+      implied by the column's own type.
+    */
+    if (field->check_constraint &&
+        !Type_handler_json_common::is_literal_json_field(field))
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
       field->check_constraint->print(&str);
@@ -2520,6 +2537,22 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
       if (j)
         packet->append(',');
 
+      if (key_info->algorithm == HA_KEY_ALG_ARRAY)
+      {
+        /*
+          The declared element type (CAST(... AS type ARRAY)) isn't stored
+          anywhere -- it's currently unused beyond parsing (see Key::ARRAY
+          handling in sql_table.cc) -- so this can't reproduce what the user
+          originally wrote. Print a type that's always valid to re-parse
+          instead (see the JSON_SYM alternative of cast_type in
+          sql_yacc.yy).
+        */
+        packet->append(STRING_WITH_LEN("CAST("));
+        append_identifier(thd, packet, &field->field_name);
+        packet->append(STRING_WITH_LEN(" AS JSON ARRAY)"));
+        continue;
+      }
+
       if (key_part->field)
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&
@@ -2580,8 +2613,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
         append_identifier(thd, packet, parser_name);
       }
       append_create_options(thd, packet, key_info->option_list, check_options,
-                            (key_info->algorithm == HA_KEY_ALG_VECTOR
-                             ? mhnsw_index_options : hton->index_options));
+                            key_info->options(table));
     }
   }
 
@@ -6390,9 +6422,9 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       if (show_table->s->hlindexes())
       {
           // make sure hlindex is opened
-          if (show_table->hlindex || !show_table->hlindex_open(show_table->s->keys))
+          if (show_table->hli || !show_table->hlindex_open(show_table->s->keys))
           {
-              handler *hi= show_table->hlindex->file;
+              handler *hi= show_table->hli->table->file;
               if (!hi->info(HA_STATUS_VARIABLE))
                   file->stats.index_file_length+= hi->stats.data_file_length
                                                 + hi->stats.index_file_length;
@@ -6548,8 +6580,7 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
                               uint offset)
 {
   const char *tmp_buff;
-  char column_type_buff[MAX_FIELD_WIDTH];
-  String column_type(column_type_buff, sizeof(column_type_buff), cs);
+  StringBuffer<MAX_FIELD_WIDTH> column_type(cs);
 
   field->sql_type(column_type);
   /* DTD_IDENTIFIER column */
@@ -7821,11 +7852,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
             table->field[13]->store(tmp, strlen(tmp), cs);
           }
           else
-          {
-            /* there are no others at the moment */
-            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_VECTOR);
-            table->field[13]->store(STRING_WITH_LEN("VECTOR"), cs);
-          }
+            table->field[13]->store(key_info->type(), cs);
         }
         if (key_info->algorithm != HA_KEY_ALG_FULLTEXT &&
             (key_part->field &&

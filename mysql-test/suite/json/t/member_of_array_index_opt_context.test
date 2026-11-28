@@ -1,0 +1,38 @@
+--source include/not_embedded.inc
+--disable_replay testfile Dont replay a replay test
+
+--echo #
+--echo # Optimizer context record/replay of the ARRAY (hlindex) records_in_range call
+--echo #
+set @opt_context_var_name= 'opt_context';
+create database db1;
+use db1;
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  tags JSON NOT NULL,
+  INDEX arr_idx (CAST(tags AS UNSIGNED ARRAY))
+);
+INSERT INTO t1 VALUES (1,'[1,2,3]'),(2,'[4,5,6]'),(3,'[3,6,9]'),(4,'[]'),(5,'[7]');
+
+set optimizer_record_context=ON;
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+--source include/opt_context_save_in_var.inc
+set @saved_ctx= @opt_context;
+set optimizer_record_context=OFF;
+
+--echo # The call was recorded, with its cost:
+select json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].key_number') as key_number,
+       json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].key') as k,
+       json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].num_records') as num_records,
+       json_extract(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].cost') is not null as has_cost;
+
+--echo # Replay with a different row count: EXPLAIN uses it
+set optimizer_replay_context=@opt_context_var_name;
+set @opt_context= json_replace(@saved_ctx, '$.tables[0].hl_records_in_range_calls[0].num_records', 4);
+EXPLAIN SELECT id FROM t1 WHERE 3 MEMBER OF (tags);
+
+--echo # Replay with an unrecorded value: match-failed warning
+set @opt_context= @saved_ctx;
+EXPLAIN SELECT id FROM t1 WHERE 5 MEMBER OF (tags);
+set optimizer_replay_context='';
+drop database db1;

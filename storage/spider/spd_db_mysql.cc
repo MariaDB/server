@@ -21,7 +21,6 @@
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
-#include "sql_analyse.h"
 #include "sql_base.h"
 #include "tztime.h"
 #include "sql_select.h"

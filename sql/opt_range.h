@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -73,6 +74,12 @@ struct KEY_PART {
   uint8 flag;
   Field            *field;
   Field::imagetype image_type;
+  /*
+    Not itRAW (e.g. RTREE) ranges cannot be  combined algebraically,
+    they're cloned to create separate ranges to be searched independently.
+    'claimed' means this key part was used in a range and must be cloned.
+  */
+  bool claimed;
 };
 
 
@@ -1386,9 +1393,6 @@ public:
   QUICK_RANGE_SELECT(THD *thd, TABLE *table,uint index_arg,bool no_alloc,
                      MEM_ROOT *parent_alloc, bool *create_err);
   ~QUICK_RANGE_SELECT();
-  virtual QUICK_RANGE_SELECT *clone(bool *create_error)
-    { return new QUICK_RANGE_SELECT(thd, head, index, no_alloc, parent_alloc,
-                                    create_error); }
   
   void need_sorted_output() override;
   int init() override;
@@ -1459,12 +1463,26 @@ public:
     :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
     create_err)
     {};
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    {
-      DBUG_ASSERT(0);
-      return new QUICK_RANGE_SELECT_GEOM(thd, head, index, no_alloc,
-                                         parent_alloc, create_error);
-    }
+  int get_next() override;
+};
+
+
+/*
+  Quick select for a lookup on an HA_KEY_ALG_ARRAY (JSON array/hlindex)
+  "index": get_next() drives TABLE::hlindex_read_first()/hlindex_read_next(),
+  which look up the hlindex table and translate hits back into base
+  table rows (see json_index::read_first/read_next in sql/index/json.cc).
+*/
+class QUICK_RANGE_SELECT_ARRAY: public QUICK_RANGE_SELECT
+{
+public:
+  QUICK_RANGE_SELECT_ARRAY(THD *thd, TABLE *table, uint index_arg,
+                          bool no_alloc, MEM_ROOT *parent_alloc,
+                          bool *create_err)
+    :QUICK_RANGE_SELECT(thd, table, index_arg, no_alloc, parent_alloc,
+    create_err)
+    {};
+  int reset() override;
   int get_next() override;
 };
 
@@ -1899,8 +1917,6 @@ class QUICK_SELECT_DESC: public QUICK_RANGE_SELECT
 {
 public:
   QUICK_SELECT_DESC(QUICK_RANGE_SELECT *q, uint used_key_parts);
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    { DBUG_ASSERT(0); return new QUICK_SELECT_DESC(this, used_key_parts); }
   int get_next() override;
   bool reverse_sorted() override { return 1; }
   int get_type() override { return QS_TYPE_RANGE_DESC; }
@@ -2032,8 +2048,6 @@ public:
       QUICK_RANGE_SELECT (thd, table, key, 1, NULL, create_err) 
   { (void) init(); }
   ~FT_SELECT() { file->ft_end(); }
-  QUICK_RANGE_SELECT *clone(bool *create_error) override
-    { DBUG_ASSERT(0); return new FT_SELECT(thd, head, index, create_error); }
   int init() override { return file->ft_init(); }
   int reset() override { return 0; }
   int get_next() override { return file->ha_ft_read(record); }

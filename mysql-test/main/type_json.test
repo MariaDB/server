@@ -62,7 +62,9 @@ drop table t1;
 
 --error ER_PARSE_ERROR
 select cast('{a:1}' as text);
---error ER_PARSE_ERROR
+--echo # CAST(... AS JSON) is a placeholder cast_type (see sql_yacc.yy),
+--echo # equivalent to LONGTEXT, with no validation of its own until
+--echo # MDEV-38740 gives JSON a real data type
 select cast('{a:1}' as json);
 
 --echo #
@@ -137,4 +139,135 @@ drop view v1;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # SHOW CREATE TABLE prints a column as "json" only when it's exactly
+--echo # what the JSON keyword itself creates (long blob, utf8mb4_bin) --
+--echo # every other string type with an equivalent CHECK(json_valid(...))
+--echo # keeps printing its real type, so dump+reload can't silently change
+--echo # a column's size or charset
+--echo #
+
+--echo # CHAR/VARCHAR: never promoted, regardless of the check
+CREATE TABLE t1 (a CHAR(20) CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(20) CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # TEXT family: only the long (JSON-sized) variant, and only with
+--echo # utf8mb4_bin, gets promoted
+CREATE TABLE t1 (a TINYTEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMTEXT CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # LONGTEXT, right size but wrong charset/collation: not promoted
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET latin1 CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+                  CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # LONGTEXT, utf8mb4_bin: exactly what JSON creates -- promoted
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+                  CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # BLOB family (binary charset): never promoted
+CREATE TABLE t1 (a TINYBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a BLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a MEDIUMBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a LONGBLOB CHECK (JSON_VALID(a)));
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo # JSON keyword itself: the control case, always promoted
+CREATE TABLE t1 (a JSON);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Round-trip: recreate each via its own printed DDL (captured below)
+--echo # and show it again -- it must print byte-for-byte the same as the
+--echo # first time, i.e. none of the above silently changed shape
+--echo #
+CREATE TABLE t1 (a CHAR(20) CHECK (JSON_VALID(a)));
+CREATE TABLE t2 (a VARCHAR(20) CHECK (JSON_VALID(a)));
+CREATE TABLE t3 (a TINYTEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t4 (a TEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t5 (a MEDIUMTEXT CHECK (JSON_VALID(a)));
+CREATE TABLE t6 (a LONGTEXT CHARACTER SET latin1 CHECK (JSON_VALID(a)));
+CREATE TABLE t7 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci
+                  CHECK (JSON_VALID(a)));
+CREATE TABLE t8 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin
+                  CHECK (JSON_VALID(a)));
+CREATE TABLE t9 (a TINYBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t10 (a BLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t11 (a MEDIUMBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t12 (a LONGBLOB CHECK (JSON_VALID(a)));
+CREATE TABLE t13 (a JSON);
+
+--let $t1= query_get_value(SHOW CREATE TABLE t1, Create Table, 1)
+--let $t2= query_get_value(SHOW CREATE TABLE t2, Create Table, 1)
+--let $t3= query_get_value(SHOW CREATE TABLE t3, Create Table, 1)
+--let $t4= query_get_value(SHOW CREATE TABLE t4, Create Table, 1)
+--let $t5= query_get_value(SHOW CREATE TABLE t5, Create Table, 1)
+--let $t6= query_get_value(SHOW CREATE TABLE t6, Create Table, 1)
+--let $t7= query_get_value(SHOW CREATE TABLE t7, Create Table, 1)
+--let $t8= query_get_value(SHOW CREATE TABLE t8, Create Table, 1)
+--let $t9= query_get_value(SHOW CREATE TABLE t9, Create Table, 1)
+--let $t10= query_get_value(SHOW CREATE TABLE t10, Create Table, 1)
+--let $t11= query_get_value(SHOW CREATE TABLE t11, Create Table, 1)
+--let $t12= query_get_value(SHOW CREATE TABLE t12, Create Table, 1)
+--let $t13= query_get_value(SHOW CREATE TABLE t13, Create Table, 1)
+
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
+
+--disable_query_log
+eval $t1; eval $t2; eval $t3; eval $t4; eval $t5; eval $t6;
+eval $t7; eval $t8; eval $t9; eval $t10; eval $t11; eval $t12; eval $t13;
+--enable_query_log
+
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+SHOW CREATE TABLE t3;
+SHOW CREATE TABLE t4;
+SHOW CREATE TABLE t5;
+SHOW CREATE TABLE t6;
+SHOW CREATE TABLE t7;
+SHOW CREATE TABLE t8;
+SHOW CREATE TABLE t9;
+SHOW CREATE TABLE t10;
+SHOW CREATE TABLE t11;
+SHOW CREATE TABLE t12;
+SHOW CREATE TABLE t13;
+
+DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
+
+--echo #
+--echo # End of SHOW CREATE TABLE / JSON tests
 --echo #

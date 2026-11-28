@@ -137,3 +137,41 @@ select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS 
 
 drop table t0,t1;
 set optimizer_trace="enabled=off";
+
+--echo #
+--echo # AND of two independent spatial-relation predicates against the
+--echo # same SPATIAL index: get_claimed_key_part() (opt_range.cc) gives
+--echo # each predicate its own key part/idx on the same real index, so
+--echo # the range optimizer sees two independent "gidx" candidates here,
+--echo # exactly like it would for two different real indexes, and picks
+--echo # the cheaper one.
+--echo #
+set optimizer_trace='enabled=on';
+
+create table t1 (
+  id int primary key,
+  g geometry not null,
+  spatial index gidx (g)
+);
+insert into t1 values
+  (1, ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))')),
+  (2, ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))'));
+set @p1 = ST_GeomFromText('POLYGON((0 0,0 5,5 5,5 0,0 0))');
+set @p2 = ST_GeomFromText('POLYGON((100 100,100 105,105 105,105 100,100 100))');
+
+--disable_view_protocol
+explain select id from t1 where ST_Intersects(g,@p1) and MBRIntersects(g,@p2);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.chosen_range_access_summary')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
+
+--echo # OR of the same two predicates: no common key between them any
+--echo # more (each has its own key part/idx), so this goes through
+--echo # analyzing_index_merge_union instead of analyzing_range_alternatives
+--disable_view_protocol
+explain select id from t1 where MBRIntersects(g,@p1) or MBRIntersects(g,@p2);
+select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_index_merge_union')) AS JS from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+--enable_view_protocol
+drop table t1;
+
+set optimizer_trace="enabled=off";

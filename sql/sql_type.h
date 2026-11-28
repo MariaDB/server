@@ -2,7 +2,7 @@
 #define SQL_TYPE_H_INCLUDED
 /*
    Copyright (c) 2015  MariaDB Foundation.
-   Copyright (c) 2015, 2022, MariaDB Corporation.
+   Copyright (c) 2015, 2026, MariaDB plc.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -4504,6 +4504,11 @@ public:
   {
     return true; // Error
   }
+  virtual bool Key_part_spec_init_json(Key_part_spec *part,
+                                       const Column_definition &def) const
+  {
+    return true; // Error
+  }
   virtual Field *make_table_field(MEM_ROOT *root,
                                   const LEX_CSTRING *name,
                                   const Record_addr &addr,
@@ -8261,5 +8266,7 @@ public:
 };
 
 extern Type_handler_data *type_handler_data;
+
+bool no_part_keypart(Key_part_spec *part);
 
 #endif /* SQL_TYPE_H_INCLUDED */

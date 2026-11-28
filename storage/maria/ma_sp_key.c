@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & Ramil Kalimullin
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -57,7 +58,8 @@ MARIA_KEY *_ma_sp_make_key(MARIA_HA *info, MARIA_KEY *ret_key, uint keynr,
   memcpy(&dptr, pos + keyseg->bit_start, sizeof(char*));
   if (!dptr)
   {
-    my_errno= HA_ERR_NULL_IN_SPATIAL;
+    info->errkey= (int) keynr;
+    my_errno= HA_ERR_BAD_FIELD_VALUE;
     DBUG_RETURN(0);
   }
 

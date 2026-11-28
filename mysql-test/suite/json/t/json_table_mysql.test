@@ -946,10 +946,13 @@ EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TEXT PATH '$
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TINYTEXT PATH '$')) as alias;
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb MEDIUMTEXT PATH '$')) as alias;
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb LONGTEXT PATH '$')) as alias;
-# But can't be used as a data source
+# But can't be used as a data source: blb is already the unquoted scalar
+# ("asd123" with no surrounding quotes), and CAST(... AS JSON) is just a
+# LONGTEXT placeholder (see cast_type in sql_yacc.yy) -- it doesn't
+# re-quote it, so it's no longer valid JSON text for the second JSON_TABLE
 #--error ER_WRONG_ARGUMENTS
---error ER_PARSE_ERROR
-SELECT * FROM 
+--error ER_JSON_SYNTAX
+SELECT * FROM
   (SELECT CAST(blb AS JSON) jf FROM
     JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti) AS dt,
   JSON_TABLE(jf, '$' COLUMNS (blb BLOB PATH '$')) AS jto;

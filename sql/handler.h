@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2023, MariaDB
+   Copyright (c) 2009, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1256,7 +1256,7 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
 
-typedef struct st_ha_create_table_option {
+struct ha_create_table_option {
   enum ha_option_type type;
   const char *name;
   size_t name_length;
@@ -1265,7 +1265,7 @@ typedef struct st_ha_create_table_option {
   ulonglong min_value, max_value, block_size;
   const char *values;
   struct st_mysql_sys_var *var;
-} ha_create_table_option;
+};
 
 
 /* Struct used to return binlog file list for SHOW BINARY LOGS from engine. */
@@ -4272,6 +4272,7 @@ public:
          (error == HA_ERR_FOUND_DUPP_KEY ||
           error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
         error == HA_ERR_AUTOINC_ERANGE ||
+        error == HA_ERR_BAD_FIELD_VALUE ||
         ((flags & HA_CHECK_FK_ERROR) &&
          (error == HA_ERR_ROW_IS_REFERENCED ||
           error == HA_ERR_NO_REFERENCED_ROW)))

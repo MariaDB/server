@@ -1,7 +1,7 @@
 #ifndef SQL_TYPE_VECTOR_INCLUDED
 #define SQL_TYPE_VECTOR_INCLUDED
 /*
-   Copyright (c) 2024 MariaDB
+   Copyright (c) 2024, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,7 +49,11 @@ public:
                                         column_definition_type_t type)
                                                        const override;
   bool Key_part_spec_init_vector(Key_part_spec *part,
-                                 const Column_definition &def) const override;
+                                 const Column_definition &def) const override
+  {
+    return no_part_keypart(part);
+  }
+
   Field *make_table_field(MEM_ROOT *root, const LEX_CSTRING *name,
            const Record_addr &addr, const Type_all_attributes &attr,
            TABLE_SHARE *share) const override;
@@ -146,6 +150,11 @@ public:
   uint size_of() const  override { return sizeof(*this); }
   bool update_min(Field *, bool) override { return false; } // disable EITS
   bool update_max(Field *, bool) override { return false; } // disable EITS
+  void make_send_field(Send_field *to) override
+  {
+    Field_varstring::make_send_field(to);
+    to->set_data_type_name("vector"_LEX_CSTRING);
+  }
 };
 
 #endif // SQL_TYPE_VECTOR_INCLUDED

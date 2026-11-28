@@ -1,7 +1,7 @@
 #ifndef ITEM_JSONFUNC_INCLUDED
 #define ITEM_JSONFUNC_INCLUDED
 
-/* Copyright (c) 2016, 2021, MariaDB
+/* Copyright (c) 2016, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1127,6 +1127,94 @@ public:
 
   Item *shallow_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_json>(thd, this); }
+};
+
+
+/*
+  Implements the SQL standard "value MEMBER OF (json_doc)" operator, and its
+  negation "value NOT MEMBER OF (json_doc)" via the inherited negated flag from
+  Item_func_opt_neg.
+
+  This follows the same pattern used by Item_func_between and Item_func_in:
+  a single item class represents both the positive and negated form, with
+  neg_transformer() toggling the negated flag and val_bool() honouring it.
+
+  Design: composition over helper items. fix_length_and_dec() builds
+  an internal JSON_QUOTE(args[0]) item (when args[0] is not already JSON-
+  typed) and an internal JSON_CONTAINS(args[1], ...) item. val_bool()
+  delegates the actual containment test to json_contains_item. If args[0]
+  is JSON-typed, we bypass the JSON_QUOTE wrapping (is_json_type passthrough).
+
+  walk / transform / propagate_equal_fields / update_used_tables are overridden
+  to expose and synchronize the hidden child items with the optimizer. Those
+  two helper items live outside the normal args[] array that Item_func_opt_neg
+  would walk automatically.
+*/
+class Item_func_member_of : public Item_func_opt_neg
+{
+  Item_func_json_quote *json_quote_item;
+  Item_func_json_contains *json_contains_item;
+protected:
+  /*
+    Range-optimizer hooks: let "value MEMBER OF (json_array_column)" use a
+    JSON array (HA_KEY_ALG_ARRAY / hlindex) index on the array column, the
+    same way Item_func_spatial_rel::get_mm_leaf() hooks spatial predicates
+    onto RTREE indexes (see sql/item_geofunc.cc). args[1] (the array/field
+    side) is fixed -- unlike a reversible comparison, there is no "array
+    MEMBER OF value" form -- so this mirrors Item_func_between's shape
+    (get_mm_tree() + get_func_mm_tree()), not Item_bool_func2_with_rev's.
+  */
+  SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr) override;
+  SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param, Field *field,
+                             Item *value) override;
+  SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
+                       KEY_PART *key_part,
+                       Item_func::Functype type, Item *value) override;
+public:
+  Item_func_member_of(THD *thd, Item *a, Item *b):
+    Item_func_opt_neg(thd, a, b), json_quote_item(NULL), json_contains_item(NULL)
+    {}
+
+  bool val_bool() override;
+  bool fix_length_and_dec(THD *thd) override;
+  void print(String *str, enum_query_type query_type) override;
+  enum precedence precedence() const override { return CMP_PRECEDENCE; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name=     {STRING_WITH_LEN("member of") };
+    static LEX_CSTRING neg_name= {STRING_WITH_LEN("not member of") };
+    return negated ? neg_name : name;
+  }
+  Item *shallow_copy(THD *thd) const override
+  {
+    return get_item_copy<Item_func_member_of>(thd, this);
+  }
+
+  bool walk(Item_processor processor, void *arg, item_walk_flags flags) override;
+  Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
+  Item *propagate_equal_fields(THD *thd, const Context &ctx, COND_EQUAL *cond) override
+  {
+    if (json_contains_item)
+      json_contains_item->propagate_equal_fields(thd, ctx, cond);
+    return Item_func::propagate_equal_fields(thd, ctx, cond);
+  }
+  void update_used_tables() override;
+  /*
+    Registers args[1] (the array column) as a sargable field for args[0]
+    (the value), the same way Item_func_spatial_rel does for its field/value
+    pair (see item_geofunc.h) -- implemented in sql_select.cc because it
+    needs that file's private is_local_field()/add_key_equal_fields()
+    helpers, like every other non-Item_bool_func2 add_key_fields() override.
+    This is what lets a const (or otherwise already-available, e.g.
+    correlated) "value MEMBER OF (json_col)" populate const_keys/
+    cond_set/sargables for the ARRAY index on json_col, so
+    make_join_statistics() attempts range analysis for it at all -- without
+    this override, get_mm_leaf() below is unreachable for every query,
+    since nothing ever calls it.
+  */
+  void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
+                      table_map usable_tables, SARGABLE_PARAM **sargables)
+                      override;
 };
 
 

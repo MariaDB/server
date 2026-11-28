@@ -48,7 +48,7 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 #include "optimizer_defaults.h"
-#include "vector_mhnsw.h"
+#include "index/hlindex.h"
 #include "sql_truncate.h"      // fk_truncate_illegal_if_parent()
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3958,8 +3958,6 @@ PSI_table_share *handler::ha_table_share_psi() const
 
 const char *handler::index_type(uint key_number)
 {
-  static const char* alg2str[]= { "???", "BTREE", "SPATIAL", "HASH",
-                                  "FULLTEXT", "HASH", "HASH", "VECTOR" };
   enum ha_key_alg alg= table_share->key_info[key_number].algorithm;
   if (!alg)
   {
@@ -3968,7 +3966,7 @@ const char *handler::index_type(uint key_number)
     else
       alg= HA_KEY_ALG_HASH;
   }
-  return alg2str[alg];
+  return table_share->key_info[key_number].type(alg).str;
 }
 
 
@@ -5025,8 +5023,7 @@ void handler::ha_release_auto_increment()
 void print_keydup_error(TABLE *table, KEY *key, const char *msg, myf errflag)
 {
   /* Write the duplicated key in the error message */
-  char key_buff[MAX_KEY_LENGTH];
-  String str(key_buff,sizeof(key_buff),system_charset_info);
+  StringBuffer<MAX_KEY_LENGTH> str(system_charset_info);
 
   if (key == NULL)
   {
@@ -5186,9 +5183,29 @@ void handler::print_error(int error, myf errflag)
     }
     DBUG_VOID_RETURN;
   }
-  case HA_ERR_NULL_IN_SPATIAL:
-    my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, errflag);
+  case HA_ERR_BAD_FIELD_VALUE:
+  {
+    uint key_nr= get_dup_key(error);
+    if (key_nr < MAX_KEY)
+    {
+      KEY *keyinfo= table->key_info + key_nr;
+      DBUG_ASSERT(keyinfo->usable_key_parts == 1);
+      Field *field= keyinfo->key_part->field;
+      StringBuffer<1024> buf;
+      StringBuffer<64> type;
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+      String *res= field->val_str(&buf);
+      dbug_tmp_restore_column_map(&table->read_set, old_map);
+      field->sql_type(type);
+      my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, errflag, type.c_ptr(),
+               ErrConvString(res).ptr(), table->s->db.str, table->alias.c_ptr(),
+               field->field_name.str,
+               ha_thd()->get_stmt_da()->current_row_for_warning());
+    }
+    else // temporary backward compatibility fallback
+      my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, errflag);
     DBUG_VOID_RETURN;
+  }
   case HA_ERR_FOUND_DUPP_UNIQUE:
     textno=ER_DUP_UNIQUE;
     break;
@@ -5632,8 +5649,9 @@ uint handler::get_dup_key(int error)
   errkey= (uint)-1;
   if (error == HA_ERR_FOUND_DUPP_KEY ||
       error == HA_ERR_FOREIGN_DUPLICATE_KEY ||
-      error == HA_ERR_FOUND_DUPP_UNIQUE || error == HA_ERR_NULL_IN_SPATIAL ||
-      error == HA_ERR_DROP_INDEX_FK)
+      error == HA_ERR_FOUND_DUPP_UNIQUE ||
+      error == HA_ERR_DROP_INDEX_FK ||
+      error == HA_ERR_BAD_FIELD_VALUE)
     info(HA_STATUS_ERRKEY | HA_STATUS_NO_LOCK);
   DBUG_RETURN(errkey);
 }
@@ -5790,7 +5808,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
     DBUG_ASSERT(table->s->hlindexes() == 1);
     if (table->hlindex_open(i) || table->hlindex_lock(i))
       return HA_ADMIN_FAILED;
-    if ((error= table->hlindex->file->check(thd, check_opt)))
+    if ((error= table->hli->table->file->check(thd, check_opt)))
       return error;
   }
   /* Skip updating frm version if not main handler. */
@@ -6862,9 +6880,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   /* create secondary tables for high level indexes */
   if (share.hlindexes())
   {
-    /* as of now: only one vector index can be here */
+    /* as of now: only one index can be here */
     DBUG_ASSERT(share.hlindexes() == 1);
-    DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
     char index_file_name[FN_REFLEN+1], *UNINIT_VAR(index_file_name_end);
@@ -6895,7 +6912,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
         my_snprintf(index_file_name_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
       init_tmp_table_share(thd, &index_share, db, 0, table_name, file_name, 1);
       index_share.db_plugin= share.db_plugin;
-      LEX_CSTRING sql= mhnsw_hlindex_table_def(thd, ref_length);
+      LEX_CSTRING sql= share.key_info[i].hliton->table_def(thd, ref_length);
       error= !sql.length ||
         index_share.init_from_sql_statement_string(thd, 0, sql.str, sql.length);
       if (error)

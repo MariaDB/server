@@ -1,0 +1,11 @@
+--- member_of_array_index.result
++++ member_of_array_index,aria.reject
+@@ -772,7 +772,7 @@
+ EXPLAIN SELECT id FROM t18 FORCE INDEX(arr_idx,cidx)
+ WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
+ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+-1	SIMPLE	t18	index_merge	cidx,arr_idx	arr_idx,cidx	19,5	NULL	#	Using sort_intersect(arr_idx,cidx); Using where
++1	SIMPLE	t18	range	cidx,arr_idx	cidx	5	NULL	#	Using index condition; Using where
+ SELECT COUNT(*) FROM t18 FORCE INDEX(arr_idx,cidx)
+ WHERE 5 MEMBER OF (tags) AND c BETWEEN 1 AND 20;
+ COUNT(*)

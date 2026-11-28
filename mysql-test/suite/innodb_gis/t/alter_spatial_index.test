@@ -740,7 +740,7 @@ insert into t1 values(NULL);
 alter table t1 add b geometry, add spatial index(b), algorithm=copy;
 
 # Add spatial index fail, since there's a NULL or invalid geo data.
---error ER_CANT_CREATE_GEOMETRY_OBJECT
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 alter table t1 add b geometry not null, add spatial index(b), algorithm=copy;
 
 alter table t1 add b geometry not null default st_geomfromtext('POINT(0 0)'),

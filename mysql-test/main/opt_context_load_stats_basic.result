@@ -238,7 +238,7 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].name');
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4269	Failed to parse saved optimizer context: "name" element not present at offset 1575.
+Warning	4269	Failed to parse saved optimizer context: "name" element not present at offset 1608.
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].ddl');
 select * from t1 where a > 10;
 a	b
@@ -249,7 +249,7 @@ set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].file_stat_record
 select * from t1 where a > 10;
 a	b
 Warnings:
-Warning	4269	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1568.
+Warning	4269	Failed to parse saved optimizer context: "file_stat_records" element not present at offset 1601.
 set @opt_context=json_remove(@saved_opt_context_1, '$.tables[0].indexes[0].index_name');
 select * from t1 where a > 10;
 a	b

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2022, MariaDB
+   Copyright (c) 2008, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9444,6 +9444,13 @@ void Field_blob::sql_type(String &res) const
 {
   const char *str;
   uint length;
+
+  if (Type_handler_json_common::is_literal_json_field(this))
+  {
+    res.set_ascii(STRING_WITH_LEN("json"));
+    return;
+  }
+
   switch (packlength) {
   default: str="tiny"; length=4; break;
   case 2:  str="";     length=0; break;
@@ -11745,8 +11752,7 @@ void Field::set_warning_truncated_wrong_value(const char *type_arg,
                       ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
                       ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                       type_arg, value, db_name, table_name, field_name.str,
-                      static_cast<ulong>(thd->get_stmt_da()->
-                      current_row_for_warning()));
+                      thd->get_stmt_da()->current_row_for_warning());
 }
 
 

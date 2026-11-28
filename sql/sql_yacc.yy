@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2023, MariaDB
+   Copyright (c) 2010, 2026, MariaDB plc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -412,10 +412,20 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   We should not introduce any further shift/reduce conflicts.
 */
 
+/*
+  %expect bumped by 1 for MEMBER_SYM: a new shift/reduce conflict
+  identical in category to the existing SOUNDS_SYM conflict in this
+  same state (both are non-reserved keywords that begin a binary
+  predicate operator: SOUNDS LIKE / MEMBER OF). Resolved by Bison's
+  default shift, which is correct here. MEMBER is kept non-reserved
+  to match MySQL 8.0.19+ semantics (MDEV-38591) — reserving it would
+  itself be a compatibility regression for users migrating schemas
+  with existing `member` columns/tables.
+*/
 %ifdef MARIADB
-%expect 72
-%else
 %expect 73
+%else
+%expect 74
 %endif
 
 /*
@@ -1023,6 +1033,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MAX_STATEMENT_TIME_SYM
 %token  <kwd>  MAX_USER_CONNECTIONS_SYM
 %token  <kwd>  MEDIUM_SYM
+%token  <kwd>  MEMBER_SYM
 %token  <kwd>  MEMORY_SYM
 %token  <kwd>  MERGE_SYM                     /* SQL-2003-R */
 %token  <kwd>  MESSAGE_TEXT_SYM              /* SQL-2003-N */
@@ -1260,7 +1271,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %left   '=' EQUAL_SYM GE '>' LE '<' NE
 %nonassoc IS
 %right BETWEEN_SYM
-%left   LIKE SOUNDS_SYM REGEXP IN_SYM
+%left   LIKE SOUNDS_SYM REGEXP IN_SYM MEMBER_SYM
 %left   '|'
 %left   '&'
 %left   SHIFT_LEFT SHIFT_RIGHT
@@ -6365,14 +6376,25 @@ column_def:
           }
         ;
 
-key_def:
+multiple_or_array_key_prefix:
           key_or_index opt_if_not_exists opt_ident opt_USING_key_algorithm
           {
             Lex->option_list= NULL;
             if (unlikely(Lex->add_key(Key::MULTIPLE, &$3, $4, $2)))
               MYSQL_YYABORT;
           }
+          ;
+
+key_def:  multiple_or_array_key_prefix
           '(' key_list ')' normal_key_options { }
+          | multiple_or_array_key_prefix
+          '(' // this is not compatible with MDEV-35853
+            CAST_SYM '(' key_part_simple AS cast_type ARRAY_SYM ')'
+          ')' normal_key_options
+          {
+            Lex->last_key->columns.push_back($5, thd->mem_root);
+            Lex->last_key->type= Key::ARRAY;
+          }
         | key_or_index opt_if_not_exists ident TYPE_SYM btree_or_rtree
           {
             Lex->option_list= NULL;
@@ -7522,11 +7544,8 @@ fulltext:
         ;
 
 spatial_or_vector:
-          SPATIAL_SYM
-          {
-            $$= Key::SPATIAL;
-          }
-        | VECTOR_SYM { $$= Key::VECTOR;}
+          SPATIAL_SYM { $$= Key::SPATIAL; }
+        | VECTOR_SYM  { $$= Key::VECTOR;  }
         ;
 
 normal_key_options:
@@ -10278,6 +10297,20 @@ predicate:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | predicate MEMBER_SYM OF_SYM '(' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_member_of(thd, $1, $5);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        | predicate not MEMBER_SYM OF_SYM '(' expr ')' %prec MEMBER_SYM
+          {
+            Item_func_member_of *item=
+              new (thd->mem_root) Item_func_member_of(thd, $1, $6);
+            if (unlikely(item == NULL))
+              MYSQL_YYABORT;
+            $$= item->neg_transformer(thd);
+          }
         | predicate LIKE predicate
           {
             $$= new (thd->mem_root) Item_func_like(thd, $1, $3, escape(thd), false);
@@ -12366,6 +12399,17 @@ cast_type:
           {
             if (Lex->set_cast_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
+          }
+        | JSON_SYM
+          {
+            /*
+              JSON is not (yet) a real data type (see MDEV-38740, in
+              review) -- until it lands, CAST(... AS JSON) is just a
+              placeholder, equivalent to CAST(... AS LONGTEXT), with no
+              validation of its own.
+            */
+            $$.set(&type_handler_long_blob, Lex_length_and_dec_st(),
+                   &my_charset_utf8mb4_bin);
           }
         ;
 
@@ -17523,6 +17567,7 @@ keyword_sp_var_and_label:
         | ID_SYM
         | LAST_VALUE
         | LASTVAL_SYM
+        | MEMBER_SYM
         | MINUTE_SYM
         | MONTH_SYM
         | NEXTVAL_SYM
