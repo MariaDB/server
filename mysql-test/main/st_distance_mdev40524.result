@@ -1,0 +1,43 @@
+#
+# MDEV-40524: ST_Distance returns incorrect minimum distance 
+# between a Point and a multi-segment LineString/Polygon
+#
+# 1. Verify distance to closest segment in a 2-segment LineString (original bug report cases)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5)')) AS distance1;
+distance1
+0.4472135954999579
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6)')) AS distance2;
+distance2
+0.4472135954999579
+# 2. Adding additional segments
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6,10 10)')) AS one_more;
+one_more
+0.4472135954999579
+# 3. Pre-appending the segment (Control case)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('LINESTRING(6 6,4 6,6 5)')) AS d_prepend;
+d_prepend
+0.4472135954999579
+# 4. Polygon segment evaluation
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('POLYGON((4 6,6 5,6 6,4 6))')) AS d_polygon;
+d_polygon
+0.4472135954999579
+# 5. Multipoint control case
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5)'), ST_GeomFromText('MULTIPOINT(6 5,20 20)')) AS d_multipoint;
+d_multipoint
+1
+# 6. Reverse arguments (Validates the cur_point_edge symmetry in val_real)
+SELECT ST_Distance(ST_GeomFromText('LINESTRING(4 6,6 5,6 6)'), ST_GeomFromText('POINT(5 5)')) AS d_reverse;
+d_reverse
+0.4472135954999579
+# 7. LineString to LineString (Edge-to-edge calculation on the missed pointer)
+SELECT ST_Distance(ST_GeomFromText('LINESTRING(4 6,6 5,6 6)'), ST_GeomFromText('LINESTRING(3 5, 5 4)')) AS d_lines;
+d_lines
+1.3416407864998738
+# 8. Intersection exactly on the previously ignored segment (Distance must be 0)
+SELECT ST_Distance(ST_GeomFromText('POINT(5 5.5)'), ST_GeomFromText('LINESTRING(4 6,6 5,6 6)')) AS d_intersect;
+d_intersect
+0
+# 9. Negative coordinates (Validates sweep-line sorting behavior in quadrant III)
+SELECT ST_Distance(ST_GeomFromText('POINT(-5 -5)'), ST_GeomFromText('LINESTRING(-4 -6,-6 -5,-6 -6)')) AS d_negative;
+d_negative
+0.4472135954999579
