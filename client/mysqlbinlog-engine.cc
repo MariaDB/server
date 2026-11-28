@@ -323,7 +323,7 @@ public:
                               ulonglong offset) override;
   virtual void enable_single_file() override;
   bool is_valid() { return page_buf != nullptr; }
-  bool init_from_fd_pos(File fd, ulonglong start_position);
+  bool init_from_fd_pos(File fd, ulonglong start_position, bool warn_on_gap);
   bool get_initial_gtid_state(rpl_binlog_state_base *state);
 };
 
@@ -832,7 +832,8 @@ binlog_reader_innodb::read_binlog_data(uchar *buf, uint32_t len)
 
 
 bool
-binlog_reader_innodb::init_from_fd_pos(File fd, ulonglong start_position)
+binlog_reader_innodb::init_from_fd_pos(File fd, ulonglong start_position,
+                                     bool warn_on_gap)
 {
   chunk_rd.set_fd(fd);
   if (chunk_rd.parse_file_header())
@@ -846,6 +847,13 @@ binlog_reader_innodb::init_from_fd_pos(File fd, ulonglong start_position)
   }
   else
   {
+    if (warn_on_gap && prev_start_file_no != ~(uint64_t)0 &&
+        prev_start_file_no + 1 < start_file_no)
+      warning("Gap in engine binlog input: expected "
+              BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT " before "
+              BINLOG_NAME_BASE "%06" PRIu64 BINLOG_NAME_EXT,
+              prev_start_file_no + 1, start_file_no);
+
     if (start_position < binlog_page_size)
       start_position= binlog_page_size;
     chunk_rd.seek(chunk_rd.s.file_no, (uint64_t)start_position);
@@ -1266,7 +1274,7 @@ chunk_reader_mysqlbinlog::seek(uint64_t file_no, uint64_t offset)
 
 bool
 open_engine_binlog(handler_binlog_reader *generic_reader,
-                   ulonglong start_position, const char *filename)
+                   ulonglong start_position, const char *filename, bool warn_on_gap)
 {
   binlog_reader_innodb *reader= (binlog_reader_innodb *)generic_reader;
   if (!reader->is_valid())
@@ -1288,7 +1296,7 @@ open_engine_binlog(handler_binlog_reader *generic_reader,
   File fd= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
   if (fd < 0)
     return 1;
-  return reader->init_from_fd_pos(fd, start_position);
+  return reader->init_from_fd_pos(fd, start_position, warn_on_gap);
 }
 
 bool read_initial_gtid_state(handler_binlog_reader *generic_reader,

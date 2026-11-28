@@ -111,7 +111,6 @@ static const char *load_groups[]=
   0 };
 
 void error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 
 static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin= 0;
 static bool opt_hexdump= 0, opt_version= 0;
@@ -2479,7 +2478,7 @@ static void sql_print_error(const char *format,...)
   @param format Printf-style format string, followed by printf
   varargs.
 */
-static void warning(const char *format,...)
+void warning(const char *format,...)
 {
   va_list args;
   va_start(args, format);
@@ -4031,7 +4030,8 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   }
   if (binlog_format == INNODB_BINLOG_FORMAT)
   {
-    if (open_engine_binlog(engine_binlog_reader, start_position, logname))
+    if (open_engine_binlog(engine_binlog_reader, start_position, logname,
+                           opt_convert_engine_binlog))
       goto err;
     /* Initialize the GTID state tracker used to generate GTID_LIST_EVENT while
      converting the engine binlog to legacy binlog */
