@@ -1,0 +1,59 @@
+#
+# MDEV-40794: Dynamic Column Aggregate Name Pool Overflow
+# The named dynamic-column format stores the aggregate name-pool size
+# and every name offset in two bytes (max 65535 = MAX_TOTAL_NAME_LENGTH).
+# calc_var_sizes() accumulated total name length in size_t without
+# checking against MAX_TOTAL_NAME_LENGTH, causing 2-byte truncation/wrap
+# and a malformed blob (or Debug assertion abort).
+#
+# Control: 6 names x 10922 bytes = 65532 <= MAX_TOTAL_NAME_LENGTH (65535)
+SET @control = COLUMN_CREATE(
+CONCAT('a', REPEAT('x', 10921)), 1,
+CONCAT('b', REPEAT('x', 10921)), 2,
+CONCAT('c', REPEAT('x', 10921)), 3,
+CONCAT('d', REPEAT('x', 10921)), 4,
+CONCAT('e', REPEAT('x', 10921)), 5,
+CONCAT('f', REPEAT('x', 10921)), 6
+);
+SELECT 'control', LENGTH(@control), COLUMN_CHECK(@control);
+control	LENGTH(@control)	COLUMN_CHECK(@control)
+control	65567	1
+# Trigger create: 7 names x 10923 bytes = 76461 > MAX_TOTAL_NAME_LENGTH (65535)
+# 7th name start offset = 6 x 10923 = 65538 >= 65536, hits DBUG_ASSERT at :444
+# Before fix: Debug abort (DBUG_ASSERT) / Release: malformed blob
+# After fix: ER_DYN_COL_IMPLEMENTATION_LIMIT (1920)
+SET @trigger = COLUMN_CREATE(
+CONCAT('a', REPEAT('x', 10922)), 1,
+CONCAT('b', REPEAT('x', 10922)), 2,
+CONCAT('c', REPEAT('x', 10922)), 3,
+CONCAT('d', REPEAT('x', 10922)), 4,
+CONCAT('e', REPEAT('x', 10922)), 5,
+CONCAT('f', REPEAT('x', 10922)), 6,
+CONCAT('g', REPEAT('x', 10922)), 7
+);
+ERROR HY000: Dynamic column implementation limit reached
+SELECT @trigger;
+@trigger
+NULL
+# Trigger update: start with valid blob, add names to exceed limit
+# 7 names x 10923 = 76461 > 65535; 7th offset = 65538 >= 65536
+SET @d = COLUMN_CREATE(CONCAT('a', REPEAT('x', 10922)), 1);
+SELECT 'before_add', LENGTH(@d), COLUMN_CHECK(@d);
+before_add	LENGTH(@d)	COLUMN_CHECK(@d)
+before_add	10933	1
+SET @d = COLUMN_ADD(@d,
+CONCAT('b', REPEAT('x', 10922)), 2,
+CONCAT('c', REPEAT('x', 10922)), 3,
+CONCAT('d', REPEAT('x', 10922)), 4,
+CONCAT('e', REPEAT('x', 10922)), 5,
+CONCAT('f', REPEAT('x', 10922)), 6,
+CONCAT('g', REPEAT('x', 10922)), 7
+);
+ERROR HY000: Dynamic column implementation limit reached
+SELECT 'after_add', LENGTH(@d), COLUMN_CHECK(@d);
+after_add	LENGTH(@d)	COLUMN_CHECK(@d)
+after_add	10933	1
+# Verify control blob is still usable after failed operations
+SELECT COLUMN_CHECK(@control) AS control_still_valid;
+control_still_valid
+1
