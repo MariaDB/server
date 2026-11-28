@@ -674,10 +674,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     if (ignore ||
 	handle_duplicates == DUP_REPLACE)
       table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-    if (handle_duplicates == DUP_REPLACE &&
-        (!table->triggers ||
-         !table->triggers->has_delete_triggers()))
-        table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
+    set_replace_mode(table, handle_duplicates);
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
         !table->s->long_unique_table)
       table->file->ha_start_bulk_insert((ha_rows) 0);

@@ -649,4 +649,80 @@ XA PREPARE 'a';
 XA COMMIT 'a';
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-37708 Assertion `!trx->is_bulk_insert()' failed
+--echo #        or HA_ERR_KEY_NOT_FOUND
+--echo #
+SET foreign_key_checks=0, unique_checks=0;
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+                 UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+# Expected: one row (49,NULL) and @count=1
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+SELECT @count;
+DROP TABLE t1;
+
+# Without triggers (control)
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+                 UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+# The REPLACE state must not leak into the next statement
+CREATE TABLE t1 (a INT PRIMARY KEY)ENGINE=InnoDB;
+CREATE TABLE t2 (a INT PRIMARY KEY)ENGINE=InnoDB;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+BEGIN;
+REPLACE INTO t1 VALUES (1),(1);
+INSERT INTO t2 VALUES (1),(2),(3);
+COMMIT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT @count;
+DROP TABLE t1, t2;
+
+# REPLACE ... SELECT
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+                 UNIQUE KEY uidx(col_text(9)))ENGINE=InnoDB;
+CREATE TABLE t2 (col1 INT, col_text TEXT)ENGINE=InnoDB;
+INSERT INTO t2 VALUES (49,NULL),(49,NULL);
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+REPLACE INTO t1 SELECT * FROM t2;
+SELECT * FROM t1;
+SELECT @count;
+DROP TABLE t1, t2;
+
+# LOAD DATA ... REPLACE
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text VARCHAR(20),
+                 UNIQUE KEY uidx(col_text))ENGINE=InnoDB;
+CREATE TABLE t2 (col1 INT, col_text VARCHAR(20))ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,'a'),(1,'b');
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t.replace' FROM t2;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+--replace_result $MYSQLTEST_VARDIR VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t.replace' REPLACE INTO TABLE t1;
+SELECT * FROM t1;
+SELECT @count;
+DROP TABLE t1, t2;
+--remove_file $MYSQLTEST_VARDIR/tmp/t.replace
+
+# Partitioned table
+CREATE TABLE t1 (col1 INT PRIMARY KEY, col_text TEXT,
+                 UNIQUE KEY uidx(col1, col_text(9)))ENGINE=InnoDB
+PARTITION BY HASH(col1) PARTITIONS 2;
+SET @count=0;
+CREATE TRIGGER mytrig AFTER DELETE ON t1 FOR EACH ROW SET @count=@count+1;
+REPLACE INTO t1 VALUES (49,NULL),(49,NULL);
+SELECT * FROM t1;
+SELECT @count;
+DROP TABLE t1;
+
 --echo # End of 10.11 tests

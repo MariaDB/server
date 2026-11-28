@@ -5912,6 +5912,12 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   thd->set_query_timer();
 
   /*
+    Locked tables mean that an earlier row event of this statement was
+    already executed. See the tables locking below.
+  */
+  const bool stmt_continues= thd->lock != NULL;
+
+  /*
     If there is no locks taken, this is the first binrow event seen
     after the table map events.  We should then lock all the tables
     used in the transaction and proceed with execution of the actual
@@ -6247,6 +6253,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 
     COPY_INFO copy_info;
     Write_record write_record;
+    /*
+      A delete or update event that continues a statement (REPLACE or
+      INSERT..ON DUPLICATE KEY UPDATE) may look for a row which an
+      earlier Write_rows event of the statement inserted.
+      Let the storage engine make such rows visible. This is skipped
+      for the first event of a statement, where nothing can be
+      pending.
+    */
+    if (stmt_continues && get_general_type_code() != WRITE_ROWS_EVENT)
+      table->file->extra(HA_EXTRA_FLUSH_BULK_INSERT);
+
     // Do event specific preparations
     error= do_before_row_operations(rgi, &copy_info, &write_record);
 

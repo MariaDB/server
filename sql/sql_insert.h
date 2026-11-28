@@ -46,6 +46,7 @@ int prepare_for_replace(TABLE *table, enum_duplicates handle_duplicates,
                         bool ignore);
 int finalize_replace(TABLE *table, enum_duplicates handle_duplicates,
                      bool ignore);
+void set_replace_mode(TABLE *table, enum_duplicates handle_duplicates);
 static inline void restore_default_record_for_insert(TABLE *t)
 {
   restore_record(t,s->default_values);
