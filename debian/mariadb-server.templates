@@ -21,12 +21,14 @@ _Description: The old data directory will be saved at new location
 
 Template: mariadb-server/nis_warning
 Type: note
-#flag:translate!:3,5
+#flag:translate!:5
 _Description: Important note for NIS/YP users
- Using MariaDB under NIS/YP requires a mysql user account to be added on
- the local system with:
+ MariaDB uses systemd-sysusers to create missing mysql user and group
+ entries on the local system.
  .
-  adduser --system --group --home /var/lib/mysql mysql
+ If you provide these entries through NIS/YP or override the local sysusers
+ configuration, make sure both 'getent passwd mysql' and 'getent group mysql'
+ return an entry before configuring MariaDB.
  .
  You should also check the permissions and ownership of the
  /var/lib/mysql directory:

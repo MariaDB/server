@@ -175,49 +175,6 @@ fi
 # to be sure
 stop_server
 
-# If we use NIS then errors should be tolerated. It's up to the
-# user to ensure that the mysql user is correctly setup.
-# Beware that there are two ypwhich one of them needs the 2>/dev/null!
-if test -n "$(command -v ypwhich 2>/dev/null)"  &&  ypwhich > /dev/null 2>&1
-then
-  set +e
-fi
-
-#
-# Now we have to ensure the following state:
-# /etc/passwd: mysql:x:100:101:MariaDB Server:/nonexistent:/bin/false
-# /etc/group:  mysql:x:101:
-#
-# Sadly there could any state be present on the system so we have to
-# modify everything carefully i.e. not doing a chown before creating
-# the user etc...
-#
-
-# creating mysql group if he isn't already there
-if ! getent group mysql >/dev/null
-then
-  # Adding system group: mysql.
-  addgroup --system mysql >/dev/null
-fi
-
-# creating mysql user if he isn't already there
-if ! getent passwd mysql >/dev/null
-then
-  # Adding system user: mysql.
-  adduser \
-    --system \
-    --disabled-login \
-    --ingroup mysql \
-    --no-create-home \
-    --home /nonexistent \
-    --gecos "MariaDB Server" \
-    --shell /bin/false \
-    mysql >/dev/null 2>&1
-fi
-
-# end of NIS tolerance zone
-set -e
-
 # if there's a symlink, let's store where it's pointing, because otherwise
 # it's going to be lost in some situations
 for dir in DATADIR LOGDIR
@@ -247,18 +204,6 @@ then
   db_stop
   exit 1
 fi
-
-# Since the home directory was created before putting the user into
-# the mysql group and moreover we cannot guarantee that the
-# permissions were correctly *before* calling this script, we fix them now.
-# In case we use NIS and no mysql user is present then this script should
-# better fail now than later..
-# The "set +e" is necessary as e.g. a ".journal" of a ext3 partition is
-# not chgrp'able (#318435).
-set +e
-PATH=/bin:/usr/bin find $mariadb_datadir/ ! -uid "$(id -u mysql)" -execdir chown -h mysql {} +
-PATH=/bin:/usr/bin find $mariadb_datadir/ -not -group mysql -execdir chgrp -h mysql {} + 2>/dev/null
-set -e
 
 db_stop
 

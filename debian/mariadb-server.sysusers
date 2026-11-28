@@ -1,0 +1,2 @@
+# Keep the historical Debian account metadata and allocate UID/GID dynamically.
+u mysql - "MariaDB Server" /nonexistent /bin/false
