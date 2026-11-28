@@ -508,6 +508,25 @@ rtr_read_mbr(
 	const byte*		data,	/*!< in: data */
 	rtr_mbr_t*		mbr);	/*!< out: data */
 
+/** Release all page pins of a non-locking R-tree search.
+@param rtr_info  R-tree search */
+void rtr_unpin_all(rtr_info_t *rtr_info);
+
+/** Check whether an R-tree page is pinned by a non-locking search.
+@param index     spatial index
+@param page_no   page number
+@param self      search to ignore (the caller's own), or nullptr
+@return whether some other search has pinned the page */
+bool rtr_page_is_pinned(dict_index_t *index, uint32_t page_no,
+                        const rtr_info_t *self);
+
+/** Copy the page pins of a page that is being split to the new page.
+@param index     spatial index
+@param page_no   page that is being split
+@param new_page_no  new page that receives part of the records */
+void rtr_pin_split(dict_index_t *index, uint32_t page_no,
+                   uint32_t new_page_no);
+
 /**************************************************************//**
 Check whether a discarding page is in anyone's search path */
 void

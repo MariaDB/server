@@ -39,6 +39,37 @@ Created 2014/01/16 Jimmy Yang
 #include "que0que.h"
 #include "gis0geo.h"
 
+/** Protect a page that was pushed to the search path from being merged
+or emptied by purge while the search may still visit it.
+A locking search acquires a LOCK_PRDT_PAGE lock that is held until the
+transaction ends. A non-locking search must not acquire any locks
+(it may be part of a non-locking read-only transaction), so it
+only pins the page until the search ends.
+@param rtr_info  R-tree search
+@param index     spatial index
+@param page_no   page number */
+static void rtr_protect_page(rtr_info_t *rtr_info, dict_index_t *index,
+                             uint32_t page_no)
+{
+  if (rtr_info->non_locking)
+  {
+    ut_ad(rtr_info->index == index);
+    /* Only rtr_page_is_pinned() and rtr_pin_split() may access the
+    pins of this search concurrently, so this mutex is hardly ever
+    contended, unlike index->rtr_track->rtr_active_mutex. */
+    mysql_mutex_lock(&rtr_info->rtr_path_mutex);
+    if (!rtr_info->pins)
+      rtr_info->pins= UT_NEW_NOKEY(rtr_pins_t());
+    rtr_info->pins->insert(page_no);
+    mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
+    return;
+  }
+
+  ut_ad(rtr_info->thr);
+  lock_place_prdt_page_lock(page_id_t(index->table->space_id, page_no),
+                            index, rtr_info->thr);
+}
+
 /** Restore the stored position of a persistent cursor bufferfixing the page */
 static
 bool
@@ -306,8 +337,16 @@ rtr_pcur_getnext_from_path(
 
 		/* If there are splits, push the splitted page.
 		Note that we have SX lock on index->lock, there
-		should not be any split/shrink happening here */
-		if (page_ssn > path_ssn) {
+		should not be any split/shrink happening here.
+
+		A page that was split after it was pushed to the path
+		always has a next page: the split linked the new page
+		right after it, and btr_discard_page() and the
+		"page" locks or pins of the search keep this so. If
+		that ever failed, do not push FIL_NULL, which would end
+		the search without visiting the rest of the path. */
+		ut_ad(page_ssn <= path_ssn || page_has_next(page));
+		if (page_ssn > path_ssn && page_has_next(page)) {
 			uint32_t next_page_no = btr_page_get_next(page);
 			rtr_non_leaf_stack_push(
 				rtr_info->path, next_page_no, path_ssn,
@@ -316,12 +355,8 @@ rtr_pcur_getnext_from_path(
 			if (!srv_read_only_mode
 			    && mode != PAGE_CUR_RTREE_INSERT
 			    && mode != PAGE_CUR_RTREE_LOCATE) {
-				ut_ad(rtr_info->thr);
-				lock_place_prdt_page_lock(
-					page_id_t(block->page.id().space(),
-						  next_page_no),
-					index,
-					rtr_info->thr);
+				rtr_protect_page(rtr_info, index,
+						 next_page_no);
 			}
 			new_split = true;
 #if defined(UNIV_GIS_DEBUG)
@@ -458,6 +493,22 @@ rtr_pcur_getnext_from_path(
 			/* Keep the parent path node, which points to
 			last node just located */
 			skip_parent = true;
+
+			if (!need_parent) {
+				/* The matching child pages were pushed
+				to the path, where the "page" locks and
+				the SSN protect them. Do not keep the
+				non-leaf page latched while the caller
+				processes a leaf record (for example,
+				waits for a clustered index latch), or a
+				thread that holds the tablespace latch
+				may wait for this page. */
+				ut_ad(block
+				      == mtr->at_savepoint(block_savepoint));
+				mtr->release_last_page();
+			}
+
+			DEBUG_SYNC_C("rtr_pcur_getnext_from_path_nonleaf");
 		} else {
 			mtr->release_last_page();
 		}
@@ -1394,6 +1445,7 @@ rtr_init_rtr_info(
 	rtr_info->path = UT_NEW_NOKEY(rtr_node_path_t());
 	rtr_info->parent_path = UT_NEW_NOKEY(rtr_node_path_t());
 	rtr_info->need_prdt_lock = need_prdt;
+	rtr_info->non_locking = false;
 	rtr_info->cursor = cursor;
 	rtr_info->index = index;
 
@@ -1441,6 +1493,12 @@ rtr_clean_rtr_info(
 		rtr_info->path = NULL;
 		initialized = true;
 	}
+
+	/* Release the page pins. Other threads only access them
+	while holding rtr_active_mutex, which we are holding (or the
+	index was already freed). */
+	UT_DELETE(rtr_info->pins);
+	rtr_info->pins = NULL;
 
 	if (rtr_info->matches) {
 		rtr_info->matches->used = false;
@@ -1544,6 +1602,70 @@ rtr_rebuild_path(
 
 }
 
+/** Release all page pins of a non-locking R-tree search.
+@param rtr_info  R-tree search */
+void rtr_unpin_all(rtr_info_t *rtr_info)
+{
+  /* Only the thread that owns rtr_info assigns rtr_info->pins, but
+  rtr_pin_split() may add elements to it concurrently. Free the set, so
+  that a cached table handle will not keep the memory of a large search
+  until the handle is closed. */
+  if (!rtr_info->pins)
+    return;
+  mysql_mutex_lock(&rtr_info->rtr_path_mutex);
+  rtr_pins_t *pins= rtr_info->pins;
+  rtr_info->pins= nullptr;
+  mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
+  UT_DELETE(pins);
+}
+
+/** Check whether an R-tree page is pinned by a non-locking search.
+@param index     spatial index
+@param page_no   page number
+@param self      search to ignore (the caller's own), or nullptr
+@return whether some other search has pinned the page */
+bool rtr_page_is_pinned(dict_index_t *index, uint32_t page_no,
+                        const rtr_info_t *self)
+{
+  ut_ad(index->is_spatial());
+  bool pinned= false;
+  rtr_info_track_t *track= index->rtr_track;
+  mysql_mutex_lock(&track->rtr_active_mutex);
+  for (rtr_info_t *rtr_info : track->rtr_active)
+  {
+    if (rtr_info == self)
+      continue;
+    mysql_mutex_lock(&rtr_info->rtr_path_mutex);
+    pinned= rtr_info->pins && rtr_info->pins->count(page_no);
+    mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
+    if (pinned)
+      break;
+  }
+  mysql_mutex_unlock(&track->rtr_active_mutex);
+  return pinned;
+}
+
+/** Copy the page pins of a page that is being split to the new page.
+@param index     spatial index
+@param page_no   page that is being split
+@param new_page_no  new page that receives part of the records */
+void rtr_pin_split(dict_index_t *index, uint32_t page_no,
+                   uint32_t new_page_no)
+{
+  ut_ad(index->is_spatial());
+  rtr_info_track_t *track= index->rtr_track;
+  mysql_mutex_lock(&track->rtr_active_mutex);
+  for (rtr_info_t *rtr_info : track->rtr_active)
+  {
+    mysql_mutex_lock(&rtr_info->rtr_path_mutex);
+    if (rtr_pins_t *pins= rtr_info->pins)
+      if (pins->count(page_no))
+        pins->insert(new_page_no);
+    mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
+  }
+  mysql_mutex_unlock(&track->rtr_active_mutex);
+}
+
 /**************************************************************//**
 Check whether a discarding page is in anyone's search path */
 void
@@ -1555,6 +1677,8 @@ rtr_check_discard_page(
 	buf_block_t*	block)	/*!< in: block of page to be discarded */
 {
 	const page_id_t id{block->page.id()};
+	const node_seq_t ssn = page_get_ssn_id(block->page.frame);
+	const uint32_t next_page_no = btr_page_get_next(block->page.frame);
 
 	mysql_mutex_lock(&index->rtr_track->rtr_active_mutex);
 
@@ -1564,11 +1688,38 @@ rtr_check_discard_page(
 		}
 
 		mysql_mutex_lock(&rtr_info->rtr_path_mutex);
-		for (const node_visit_t& node : *rtr_info->path) {
-			if (node.page_no == id.page_no()) {
-				rtr_rebuild_path(rtr_info, node.page_no);
-				break;
+		for (node_visit_t& node : *rtr_info->path) {
+			if (node.page_no != id.page_no()) {
+				continue;
 			}
+
+			if (node.seq_no < ssn && next_page_no != FIL_NULL
+			    && rtr_info->parent_path->empty()
+			    && std::none_of(rtr_info->path->begin(),
+					    rtr_info->path->end(),
+					    [next_page_no](const node_visit_t& n)
+					    { return n.page_no == next_page_no; })) {
+				/* The page was split after the search
+				pushed it to the path. The search has
+				yet to visit the pages that were created
+				by the split, starting with the next
+				page. See rtr_pcur_getnext_from_path().
+				The "page" locks of the search were
+				copied to those pages when they were
+				created.
+
+				If the next page is already in the path,
+				it is not a page that was created by the
+				split. This happens for a search that has
+				ended: it no longer protects the pages, so
+				the pages created by the split may have
+				been merged meanwhile. Remove the entry
+				instead of adding a duplicate. */
+				node.page_no = next_page_no;
+			} else {
+				rtr_rebuild_path(rtr_info, node.page_no);
+			}
+			break;
 		}
 		mysql_mutex_unlock(&rtr_info->rtr_path_mutex);
 
@@ -2200,15 +2351,12 @@ rtr_cur_search_with_match(
 					    && (rtr_info->need_page_lock
 						|| !is_loc)) {
 
-						/* Lock the page, preventing it
-						from being shrunk */
-						lock_place_prdt_page_lock(
-							page_id_t(block->page
-								  .id()
-								  .space(),
-								  page_no),
-							index,
-							rtr_info->thr);
+						/* Lock or pin the page,
+						preventing it from being
+						shrunk */
+						rtr_protect_page(rtr_info,
+								 index,
+								 page_no);
 					}
 				} else {
 					ut_ad(orig_mode

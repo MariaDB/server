@@ -1,0 +1,62 @@
+--source include/have_innodb.inc
+--source include/have_query_cache.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-26123: The query cache may start a non-locking transaction
+--echo # before ha_innobase::external_lock() is invoked.
+--echo #
+
+# With --ps-protocol, the second execution would add to Qcache_hits
+--disable_ps2_protocol
+
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq MOD 50, seq DIV 50) FROM seq_1_to_3000;
+CREATE TABLE t2(id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+
+# ST_GeomFromText() would make the query uncacheable
+let $q= SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+
+# Store the result in the query cache.
+eval $q;
+eval $q;
+SHOW STATUS LIKE "Qcache_hits";
+
+# While another transaction holds a lock on the table, InnoDB will not
+# let the query cache return the result. The cached result remains valid,
+# because the table was not modified, but the transaction of the SELECT
+# was already started by innobase_query_caching_table_check() before
+# ha_innobase::external_lock().
+connect (con1,localhost,root,,);
+BEGIN;
+SELECT id FROM t1 WHERE id=1 LOCK IN SHARE MODE;
+connection default;
+eval $q;
+eval $q;
+SHOW STATUS LIKE "Qcache_hits";
+connection con1;
+COMMIT;
+connection default;
+eval $q;
+SHOW STATUS LIKE "Qcache_hits";
+
+# A modification invalidates the cached result.
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100000, POINT(1, 1));
+connection default;
+eval $q;
+eval $q;
+connection con1;
+ROLLBACK;
+disconnect con1;
+connection default;
+eval $q;
+SHOW STATUS LIKE "Qcache_hits";
+DROP TABLE t1, t2;
+
+--enable_ps2_protocol
+
+--echo # End of 11.4 tests

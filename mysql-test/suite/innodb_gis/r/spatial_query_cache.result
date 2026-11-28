@@ -1,0 +1,64 @@
+#
+# MDEV-26123: The query cache may start a non-locking transaction
+# before ha_innobase::external_lock() is invoked.
+#
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(seq MOD 50, seq DIV 50) FROM seq_1_to_3000;
+CREATE TABLE t2(id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES(1);
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SHOW STATUS LIKE "Qcache_hits";
+Variable_name	Value
+Qcache_hits	1
+connect  con1,localhost,root,,;
+BEGIN;
+SELECT id FROM t1 WHERE id=1 LOCK IN SHARE MODE;
+id
+1
+connection default;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SHOW STATUS LIKE "Qcache_hits";
+Variable_name	Value
+Qcache_hits	3
+connection con1;
+COMMIT;
+connection default;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SHOW STATUS LIKE "Qcache_hits";
+Variable_name	Value
+Qcache_hits	4
+connection con1;
+BEGIN;
+INSERT INTO t1 VALUES(100000, POINT(1, 1));
+connection default;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+connection con1;
+ROLLBACK;
+disconnect con1;
+connection default;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE ST_Contains(p, POINT(1,1));
+COUNT(*)
+1
+SHOW STATUS LIKE "Qcache_hits";
+Variable_name	Value
+Qcache_hits	4
+DROP TABLE t1, t2;
+# End of 11.4 tests

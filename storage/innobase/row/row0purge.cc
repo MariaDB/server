@@ -940,7 +940,10 @@ found:
 
 				if (id.page_no() != index->page
 				    && page_get_n_recs(block->page.frame) < 2
-				    && !lock_test_prdt_page_lock(nullptr, id)){
+				    && (!lock_test_prdt_page_lock(nullptr, id)
+					|| rtr_page_is_pinned(
+						index, id.page_no(),
+						pcur.btr_cur.rtr_info))) {
 					/* this is the last record on page,
 					and it has a "page" lock on it,
 					which mean search is still depending

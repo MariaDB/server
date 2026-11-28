@@ -1,0 +1,57 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42351: A page that was discarded from a SPATIAL INDEX was added to the
+--echo # search path of an ended search a second time
+--echo #
+
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_2000;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+# The search ends after the first record. Its path keeps the leaf pages
+# that it did not visit, and the open table handle keeps the search
+# registered with the index.
+--disable_result_log
+SELECT id FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w) LIMIT 1;
+--enable_result_log
+
+connection default;
+# Split leaf pages in that path: the records far away from the others
+# end up on one of the two pages.
+let $i= 6;
+while ($i)
+{
+  let $x= `SELECT ELT($i, 5000, -5000, 500, 500, 5000, -3000)`;
+  let $y= `SELECT ELT($i, 5000, 500, -5000, 5000, 500, -3000)`;
+  eval INSERT INTO t1 SELECT seq + $i * 1000, POINT($x + seq/1000, $y + seq/1000)
+  FROM seq_10001_to_10400;
+  dec $i;
+}
+
+# Purge the records far away first. The pages that the splits created
+# become underfilled and are merged with btr_compress(), which keeps the
+# SSN of the page that was split. Then purge the rest, so that the
+# split pages are merged or discarded too. The ended search holds no
+# page locks, so nothing prevents this.
+DELETE FROM t1 WHERE id > 10000;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+DELETE FROM t1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
+disconnect con_r;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_10;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

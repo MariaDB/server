@@ -1,0 +1,35 @@
+#
+# MDEV-26123: A SPATIAL INDEX search keeps non-leaf pages latched while it
+# processes a leaf record, which can cause a deadlock
+#
+CREATE TABLE t1(id INT, pad1 CHAR(255) NOT NULL DEFAULT '',
+pad2 CHAR(255) NOT NULL DEFAULT '', pad3 CHAR(255) NOT NULL DEFAULT '',
+pad4 CHAR(255) NOT NULL DEFAULT '', pad5 CHAR(255) NOT NULL DEFAULT '',
+pad6 CHAR(255) NOT NULL DEFAULT '', pad7 CHAR(255) NOT NULL DEFAULT '',
+pad8 CHAR(255) NOT NULL DEFAULT '', pad9 CHAR(255) NOT NULL DEFAULT '',
+pad10 CHAR(255) NOT NULL DEFAULT '', p POINT NOT NULL,
+PRIMARY KEY(id, pad1, pad2, pad3, pad4, pad5, pad6, pad7, pad8, pad9, pad10),
+SPATIAL INDEX(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
+INSERT INTO t1(id, p) SELECT seq, POINT(seq, seq) FROM seq_1_to_3000;
+SET @w = ST_GeomFromText('POLYGON((0 0,0 4000,4000 4000,4000 0,0 0))');
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((0 0,0 4000,4000 4000,4000 0,0 0))');
+SET DEBUG_SYNC='rtr_pcur_getnext_from_path_nonleaf SIGNAL held WAIT_FOR go EXECUTE 1';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR held';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)
+3000
+SET DEBUG_SYNC='now SIGNAL go';
+connection con_r;
+COUNT(*)
+3000
+SET DEBUG_SYNC='RESET';
+disconnect con_r;
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests

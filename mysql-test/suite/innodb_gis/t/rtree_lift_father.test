@@ -1,0 +1,61 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--echo #
+--echo # MDEV-42351: A SPATIAL INDEX search misses records when btr_compress()
+--echo # frees the father page of the only leaf page
+--echo #
+
+# A wide primary key makes the leaf records large, so that the tree
+# gets three levels with fewer rows.
+CREATE TABLE t1(id INT, pad1 CHAR(255) NOT NULL DEFAULT '',
+pad2 CHAR(255) NOT NULL DEFAULT '', p POINT NOT NULL,
+PRIMARY KEY(id, pad1, pad2), SPATIAL INDEX(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
+
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 60000,60000 60000,60000 -1,-1 -1))');
+connect (con_w,localhost,root,,);
+BEGIN;
+# A: many leaf pages, uncommitted
+INSERT INTO t1(id, p) SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_30000;
+connection default;
+# B: inserted after A, far away from it, so that a leaf page split puts
+# B on a page of its own, below one of the level-1 pages of A
+INSERT INTO t1(id, p) SELECT 1000000 + seq, POINT(50000 + seq, 50000 + seq)
+FROM seq_1_to_20;
+
+connect (con_r,localhost,root,,);
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 60000,60000 60000,60000 -1,-1 -1))');
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+send SELECT COUNT(*), SUM(id > 1000000) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+
+connection con_w;
+SET DEBUG_SYNC='now WAIT_FOR paused';
+ROLLBACK;
+connection default;
+# Remove a record from the only remaining leaf page with a pessimistic
+# delete: btr_cur_compress_if_useful() -> btr_compress() ->
+# btr_lift_page_up(), which lifts up the father page and frees it.
+BEGIN;
+INSERT INTO t1(id, p) VALUES (2000000, POINT(50005, 50006));
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL resume';
+
+connection con_r;
+--echo # SUM(): the reader must find the 20 rows of B (COUNT(*) also includes
+--echo # the uncommitted rows of A that it read before the ROLLBACK)
+reap;
+SET DEBUG_SYNC='RESET';
+disconnect con_r;
+disconnect con_w;
+connection default;
+SELECT COUNT(*), SUM(id > 1000000) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+CHECK TABLE t1;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 11.4 tests

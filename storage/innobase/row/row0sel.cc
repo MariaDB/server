@@ -4811,6 +4811,11 @@ wait_table_again:
 				prebuilt->rtr_info->search_mode = mode;
 			}
 
+			/* A non-locking read must not acquire any locks,
+			not even LOCK_PRDT_PAGE. Pin the pages instead. */
+			prebuilt->rtr_info->non_locking
+				= prebuilt->select_lock_type == LOCK_NONE;
+
 			err = rtr_search_leaf(pcur, thr, search_tuple, mode,
 					      &mtr);
 		} else {

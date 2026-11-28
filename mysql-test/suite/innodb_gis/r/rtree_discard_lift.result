@@ -1,0 +1,58 @@
+#
+# MDEV-42351: A search of a SPATIAL INDEX missed records if the height of the
+# tree was reduced after a page was discarded
+#
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_300;
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+connect  con_w,localhost,root,,;
+connection con_w;
+BEGIN;
+INSERT INTO t1 SELECT seq, POINT(-3000 + seq/1000, -3000 + seq/1000)
+FROM seq_10001_to_10200;
+connection con_r;
+SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+connection con_w;
+SET DEBUG_SYNC='now WAIT_FOR paused';
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL resume';
+connection con_r;
+COUNT(*)
+300
+SET DEBUG_SYNC='RESET';
+connection con_w;
+BEGIN;
+INSERT INTO t1 SELECT seq, POINT(5000 + seq/1000, 5000 + seq/1000)
+FROM seq_10001_to_10200;
+connection con_r;
+SET DEBUG_SYNC='rtr_pcur_move_to_next_return SIGNAL paused WAIT_FOR resume';
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+connection con_w;
+SET DEBUG_SYNC='now WAIT_FOR paused';
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL resume';
+connection con_r;
+COUNT(*)
+300
+SET DEBUG_SYNC='RESET';
+disconnect con_r;
+disconnect con_w;
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+INSERT INTO t1 VALUES(20000, POINT(1, 1));
+DELETE FROM t1 WHERE id=20000;
+SET @w = ST_GeomFromText('POLYGON((-9000 -9000,-9000 9000,9000 9000,9000 -9000,-9000 -9000))');
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)
+300
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests
