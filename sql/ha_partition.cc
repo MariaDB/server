@@ -79,7 +79,8 @@
 #define PARTITION_DISABLED_TABLE_FLAGS (HA_DUPLICATE_POS | \
                                         HA_CAN_INSERT_DELAYED | \
                                         HA_READ_BEFORE_WRITE_REMOVAL |\
-                                        HA_CAN_TABLES_WITHOUT_ROLLBACK)
+                                        HA_CAN_TABLES_WITHOUT_ROLLBACK | \
+                                        HA_CAN_MULTI_KEY_READ)
 
 static const char *ha_par_ext= PAR_EXT;
 List<partition_element> partition_element_iterator::empty;
