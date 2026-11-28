@@ -16,9 +16,7 @@
 use test;
 
 # Get the thread id of this thread
-# Store it in a user variable as otherwise repeated calls to sys.ps_thread_id()
-# will keep changing performance_schema.events_statements_history
-SET @threadid = sys.ps_thread_id(NULL);
+SET @threadid = PS_CURRENT_THREAD_ID();
 
 # Create a table
 CREATE TABLE t1 (id INT PRIMARY KEY, val int) ENGINE=MEMORY;

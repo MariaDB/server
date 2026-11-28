@@ -25,3 +25,9 @@ CREATE DATABASE IF NOT EXISTS sys DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_
 ALTER DATABASE sys CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
 
 USE sys;
+
+-- Replaced by the native PS_THREAD_ID() and PS_CURRENT_THREAD_ID()
+DROP FUNCTION IF EXISTS ps_thread_id;
+-- Replaced by the native FORMAT_BYTES() and FORMAT_PICO_TIME()
+DROP FUNCTION IF EXISTS format_bytes;
+DROP FUNCTION IF EXISTS format_time;
