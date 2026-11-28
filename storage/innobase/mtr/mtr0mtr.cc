@@ -1027,7 +1027,7 @@ static lsn_t log_close(lsn_t lsn) noexcept
   return ((lsn - max_age) & ~lsn_t{1}) | lsn_t{furious};
 }
 
-inline void mtr_t::page_checksum(const buf_page_t &bpage)
+void mtr_t::page_checksum(const buf_page_t &bpage) noexcept
 {
   const byte *page= bpage.frame;
   size_t size= srv_page_size;

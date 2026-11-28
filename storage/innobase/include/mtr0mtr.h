@@ -454,7 +454,10 @@ public:
   bool has_no_log() const { return m_log.empty(); }
 
   /** Write an OPT_PAGE_CHECKSUM record. */
-  inline void page_checksum(const buf_page_t &bpage);
+  void page_checksum(const buf_page_t &bpage) noexcept;
+
+  /** Make the next log record write its page identifier. */
+  void reset_last_page() noexcept { m_last= nullptr; }
 
   /** Write request types */
   enum write_type
