@@ -214,4 +214,12 @@ connection slave;
 --remove_file $MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
 
 
+--echo #
+--echo # MDEV-40999: mariadb-dump --dump-slave --include-master-host-port --gtid missing host and port
+--echo #
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--replace_result $SLAVE_MYPORT SLAVE_MYPORT $MASTER_MYPORT MASTER_MYPORT
+--exec $MYSQL_DUMP_SLAVE --compact --dump-slave=1 --include-master-host-port --gtid test
+
 --source include/rpl_end.inc
+
