@@ -292,7 +292,9 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
       Item_type_holder *new_holder= new (thd->mem_root)
                         Item_type_holder(thd, item, holders[pos].type_handler(),
                                          &holders[pos]/*Type_all_attributes*/,
-                                         holders[pos].get_maybe_null());
+                                         holders[pos].get_maybe_null(),
+                                         holders[pos].
+                                           get_is_valid_json_static());
       sl->item_list.push_back(new_holder);
     }
     if (arena)

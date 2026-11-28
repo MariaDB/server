@@ -1,0 +1,366 @@
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # What a JSON function reads out of a stored program's variable.
+--echo #
+--echo # A variable is written by one funnel and by nothing else, and every
+--echo # assignment to one arrives there with the expression that made the
+--echo # value still in hand.  So what was put in a variable can be said at
+--echo # the moment it is put there, and a function later handed that
+--echo # variable as the document to work on can be spared finding out
+--echo # again what is in it.
+--echo #
+--echo # A variable is not typed as a document however it was declared, so
+--echo # a value out of one is still quoted into a document rather than
+--echo # spliced into it.  That is decided by the type and is left alone
+--echo # here.  The answers below are the same either way - the reading
+--echo # that is left out could only have found out what was already
+--echo # known - so this file is here to say that they stay the same.
+--echo #
+
+SET NAMES utf8mb4;
+
+--echo #
+--echo # 1. A variable assigned by a function that attests to its result,
+--echo # then read as a document.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_read()
+BEGIN
+  DECLARE v LONGTEXT DEFAULT NULL;
+  SET v= JSON_SET('{"a":1}', '$.b', 2);
+  SELECT v AS held;
+  SELECT JSON_SET(v, '$.c', 3) AS edited;
+  SELECT JSON_INSERT(v, '$.c', 3) AS inserted;
+  SELECT JSON_REPLACE(v, '$.a', 9) AS replaced;
+  SELECT JSON_REMOVE(v, '$.a') AS removed;
+  SELECT JSON_ARRAY_APPEND(JSON_SET(v, '$.arr', JSON_ARRAY(1)), '$.arr', 2)
+         AS appended;
+  SELECT JSON_MERGE_PATCH(v, '{"d":4}') AS merged;
+  SELECT JSON_EXTRACT(v, '$.a') AS extracted;
+  SELECT JSON_TYPE(v) AS what, JSON_DEPTH(v) AS deep, JSON_LENGTH(v) AS len;
+  SELECT JSON_VALID(v) AS valid, JSON_KEYS(v) AS keys_of;
+END $$
+--delimiter ;
+CALL p_read();
+DROP PROCEDURE p_read;
+
+--echo #
+--echo # 2. The same value spliced into a new document.  A variable is not
+--echo # typed as a document, so it is quoted - which is what a released
+--echo # server does with it and what it goes on doing.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_splice()
+BEGIN
+  DECLARE v LONGTEXT DEFAULT NULL;
+  DECLARE j JSON DEFAULT NULL;
+  SET v= JSON_SET('{"a":1}', '$.b', 2);
+  SET j= JSON_SET('{"a":1}', '$.b', 2);
+  SELECT JSON_ARRAY(v) AS text_var, JSON_ARRAY(j) AS json_var;
+  SELECT JSON_OBJECT('k', v) AS obj_text, JSON_OBJECT('k', j) AS obj_json;
+  SELECT JSON_VALID(JSON_ARRAY(v)) AS still_valid;
+END $$
+--delimiter ;
+CALL p_splice();
+DROP PROCEDURE p_splice;
+
+--echo #
+--echo # 3. One variable assigned from another.  The assignment reaches the
+--echo # funnel as a read of the field behind the source, so what was said
+--echo # about the value travels with it and does not have to be said
+--echo # again.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_var_to_var()
+BEGIN
+  DECLARE a LONGTEXT DEFAULT NULL;
+  DECLARE b LONGTEXT DEFAULT NULL;
+  SET a= JSON_SET('{"a":1}', '$.b', 2);
+  SET b= a;
+  SELECT JSON_SET(b, '$.c', 3) AS edited;
+  SET a= 'not a document at all';
+  SELECT JSON_SET(b, '$.d', 4) AS still_edited;
+  SELECT b AS unchanged;
+END $$
+--delimiter ;
+CALL p_var_to_var();
+DROP PROCEDURE p_var_to_var;
+
+--echo #
+--echo # 4. A variable that is both the source and the target.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_self()
+BEGIN
+  DECLARE v LONGTEXT DEFAULT NULL;
+  SET v= JSON_OBJECT('a', 1);
+  SET v= JSON_SET(v, '$.b', 2);
+  SET v= JSON_SET(v, '$.c', 3);
+  SELECT v AS built;
+  SET v= v;
+  SELECT JSON_SET(v, '$.d', 4) AS after_self_assign;
+END $$
+--delimiter ;
+CALL p_self();
+DROP PROCEDURE p_self;
+
+--echo #
+--echo # 5. Assignments that put something else there.  A literal is not
+--echo # attested by anybody, and a value the store had to change is
+--echo # not the value that was attested.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_untrusted()
+BEGIN
+  DECLARE lit LONGTEXT DEFAULT NULL;
+  DECLARE short_v VARCHAR(8) DEFAULT NULL;
+  DECLARE num INT DEFAULT NULL;
+  SET lit= '{"a":1}';
+  SELECT JSON_SET(lit, '$.b', 2) AS from_literal;
+  SELECT JSON_TYPE(lit) AS what;
+  SET num= JSON_LENGTH(JSON_SET('{"a":1}', '$.b', 2));
+  SELECT JSON_SET(CONCAT('[', num, ']'), '$[1]', 9) AS from_number;
+  BEGIN
+    DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+    SET short_v= JSON_SET('{"a":1}', '$.b', 2);
+  END;
+  SELECT short_v AS truncated;
+  SELECT JSON_VALID(short_v) AS valid_after_truncation;
+END $$
+--delimiter ;
+CALL p_untrusted();
+DROP PROCEDURE p_untrusted;
+
+--echo #
+--echo # 6. An assignment that does not happen.  What the one before it
+--echo # left standing goes with it, the bytes under it being whatever the
+--echo # store got as far as putting down.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_failed()
+BEGIN
+  DECLARE v VARCHAR(20) DEFAULT NULL;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SET v= JSON_SET('{"a":1}', '$.b', 2);
+  SELECT JSON_SET(v, '$.c', 3) AS edited;
+  SET v= JSON_SET('{"aaaaaaaaaa":1}', '$.bbbbbbbbbb', 2);
+  SELECT v AS after_failure;
+  SELECT JSON_VALID(v) AS valid_after_failure;
+END $$
+--delimiter ;
+CALL p_failed();
+DROP PROCEDURE p_failed;
+
+--echo #
+--echo # 7. Row variables.  A row is written a member at a time whichever
+--echo # form the assignment takes, each member going through the same
+--echo # funnel a plain variable goes through, so each of them is answered
+--echo # for on its own and by whatever made the value that landed in it.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_row()
+BEGIN
+  DECLARE r ROW(a LONGTEXT, b LONGTEXT);
+  SET r.a= JSON_SET('{"x":1}', '$.y', 2);
+  SET r.b= JSON_SET('[1]', '$[1]', 2);
+  SELECT JSON_SET(r.a, '$.z', 3) AS member_a;
+  SELECT JSON_ARRAY_APPEND(r.b, '$', 3) AS member_b;
+  SET r= ROW(JSON_OBJECT('p', 1), JSON_ARRAY(7, 8));
+  SELECT JSON_SET(r.a, '$.q', 2) AS whole_row_a;
+  SELECT JSON_ARRAY_APPEND(r.b, '$', 9) AS whole_row_b;
+  SET r= ROW('{"lit":1}', '[0]');
+  SELECT JSON_SET(r.a, '$.q', 2) AS literal_row_a;
+END $$
+--delimiter ;
+CALL p_row();
+DROP PROCEDURE p_row;
+
+--echo #
+--echo # 8. A row assignment that fails part of the way through.  The
+--echo # members it did not reach are still holding what the assignment
+--echo # before this one left, so their answers go; the ones it wrote keep
+--echo # theirs, having been attested on the way in.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_row_partial()
+BEGIN
+  DECLARE r ROW(a VARCHAR(20), b VARCHAR(8));
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SET r.a= JSON_SET('{"x":1}', '$.y', 2);
+  SET r.b= JSON_SET('[1]', '$[1]', 2);
+  SELECT JSON_SET(r.a, '$.z', 3) AS before_a;
+  SET r= ROW(JSON_OBJECT('p', 1), JSON_OBJECT('qqqqqqqqqq', 22222));
+  SELECT r.a AS after_a, r.b AS after_b;
+  SELECT JSON_VALID(r.a) AS valid_a, JSON_VALID(r.b) AS valid_b;
+END $$
+--delimiter ;
+CALL p_row_partial();
+DROP PROCEDURE p_row_partial;
+
+--echo #
+--echo # 9. A value that arrives from a table rather than from a function,
+--echo # by SELECT INTO and by FETCH.
+--echo #
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1}'), (2, '[1,2]');
+
+--delimiter $$
+CREATE PROCEDURE p_into()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v LONGTEXT DEFAULT NULL;
+  DECLARE c CURSOR FOR SELECT j FROM t1 ORDER BY id;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done= 1;
+  SELECT j INTO v FROM t1 WHERE id= 1;
+  SELECT JSON_SET(v, '$.b', 2) AS from_select_into;
+  SELECT JSON_EXTRACT(j, '$') INTO v FROM t1 WHERE id= 2;
+  SELECT JSON_ARRAY_APPEND(v, '$', 3) AS from_extract_into;
+  OPEN c;
+  read_loop: LOOP
+    FETCH c INTO v;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    SELECT JSON_TYPE(v) AS fetched_type, JSON_DEPTH(v) AS fetched_depth;
+  END LOOP;
+  CLOSE c;
+END $$
+--delimiter ;
+CALL p_into();
+DROP PROCEDURE p_into;
+
+--echo #
+--echo # 10. Through a stored function, whose parameter is a variable of the
+--echo # frame the call makes and whose result is not one at all.
+--echo #
+--delimiter $$
+CREATE FUNCTION f_edit(doc LONGTEXT) RETURNS LONGTEXT
+BEGIN
+  RETURN JSON_SET(doc, '$.f', 1);
+END $$
+--delimiter ;
+SELECT f_edit(JSON_OBJECT('a', 1)) AS called_with_document;
+SELECT f_edit('{"a":1}') AS called_with_literal;
+SELECT JSON_SET(f_edit(JSON_OBJECT('a', 1)), '$.g', 2) AS over_the_result;
+SELECT JSON_ARRAY(f_edit(JSON_OBJECT('a', 1))) AS spliced_result;
+SELECT f_edit(j) AS over_a_column FROM t1 ORDER BY id;
+DROP FUNCTION f_edit;
+
+--echo #
+--echo # 11. Values the declared type has to change on the way in: a
+--echo # character set that can hold every character of the document, and
+--echo # one that cannot.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_charset()
+BEGIN
+  DECLARE l1 VARCHAR(64) CHARACTER SET latin1 DEFAULT NULL;
+  DECLARE u VARCHAR(64) CHARACTER SET utf8mb4 DEFAULT NULL;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+  SET u= JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4'z');
+  SELECT JSON_SET(u, '$.c', 'y') AS utf8_var;
+  SET l1= JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4'z');
+  SELECT JSON_SET(l1, '$.c', 'y') AS latin1_var;
+  SET l1= JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4 0xC3A4);
+  SELECT HEX(l1) AS latin1_converted;
+  SET l1= JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4 0xE4B8AD);
+  SELECT HEX(l1) AS latin1_lossy;
+  SELECT JSON_VALID(l1) AS valid_after_loss;
+END $$
+--delimiter ;
+CALL p_charset();
+DROP PROCEDURE p_charset;
+
+--echo #
+--echo # 12. A declared type that changes nothing on the way in and still
+--echo # leaves something else there.  A store into the binary type keeps
+--echo # the bytes and calls them by another name, so a document written
+--echo # in a wide set arrives as bytes that read as no document at all.
+--echo # Once for a conversion written out in the assignment, and once for
+--echo # a variable already holding the wide encoding.
+--echo #
+--delimiter $$
+CREATE PROCEDURE p_binary()
+BEGIN
+  DECLARE b BLOB DEFAULT NULL;
+  DECLARE w VARCHAR(64) CHARACTER SET ucs2 DEFAULT NULL;
+  SET b= CONVERT(JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4'z')
+                 USING ucs2);
+  SELECT HEX(b) AS binary_converted, JSON_VALID(b) AS valid_converted;
+  SET w= JSON_SET(_utf8mb4'{"a":"e"}', '$.b', _utf8mb4'z');
+  SELECT JSON_VALID(w) AS valid_wide;
+  SET b= w;
+  SELECT HEX(b) AS binary_from_wide, JSON_VALID(b) AS valid_from_wide;
+END $$
+--delimiter ;
+CALL p_binary();
+DROP PROCEDURE p_binary;
+
+DROP TABLE t1;
+
+--echo #
+--echo # 13. A row variable written from a list of values rather than from
+--echo # a row.  Section 8 assigns a whole row at once; SELECT INTO and
+--echo # FETCH INTO write the members one at a time from a list and stop at
+--echo # the first that fails.  What the variable holds afterwards is a
+--echo # mixture of three things: the members before the failure carry what
+--echo # this assignment wrote, the one it stopped at is left holding
+--echo # nothing, and the ones after it still carry what the assignment
+--echo # before left.  Anything said about the last two belongs to an
+--echo # assignment that did not finish, and goes with it.
+--echo #
+--echo # A variable is never typed as a document, so a value read out of
+--echo # one is quoted into a new document rather than spliced into it, in
+--echo # both states - which is what the whole-assignment case is printed
+--echo # for.  What the answers show is that reading the mixture says the
+--echo # same things about it as reading a variable nothing went wrong
+--echo # with.
+--echo #
+SET @@sql_mode='STRICT_ALL_TABLES';
+
+--delimiter $$
+CREATE PROCEDURE p_row_into()
+BEGIN
+  DECLARE r ROW(a VARCHAR(64), b INT, c VARCHAR(64));
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+    SELECT r.a AS written_by_this_assignment,
+           r.b AS the_member_it_stopped_at,
+           r.c AS left_by_the_assignment_before,
+           JSON_VALID(r.c) AS still_a_document,
+           JSON_TYPE(r.c) AS ty,
+           JSON_ARRAY(r.c) AS quoted;
+  SELECT JSON_OBJECT('first', 1), 1, JSON_OBJECT('third', 3) INTO r;
+  SELECT r.a AS a, r.b AS b, r.c AS c,
+         JSON_TYPE(r.c) AS ty,
+         JSON_ARRAY(r.c) AS quoted_after_a_whole_assignment;
+  SELECT JSON_OBJECT('second', 2), 'not a number', JSON_OBJECT('fourth', 4)
+    INTO r;
+  SELECT 'the handler ran and the call went on' AS resumed;
+END $$
+
+CREATE PROCEDURE p_row_fetch()
+BEGIN
+  DECLARE r ROW(a VARCHAR(64), b INT, c VARCHAR(64));
+  DECLARE cur CURSOR FOR
+    SELECT JSON_OBJECT('fifth', 5) AS a, 'not a number' AS b,
+           JSON_OBJECT('sixth', 6) AS c;
+  DECLARE CONTINUE HANDLER FOR SQLEXCEPTION
+    SELECT r.a AS written_by_this_fetch,
+           r.b AS the_member_it_stopped_at,
+           r.c AS left_by_the_assignment_before,
+           JSON_VALID(r.c) AS still_a_document,
+           JSON_ARRAY(r.c) AS quoted;
+  SELECT JSON_OBJECT('first', 1), 1, JSON_OBJECT('third', 3) INTO r;
+  OPEN cur;
+  FETCH cur INTO r;
+  CLOSE cur;
+END $$
+--delimiter ;
+
+CALL p_row_into();
+CALL p_row_fetch();
+
+DROP PROCEDURE p_row_into;
+DROP PROCEDURE p_row_fetch;
+SET @@sql_mode=DEFAULT;

@@ -1,0 +1,1007 @@
+#
+# A group too long for group_concat_max_len is cut back to the last
+# whole element or pair, so what is returned is still a document.
+# Both aggregates honour the setting and both say so with a warning.
+#
+SET NAMES utf8mb4;
+CREATE TABLE t1 (g INT, a VARCHAR(20));
+INSERT INTO t1 VALUES
+(1, 'aaaa'), (1, 'bbbb'), (1, 'cccc'), (1, 'dddd'),
+(2, 'ee'), (2, 'ff');
+#
+# 1. The cut walked across every offset within an element.  The uncut
+#    group 1 is ["aaaa","bbbb","cccc","dddd"], 29 bytes.
+#
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 WHERE g = 1;
+v
+["aaaa","bbbb","cccc","dddd"]
+SET SESSION group_concat_max_len = 3;
+Warnings:
+Warning	1292	Truncated incorrect group_concat_max_len value: '3'
+SELECT 3 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+3	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 4;
+SELECT 4 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+4	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT 5 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+5	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 6;
+SELECT 6 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+6	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT 7 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+7	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 8;
+SELECT 8 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+8	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 9;
+SELECT 9 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+9	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 10;
+SELECT 10 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+10	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 11;
+SELECT 11 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+11	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 12;
+SELECT 12 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+12	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 13;
+SELECT 13 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+13	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 14;
+SELECT 14 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+14	["aaaa"]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 15;
+SELECT 15 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+15	["aaaa","bbbb"]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 16;
+SELECT 16 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+16	["aaaa","bbbb"]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 17;
+SELECT 17 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+17	["aaaa","bbbb"]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 18;
+SELECT 18 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+18	["aaaa","bbbb"]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 19;
+SELECT 19 AS cap, JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+19	["aaaa","bbbb"]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 2. The same walk for the object, which used to ignore the setting
+#    altogether.  The uncut group 1 is
+#    {"aaaa":"aaaa", "bbbb":"bbbb", "cccc":"cccc", "dddd":"dddd"}.
+#
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 1;
+v
+{"aaaa":"aaaa", "bbbb":"bbbb", "cccc":"cccc", "dddd":"dddd"}
+SET SESSION group_concat_max_len = 3;
+Warnings:
+Warning	1292	Truncated incorrect group_concat_max_len value: '3'
+SELECT 3 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+3	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 4;
+SELECT 4 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+4	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT 5 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+5	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 6;
+SELECT 6 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+6	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT 7 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+7	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 8;
+SELECT 8 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+8	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 9;
+SELECT 9 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+9	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 10;
+SELECT 10 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+10	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 11;
+SELECT 11 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+11	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 12;
+SELECT 12 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+12	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 13;
+SELECT 13 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+13	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 14;
+SELECT 14 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+14	{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 15;
+SELECT 15 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+15	{"aaaa":"aaaa"}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 16;
+SELECT 16 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+16	{"aaaa":"aaaa"}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 17;
+SELECT 17 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+17	{"aaaa":"aaaa"}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 18;
+SELECT 18 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+18	{"aaaa":"aaaa"}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 19;
+SELECT 19 AS cap, JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+cap	v	ok
+19	{"aaaa":"aaaa"}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 3. A cap smaller than the first element leaves an empty container
+#    rather than half of one.
+#
+SET SESSION group_concat_max_len = 4;
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t1 WHERE g = 1;
+v	ok
+[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SELECT JSON_OBJECTAGG(a, a) AS v,
+JSON_VALID(JSON_OBJECTAGG(a, a)) AS ok FROM t1 WHERE g = 1;
+v	ok
+{}	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 4. Elements that are not quoted strings.
+#
+CREATE TABLE t2 (n INT, j VARCHAR(20));
+INSERT INTO t2 VALUES (1111, '{"k":1}'), (2222, '{"k":2}'), (3333, '{"k":3}');
+# numbers, where the old cut left a trailing separator
+SET SESSION group_concat_max_len = 4;
+SELECT 4 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+4	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT 5 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+5	[]	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 6;
+SELECT 6 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+6	[1111]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT 7 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+7	[1111]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 8;
+SELECT 8 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+8	[1111]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 9;
+SELECT 9 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+9	[1111]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 10;
+SELECT 10 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+10	[1111]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 11;
+SELECT 11 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+11	[1111,2222]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 12;
+SELECT 12 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+12	[1111,2222]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 13;
+SELECT 13 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+13	[1111,2222]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 14;
+SELECT 14 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+14	[1111,2222]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 15;
+SELECT 15 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+15	[1111,2222]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 16;
+SELECT 16 AS cap, JSON_ARRAYAGG(n ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(n ORDER BY n)) AS ok FROM t2;
+cap	v	ok
+16	[1111,2222,3333]	1
+SET SESSION group_concat_max_len = DEFAULT;
+# documents, where the old cut landed inside an object
+SET SESSION group_concat_max_len = 12;
+SELECT JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n)) AS ok FROM t2;
+v	ok
+[{"k":1}]	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 17;
+SELECT JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n) AS v,
+JSON_VALID(JSON_ARRAYAGG(JSON_COMPACT(j) ORDER BY n)) AS ok FROM t2;
+v	ok
+[{"k":1},{"k":2}]	1
+Warnings:
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 3 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 20;
+SELECT JSON_OBJECTAGG(n, JSON_COMPACT(j)) AS v,
+JSON_VALID(JSON_OBJECTAGG(n, JSON_COMPACT(j))) AS ok FROM t2;
+v	ok
+{"1111":{"k":1}}	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t2;
+#
+# 5. A cut group and an uncut group in the same statement, and the
+#    row the warning names.
+#
+SET SESSION group_concat_max_len = 14;
+SELECT g, JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	["aaaa"]
+2	["ee","ff"]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT g, JSON_OBJECTAGG(a, a) AS v FROM t1 GROUP BY g ORDER BY g;
+g	v
+1	{}
+2	{"ee":"ee"}
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 6. DISTINCT and ORDER BY inside the array, which reach the cut by
+#    a different route.
+#
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_ARRAYAGG(DISTINCT a ORDER BY a) AS v FROM t1 WHERE g = 1;
+v
+["aaaa"]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT JSON_ARRAYAGG(a ORDER BY a DESC) AS v FROM t1 WHERE g = 1;
+v
+["dddd"]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 7. A cut result read back by another JSON function.
+#
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_EXTRACT(JSON_ARRAYAGG(a ORDER BY a), '$[0]') AS v FROM t1 WHERE g = 1;
+v
+"aaaa"
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT JSON_LENGTH(JSON_ARRAYAGG(a ORDER BY a)) AS v FROM t1 WHERE g = 1;
+v
+1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT JSON_ARRAY(JSON_ARRAYAGG(a ORDER BY a)) AS v FROM t1 WHERE g = 1;
+v
+[["aaaa"]]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SELECT JSON_LENGTH(JSON_OBJECTAGG(a, a)) AS v FROM t1 WHERE g = 1;
+v
+0
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SELECT JSON_ARRAY(JSON_OBJECTAGG(a, a)) AS v FROM t1 WHERE g = 1;
+v
+[{}]
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 8. Characters wider than a byte.  The cap counts bytes, and an
+#    element boundary is a boundary whatever the characters cost.
+#
+CREATE TABLE t3 (a VARCHAR(20)) CHARACTER SET utf8mb4;
+INSERT INTO t3 VALUES (_utf8mb4 X'C3A4C3A4'), (_utf8mb4 X'C3B6C3B6');
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_ARRAYAGG(a ORDER BY a)) AS h,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t3;
+h	ok
+5B22C3A4C3A4225D	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT HEX(JSON_ARRAYAGG(a ORDER BY a)) AS h,
+JSON_VALID(JSON_ARRAYAGG(a ORDER BY a)) AS ok FROM t3;
+h	ok
+5B5D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+Warning	1260	Row 1 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = 8;
+SELECT HEX(JSON_OBJECTAGG(a, 1)) AS h,
+JSON_VALID(JSON_OBJECTAGG(a, 1)) AS ok FROM t3;
+h	ok
+7B7D	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t3;
+#
+# 9. Nothing to cut: a group that fits raises no warning, and an
+#    empty group is unaffected.
+#
+SET SESSION group_concat_max_len = 1024;
+SELECT JSON_ARRAYAGG(a ORDER BY a) AS v FROM t1 WHERE g = 2;
+v
+["ee","ff"]
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 2;
+v
+{"ee":"ee", "ff":"ff"}
+SELECT JSON_ARRAYAGG(a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+SELECT JSON_OBJECTAGG(a, a) AS v FROM t1 WHERE g = 99;
+v
+NULL
+SET SESSION group_concat_max_len = DEFAULT;
+#
+# 10. A NULL key is not a pair of the object, so it is not the row
+#     the warning names either.
+#
+CREATE TABLE t4 (k VARCHAR(20), v INT);
+INSERT INTO t4 VALUES (NULL, 1), ('kkkk', 2), ('llll', 3), ('mmmm', 4);
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, v) AS v FROM t4;
+v
+{"kkkk":2}
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t4;
+DROP TABLE t1;
+#
+# 11. A cut group is still read to the end, but takes nothing
+#     further, so the object evaluates neither of its arguments
+#     for the rows after the cut.  Each shape below is run twice
+#     over the same rows, once under a cap that cuts and once
+#     under one that does not, and counts what the argument did.
+#
+#     The array counts the same either way: it discovers the cut
+#     when the group is asked for, by which time every row has
+#     been read, so there is no row left to skip.  The object
+#     knows while the rows are still coming, and its count falls
+#     to the rows up to the cut.
+#
+#     Nothing documents how many times an aggregate evaluates its
+#     arguments, so an argument that does something besides
+#     produce a value does that thing for the rows before the cut
+#     and not for the rows after it.
+#
+CREATE TABLE t5 (k VARCHAR(20), v VARCHAR(20));
+INSERT INTO t5 VALUES
+('kkkk', 'aaaa'), ('llll', 'bbbb'), ('mmmm', 'cccc'), ('nnnn', 'dddd');
+CREATE FUNCTION seen_once(x VARCHAR(20)) RETURNS VARCHAR(20) NO SQL
+BEGIN
+SET @calls= @calls + 1;
+RETURN x;
+END//
+# the array, which reads every row of the group already
+SET @calls= 0;
+SELECT JSON_ARRAYAGG(seen_once(v) ORDER BY v) AS v FROM t5;
+v
+["aaaa","bbbb","cccc","dddd"]
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_ARRAYAGG(seen_once(v) ORDER BY v) AS v FROM t5;
+v
+["aaaa"]
+Warnings:
+Warning	1260	Row 2 was cut by JSON_ARRAYAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+uncut_calls	cut_calls
+4	4
+# the object, on the value of the pair
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t5;
+v
+{"kkkk":"aaaa", "llll":"bbbb", "mmmm":"cccc", "nnnn":"dddd"}
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t5;
+v
+{}
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+uncut_calls	cut_calls
+4	1
+# the object, on the key.  The object also asks the key whether it
+# is NULL, and asking that of a function is running it again, so
+# the count is two a row - for the rows it reaches.
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(seen_once(k), v) AS v FROM t5;
+v
+{"kkkk":"aaaa", "llll":"bbbb", "mmmm":"cccc", "nnnn":"dddd"}
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(seen_once(k), v) AS v FROM t5;
+v
+{}
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+uncut_calls	cut_calls
+8	2
+# a row whose key is NULL makes no pair, so its value is not read
+# for it either, which is a second reason not to read one
+CREATE TABLE t6 (k VARCHAR(20), v VARCHAR(20));
+INSERT INTO t6 VALUES
+('kkkk', 'aaaa'), ('llll', 'bbbb'), (NULL, 'cccc'), ('nnnn', 'dddd');
+SET @calls= 0;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t6;
+v
+{"kkkk":"aaaa", "llll":"bbbb", "nnnn":"dddd"}
+SET @uncut= @calls;
+SET @calls= 0;
+SET SESSION group_concat_max_len = 14;
+SELECT JSON_OBJECTAGG(k, seen_once(v)) AS v FROM t6;
+v
+{}
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+SELECT @uncut AS uncut_calls, @calls AS cut_calls;
+uncut_calls	cut_calls
+3	1
+DROP TABLE t6;
+DROP FUNCTION seen_once;
+DROP TABLE t5;
+#
+# 12. The limit is on the bytes returned, and the brace that
+#     closes the object is one of them.  It goes on after the
+#     length has been tested, so the room for it has to be kept
+#     back when the test is made.
+#
+CREATE TABLE t7 (a VARCHAR(20));
+INSERT INTO t7 VALUES ('aaaa'), ('bbbb'), ('cccc');
+SET SESSION group_concat_max_len = 4;
+SELECT 4 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 4 AS within FROM t7;
+cap	v	len	within
+4	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 5;
+SELECT 5 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 5 AS within FROM t7;
+cap	v	len	within
+5	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 6;
+SELECT 6 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 6 AS within FROM t7;
+cap	v	len	within
+6	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 7;
+SELECT 7 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 7 AS within FROM t7;
+cap	v	len	within
+7	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 8;
+SELECT 8 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 8 AS within FROM t7;
+cap	v	len	within
+8	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 9;
+SELECT 9 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 9 AS within FROM t7;
+cap	v	len	within
+9	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 10;
+SELECT 10 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 10 AS within FROM t7;
+cap	v	len	within
+10	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 11;
+SELECT 11 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 11 AS within FROM t7;
+cap	v	len	within
+11	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 12;
+SELECT 12 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 12 AS within FROM t7;
+cap	v	len	within
+12	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 13;
+SELECT 13 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 13 AS within FROM t7;
+cap	v	len	within
+13	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 14;
+SELECT 14 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 14 AS within FROM t7;
+cap	v	len	within
+14	{}	2	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 15;
+SELECT 15 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 15 AS within FROM t7;
+cap	v	len	within
+15	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 16;
+SELECT 16 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 16 AS within FROM t7;
+cap	v	len	within
+16	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 17;
+SELECT 17 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 17 AS within FROM t7;
+cap	v	len	within
+17	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 18;
+SELECT 18 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 18 AS within FROM t7;
+cap	v	len	within
+18	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 19;
+SELECT 19 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 19 AS within FROM t7;
+cap	v	len	within
+19	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 20;
+SELECT 20 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 20 AS within FROM t7;
+cap	v	len	within
+20	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 21;
+SELECT 21 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 21 AS within FROM t7;
+cap	v	len	within
+21	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 22;
+SELECT 22 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 22 AS within FROM t7;
+cap	v	len	within
+22	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 23;
+SELECT 23 AS cap, JSON_OBJECTAGG(a, a) AS v,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 23 AS within FROM t7;
+cap	v	len	within
+23	{"aaaa":"aaaa"}	15	1
+Warnings:
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 2 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t7;
+# A set that writes no character in one byte: the brace costs two
+# bytes there, so two is what has to be kept back.
+CREATE TABLE t8 (a VARCHAR(20)) CHARACTER SET ucs2;
+INSERT INTO t8 VALUES ('aa'), ('bb');
+SET SESSION group_concat_max_len = 12;
+SELECT 12 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 12 AS within FROM t8;
+cap	h	len	within
+12	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 13;
+SELECT 13 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 13 AS within FROM t8;
+cap	h	len	within
+13	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 14;
+SELECT 14 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 14 AS within FROM t8;
+cap	h	len	within
+14	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 15;
+SELECT 15 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 15 AS within FROM t8;
+cap	h	len	within
+15	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 16;
+SELECT 16 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 16 AS within FROM t8;
+cap	h	len	within
+16	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 17;
+SELECT 17 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 17 AS within FROM t8;
+cap	h	len	within
+17	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 18;
+SELECT 18 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 18 AS within FROM t8;
+cap	h	len	within
+18	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 19;
+SELECT 19 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 19 AS within FROM t8;
+cap	h	len	within
+19	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 20;
+SELECT 20 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 20 AS within FROM t8;
+cap	h	len	within
+20	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = 21;
+SELECT 21 AS cap, HEX(JSON_OBJECTAGG(a, a)) AS h,
+LENGTH(JSON_OBJECTAGG(a, a)) AS len,
+LENGTH(JSON_OBJECTAGG(a, a)) <= 21 AS within FROM t8;
+cap	h	len	within
+21	007B007D	4	1
+Warnings:
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+Warning	1260	Row 1 was cut by JSON_OBJECTAGG()
+SET SESSION group_concat_max_len = DEFAULT;
+DROP TABLE t8;

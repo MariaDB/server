@@ -1,0 +1,11 @@
+--- charset_conv_pushdown.result	2026-08-15 16:02:58.308945369 -0400
++++ charset_conv_pushdown.reject	2026-08-15 16:03:11.788881446 -0400
+@@ -43,7 +43,7 @@
+ SELECT argument FROM mysql.general_log
+ WHERE command_type != 'Execute' AND argument LIKE 'select %';
+ argument
+-select `pkey`,`txt` from `auto_test_remote`.`tbl_a` where ((convert(`txt` using latin1)) = 'beta')
++select t0.`pkey` `pkey`,t0.`txt` `txt` from `auto_test_remote`.`tbl_a` t0 where ((convert(t0.`txt` using latin1)) = 'beta')
+ SELECT argument FROM mysql.general_log
+ WHERE command_type != 'Execute' AND argument LIKE 'select %'
+ 

@@ -1,0 +1,135 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # What a reference passes when a document is asked of it.
+--echo #
+--echo # A name written in HAVING or in ORDER BY that repeats a select
+--echo # list entry does not hold a value of its own.  It is a reference,
+--echo # and it reads the entry's RESULT side - which, once a temporary
+--echo # table has been built for the grouping or the sorting, is a
+--echo # column of that table rather than the thing that made the value.
+--echo #
+--echo # The two sides can disagree, which is the whole reason they are
+--echo # asked separately: a store into the column can shorten a value or
+--echo # write it in another character set, so what the column holds may
+--echo # be a document where the producer's answer was about something
+--echo # else, or may be nothing of the sort where the producer's was.
+--echo # Every question a JSON function asks of an argument - is it a
+--echo # document, is it written the loose way, how deep does it go - is
+--echo # therefore put to the same side the value itself came from.
+--echo #
+--echo # A user variable assigned in the select list is the case where
+--echo # the answer must be no.  Reading it back performs the assignment,
+--echo # so the value cannot be asked about without being made again, and
+--echo # nothing keeps marks for a user variable in any event.
+--echo #
+
+SET NAMES utf8mb4;
+
+CREATE TABLE t1 (id INT, j VARCHAR(64) CHECK (JSON_VALID(j))) CHARSET utf8mb4;
+INSERT INTO t1 VALUES (1, '{"a":1,"b":[1,2]}'), (2, '{"a":2,"b":[3,4]}');
+
+CREATE VIEW v1 AS SELECT id AS vid, j AS vj FROM t1;
+
+--echo #
+--echo # 1. A column read through a reference
+--echo #
+--echo #    One argument is passed as a view of what is already
+--echo #    there and several are each given a copy, so both formats
+--echo #    of the read are put through a reference here.
+--echo #
+SELECT j AS a FROM t1 ORDER BY JSON_COMPACT(a);
+SELECT j AS a FROM t1 ORDER BY JSON_LOOSE(a);
+SELECT j AS a FROM t1 GROUP BY a ORDER BY JSON_EXTRACT(a, '$.a');
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_EXTRACT(a, '$.a') > 1;
+
+--echo #
+--echo # 2. The same value put inside another document
+--echo #
+--echo #    Splicing asks how the value is formatted as well as whether it
+--echo #    is a document, and it is the reference that is asked.
+--echo #
+SELECT j AS a FROM t1 ORDER BY JSON_INSERT('{}', '$.x', a);
+SELECT j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_INSERT('{}','$.x',a));
+SELECT j AS a FROM t1 GROUP BY a
+  ORDER BY JSON_ARRAY_APPEND('{"c":[1]}', '$.c', a);
+
+--echo #
+--echo # 3. A view's column read through a reference
+--echo #
+--echo #    A view column is itself a reference, and it hands the
+--echo #    question on rather than answering it.
+--echo #
+SELECT vj AS a FROM v1 ORDER BY JSON_COMPACT(a);
+SELECT vj AS a FROM v1 ORDER BY JSON_INSERT('{}', '$.x', a);
+SELECT vj AS a FROM v1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+SELECT JSON_TYPE(vj) AS ty FROM v1 GROUP BY vj;
+
+--echo #
+--echo # 4. A user variable read through a reference
+--echo #
+SELECT @v := j AS a FROM t1 ORDER BY JSON_COMPACT(a);
+SELECT @w := j AS a FROM t1 ORDER BY JSON_INSERT('{}', '$.x', a);
+SELECT @u := j AS a FROM t1 GROUP BY a HAVING JSON_VALID(JSON_COMPACT(a));
+
+--echo #
+--echo # 5. Which of them is attested, shown by the answer itself
+--echo #
+--echo #    A value attested is put inside the array it is joining;
+--echo #    one that is not is written out as a string and quoted.  No
+--echo #    query shape prints what a reference passed, so the two
+--echo #    outcomes are told apart by whether the row is there.
+--echo #
+--echo #    The column is attested, so its rows come back under
+--echo #    OBJECT and none comes back under STRING.
+--echo #
+SELECT j AS a FROM t1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+SELECT j AS a FROM t1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+
+--echo #    The user variable is not, so the rows change sides.
+SELECT @u := j AS a FROM t1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+SELECT @u := j AS a FROM t1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+
+--echo #    A view column is attested, the view passing the question
+--echo #    on to the column underneath it.
+SELECT vj AS a FROM v1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'OBJECT';
+SELECT vj AS a FROM v1 GROUP BY a
+  HAVING JSON_TYPE(JSON_EXTRACT(JSON_ARRAY(a), '$[0]')) = 'STRING';
+
+--echo #
+--echo # 6. The reading that is not done
+--echo #
+--echo #    Json_scans is the only place the saved reading shows.  The
+--echo #    query below reads a document back out of a temporary table
+--echo #    and puts it inside a new one; with the column's answer taken
+--echo #    away the same query reads that document again.
+--echo #
+# What is counted below is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
+SET optimizer_switch='derived_merge=off';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(a) FROM (SELECT JSON_SET(j,'$.c',id) AS a FROM t1) d GROUP BY a;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+
+SET SESSION debug_dbug = '+d,json_tmp_store_kept_short';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(a) FROM (SELECT JSON_SET(j,'$.c',id) AS a FROM t1) d GROUP BY a;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+SET SESSION debug_dbug = DEFAULT;
+SET optimizer_switch=DEFAULT;
+--enable_ps2_protocol
+
+DROP VIEW v1;
+DROP TABLE t1;

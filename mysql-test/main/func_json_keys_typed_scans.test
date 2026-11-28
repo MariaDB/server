@@ -1,0 +1,46 @@
+--source include/have_debug.inc
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # The reading a JSON_KEYS array saves where it is spliced, and the
+--echo # reading it does not save where the set it is written in cannot
+--echo # be attested.  Nothing but the count shows either of them.
+--echo #
+--echo # sjis decodes every ASCII byte to itself and is flagged as not
+--echo # ASCII-compatible all the same, so the array it answers is a
+--echo # perfectly good document with no mark on it, and the splice reads
+--echo # it again.  The constructor round it then reads its own answer
+--echo # once more, that flag being the only warning it has that a set
+--echo # might not write the brackets as brackets - a set that says
+--echo # nothing against itself is not read at all.  utf8mb4 stands
+--echo # beside it, over the same document, where no reading happens on
+--echo # either count.
+--echo #
+--echo # What the answers themselves look like is in
+--echo # func_json_keys_typed.
+--echo #
+
+SET NAMES utf8mb4;
+
+# What is recorded here is work done rather than an answer given, so a
+# statement run a second time to check that it repeats itself would be
+# counted twice.
+--disable_ps2_protocol
+
+CREATE TABLE ts (j TEXT) CHARACTER SET sjis;
+CREATE TABLE tu (j TEXT) CHARACTER SET utf8mb4;
+INSERT INTO ts VALUES ('{"a":1,"b":2}');
+INSERT INTO tu VALUES ('{"a":1,"b":2}');
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_KEYS(j)) FROM ts;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+FLUSH STATUS;
+--disable_result_log
+SELECT JSON_ARRAY(JSON_KEYS(j)) FROM tu;
+--enable_result_log
+SHOW STATUS LIKE 'Json_scans';
+DROP TABLE ts, tu;
+
+--enable_ps2_protocol

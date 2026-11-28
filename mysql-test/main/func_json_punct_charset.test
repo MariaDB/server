@@ -1,0 +1,79 @@
+#
+# What the JSON functions do in a character set that cannot encode the
+# punctuation a document is written with.
+#
+# swe7 puts national letters at the code points the brackets and braces
+# live at, so a container written there is a word rather than a
+# container.  A document can still be written in such a set, but only a
+# scalar one - writing a container would take the brackets it does not
+# have.  So a function handed a document in such a set was handed a
+# scalar, and a function that has to write a container to give its
+# answer cannot give one there at all.
+#
+# The answers below are the ones the server has always given.  They are
+# here because the functions that used to find this out by reading the
+# whole of their result back no longer always do, and what they hand
+# back must not change for that.
+#
+
+# A view column and a cursor's temporary table are both as wide as the
+# expression says it is, and one of the answers below is wider than that,
+# so materialising it would cut it.
+--disable_cursor_protocol
+--disable_view_protocol
+
+--echo # A scalar converts into swe7 and a container does not.
+SELECT JSON_VALID(CONVERT('1' USING swe7)) AS scalar_reads;
+SELECT HEX(CONVERT('[1,2]' USING swe7)) AS container_bytes;
+
+--echo #
+--echo # 1. Picking values out, which writes brackets when several of
+--echo #    them can match and nothing at all when only one can
+--echo #
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$', '$')) AS two_paths;
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$[*]')) AS wildcard;
+SELECT HEX(JSON_EXTRACT(CONVERT('1' USING swe7), '$')) AS one_path;
+
+--echo #
+--echo # 2. A document in that set attested is_valid, so the
+--echo #    functions below are asked their question with it and answer
+--echo #    yes to every part of it but the formatting
+--echo #
+SELECT HEX(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2)) AS is_valid;
+SELECT JSON_VALID(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2)) AS still_doc;
+
+--echo #
+--echo # 3. The six that edit a document, each given that is_valid
+--echo #    one.  The two that have to write a container to answer
+--echo #    return NULL; the other four return a scalar - the one they
+--echo #    were given, except JSON_MERGE_PATCH, which returns the patch.
+--echo #
+SELECT HEX(JSON_INSERT(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                       '$.b', 3)) AS ins;
+SELECT HEX(JSON_REMOVE(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                       '$.b')) AS rem;
+SELECT HEX(JSON_ARRAY_APPEND(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                             '$', 3)) AS app;
+SELECT HEX(JSON_ARRAY_INSERT(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                             '$[0]', 3)) AS ari;
+SELECT HEX(JSON_MERGE(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                      JSON_INSERT(CONVERT('2' USING swe7), '$.a', 2))) AS mrg;
+SELECT HEX(JSON_MERGE_PATCH(JSON_INSERT(CONVERT('1' USING swe7), '$.a', 2),
+                            JSON_INSERT(CONVERT('2' USING swe7), '$.a', 2)))
+       AS mpt;
+
+--echo #
+--echo # 4. The ones that have always asked before writing punctuation,
+--echo #    the ones that write none, and the two that write their answer
+--echo #    in utf8mb4 whatever they were given
+--echo #
+SELECT HEX(JSON_SEARCH(CONVERT('1' USING swe7), 'all', CONVERT('1' USING swe7)))
+       AS srch;
+SELECT HEX(JSON_ARRAY(CONVERT('1' USING swe7), CONVERT('2' USING swe7))) AS arr;
+SELECT HEX(JSON_OBJECT(CONVERT('a' USING swe7), CONVERT('1' USING swe7))) AS obj;
+SELECT HEX(JSON_QUERY(CONVERT('1' USING swe7), '$')) AS qry;
+SELECT HEX(JSON_NORMALIZE(CONVERT('1' USING swe7))) AS nrm;
+SELECT HEX(JSON_COMPACT(CONVERT('1' USING swe7))) AS cmp;
+
+--enable_view_protocol
+--enable_cursor_protocol

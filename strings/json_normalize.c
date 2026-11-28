@@ -930,7 +930,17 @@ json_normalize_end:
   {
     /* resulting error offset is mapped to original string */
     if (je->s.error)
+    {
       je->s.c_str= (const uchar *) (s + (ptrdiff_t)(je->s.c_str - (const uchar *) s_utf8));
+      /*
+        And the reading taken where the refusal happened, which is the
+        one reported.  The converted copy is freed on the next line, so
+        a position left pointing into it is not merely in the wrong
+        string but in no string at all.
+      */
+      je->s.error_pos= (const uchar *)
+        (s + (ptrdiff_t)(je->s.error_pos - (const uchar *) s_utf8));
+    }
     my_free(s_utf8);
   }
   return err;

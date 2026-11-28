@@ -1,0 +1,719 @@
+CREATE TABLE t1 (id INT, js VARCHAR(64), v VARCHAR(64));
+INSERT INTO t1 VALUES (1, '{"A":1,"B":2}', 'X'), (2, '{"A":3,"B":4}', 'Y');
+#
+# 1. Document and value both built into the buffer offered them
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v)) AS ins FROM t1;
+ins
+{"A": 1, "B": 2, "c": "XX"}
+{"A": 3, "B": 4, "c": "YY"}
+SELECT JSON_INSERT(LOWER(js), '$.c', LOWER(v)) AS ins_low FROM t1;
+ins_low
+{"a": 1, "b": 2, "c": "x"}
+{"a": 3, "b": 4, "c": "y"}
+SELECT JSON_INSERT(REVERSE(REVERSE(js)), '$.c', UPPER(v)) AS ins_rev FROM t1;
+ins_rev
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_SET(CONCAT(js, ''), '$.A', CONCAT(v, v)) AS st FROM t1;
+st
+{"A": "XX", "B": 2}
+{"A": "YY", "B": 4}
+SELECT JSON_REPLACE(CONCAT(js, ''), '$.A', CONCAT(v, v)) AS rep FROM t1;
+rep
+{"A": "XX", "B": 2}
+{"A": "YY", "B": 4}
+SELECT JSON_REMOVE(CONCAT(js, ''), '$.A') AS rem FROM t1;
+rem
+{"B": 2}
+{"B": 4}
+SELECT JSON_ARRAY_APPEND(CONCAT('[', js, ']'), '$', CONCAT(v, v)) AS app
+FROM t1;
+app
+[{"A": 1, "B": 2}, "XX"]
+[{"A": 3, "B": 4}, "YY"]
+SELECT JSON_ARRAY_INSERT(CONCAT('[', js, ']'), '$[0]', CONCAT(v, v)) AS ari
+FROM t1;
+ari
+["XX", {"A": 1, "B": 2}]
+["YY", {"A": 3, "B": 4}]
+SELECT JSON_MERGE(CONCAT(js, ''), CONCAT('{"c":"', v, '"}')) AS mrg FROM t1;
+mrg
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_MERGE_PATCH(CONCAT(js, ''), CONCAT('{"c":"', v, '"}')) AS mpt
+FROM t1;
+mpt
+{"A": 1, "B": 2, "c": "X"}
+{"A": 3, "B": 4, "c": "Y"}
+#
+# 2. More than one path, so the document read from on the second
+#    pass is the one the first pass wrote
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v),
+'$.d', CONCAT(v, v, v)) AS two_paths FROM t1;
+two_paths
+{"A": 1, "B": 2, "c": "XX", "d": "XXX"}
+{"A": 3, "B": 4, "c": "YY", "d": "YYY"}
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c', CONCAT(v, v),
+'$.zz.deeper', CONCAT(v, v),
+'$.d', CONCAT(v, v, v)) AS three_paths FROM t1;
+three_paths
+{"A": 1, "B": 2, "c": "XX", "d": "XXX"}
+{"A": 3, "B": 4, "c": "YY", "d": "YYY"}
+SELECT JSON_MERGE(CONCAT(js, ''), CONCAT('{"c":"', v, '"}'),
+CONCAT('{"d":"', v, '"}')) AS mrg3 FROM t1;
+mrg3
+{"A": 1, "B": 2, "c": "X", "d": "X"}
+{"A": 3, "B": 4, "c": "Y", "d": "Y"}
+#
+# 3. A value that grows a great deal, so a buffer holding it has
+#    to be found somewhere else
+#
+#    These are the only cases here big enough to make a buffer
+#    move, and so the only ones that reach what this file is
+#    about.  How long the answer is cannot be what they ask:
+#    copying out of a buffer that has moved brings back the same
+#    number of bytes it would have brought back intact, so a
+#    length is exactly the measure that survives the fault.  They
+#    ask instead whether the answer still reads as a document,
+#    whether the member nobody touched came through, and what
+#    stands at both ends of the value that grew.
+#
+SELECT LENGTH(g) AS grown, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a, JSON_EXTRACT(g, '$.B') AS kept_b,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(CONCAT(js, ''), '$.c', REPEAT(v, 5000)) AS g
+FROM t1) AS x;
+grown	parses	kept_a	kept_b	value_head	value_tail
+5025	1	1	2	XXXXXXXX	XXXXXXXX
+5025	1	3	4	YYYYYYYY	YYYYYYYY
+SELECT LENGTH(g) AS mgrown, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a, JSON_EXTRACT(g, '$.B') AS kept_b,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c')), 8) AS value_tail
+FROM (SELECT JSON_MERGE(CONCAT(js, ''),
+CONCAT('{"c":"', REPEAT(v, 5000), '"}')) AS g
+FROM t1) AS x;
+mgrown	parses	kept_a	kept_b	value_head	value_tail
+5025	1	1	2	XXXXXXXX	XXXXXXXX
+5025	1	3	4	YYYYYYYY	YYYYYYYY
+#
+# 4. A user variable holding the document, written to by the
+#    expression that works out the value
+#
+SET @d= '{"a":1111111111}';
+SELECT JSON_INSERT(@d, '$.b', (@d := REPEAT('z', 30))) AS uvar;
+uvar
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+SET @d= '{"a":1111111111}';
+SELECT LENGTH(g) AS uvar_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.a') AS kept_a,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(@d, '$.b', (@d := REPEAT('z', 100000))) AS g) AS x;
+uvar_big	parses	kept_a	value_head	value_tail
+100026	1	1111111111	zzzzzzzz	zzzzzzzz
+SET @d= '[1111111111]';
+SELECT JSON_ARRAY_APPEND(@d, '$', (@d := REPEAT('z', 30))) AS uvar_app;
+uvar_app
+[1111111111, "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"]
+SET @d= '{"a":1111111111}';
+SELECT JSON_MERGE(@d, (@d := '{"b":2}')) AS uvar_mrg;
+uvar_mrg
+{"a": 1111111111, "b": 2}
+#
+# 5. A routine's own variable holding the document, with the
+#    value worked out by calling something
+#
+CREATE FUNCTION f_grow(n INT) RETURNS TEXT
+BEGIN
+RETURN REPEAT('z', n);
+END|
+CREATE PROCEDURE p_edit()
+BEGIN
+DECLARE d TEXT DEFAULT '{"a":1111111111}';
+SELECT JSON_INSERT(d, '$.b', f_grow(30)) AS sp_ins;
+SELECT LENGTH(g) AS sp_ins_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.a') AS kept_a,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.b')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(d, '$.b', f_grow(50000)) AS g) AS x;
+SELECT JSON_INSERT(CONCAT(d, ''), '$.b', f_grow(30)) AS sp_ins_concat;
+SELECT JSON_MERGE(d, CONCAT('{"b":"', f_grow(30), '"}')) AS sp_mrg;
+SELECT JSON_REMOVE(CONCAT(d, ''), '$.a') AS sp_rem;
+END|
+CALL p_edit();
+sp_ins
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_ins_big	parses	kept_a	value_head	value_tail
+50026	1	1111111111	zzzzzzzz	zzzzzzzz
+sp_ins_concat
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_mrg
+{"a": 1111111111, "b": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"}
+sp_rem
+{}
+DROP PROCEDURE p_edit;
+DROP FUNCTION f_grow;
+#
+# 6. A column read straight out of the row, which is the one
+#    producer that returns the row itself
+#
+SELECT JSON_INSERT(js, '$.c', (SELECT MAX(v) FROM t1)) AS col_sub FROM t1;
+col_sub
+{"A": 1, "B": 2, "c": "Y"}
+{"A": 3, "B": 4, "c": "Y"}
+SELECT JSON_INSERT(js, '$.c', (SELECT COUNT(*) FROM t1)) AS col_cnt FROM t1;
+col_cnt
+{"A": 1, "B": 2, "c": 2}
+{"A": 3, "B": 4, "c": 2}
+#
+# 7. A value that is itself a document
+#
+#    Everything above passes a plain string, which is copied
+#    a character at a time with quotes put round it.  A value
+#    that is already a document goes in another way: its bytes
+#    are noted down where they stand, and only then is the
+#    composing written into the buffer they may have to share.
+#    That is the one place in this work where a note of where
+#    something was outlives an append, so it is the one that
+#    belongs here.
+#
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_EXTRACT(CONCAT('{"q":[1,', v, ']}'), '$.q'))
+AS typed_ins FROM t1;
+typed_ins
+{"A": 1, "B": 2, "c": null}
+{"A": 3, "B": 4, "c": null}
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 9
+Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' at position 9
+SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_OBJECT('k', CONCAT(v, v))) AS typed_built FROM t1;
+typed_built
+{"A": 1, "B": 2, "c": {"k": "XX"}}
+{"A": 3, "B": 4, "c": {"k": "YY"}}
+SELECT JSON_MERGE(CONCAT(js, ''),
+JSON_OBJECT('c', CONCAT(v, v))) AS typed_mrg FROM t1;
+typed_mrg
+{"A": 1, "B": 2, "c": "XX"}
+{"A": 3, "B": 4, "c": "YY"}
+#
+#    The same where the value is long enough to move a buffer
+#    while it is being written out.
+#
+SELECT LENGTH(g) AS typed_big, JSON_VALID(g) AS parses,
+JSON_EXTRACT(g, '$.A') AS kept_a,
+JSON_LENGTH(JSON_EXTRACT(g, '$.c')) AS value_members,
+LEFT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c[0]')), 8) AS value_head,
+RIGHT(JSON_UNQUOTE(JSON_EXTRACT(g, '$.c[1]')), 8) AS value_tail
+FROM (SELECT JSON_INSERT(CONCAT(js, ''), '$.c',
+JSON_ARRAY(REPEAT(v, 5000), REPEAT(v, 5000))) AS g
+FROM t1) AS x;
+typed_big	parses	kept_a	value_members	value_head	value_tail
+10031	1	1	2	XXXXXXXX	XXXXXXXX
+10031	1	3	2	YYYYYYYY	YYYYYYYY
+#
+#    And where the document being edited is a user variable that
+#    the value expression writes to, with the value a document.
+#
+SET @d= '{"a":1111111111}';
+SELECT JSON_INSERT(@d, '$.b',
+JSON_ARRAY((@d := REPEAT('z', 30)), 2)) AS typed_uvar;
+typed_uvar
+{"a": 1111111111, "b": ["zzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", 2]}
+DROP TABLE t1;
+#
+# 8. The document is a routine's variable, and working out
+#    another argument writes to that same variable
+#
+#    Section 5 calls something to work out the value, but nothing
+#    it calls can reach the document: a routine's own variables
+#    are its own, and what it calls cannot see them.  A package
+#    body's variables are shared by everything in the package, so
+#    there the expression working out another argument can assign
+#    to the variable the document is being read from, and storing
+#    a longer value there gives the variable a new buffer and
+#    lets go of the old one.
+#
+#    The document is worked out before any of the other
+#    arguments, so the answer each of these owes is the one built
+#    from the value the variable held then, not from the value it
+#    holds by the time the answer is put together.
+#
+#    Every argument is worked out just as late as every other, so
+#    this is not about values: a path reaches it, so does a
+#    string to search for, so does a width to indent by.  The
+#    cases below are grouped by which argument does the writing.
+#
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode='ORACLE';
+CREATE PACKAGE pkg AS
+PROCEDURE p;
+PROCEDURE p1;
+PROCEDURE p2;
+PROCEDURE p3;
+PROCEDURE p4;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+d TEXT := '{"a":{"k":"zz"},"arr":[7,8]}';
+/*
+Section 10 has a variable of its own for each of its cases, and
+writes each of them away exactly once.  Both halves of that are
+needed.  A buffer is let go only where the value being stored will
+not fit in it, so a variable that has already been written away
+once is holding a buffer big enough for the next time and every
+case after the first would reach nothing; and the rows these cases
+select show the variable, so what is written away has to be put
+back or a row would show one thing or another according to when it
+was read.  Putting it back settles nothing the cases are about -
+the buffer the document was read from has gone by then.
+*/
+e1 TEXT := '{"a":{"k":"zz"},"arr":[7,8]}';
+e2 TEXT := '{"a":{"k":"zz"},"arr":[7,8]}';
+e3 TEXT := '{"a":{"k":"zz"},"arr":[7,8]}';
+e4 TEXT := '{"a":{"k":"zz"},"arr":[7,8]}';
+/*
+The variable section 11 uses.  Its value comes from a function so
+that the value is attested - a string written out by hand is
+not - and from the function that writes it the plain way, because
+a document not formatted that way is read back rather than handed
+over and nothing is then said about how deep it is.  The value is
+deep, so that writing a shallow one over it makes the difference
+the section is about.
+*/
+g TEXT := JSON_LOOSE('{"a":{"b":{"c":[1,2]}},"arr":[9]}');
+/*
+The second JSON_UNQUOTE variable of section 9, and the character
+set on it is the whole reason it exists.  JSON_UNQUOTE passes its
+argument straight on only where the argument is already in the set
+the answer is declared to be in, and that set is utf8mb4 whatever
+the argument was; a variable left to take the set the connection
+is using is therefore converted into a buffer belonging to the
+caller instead, and no view of it goes anywhere.  Every other
+variable here is left as it comes, so that the ordinary case is
+what the rest of the file reads.
+*/
+u TEXT CHARACTER SET utf8mb4 := '{"a":{"k":"zz"},"arr":[7,8]}';
+PROCEDURE reset AS
+BEGIN
+d := '{"a":{"k":"zz"},"arr":[7,8]}';
+END;
+PROCEDURE grew AS
+BEGIN
+d := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+END;
+FUNCTION grow RETURN INT AS
+BEGIN
+grew();
+RETURN 7;
+END;
+FUNCTION grow_path RETURN TEXT AS
+BEGIN
+grew();
+RETURN '$.a';
+END;
+FUNCTION grow_scalar_path RETURN TEXT AS
+BEGIN
+grew();
+RETURN '$.arr[0]';
+END;
+FUNCTION grow_needle RETURN TEXT AS
+BEGIN
+grew();
+RETURN 'zz';
+END;
+PROCEDURE reset_u AS
+BEGIN
+u := '{"a":{"k":"zz"},"arr":[7,8]}';
+END;
+FUNCTION grow_u RETURN INT AS
+BEGIN
+u := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+RETURN 7;
+END;
+FUNCTION grow1 RETURN INT AS
+BEGIN
+e1 := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+e1 := '{"a":{"k":"zz"},"arr":[7,8]}';
+RETURN 7;
+END;
+FUNCTION grow2_path RETURN TEXT AS
+BEGIN
+e2 := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+e2 := '{"a":{"k":"zz"},"arr":[7,8]}';
+RETURN '$.a';
+END;
+FUNCTION grow3 RETURN INT AS
+BEGIN
+e3 := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+e3 := '{"a":{"k":"zz"},"arr":[7,8]}';
+RETURN 7;
+END;
+FUNCTION grow4 RETURN INT AS
+BEGIN
+e4 := '{"a":{"k":"zz"},"arr":[7,8],"pad":"' || REPEAT('z', 20000) || '"}';
+e4 := '{"a":{"k":"zz"},"arr":[7,8]}';
+RETURN 7;
+END;
+PROCEDURE reset_g AS
+BEGIN
+g := JSON_LOOSE('{"a":{"b":{"c":[1,2]}},"arr":[9]}');
+END;
+FUNCTION flat RETURN INT AS
+BEGIN
+g := JSON_LOOSE('{"z":1}');
+RETURN 7;
+END;
+FUNCTION flat_path_rem RETURN TEXT AS
+BEGIN
+g := JSON_LOOSE('{"z":1}');
+RETURN '$.a.b.c[1]';
+END;
+FUNCTION flat_path_qry RETURN TEXT AS
+BEGIN
+g := JSON_LOOSE('{"z":1}');
+RETURN '$.a';
+END;
+PROCEDURE p AS
+BEGIN
+reset(); SELECT JSON_INSERT(d, '$.b', grow()) AS pkg_ins;
+reset(); SELECT JSON_SET(d, '$.a', grow()) AS pkg_set;
+reset(); SELECT JSON_REPLACE(d, '$.a', grow()) AS pkg_rep;
+reset(); SELECT JSON_ARRAY_APPEND(d, '$.arr', grow()) AS pkg_app;
+reset(); SELECT JSON_ARRAY_INSERT(d, '$.arr[0]', grow()) AS pkg_ari;
+reset(); SELECT JSON_CONTAINS(d, CONCAT('', grow()), '$.arr') AS pkg_has;
+reset(); SELECT JSON_REMOVE(d, grow_path()) AS pkg_rem;
+reset(); SELECT JSON_EXISTS(d, grow_path()) AS pkg_exi;
+reset(); SELECT JSON_EXTRACT(d, grow_path()) AS pkg_ext;
+reset(); SELECT JSON_QUERY(d, grow_path()) AS pkg_qry;
+reset(); SELECT JSON_VALUE(d, grow_scalar_path()) AS pkg_val;
+reset(); SELECT JSON_CONTAINS_PATH(d, 'one', grow_path()) AS pkg_cpa;
+reset(); SELECT JSON_LENGTH(d, grow_path()) AS pkg_len;
+reset(); SELECT JSON_KEYS(d, grow_path()) AS pkg_key;
+reset(); SELECT JSON_MERGE(d, JSON_OBJECT('b', grow())) AS pkg_mrg;
+reset(); SELECT JSON_MERGE_PATCH(d, JSON_OBJECT('b', grow())) AS pkg_mpt;
+reset(); SELECT JSON_EQUALS(d, JSON_OBJECT('b', grow())) AS pkg_eqs;
+reset(); SELECT JSON_OVERLAPS(d, JSON_OBJECT('arr',
+JSON_ARRAY(7, grow() + 1))) AS pkg_ovl;
+reset(); SELECT JSON_SEARCH(d, 'one', grow_needle()) AS pkg_sea;
+reset(); SELECT JSON_DETAILED(d, grow()) AS pkg_det;
+END;
+PROCEDURE p1 AS
+BEGIN
+reset(); SELECT JSON_VALID(d) AS pkg1_vld, JSON_TYPE(d) AS pkg1_typ,
+JSON_DEPTH(d) AS pkg1_dep, JSON_LENGTH(d) AS pkg1_len;
+reset(); SELECT JSON_KEYS(d) AS pkg1_key;
+reset(); SELECT JSON_COMPACT(d) AS pkg1_cmp;
+reset(); SELECT JSON_LOOSE(d) AS pkg1_lse;
+reset(); SELECT JSON_DETAILED(d) AS pkg1_det;
+reset(); SELECT JSON_UNQUOTE(d) AS pkg1_unq;
+reset(); SELECT JSON_INSERT(JSON_KEYS(d), '$[2]', grow()) AS pkg1_key_kept;
+reset(); SELECT JSON_INSERT(JSON_COMPACT(d), '$.b', grow()) AS pkg1_cmp_kept;
+reset(); SELECT JSON_INSERT(JSON_LOOSE(d), '$.b', grow()) AS pkg1_lse_kept;
+reset(); SELECT JSON_INSERT(JSON_DETAILED(d), '$.b', grow()) AS pkg1_det_kept;
+reset(); SELECT JSON_INSERT(JSON_UNQUOTE(d), '$.b', grow()) AS pkg1_unq_kept;
+reset_u(); SELECT JSON_INSERT(JSON_UNQUOTE(u), '$.b', grow_u())
+AS pkg1_unq4_kept;
+END;
+PROCEDURE p2 AS
+BEGIN
+SELECT id, e1 AS a FROM t2
+ORDER BY JSON_INSERT(a, '$.b', grow1() * id) DESC;
+SELECT id, e2 AS a FROM t2
+ORDER BY JSON_REMOVE(a, grow2_path()) DESC, id;
+SELECT id, e3 AS a FROM t2
+ORDER BY JSON_INSERT(JSON_KEYS(a), '$[2]', grow3() * id) DESC;
+SELECT id, e4 AS a, COUNT(*) FROM t2 GROUP BY id, a
+ORDER BY JSON_INSERT(a, '$.b', grow4() * id) DESC;
+END;
+PROCEDURE p3 AS
+BEGIN
+reset_g(); SELECT JSON_SET(g, '$.z', flat()) AS dep_set;
+reset_g(); SELECT JSON_ARRAY_APPEND(g, '$.arr', flat()) AS dep_app;
+reset_g(); SELECT JSON_ARRAY_INSERT(g, '$.arr[0]', flat()) AS dep_ari;
+reset_g(); SELECT JSON_REMOVE(g, flat_path_rem()) AS dep_rem;
+reset_g(); SELECT JSON_QUERY(g, flat_path_qry()) AS dep_qry;
+reset_g(); SELECT JSON_MERGE(g, JSON_OBJECT('m', flat())) AS dep_mrg;
+reset_g(); SELECT JSON_MERGE_PATCH(g, JSON_OBJECT('m', flat())) AS dep_mpt;
+END;
+PROCEDURE p4 AS
+BEGIN
+reset(); SELECT jt.v AS pkg4_where FROM
+JSON_TABLE(d, '$.arr[*]' COLUMNS (v INT PATH '$')) AS jt
+WHERE grow() = 7;
+reset(); SELECT jt.v AS pkg4_list, grow() AS g FROM
+JSON_TABLE(d, '$.arr[*]' COLUMNS (v INT PATH '$')) AS jt;
+END;
+END;
+$$
+CALL pkg.p();
+pkg_ins
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg_set
+{"a": 7, "arr": [7, 8]}
+pkg_rep
+{"a": 7, "arr": [7, 8]}
+pkg_app
+{"a": {"k": "zz"}, "arr": [7, 8, 7]}
+pkg_ari
+{"a": {"k": "zz"}, "arr": [7, 7, 8]}
+pkg_has
+1
+pkg_rem
+{"arr": [7, 8]}
+pkg_exi
+1
+pkg_ext
+{"k": "zz"}
+pkg_qry
+{"k":"zz"}
+pkg_val
+7
+pkg_cpa
+1
+pkg_len
+1
+pkg_key
+["k"]
+pkg_mrg
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg_mpt
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg_eqs
+0
+pkg_ovl
+1
+pkg_sea
+"$.a.k"
+pkg_det
+{
+       "a": 
+       {
+              "k": "zz"
+       },
+       "arr": 
+       [
+              7,
+              8
+       ]
+}
+#
+# 9. The document is a routine's variable, and the call has
+#    nothing left to work out after reading it
+#
+#    A call given nothing but a document is finished with it
+#    before anything else can run, so it is answered with a
+#    view into the variable rather than with bytes of its own.
+#    The first group reads each of them that way.
+#
+#    That holds only while none of the document comes back out
+#    of the call, so the second group makes each answer the
+#    document of something that keeps it across working out an
+#    argument that writes to the variable.  JSON_UNQUOTE is
+#    among them because it passes its argument straight on when
+#    there is nothing to unquote, and is read the careful way
+#    for that reason.
+#
+#    Straight on is not what it does with every argument, and
+#    the difference decides whether there is anything to be
+#    careful about.  The answer is declared to be in one
+#    particular character set whatever went in, so an argument
+#    in some other set is converted into a buffer of the
+#    caller's own on the way out and the variable is left where
+#    it stands.  Only an argument already in that set is the one
+#    passed on, and only then is the answer a view of the
+#    variable.  So the group ends with the same case twice over,
+#    once on a variable that takes the connection's set and once
+#    on one declared in the answer's.
+#
+CALL pkg.p1();
+pkg1_vld	pkg1_typ	pkg1_dep	pkg1_len
+1	OBJECT	3	2
+pkg1_key
+["a", "arr"]
+pkg1_cmp
+{"a":{"k":"zz"},"arr":[7,8]}
+pkg1_lse
+{"a": {"k": "zz"}, "arr": [7, 8]}
+pkg1_det
+{
+    "a": 
+    {
+        "k": "zz"
+    },
+    "arr": 
+    [
+        7,
+        8
+    ]
+}
+pkg1_unq
+{"a":{"k":"zz"},"arr":[7,8]}
+pkg1_key_kept
+["a", "arr", 7]
+pkg1_cmp_kept
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg1_lse_kept
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg1_det_kept
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg1_unq_kept
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+pkg1_unq4_kept
+{"a": {"k": "zz"}, "arr": [7, 8], "b": 7}
+#
+# 10. The document is reached through a reference standing in
+#     front of the thing that holds it
+#
+#     An expression in an ORDER BY that names an entry of the
+#     select list does not get that entry.  It gets a reference,
+#     and a reference passes the value on by asking the entry for
+#     it - so which of the two ways of asking it uses is the
+#     whole of what these cases are about.
+#
+#     Asked for a plain string, a routine's variable answers with
+#     a view of itself, on the footing that whoever wanted a
+#     string may build over the buffer it was offered and must
+#     not be allowed to build over the variable.  Asked for a
+#     document it answers with bytes of the caller's own, for the
+#     reason section 8 gives.  A reference that puts the first
+#     question on behalf of a caller that asked the second lets
+#     the view out again, and section 8's hazard is back with a
+#     wrapper in front of it.
+#
+#     A value writes the variable in the first case and a path in
+#     the second, for the reason section 8 gives: an argument is
+#     an argument, and which one it is decides nothing.
+#
+#     The third asks for the document the cheap way.  A call given
+#     nothing but a document is answered with a view, section 9's
+#     subject, and a reference has to pass that formatting on as
+#     the same formatting rather than quietly making it the other
+#     one; the answer is then kept across a write to show that
+#     what came back out is nobody's view of anything.
+#
+#     The last case is the same question answered the other way.
+#     Once the rows are gathered into a temporary table the
+#     reference reads that table's column rather than the entry,
+#     and a column of a row that is being read is nobody's to
+#     free while it is being read - so there a plain string is
+#     the right thing to ask for and no copy is owed.
+#
+CREATE TABLE t2 (id INT);
+INSERT INTO t2 VALUES (1), (2);
+CALL pkg.p2();
+id	a
+1	{"a":{"k":"zz"},"arr":[7,8]}
+2	{"a":{"k":"zz"},"arr":[7,8]}
+id	a
+1	{"a":{"k":"zz"},"arr":[7,8]}
+2	{"a":{"k":"zz"},"arr":[7,8]}
+id	a
+1	{"a":{"k":"zz"},"arr":[7,8]}
+2	{"a":{"k":"zz"},"arr":[7,8]}
+id	a	COUNT(*)
+1	{"a":{"k":"zz"},"arr":[7,8]}	1
+2	{"a":{"k":"zz"},"arr":[7,8]}	1
+DROP TABLE t2;
+#
+# 11. How deep the document goes, asked after the other arguments
+#     have been worked out
+#
+#     A function that edits a document asks it three things.  Two
+#     of them - whether it reads as a document at all, and whether
+#     it is written the plain way - are asked before anything is
+#     composed, because the answers are about the document that is
+#     about to be read.  How deep it goes is the same kind of
+#     question and has to be asked at the same time.
+#
+#     Asked at the far end it is a question about whatever the
+#     variable holds by then, and by then an argument has run.  So
+#     these write a SHALLOWER document over the variable while the
+#     deeper one is being read: the answer returned is as deep
+#     as the document it was composed from, and the depth said
+#     about it would be the shallow one.
+#
+#     Too small is the one direction a depth must never be wrong
+#     in.  A caller splicing this answer into one of its own adds
+#     its own levels to what it is told, and a total that comes
+#     out under the limit on a document that is over it is how a
+#     document nothing can read back gets attested to.  A debug
+#     build reads the answer and stops.
+#
+#     This cannot be shown from any commit below the one that
+#     gives a variable's reader bytes of its own: without that,
+#     writing over the variable takes the document away as well as
+#     the depth, and what shows is section 8's fault instead.
+#
+#     A value writes the variable in the first three and a path in
+#     the next two, the path being the argument in between for
+#     JSON_REMOVE and for JSON_QUERY.
+#
+#     The last two are the pair whose answer is composed out of
+#     document arguments and nothing else, so there the variable is
+#     written by a value inside another document argument rather
+#     than by an argument of the function itself.  Merging makes
+#     the answer a level deeper than the deepest of them and
+#     patching leaves it where it was, and both take the deepest
+#     from what the arguments say rather than from a reading, so
+#     both have to have asked while the arguments were still
+#     talking about the documents that went in.
+#
+CALL pkg.p3();
+dep_set
+{"a": {"b": {"c": [1, 2]}}, "arr": [9], "z": 7}
+dep_app
+{"a": {"b": {"c": [1, 2]}}, "arr": [9, 7]}
+dep_ari
+{"a": {"b": {"c": [1, 2]}}, "arr": [7, 9]}
+dep_rem
+{"a": {"b": {"c": [1]}}, "arr": [9]}
+dep_qry
+{"b": {"c": [1, 2]}}
+dep_mrg
+{"a": {"b": {"c": [1, 2]}}, "arr": [9], "m": 7}
+dep_mpt
+{"a": {"b": {"c": [1, 2]}}, "arr": [9], "m": 7}
+#
+# 12. The document is walked a row at a time, with something
+#     else in the query writing to it between rows
+#
+#     Everything above reads a document, works an answer out of
+#     it and is finished with it inside the one call.  A table
+#     built out of a document is not: it is told where the
+#     document stands when the walk begins and reads on from
+#     there each time a row is asked for, so the note of where it
+#     stands outlives everything the query does between one row
+#     and the next.
+#
+#     What the query does between rows is work out the rest of
+#     the row - the condition deciding whether to keep it, and
+#     the entries printed for it - and either of those can write
+#     to the variable the document was read from.  So the first
+#     row is read from a document that is still there and every
+#     row after it from one that has been let go.
+#
+#     Both places are shown because they are different points in
+#     working a row out, and the array has more than one element
+#     so that there is a row left to read after the write.  The
+#     rows owed either way are the elements of the array the
+#     document held when the walk began.
+#
+CALL pkg.p4();
+pkg4_where
+7
+8
+pkg4_list	g
+7	7
+8	7
+DROP PACKAGE pkg;
+SET sql_mode= @save_sql_mode;
+#
+# The arm that copes with there being no room for the copy a
+# variable is passed as is reached only by a debug build,
+# and is in func_json_variable_copy_oom.
+#
