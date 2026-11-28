@@ -1543,10 +1543,19 @@ protected:
 class Item_sum_field :public Item
 {
 protected:
+  /* Aggregate state in the temp table that does the grouping */
   Field *field;
+  /*
+    Column holding the value of this item in a later temp table, such as
+    the one for DISTINCT.  field points into the grouping table's record
+    buffer, which holds the last group once that table has been read, so
+    HAVING, ORDER BY and duplicate removal on the later table must read
+    this column instead.
+  */
+  Field *result_field;
 public:
   Item_sum_field(THD *thd, Item_sum *item)
-    :Item(thd), field(item->result_field)
+    :Item(thd), field(item->result_field), result_field(NULL)
   {
     name= item->name;
     set_maybe_null();
@@ -1555,12 +1564,41 @@ public:
     unsigned_flag= item->unsigned_flag;
   }
   table_map used_tables() const override { return (table_map) 1L; }
+  Field *get_tmp_table_field() override { return result_field; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override
   {
-    return create_tmp_field_ex_simple(root, table, src, param);
+    Field *result;
+    /*
+      Keep every digit of a DOUBLE value.  A column with fixed decimals
+      rounds it to this item's decimals before HAVING and ORDER BY compare
+      it.  Item_sum_variance::create_tmp_field creates its column the same
+      way when the temp table does not do the grouping.
+    */
+    if (result_type() == REAL_RESULT)
+    {
+      if ((result= new (root) Field_double(max_length, maybe_null(), &name,
+                                           decimals, true)))
+        result->init(table);
+    }
+    else
+      result= create_tmp_field_ex_simple(root, table, src, param);
+    if (result && param->modify_item())
+    {
+      result_field= result;
+      src->set_item_result_field(this);
+    }
+    return result;
   }
-  void save_in_result_field(bool no_conversions) override { DBUG_ASSERT(0); }
+  void save_in_result_field(bool no_conversions) override
+  {
+    save_in_field(result_field, no_conversions);
+  }
+  void cleanup() override
+  {
+    Item::cleanup();
+    result_field= NULL;
+  }
   bool check_vcol_func_processor(void *arg) override
   {
     return mark_unsupported_function(name.str, arg, VCOL_IMPOSSIBLE);

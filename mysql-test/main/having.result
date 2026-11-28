@@ -1018,6 +1018,61 @@ DROP TABLE t1;
 DROP VIEW v1;
 SET optimizer_trace= @save_optimizer_trace;
 #
+# MDEV-40779 DISTINCT with HAVING on AVG() returns no rows when
+# the last group fails HAVING
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT DISTINCT -AVG(a) FROM t1 GROUP BY a HAVING AVG(a) < 2;
+-AVG(a)
+-1.0000
+SELECT DISTINCT -AVG(a), AVG(a) FROM t1 GROUP BY a HAVING AVG(a) < 3;
+-AVG(a)	AVG(a)
+-1.0000	1.0000
+-2.0000	2.0000
+SELECT DISTINCT -AVG(a) FROM t1 GROUP BY a ORDER BY AVG(a) DESC;
+-AVG(a)
+-3.0000
+-2.0000
+-1.0000
+DROP TABLE t1;
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(1,3),(2,2),(2,8);
+SELECT DISTINCT -STD(b) FROM t1 GROUP BY a HAVING VARIANCE(b) < 2;
+-STD(b)
+-1.0000
+SELECT DISTINCT -STD(b) FROM t1 GROUP BY a ORDER BY STD(b) DESC;
+-STD(b)
+-3.0000
+-1.0000
+DROP TABLE t1;
+# The value of a DOUBLE aggregate is not rounded to its decimals
+CREATE TABLE t1 (a INT, b INT, c DOUBLE(10,2));
+INSERT INTO t1 VALUES (1,1,0),(1,2,1),(1,3,1),(2,5,5);
+SELECT DISTINCT CONCAT('v',VAR_POP(b)) FROM t1 GROUP BY a
+HAVING VAR_POP(b) <> '0.6667';
+CONCAT('v',VAR_POP(b))
+v0.0000
+v0.6667
+SELECT DISTINCT CONCAT('v',AVG(c)) FROM t1 GROUP BY a
+HAVING AVG(c) <> '0.666667';
+CONCAT('v',AVG(c))
+v0.666667
+v5.000000
+DROP TABLE t1;
+# A BIT stored function over an aggregate, used as a HAVING alias
+CREATE TABLE t1 (c INT);
+INSERT INTO t1 VALUES (1),(1),(2),(2),(3),(3);
+CREATE FUNCTION fbit(x INT) RETURNS BIT(8) RETURN x;
+SELECT SQL_BIG_RESULT c, fbit(COUNT(*) + 63) AS d FROM t1 GROUP BY c
+HAVING d > 64;
+c	d
+1	A
+2	A
+3	A
+DROP FUNCTION fbit;
+DROP TABLE t1;
+#
 # End of 10.11 tests
 #
 #

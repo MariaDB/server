@@ -689,7 +689,7 @@ class Tmp_field_src
 {
   Field *m_field;
   Field *m_default_field;
-  Item_result_field *m_item_result_field;
+  Item *m_item_result_field;
 public:
   Tmp_field_src()
    :m_field(0),
@@ -698,10 +698,10 @@ public:
   { }
   Field *field() const { return m_field; }
   Field *default_field() const { return m_default_field; }
-  Item_result_field *item_result_field() const { return m_item_result_field; }
+  Item *item_result_field() const { return m_item_result_field; }
   void set_field(Field *field) { m_field= field; }
   void set_default_field(Field *field) { m_default_field= field; }
-  void set_item_result_field(Item_result_field *item)
+  void set_item_result_field(Item *item)
   { m_item_result_field= item; }
 };
 
