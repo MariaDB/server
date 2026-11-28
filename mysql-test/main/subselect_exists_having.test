@@ -1,0 +1,32 @@
+# MDEV-31286 having without group by in exists/in subselect returns
+# ER_BAD_FIELD_ERROR
+#
+# In an EXISTS subquery, '*' used to be replaced by a constant before
+# HAVING was resolved, so HAVING could not reference any column that
+# would normally be visible through the '*' expansion.  The top-level
+# query 'SELECT * FROM t1 HAVING a1 > 0' worked, while the same query
+# wrapped in EXISTS failed with ER_BAD_FIELD_ERROR.
+
+create table t1 (a1 int, a2 char(8));
+create table t2 (b1 int, b2 char(8));
+insert into t1 values (0, '2 - 00');
+insert into t1 values (1, '2 - 01');
+insert into t1 values (2, '2 - 02');
+insert into t2 values (1, '2 - 01');
+insert into t2 values (1, '2 - 01');
+insert into t2 values (2, '2 - 02');
+insert into t2 values (2, '2 - 02');
+insert into t2 values (3, '2 - 03');
+
+# The queries below must all succeed: '*' is expanded, so HAVING can
+# reference t1's columns, exactly as in the top-level query.
+select * from t1 having a1 > 0;
+select * from t2 where exists (select * from t1 having a1 > 0);
+select * from t2 where exists (select * from t1 having a1 = b1);
+select * from t2 where exists (select * from t1 where a1 > 0);
+select * from t2 where b2 in (select a2 from t1 group by a1 having a1 = b1);
+select * from t2 where b1 in (select a1 from t1 group by a1 having a1 = b1);
+
+drop table t1, t2;
+
+# End of tests
