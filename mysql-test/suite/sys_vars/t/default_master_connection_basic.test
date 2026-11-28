@@ -3,6 +3,8 @@
 # Implemented in the scope of MDEV-253
 # The variable is SESSION-only
 #
+# Note: This file is in Latin1 (Windows-1252) encoding per MTR convention.
+#
 
 --source include/not_embedded.inc
 
@@ -47,10 +49,15 @@ SET @@session.default_master_connection = '';
 SELECT @@session.default_master_connection;
 SET @@session.default_master_connection = '1234-5678';
 SELECT @@session.default_master_connection;
+# MDEV-40270: string with a different character set (Latin1 here)
+SET @@session.default_master_connection = 'maître';
+SELECT    @@session.default_master_connection ,
+  CHARSET(@@session.default_master_connection);
 SET @@session.default_master_connection = '@!*/"';
 SELECT @@session.default_master_connection;
 SET @@session.default_master_connection = REPEAT('a',191);
 SELECT @@session.default_master_connection;
+# bareword string
 SET @@session.default_master_connection = master2;
 SELECT @@session.default_master_connection;
 
