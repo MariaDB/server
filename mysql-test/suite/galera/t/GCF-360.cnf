@@ -1,6 +1,7 @@
+# We need a dedicated .cnf file, even if empty, in order to force this test
+# to run alone on a freshly started cluster.
 !include ../galera_4nodes.cnf
 
 [mysqld]
 wsrep_ignore_apply_errors=0
-loose-gcf-360=1
-
+wsrep_sync_wait=0
