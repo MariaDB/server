@@ -1,0 +1,14 @@
+--sleep 1
+perl;
+if ($ENV{MTR_PARALLEL_REPEAT_FAILURE})
+{
+  my $marker= "$ENV{MYSQLTEST_VARDIR}/parallel-repeat-failed";
+  if ($ENV{MTR_PARALLEL_REPEAT_FAILURE} eq 'always' || !-f $marker)
+  {
+    open(my $file, '>', $marker) or die "Cannot write failure marker: $!";
+    close($file);
+    die "MDEV-21279 intentional first-run failure\n";
+  }
+}
+EOF
+--echo parallel repeat probe
