@@ -2246,3 +2246,10 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.11 tests
 --echo #
+--echo # MDEV-39853 Prefix ranges with an ignorable U+065B character
+CREATE TABLE t1 (a VARCHAR(2),b VARCHAR(2) AS (TRIM(a)) STORED,KEY(b(1)))
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+INSERT INTO t1 (a) VALUES ('Q'),(_utf8mb4 0xD99B52);
+SELECT COUNT(*) FROM t1 FORCE INDEX(b) WHERE b>'Q';
+SELECT COUNT(*) FROM t1 FORCE INDEX(b) WHERE b>='Q';
+DROP TABLE t1;
