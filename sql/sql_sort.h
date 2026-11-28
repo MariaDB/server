@@ -431,7 +431,7 @@ The format is as follows:
 <sort_key_length> is the length of the whole key.
 Each packed value is encoded as follows:
 
-  <null_byte=0>  // This is a an SQL NULL
+  <null_byte=0>  // This is an SQL NULL
   [<null_byte=1>] <packed_value>  // this a non-NULL value
 null_byte is present if the field/item is NULLable.
 SQL NULL is encoded as just one NULL-indicator byte. The value itself is omitted.

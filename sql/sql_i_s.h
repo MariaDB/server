@@ -335,7 +335,7 @@ typedef struct st_schema_table
   int (*reset_table) ();
   /* Fill table with data */
   int (*fill_table) (THD *thd, TABLE_LIST *tables, COND *cond);
-  /* Handle fileds for old SHOW */
+  /* Handle fields for old SHOW */
   int (*old_format) (THD *thd, struct st_schema_table *schema_table);
   int (*process_table) (THD *thd, TABLE_LIST *tables, TABLE *table,
                         bool res, const LEX_CSTRING *db_name,

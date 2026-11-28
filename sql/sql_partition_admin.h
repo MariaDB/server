@@ -19,7 +19,7 @@
 #ifndef WITH_PARTITION_STORAGE_ENGINE
 
 /**
-  Stub class that returns a error if the partition storage engine is
+  Stub class that returns an error if the partition storage engine is
   not supported.
 */
 class Sql_cmd_partition_unsupported : public Sql_cmd
@@ -121,7 +121,7 @@ class Sql_cmd_alter_table_exchange_partition : public Sql_cmd_common_alter_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE EXCHANGE PARTITION statement.
+    Constructor, used to represent an ALTER TABLE EXCHANGE PARTITION statement.
   */
   Sql_cmd_alter_table_exchange_partition()
     : Sql_cmd_common_alter_table()
@@ -143,7 +143,7 @@ class Sql_cmd_alter_table_analyze_partition : public Sql_cmd_analyze_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE ANALYZE PARTITION statement.
+    Constructor, used to represent an ALTER TABLE ANALYZE PARTITION statement.
   */
   Sql_cmd_alter_table_analyze_partition()
     : Sql_cmd_analyze_table()
@@ -168,7 +168,7 @@ class Sql_cmd_alter_table_check_partition : public Sql_cmd_check_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE CHECK PARTITION statement.
+    Constructor, used to represent an ALTER TABLE CHECK PARTITION statement.
   */
   Sql_cmd_alter_table_check_partition()
     : Sql_cmd_check_table()
@@ -193,7 +193,7 @@ class Sql_cmd_alter_table_optimize_partition : public Sql_cmd_optimize_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE OPTIMIZE PARTITION statement.
+    Constructor, used to represent an ALTER TABLE OPTIMIZE PARTITION statement.
   */
   Sql_cmd_alter_table_optimize_partition()
     : Sql_cmd_optimize_table()
@@ -218,7 +218,7 @@ class Sql_cmd_alter_table_repair_partition : public Sql_cmd_repair_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE REPAIR PARTITION statement.
+    Constructor, used to represent an ALTER TABLE REPAIR PARTITION statement.
   */
   Sql_cmd_alter_table_repair_partition()
     : Sql_cmd_repair_table()
@@ -243,7 +243,7 @@ class Sql_cmd_alter_table_truncate_partition : public Sql_cmd_truncate_table
 {
 public:
   /**
-    Constructor, used to represent a ALTER TABLE TRUNCATE PARTITION statement.
+    Constructor, used to represent an ALTER TABLE TRUNCATE PARTITION statement.
   */
   Sql_cmd_alter_table_truncate_partition() = default;
 

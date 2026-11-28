@@ -820,7 +820,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
 
 
 /*
-  Function prepares and sends repliation heartbeat event.
+  Function prepares and sends replication heartbeat event.
 
   @param net                net object of THD
   @param packet             buffer to store the heartbeat instance
@@ -1707,7 +1707,7 @@ is_until_reached(binlog_send_info *info, ulong *ev_offset,
     break;
   case GTID_UNTIL_STOP_AFTER_TRANSACTION:
     if (event_type != XID_EVENT && event_type != XA_PREPARE_LOG_EVENT &&
-        (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
+        (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commit or rollback */
          !Query_log_event::peek_is_commit_rollback
          ((uchar*) info->packet->ptr() + *ev_offset,
           info->packet->length() - *ev_offset,
@@ -1942,7 +1942,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     return NULL;
   case GTID_SKIP_TRANSACTION:
     if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
-        (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
+        (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commit or rollback */
          Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
                                                   ev_offset,
                                                   len - ev_offset,
@@ -3793,7 +3793,7 @@ bool kill_zombie_dump_threads(THD *thd, uint32 slave_server_id)
 static bool get_string_parameter(char *to, const char *from, size_t length,
                                  const char *name, CHARSET_INFO *cs)
 {
-  if (from)                                     // Empty paramaters allowed
+  if (from)                                     // Empty parameters allowed
   {
     size_t from_length= strlen(from);
     size_t from_numchars= cs->numchars(from, from + from_length);

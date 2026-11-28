@@ -32,7 +32,7 @@ typedef struct st_changed_table_list CHANGED_TABLE_LIST;
    Can't create new free memory block if unused memory in block less
    then QUERY_CACHE_MIN_ALLOCATION_UNIT.
    if QUERY_CACHE_MIN_ALLOCATION_UNIT == 0 then
-   QUERY_CACHE_MIN_ALLOCATION_UNIT choosed automatically
+   QUERY_CACHE_MIN_ALLOCATION_UNIT chosen automatically
 */
 #define QUERY_CACHE_MIN_ALLOCATION_UNIT		512
 
@@ -412,7 +412,7 @@ protected:
 
   /*
     Following function control structure_guard_mutex
-    by themself or don't need structure_guard_mutex
+    by themselves or don't need structure_guard_mutex
   */
   size_t init_cache();
   void make_disabled();

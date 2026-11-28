@@ -181,7 +181,7 @@ public:
     with element is a called anchor. In the case mutually recursive
     elements the specification of some them may be without any anchor.
     Yet at least one of them must contain an anchor.
-    All anchors of any recursivespecification are moved ahead before
+    All anchors of any recursive specification are moved ahead before
     the prepare stage.
   */  
   /* Set to true if this is a recursive element with an anchor */ 
