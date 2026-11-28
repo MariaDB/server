@@ -1,0 +1,27 @@
+--source ../include/have_duckdb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--disable_warnings
+
+--echo #
+--echo # MDEV-40831 UPDATE/DELETE on ENGINE=DuckDB with binlog_format=ROW
+--echo # reach the replica
+--echo #
+
+--connection master
+create database rpl_dml_row;
+use rpl_dml_row;
+create table t1 (id int primary key, v varchar(40)) engine=DuckDB;
+insert into t1 values (1,'a'),(2,'b'),(3,'c'),(4,'d');
+update t1 set v='x' where id=1;
+update t1 set v='y' where id<=2;
+delete from t1 where id=4;
+select * from t1 order by id;
+
+--sync_slave_with_master
+select * from rpl_dml_row.t1 order by id;
+
+--connection master
+drop database rpl_dml_row;
+--sync_slave_with_master
+--source include/rpl_end.inc

@@ -834,6 +834,29 @@ int ha_duckdb::rnd_init(bool)
   else
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
+  /*
+    UPDATE/DELETE logged in ROW format: run the whole statement in DuckDB here
+    and let rnd_next() report no rows, so the server never calls update_row()
+    or delete_row() (MDEV-40831).
+  */
+  if (duckdb_can_run_dml_in_engine(thd, table))
+  {
+    /* never run a statement twice, should the scan be restarted */
+    if (m_dml_query_id != duckdb_query_id(thd))
+    {
+      ha_rows affected, found;
+      int err= thd_sql_command(thd) == SQLCOM_UPDATE
+                   ? direct_update_rows(&affected, &found)
+                   : direct_delete_rows(&affected);
+      if (!err)
+        err= duckdb_binlog_dml(thd);
+      if (err)
+        DBUG_RETURN(err);
+      m_dml_query_id= duckdb_query_id(thd);
+    }
+    DBUG_RETURN(0);
+  }
+
   auto *ctx= get_duckdb_context(thd);
   std::string error_msg;
   if (ctx->flush_appenders(error_msg))
@@ -873,6 +896,9 @@ int ha_duckdb::rnd_next(uchar *buf)
 {
   DBUG_ENTER("ha_duckdb::rnd_next");
   THD *thd= ha_thd();
+
+  if (m_dml_query_id == duckdb_query_id(thd))
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   if (!query_result)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
