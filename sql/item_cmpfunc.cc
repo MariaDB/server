@@ -858,7 +858,10 @@ int Arg_comparator::compare_string()
     {
       if (set_null)
         owner->null_value= 0;
-      return sortcmp(res1, res2, compare_collation());
+      if (res1->ptr() && res2->ptr())
+        return sortcmp(res1, res2, compare_collation());
+      return (!res1->ptr() || res1->length() == 0)
+             ^ (!res2->ptr() || res2->length() == 0);
     }
   }
   if (set_null)
