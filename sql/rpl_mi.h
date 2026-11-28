@@ -499,4 +499,16 @@ void setup_mysql_connection_for_master(MYSQL *mysql, Master_info *mi,
                                        uint timeout);
 
 #endif /* HAVE_REPLICATION */
+
+inline const char* get_invalid_change_master_char(const LEX_CSTRING *str) {
+#ifdef HAVE_REPLICATION
+  if (memchr(str->str, '\0', str->length)) return "\\0 (null byte)";
+  if (memchr(str->str, '\n', str->length)) return "\\n (newline)";
+  if (memchr(str->str, '\r', str->length)) return "\\r (carriage return)";
+#else
+  (void)str;
+#endif
+  return nullptr;
+}
+
 #endif /* RPL_MI_H */
