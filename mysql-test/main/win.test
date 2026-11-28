@@ -3109,5 +3109,26 @@ from t1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-41517: IN subquery containing a window function returns empty set
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+
+SELECT GROUP_CONCAT(a ORDER BY a) AS c
+FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 UNION SELECT 100);
+
+SELECT (2 IN (SELECT row_number() over () FROM t1 UNION SELECT 100)) AS two_in_set;
+
+--echo # Compound HAVING test: user condition combined with window function
+SELECT GROUP_CONCAT(a ORDER BY a) AS c
+FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 GROUP BY a HAVING a > 1 UNION SELECT 100);
+
+EXPLAIN FORMAT=JSON
+SELECT a FROM t1 WHERE a IN (SELECT row_number() over () FROM t1 UNION SELECT 100);
+
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.11 tests
 --echo #
