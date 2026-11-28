@@ -8792,3 +8792,4 @@ bool THD::is_cursor_execution() const
 {
   return dynamic_cast<Select_materialize*>(this->lex->result);
 }
+

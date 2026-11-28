@@ -639,6 +639,8 @@ void Wsrep_applier_service::after_apply()
 {
   DBUG_ENTER("Wsrep_applier_service::after_apply");
   wsrep_after_apply(m_thd);
+  if (m_rgi)
+    m_rgi->wsrep_clear_table_maps();
   DBUG_VOID_RETURN;
 }
 
