@@ -1,0 +1,53 @@
+# MDEV-32203 -> MDEV-39838: Test that the Slow Query Log with
+# `@@.log_slow_verbosity='warnings'` correctly ignores errors
+
+--source include/not_embedded.inc # Testing replication thread
+
+
+# Setup
+SET @save_slow_query_log= @@GLOBAL.slow_query_log;
+SET @@GLOBAL.slow_query_log= 1;
+SET @save_log_slow_verbosity= @@GLOBAL.log_slow_verbosity;
+SET @@GLOBAL.log_slow_verbosity= 'warnings';
+SET @save_log_slow_query_time= @@GLOBAL.log_slow_query_time;
+SET @@GLOBAL.log_slow_query_time= 0;
+
+SET @save_init_slave= @@GLOBAL.init_slave;
+SET GLOBAL init_slave= 'GARBAGE';
+CHANGE MASTER TO master_host= 'not important';
+
+--let SEARCH_FILE= `SELECT @@slow_query_log_file`
+--let SEARCH_PATTERN= Error 1064
+
+
+# MDEV-39838: use-of-uninitialized-value in Replication
+# SQL Thread when the first `@@init_slave` statement fails.
+START SLAVE SQL_THREAD;
+--let $slave_sql_errno= 1064
+--source include/wait_for_slave_sql_error.inc
+
+
+# TODO MDEV-41474: Errors are not warnings and so should not be logged
+SET @@SESSION.slow_query_log= @@GLOBAL.slow_query_log;
+SET @@SESSION.log_slow_verbosity= @@GLOBAL.log_slow_verbosity;
+SET @@SESSION.log_slow_query_time= @@GLOBAL.log_slow_query_time;
+
+--disable_warnings
+  # MDEV-39838: leftover warning makes the next statement log errors
+  SELECT CAST('' AS INT);
+  --error ER_PARSE_ERROR
+  GARBAGE;
+--enable_warnings
+--source include/search_pattern_in_file.inc
+
+
+# Cleanup
+SET @@SESSION.log_slow_query_time= @save_log_slow_query_time;
+SET @@SESSION.slow_query_log= @save_slow_query_log;
+SET @@SESSION.log_slow_verbosity= @save_log_slow_verbosity;
+SET @@GLOBAL.log_slow_query_time= @@SESSION.log_slow_query_time;
+SET @@GLOBAL.slow_query_log= @@SESSION.slow_query_log;
+SET @@GLOBAL.log_slow_verbosity= @@SESSION.log_slow_verbosity;
+
+RESET SLAVE ALL;
+SET GLOBAL init_slave= @save_init_slave;

@@ -1,0 +1,37 @@
+# MDEV-39838 test, but with actual Replication
+--let $rpl_skip_start_slave= 1
+--source include/master-slave.inc
+--connection slave
+
+SET @save_slow_query_log= @@GLOBAL.slow_query_log;
+SET @@GLOBAL.slow_query_log= 1;
+SET @save_log_slow_verbosity= @@GLOBAL.log_slow_verbosity;
+SET @@GLOBAL.log_slow_verbosity= 'warnings';
+SET @save_log_slow_query_time= @@GLOBAL.log_slow_query_time;
+SET @@GLOBAL.log_slow_query_time= 0;
+
+--source include/start_slave.inc
+
+
+--connection master
+  SET STATEMENT sql_log_bin=0 FOR CREATE TABLE t (a INT);
+  INSERT INTO t VALUES (0);
+  DROP TABLE t;
+--connection slave
+
+# ER_NO_SUCH_TABLE
+--let $slave_sql_errno= 1146
+--source include/wait_for_slave_sql_error.inc
+
+
+# Cleanup
+SET @@GLOBAL.log_slow_query_time= @save_log_slow_query_time;
+SET @@GLOBAL.slow_query_log= @save_slow_query_log;
+SET @@GLOBAL.log_slow_verbosity= @save_log_slow_verbosity;
+SET GLOBAL init_slave= @save_init_slave;
+
+SET @@GLOBAL.sql_slave_skip_counter= 1;
+START SLAVE SQL_THREAD;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
