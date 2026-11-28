@@ -32,9 +32,9 @@ BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
+connection slave;
 connection backup_slave;
 BACKUP STAGE END;
-connection slave;
 include/diff_tables.inc [master:t1,slave:t1]
 # MDEV-30423: dealock XA COMMIT vs BACKUP
 #
@@ -67,6 +67,7 @@ BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
+connection aux_slave;
 connection backup_slave;
 BACKUP STAGE END;
 connection slave;
@@ -102,6 +103,7 @@ BACKUP STAGE START;
 BACKUP STAGE BLOCK_COMMIT;
 connection aux_slave;
 ROLLBACK;
+connection aux_slave;
 connection backup_slave;
 BACKUP STAGE END;
 connection slave;
@@ -143,8 +145,8 @@ connection aux_slave;
 ROLLBACK;
 connection backup_slave;
 BACKUP STAGE END;
-connection slave;
 include/stop_slave.inc
+connection slave;
 SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
 SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 connection slave;
@@ -186,13 +188,108 @@ connection aux_slave;
 ROLLBACK;
 connection backup_slave;
 BACKUP STAGE END;
-connection slave;
 include/stop_slave.inc
+connection slave;
 SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
 SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 connection slave;
 include/start_slave.inc
 include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @@global.slave_parallel_threads= 3;
+include/start_slave.inc
+# Normal XA COMMIT
+connection slave;
+include/stop_slave.inc
+connection master;
+connection aux_slave;
+BEGIN;
+INSERT INTO t1 VALUES (110);
+connection master1;
+INSERT INTO t1 VALUES (110);
+include/save_master_gtid.inc
+connection master;
+XA START '1';
+INSERT INTO  t1 VALUES (109);
+XA END '1';
+XA PREPARE '1';
+connection master1;
+include/save_master_gtid.inc
+INSERT INTO t1 VALUES (110 + 1);
+connection master;
+XA COMMIT '1';
+include/save_master_gtid.inc
+connection slave;
+SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
+SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
+SET @@global.innodb_lock_wait_timeout =2;
+SET @@global.slave_transaction_retries=100;
+include/start_slave.inc
+connection aux_slave;
+# Xid '1' must be *not* yet in the output:
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+connection backup_slave;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+ROLLBACK;
+connection aux_slave;
+include/sync_with_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE END;
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection slave;
+SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
+SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
+# Normal XA ROLLBACK
+connection slave;
+include/stop_slave.inc
+connection master;
+connection aux_slave;
+BEGIN;
+INSERT INTO t1 VALUES (113);
+connection master1;
+INSERT INTO t1 VALUES (113);
+include/save_master_gtid.inc
+connection master;
+XA START '1';
+INSERT INTO  t1 VALUES (112);
+XA END '1';
+XA PREPARE '1';
+connection master1;
+include/save_master_gtid.inc
+INSERT INTO t1 VALUES (113 + 1);
+connection master;
+XA ROLLBACK '1';
+include/save_master_gtid.inc
+connection slave;
+SET @sav_innodb_lock_wait_timeout  = @@global.innodb_lock_wait_timeout;
+SET @sav_slave_transaction_retries = @@global.slave_transaction_retries;
+SET @@global.innodb_lock_wait_timeout =2;
+SET @@global.slave_transaction_retries=100;
+include/start_slave.inc
+connection aux_slave;
+# Xid '1' must be *not* yet in the output:
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+connection backup_slave;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection aux_slave;
+ROLLBACK;
+connection aux_slave;
+include/sync_with_master_gtid.inc
+connection backup_slave;
+BACKUP STAGE END;
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+connection slave;
+SET @@global.innodb_lock_wait_timeout = @sav_innodb_lock_wait_timeout;
+SET @@global.slave_transaction_retries= @sav_slave_transaction_retries;
 connection slave;
 include/stop_slave.inc
 SET @@global.slave_parallel_threads= @old_parallel_threads;
