@@ -6887,8 +6887,10 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
     We must call init_result_field before Item_func::fix_fields()
     to make m_sp and result_field members available to fix_length_and_dec(),
     which is called from Item_func::fix_fields().
+    max_length is not passed: it may have been computed for another sp_head
+    on an earlier execution, and fix_length_and_dec() sets it again.
   */
-  res= init_result_field(thd, max_length, maybe_null(), &null_value, &name);
+  res= init_result_field(thd, 0, maybe_null(), &null_value, &name);
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
