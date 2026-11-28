@@ -1,0 +1,3 @@
+mv_conffile /etc/mysql/debian-start /etc/mariadb/debian-start 1:14.0.0~
+mv_conffile /etc/mysql/mariadb.conf.d/50-server.cnf /etc/mariadb/mariadb.conf.d/50-server.cnf 1:14.0.0~
+mv_conffile /etc/mysql/mariadb.conf.d/99-enable-encryption.cnf.preset/enable_encryption.preset /etc/mariadb/mariadb.conf.d/99-enable-encryption.cnf.preset/enable_encryption.preset 1:14.0.0~

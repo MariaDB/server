@@ -2,40 +2,38 @@
 
 set -e
 
+# cmake/sysconfdir.cmake changes the configuration directory in the
+# maintainer scripts to the configured one, except on lines that contain
+# old_sysconfdir, and fills in the first package version using it.
+old_sysconfdir=/etc/mysql
+sysconfdir=/etc/mysql
+sysconfdir_move_version=@DEB_SYSCONFDIR_MOVE_VERSION@
+
 case "$1" in
   configure)
-    # New packaging paradigm for my.cnf handling among MySQL variants
-    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
-    #
-    # If the new mysql-common package does not provide
-    # the update-alternatives facility, notify user about manual fall back
+    # $sysconfdir/my.cnf is a regular file, not shared with the MySQL
+    # variants. Withdraw from the $old_sysconfdir/my.cnf alternatives that
+    # versions using the old directory registered.
     if [ -f /usr/share/mysql-common/configure-symlinks ]
     then
-      /usr/share/mysql-common/configure-symlinks install mariadb "/etc/mysql/mariadb.cnf"
-    else
-      # As configure can be called many times, don't re-create the symlink
-      # if it is there already
-      if [ ! -L /etc/mysql/my.cnf ]
-      then
-        echo "Notice: configure-symlinks trigger could not be called."
-        echo "Please manually create symlinks by running: "
-        echo "  mv -f /etc/mysql/my.cnf /etc/mysql/my.cnf.old"
-        echo "  ln -sf mariadb.cnf /etc/mysql/my.cnf"
-      fi
+      /usr/share/mysql-common/configure-symlinks remove mariadb "$old_sysconfdir/mariadb.cnf" || true
     fi
-
-    # Note that MySQL in Debian runs the configure-symlinks from the
-    # mysql-server-x.x.postinst and postrm files, while the MySQL.com (and
-    # Percona.com) packaging triggers update-alternatives directly form the
-    # mysql-common (and percona-x-common) package using priority 200.
-    #
-    # Thus, we need to ensure here that mariadb.cnf indeed became the primary
-    # alternative and override with priority 500 if needed.
-    if ! update-alternatives --query my.cnf | grep --quiet "Value: /etc/mysql/mariadb.cnf"
-    then
-      update-alternatives --install /etc/mysql/my.cnf my.cnf "/etc/mysql/mariadb.cnf" 500 || true
-    fi
+    update-alternatives --remove my.cnf "$old_sysconfdir/mariadb.cnf" 2>/dev/null || true
     ;;
 esac
 
 #DEBHELPER#
+
+# A locally modified $old_sysconfdir/mariadb.cnf was moved to
+# $sysconfdir/my.cnf by dpkg-maintscript-helper above. Update its
+# references to the files that were moved, see mariadb-common.preinst.
+if [ "$1" = "configure" ] && [ "$sysconfdir" != "$old_sysconfdir" ] &&
+   [ -n "$2" ] &&
+   dpkg --compare-versions "$2" le-nl "$sysconfdir_move_version" &&
+   grep --quiet --no-messages "$old_sysconfdir/" "$sysconfdir/my.cnf"
+then
+  sed -i -E \
+    -e "s#$old_sysconfdir/mariadb\.cnf([^[:alnum:]_.-]|\$)#$sysconfdir/my.cnf\1#g" \
+    -e "s#$old_sysconfdir/(my\.cnf|debian\.cnf|debian-start|conf\.d|mariadb\.conf\.d)([^[:alnum:]_.-]|\$)#$sysconfdir/\1\2#g" \
+    "$sysconfdir/my.cnf"
+fi

@@ -170,6 +170,16 @@ then
   # Also move away the old debian.cnf file that included credentials that are
   # no longer valid. If none existed, ignore error and let dpkg continue.
   mv -f /etc/mysql/debian.cnf "/etc/mysql/debian.cnf-$found_version" || true
+  # When upgrading from a version that used the old directory, it is
+  # still there
+  old_sysconfdir=/etc/mysql
+  sysconfdir=/etc/mysql
+  sysconfdir_move_version=@DEB_SYSCONFDIR_MOVE_VERSION@
+  if [ "$sysconfdir" != "$old_sysconfdir" ] && [ -n "$2" ] &&
+     dpkg --compare-versions "$2" le-nl "$sysconfdir_move_version"
+  then
+    mv -f "$old_sysconfdir/debian.cnf" "$old_sysconfdir/debian.cnf-$found_version" 2>/dev/null || true
+  fi
 fi
 
 # to be sure

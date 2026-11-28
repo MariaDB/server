@@ -2,14 +2,25 @@
 
 set -e
 
+# cmake/sysconfdir.cmake changes the configuration directory in the
+# maintainer scripts to the configured one, except on lines that contain
+# old_sysconfdir
+old_sysconfdir=/etc/mysql
+sysconfdir=/etc/mysql
+
 case "$1" in
   remove|disappear)
-    # New packaging paradigm for my.cnf handling among MySQL variants
-    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
+    # Withdraw from the $old_sysconfdir/my.cnf alternatives if still
+    # registered by a version that used the old directory
     if [ -f /usr/share/mysql-common/configure-symlinks ]
     then
-      /usr/share/mysql-common/configure-symlinks remove mariadb "/etc/mysql/mariadb.cnf"
+      /usr/share/mysql-common/configure-symlinks remove mariadb "$old_sysconfdir/mariadb.cnf" || true
     fi
+    update-alternatives --remove my.cnf "$old_sysconfdir/mariadb.cnf" 2>/dev/null || true
+    ;;
+  purge)
+    # Remove the configuration directory if it is empty
+    rmdir "$sysconfdir" 2>/dev/null || true
     ;;
 esac
 

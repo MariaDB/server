@@ -1,0 +1,63 @@
+#!/bin/sh
+set -e
+
+# cmake/sysconfdir.cmake changes the configuration directory in the
+# maintainer scripts to the configured one, except on lines that contain
+# old_sysconfdir, and fills in the first package version using it.
+old_sysconfdir=/etc/mysql
+sysconfdir=/etc/mysql
+sysconfdir_move_version=@DEB_SYSCONFDIR_MOVE_VERSION@
+
+# Update references to the files that are moved to the new directory.
+# Other files, like TLS certificates, stay in the old directory and the
+# references to them are kept.
+fix_sysconfdir_paths()
+{
+  sed -i -E \
+    -e "s#$old_sysconfdir/mariadb\.cnf([^[:alnum:]_.-]|\$)#$sysconfdir/my.cnf\1#g" \
+    -e "s#$old_sysconfdir/(my\.cnf|debian\.cnf|debian-start|conf\.d|mariadb\.conf\.d)([^[:alnum:]_.-]|\$)#$sysconfdir/\1\2#g" \
+    "$@"
+}
+
+# When upgrading from a version that used the old directory, move the
+# MariaDB configuration to the new directory. Files owned by packages are
+# moved with mv_conffile in the debian/*.maintscript files. Here the local
+# files that are not owned by any package are handled:
+# - mariadb.conf.d/ is only read by MariaDB, so the files are moved.
+# - conf.d/ is also read by MySQL, so the files are copied and the
+#   originals are kept for MySQL.
+if [ "$sysconfdir" != "$old_sysconfdir" ] &&
+   { [ "$1" = "install" ] || [ "$1" = "upgrade" ]; } &&
+   [ -n "$2" ] &&
+   dpkg --compare-versions "$2" le-nl "$sysconfdir_move_version"
+then
+  for dir in conf.d mariadb.conf.d
+  do
+    [ -d "$old_sysconfdir/$dir" ] || continue
+    mkdir -p "$sysconfdir/$dir"
+    for f in "$old_sysconfdir/$dir"/*.cnf
+    do
+      [ -f "$f" ] || continue
+      base=$(basename "$f")
+      # Skip files that are handled by dpkg. MariaDB conffiles are moved
+      # with mv_conffile, the others belong to other packages.
+      if dpkg-query --search "$f" >/dev/null 2>&1
+      then
+        continue
+      fi
+      if [ ! -e "$sysconfdir/$dir/$base" ]
+      then
+        if [ "$dir" = "conf.d" ]
+        then
+          cp -p "$f" "$sysconfdir/$dir/$base"
+        else
+          mv "$f" "$sysconfdir/$dir/$base"
+        fi
+        fix_sysconfdir_paths "$sysconfdir/$dir/$base"
+        echo "Migrated $f to $sysconfdir/$dir/$base"
+      fi
+    done
+  done
+fi
+
+#DEBHELPER#
