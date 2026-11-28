@@ -1,0 +1,27 @@
+#
+# A statement run on a local connection (sql service) that fails after the
+# result set metadata and some rows were produced: mysql_store_result()
+# fails and the half-built result must be freed. Otherwise the server
+# reports "Internal memory accounting error" at shutdown (8192 bytes: the
+# first block of the result's MEM_ROOT).
+#
+install plugin test_sql_service soname 'test_sql_service';
+CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3);
+CREATE FUNCTION f1(i INT) RETURNS INT
+BEGIN
+IF i = 3 THEN
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'row 3 fails';
+END IF;
+RETURN i;
+END|
+# Rows 1 and 2 are sent, row 3 raises the error
+set global test_sql_service_execute_sql_local= 'SELECT f1(id) FROM test.t1';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Error 1644 returned. row 3 fails
+DROP FUNCTION f1;
+DROP TABLE t1;
+uninstall plugin test_sql_service;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
