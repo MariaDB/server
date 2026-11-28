@@ -1425,7 +1425,7 @@ bool Item_func_json_extract::val_bool()
   json_value_types type;
   char *value;
   int value_len;
-  longlong i= 0;
+  double d= 0;
 
   if (read_json(NULL, &type, &value, &value_len) != NULL)
   {
@@ -1436,18 +1436,18 @@ bool Item_func_json_extract::val_bool()
       {
         char *end;
         int err;
-        i= collation.collation->strntoll(value, value_len, 10, &end, &err);
+        d= collation.collation->strntod(value, value_len, &end, &err);
         break;
       }
       case JSON_VALUE_TRUE:
-        i= 1;
+        d= 1;
         break;
       default:
-        i= 0;
+        d= 0;
         break;
     };
   }
-  return i != 0;
+  return d != 0;
 }
 
 

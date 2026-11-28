@@ -5870,4 +5870,20 @@ select 1 ^ json_objectagg(NULL, 'a') from t0;
 1 ^ json_objectagg(NULL, 'a')
 NULL
 drop table t0;
+#
+# MDEV-41922 Fractional JSON numbers evaluate as false in IF and WHERE
+#
+SELECT IF(JSON_EXTRACT('0.5','$'),1,0) AS half,
+IF(JSON_EXTRACT('-0.5','$'),1,0) AS minus_half,
+IF(JSON_EXTRACT('5e-1','$'),1,0) AS exponent,
+IF(JSON_EXTRACT('0.5e0','$'),1,0) AS fraction_exponent,
+IF(JSON_EXTRACT('{"a":0.25}','$.a'),1,0) AS member,
+IF(JSON_EXTRACT('"0.5"','$'),1,0) AS string,
+IF(JSON_EXTRACT('0','$'),1,0) AS zero,
+IF(JSON_EXTRACT('0.0','$'),1,0) AS zero_fraction;
+half	minus_half	exponent	fraction_exponent	member	string	zero	zero_fraction
+1	1	1	1	1	1	0	0
+SELECT COUNT(*) FROM (SELECT 1 AS n) AS t WHERE JSON_EXTRACT('0.5','$');
+COUNT(*)
+1
 # End of 11.8 Test
