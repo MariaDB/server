@@ -51,9 +51,9 @@ WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_DDL	Backup lock		
 MDL_BACKUP_FLUSH	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 SET STATEMENT max_statement_time=1 FOR backup stage block_ddl;
 ERROR 70100: Query was interrupted: execution time limit 1.0 sec exceeded
 backup stage block_ddl;
@@ -88,9 +88,9 @@ WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_ALTER_COPY	Backup lock		
 MDL_BACKUP_FLUSH	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
-MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_UPGRADABLE	Table metadata lock	test	t1
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 backup stage block_ddl;
 backup stage block_commit;
 connection default;
@@ -124,8 +124,8 @@ SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.me
 WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_BACKUP_WAIT_DDL	Backup lock		
-MDL_SHARED_WRITE	Table metadata lock	test	t1
 MDL_INTENTION_EXCLUSIVE	Schema metadata lock	test	
+MDL_SHARED_WRITE	Table metadata lock	test	t1
 backup stage end;
 connection default;
 commit;
