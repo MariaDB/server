@@ -60,7 +60,12 @@ const char field_separator=',';
 // Column marked for read or the field set to read out of record[0]
 bool Field::marked_for_read() const
 {
+  /*
+    (1) A const table's row is read during optimization and remains
+        materialized in record[0], so reading it is safe.
+  */
   return !table ||
+         table->const_table ||  // (1)
          (!table->read_set ||
           bitmap_is_set(table->read_set, field_index) ||
           (!(ptr >= table->record[0] &&
