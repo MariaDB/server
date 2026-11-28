@@ -1409,3 +1409,120 @@ natural join t1 order by last_value (c2) over (order by c2);
 1
 drop table t1;
 # End of 10.5 tests
+#
+# MDEV-41585 Multi-table UPDATE with ORDER BY using a temporary table
+#            assigns values computed from the last row read
+#
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, v INT DEFAULT 7, w INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 (id,v) VALUES (1,10),(2,20),(3,30);
+EXPLAIN UPDATE t1, t2 SET t2.v = t2.v + 1 ORDER BY t1.id;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+UPDATE t1, t2 SET t2.v = t2.v + 1 ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	11	NULL
+2	21	NULL
+3	31	NULL
+UPDATE t1, t2 SET t2.w = t2.v, t2.v = t2.id * 100 + t1.id ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	101	11
+2	201	21
+3	301	31
+UPDATE t1, t2 SET t2.v = DEFAULT, t2.w = t2.id ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	7	1
+2	7	2
+3	7	3
+UPDATE t1, t2 SET t2.v = (SELECT MAX(id) FROM t1) + t2.id ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	2	1
+2	3	2
+3	4	3
+UPDATE t1, t2 SET t2.v = t2.id, t1.id = t1.id + 10 ORDER BY t2.id DESC LIMIT 2;
+SELECT * FROM t1;
+id
+11
+SELECT * FROM t2;
+id	v	w
+1	2	1
+2	2	2
+3	3	3
+PREPARE s FROM 'UPDATE t1, t2 SET t2.v = t2.v + t1.id ORDER BY t1.id';
+EXECUTE s;
+SELECT * FROM t2;
+id	v	w
+1	13	1
+2	13	2
+3	14	3
+EXECUTE s;
+SELECT * FROM t2;
+id	v	w
+1	24	1
+2	24	2
+3	25	3
+DEALLOCATE PREPARE s;
+CREATE VIEW v2 AS SELECT id, v*2 AS vv, v FROM t2;
+UPDATE t1, v2 SET v2.v = v2.vv ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	48	1
+2	48	2
+3	50	3
+CREATE TABLE t3 (id INT, old_v INT, new_v INT);
+CREATE TRIGGER tr BEFORE UPDATE ON t2 FOR EACH ROW
+INSERT INTO t3 VALUES (OLD.id, OLD.v, NEW.v);
+UPDATE t1, t2 SET t2.v = t2.id - 1 ORDER BY t1.id;
+SELECT * FROM t2;
+id	v	w
+1	0	1
+2	1	2
+3	2	3
+SELECT * FROM t3;
+id	old_v	new_v
+1	48	0
+2	48	1
+3	50	2
+DROP VIEW v2;
+DROP TABLE t1, t2, t3;
+CREATE TABLE t1 (id INT) ENGINE=InnoDB;
+CREATE TABLE t2 (id INT, v INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1,0),(2,0),(3,0);
+CREATE SEQUENCE s;
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) LIMIT 1;
+SELECT * FROM t2;
+id	v
+1	1
+2	0
+3	0
+SELECT LASTVAL(s);
+LASTVAL(s)
+1
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) ORDER BY t1.id, t2.id LIMIT 1;
+SELECT * FROM t2;
+id	v
+1	2
+2	0
+3	0
+SELECT LASTVAL(s);
+LASTVAL(s)
+4
+UPDATE t1, t2 SET t2.v = NEXTVAL(s) ORDER BY t1.id, t2.id DESC LIMIT 1;
+SELECT * FROM t2;
+id	v
+1	2
+2	0
+3	7
+SELECT LASTVAL(s);
+LASTVAL(s)
+7
+DROP SEQUENCE s;
+DROP TABLE t1, t2;
+# End of 10.11 tests
