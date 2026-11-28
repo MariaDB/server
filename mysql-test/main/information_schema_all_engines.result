@@ -3,6 +3,7 @@ show tables;
 Tables_in_information_schema
 ALL_PLUGINS
 APPLICABLE_ROLES
+ARIA_TABLES_ENCRYPTION
 CHARACTER_SETS
 CHECK_CONSTRAINTS
 CLIENT_STATISTICS
@@ -93,6 +94,7 @@ c2.column_name LIKE '%SCHEMA%'
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
+ARIA_TABLES_ENCRYPTION	TABLE_SCHEMA
 CHARACTER_SETS	CHARACTER_SET_NAME
 CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
@@ -183,6 +185,7 @@ c2.column_name LIKE '%SCHEMA%'
 table_name	column_name
 ALL_PLUGINS	PLUGIN_NAME
 APPLICABLE_ROLES	GRANTEE
+ARIA_TABLES_ENCRYPTION	TABLE_SCHEMA
 CHARACTER_SETS	CHARACTER_SET_NAME
 CHECK_CONSTRAINTS	CONSTRAINT_SCHEMA
 CLIENT_STATISTICS	CLIENT
@@ -279,6 +282,7 @@ group by t.table_name order by num1, t.table_name;
 table_name	group_concat(t.table_schema, '.', t.table_name)	num1
 ALL_PLUGINS	information_schema.ALL_PLUGINS	1
 APPLICABLE_ROLES	information_schema.APPLICABLE_ROLES	1
+ARIA_TABLES_ENCRYPTION	information_schema.ARIA_TABLES_ENCRYPTION	1
 CHARACTER_SETS	information_schema.CHARACTER_SETS	1
 CHECK_CONSTRAINTS	information_schema.CHECK_CONSTRAINTS	1
 CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
@@ -351,6 +355,7 @@ Database: information_schema
 |                Tables                 |
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
+| ARIA_TABLES_ENCRYPTION                |
 | CHARACTER_SETS                        |
 | CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
@@ -431,6 +436,7 @@ Database: INFORMATION_SCHEMA
 |                Tables                 |
 | ALL_PLUGINS                           |
 | APPLICABLE_ROLES                      |
+| ARIA_TABLES_ENCRYPTION                |
 | CHARACTER_SETS                        |
 | CHECK_CONSTRAINTS                     |
 | CLIENT_STATISTICS                     |
@@ -512,5 +518,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	75
+information_schema	76
 mysql	31

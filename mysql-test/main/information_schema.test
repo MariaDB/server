@@ -52,7 +52,8 @@ create view v1 (c) as
  SELECT table_name FROM information_schema.TABLES
   WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND
         table_name not like 'innodb_%' AND
-        table_name not like 'xtradb_%';
+        table_name not like 'xtradb_%' AND
+        table_name not like 'aria_%';
 --sorted_result
 select * from v1;
 
@@ -517,7 +518,7 @@ information_schema.columns
 where data_type = 'longtext' and table_schema != 'performance_schema'
 order by binary table_name, ordinal_position;
 select table_name, column_name, data_type from information_schema.columns
-where data_type = 'datetime' and table_name not like 'innodb_%'
+where data_type = 'datetime' and table_name not like 'innodb_%' and table_name not like 'aria_%'
 order by binary table_name, ordinal_position;
 
 #

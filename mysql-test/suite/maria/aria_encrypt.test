@@ -1,0 +1,73 @@
+--source include/have_maria.inc
+--source include/have_file_key_management.inc
+
+--disable_warnings
+DROP DATABASE IF EXISTS aria_enc_test;
+--enable_warnings
+
+CREATE DATABASE aria_enc_test;
+USE aria_enc_test;
+
+# Ensure encryption is initially off
+SET GLOBAL aria_encrypt_tables=OFF;
+
+--echo #
+--echo # 1. Verify Structure of Information Schema Table
+--echo #
+DESCRIBE INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION;
+
+--echo #
+--echo # 2. Test Unencrypted Aria Table
+--echo #
+CREATE TABLE t1_unencrypted (
+  id INT,
+  str VARCHAR(50)
+) ENGINE=Aria ROW_FORMAT=PAGE;
+
+# Should return ENCRYPTED=0
+SELECT TABLE_SCHEMA, TABLE_NAME, ENCRYPTED FROM INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION
+WHERE TABLE_NAME LIKE '%t1_unencrypted%';
+
+--echo #
+--echo # 3. Test Encrypted Aria Table
+--echo #
+# Enable encryption
+SET GLOBAL aria_encrypt_tables=ON;
+
+CREATE TABLE t2_encrypted (
+  id INT,
+  str VARCHAR(50)
+) ENGINE=Aria ROW_FORMAT=PAGE;
+
+# Should return ENCRYPTED=1
+SELECT TABLE_SCHEMA, TABLE_NAME, ENCRYPTED FROM INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION
+WHERE TABLE_NAME LIKE '%t2_encrypted%';
+
+--echo #
+--echo # 4. Test Unsupported Row Formats
+--echo #
+# Aria does not support encryption for FIXED or DYNAMIC row formats
+CREATE TABLE t3_dynamic (
+  id INT,
+  str VARCHAR(50)
+) ENGINE=Aria ROW_FORMAT=DYNAMIC;
+
+# Should return ENCRYPTED=0 despite the global variable being ON
+SELECT TABLE_SCHEMA, TABLE_NAME, ENCRYPTED FROM INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION
+WHERE TABLE_NAME LIKE '%t3_dynamic%';
+
+--echo #
+--echo # 5. Test ALTER TABLE Rebuild
+--echo #
+# Rebuild the unencrypted table while global encryption is ON
+ALTER TABLE t1_unencrypted ENGINE=Aria ROW_FORMAT=PAGE;
+
+# Should now return ENCRYPTED=1
+SELECT TABLE_SCHEMA, TABLE_NAME, ENCRYPTED FROM INFORMATION_SCHEMA.ARIA_TABLES_ENCRYPTION
+WHERE TABLE_NAME LIKE '%t1_unencrypted%';
+
+--echo #
+--echo # Cleanup
+--echo #
+SET GLOBAL aria_encrypt_tables=OFF;
+DROP DATABASE aria_enc_test;
