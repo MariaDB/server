@@ -584,7 +584,11 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
         }
       }
       log_pos[0]= KEY_OP_SHIFT;
-      int2store(log_pos+1, move_length);
+      /* Only the logged length is forged; the page itself is already moved */
+      int2store(log_pos+1,
+                DBUG_IF("corrupt_shift_down") ? -(int) current_size :
+                DBUG_IF("corrupt_shift_up")   ?  (int) max_page_size :
+                move_length);
       log_pos+= 3;
       current_size+= move_length;
     }
@@ -998,12 +1002,23 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       int length= sint2korr(header);
       header+= 2;
       DBUG_PRINT("redo", ("key_op_shift: %d", length));
-      DBUG_ASSERT(page_offset != 0 && page_offset <= page_length &&
-                  page_length + length <= max_page_size);
+      if (unlikely(page_offset == 0 || page_offset > page_length ||
+                   page_length + length > max_page_size))
+      {
+        DBUG_ASSERT(!maria_assert_if_crashed_table);
+        result= mark_crashed= 1;
+        goto err;
+      }
 
       if (length < 0)
       {
-        DBUG_ASSERT(page_offset - length <= page_length);
+        /* Shifting down: the source must still be inside the used page */
+        if (unlikely(page_offset - length > page_length))
+        {
+          DBUG_ASSERT(!maria_assert_if_crashed_table);
+          result= mark_crashed= 1;
+          goto err;
+        }
         bmove(buff + page_offset, buff + page_offset - length,
               page_length - page_offset + length);
       }
