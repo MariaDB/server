@@ -1,0 +1,56 @@
+#
+# MDEV-41161 my_get_exepath() must not depend on argv[0]
+#
+# mariadb-backup --prepare --export re-executes itself as --mariadbd,
+# using the path from my_get_exepath(). Run it with an argv[0] that
+# does not name the executable; this only works when my_get_exepath()
+# asks the OS for the path instead of resolving argv[0].
+#
+--source include/have_innodb.inc
+
+# Only platforms with a native my_get_exepath() implementation
+--perl
+open(F, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/exepath_os.inc") or die;
+print F "let \$exepath_os= $^O;\n";
+close F;
+EOF
+--source $MYSQLTEST_VARDIR/tmp/exepath_os.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/exepath_os.inc
+if (!`SELECT '$exepath_os' IN ('linux','freebsd','netbsd','openbsd','darwin','MSWin32')`)
+{
+  --skip Needs a native my_get_exepath() implementation
+}
+
+CREATE TABLE t1(c VARCHAR(128)) ENGINE INNODB;
+INSERT INTO t1 VALUES(repeat('a',100));
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+--source include/shutdown_mysqld.inc
+
+echo # prepare --export with a bogus argv[0];
+--perl
+my $exe= $ENV{XTRABACKUP};
+my $dir= "$ENV{MYSQLTEST_VARDIR}/tmp/backup";
+open(STDOUT, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/export_argv0.log") or die;
+open(STDERR, '>&', \*STDOUT) or die;
+# The block form of system() sets argv[0] independently of the program run
+my $rc= system { $exe } 'not-mariadb-backup',
+  '--prepare', '--export', "--target-dir=$dir";
+die "prepare --export failed with bogus argv[0], status $rc\n" if $rc;
+EOF
+--file_exists $targetdir/test/t1.cfg
+
+--source include/start_mysqld.inc
+let MYSQLD_DATADIR=`select @@datadir`;
+ALTER TABLE t1 DISCARD TABLESPACE;
+copy_file $targetdir/test/t1.ibd $MYSQLD_DATADIR/test/t1.ibd;
+copy_file $targetdir/test/t1.cfg $MYSQLD_DATADIR/test/t1.cfg;
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+DROP TABLE t1;
+rmdir $targetdir;
+remove_file $MYSQLTEST_VARDIR/tmp/export_argv0.log;
