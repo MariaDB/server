@@ -1,0 +1,11 @@
+call mtr.add_suppression("FIBER: execution error");
+CREATE TABLE t1 (c2 DATETIME);
+INSERT INTO t1 VALUES ('0000-00-00');
+CREATE TABLE t2 (c1 INT PRIMARY KEY) ENGINE=DuckDB;
+SELECT * FROM t2 UNION SELECT * FROM t1;
+c1
+SELECT 1 AS still_alive;
+still_alive
+1
+DROP TABLE t2;
+DROP TABLE t1;
