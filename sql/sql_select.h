@@ -2062,6 +2062,7 @@ public:
   virtual enum Type type() const=0;
   virtual const char *name() const=0;
   virtual bool store_key_is_const() { return false; }
+  bool uses_null_byte(const uchar *ptr) const { return null_ptr == ptr; }
 
   /**
     @brief sets ignore truncation warnings mode and calls the real copy method

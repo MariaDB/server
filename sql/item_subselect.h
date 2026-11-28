@@ -1027,7 +1027,7 @@ public:
   bool no_tables() const override;
   int index_lookup(); /* TIMOUR: this method needs refactoring. */
   int scan_table();
-  bool copy_ref_key(bool skip_constants);
+  bool copy_ref_key(bool skip_constants, bool *null_finding= nullptr);
   bool no_rows() override { return empty_result_set; }
   enum_engine_type engine_type() override { return UNIQUESUBQUERY_ENGINE; }
 };

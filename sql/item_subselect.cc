@@ -4333,20 +4333,17 @@ int subselect_uniquesubquery_engine::scan_table()
 /**
   Copy ref key for index access into the only subquery table.
 
-  @details
-    Copy ref key and check for conversion problems.
-    If there is an error converting the left IN operand to the column type of
-    the right IN operand count it as no match. In this case IN has the value of
-    FALSE. We mark the subquery table cursor as having no more rows (to ensure
-    that the processing that follows will not find a match) and return FALSE,
-    so IN is not treated as returning NULL.
+  @param skip_constants  Skip key parts already copied during optimization.
+  @param null_finding    If supplied, allow a ref_or_null lookup to use NULL
+                         when its nullable lookup value cannot be converted.
+                         Set to true when only the NULL lookup is possible.
 
-  @returns
-    @retval FALSE The outer ref was copied into an index lookup key.
-    @retval TRUE  The outer ref cannot possibly match any row, IN is FALSE.
+  @retval false The lookup key is ready.
+  @retval true  A required key part could not be converted.
 */
 
-bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
+bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants,
+                                                  bool *null_finding)
 {
   DBUG_ENTER("subselect_uniquesubquery_engine::copy_ref_key");
 
@@ -4360,10 +4357,13 @@ bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
 
     if (store_res == store_key::STORE_KEY_FATAL)
     {
-      /*
-       Error converting the left IN operand to the column type of the right
-       IN operand. 
-      */
+      if (null_finding && !thd->is_error() &&
+          (*copy)->uses_null_byte(tab->ref.null_ref_key))
+      {
+        /* The remaining parts are still needed for the NULL lookup. */
+        *null_finding= true;
+        continue;
+      }
       DBUG_RETURN(true);
     }
   }
@@ -4598,12 +4598,10 @@ int subselect_indexsubquery_engine::exec()
       DBUG_RETURN(scan_table());
   }
 
-  if (copy_ref_key(true))
-  {
-    /* We know that there will be no rows even if we scan. */
-    in_subs->value= 0;
+  if (copy_ref_key(true, check_null ? &null_finding : nullptr))
     DBUG_RETURN(0);
-  }
+  if (null_finding)
+    *tab->ref.null_ref_key= 1;
 
   if (!table->file->inited &&
       (error= table->file->ha_index_init(tab->ref.key, 1)))
@@ -6461,10 +6459,16 @@ int subselect_partial_match_engine::exec()
     /* Try to find a matching row by index lookup. */
     if (lookup_engine->copy_ref_key(false))
     {
-      /* The result is FALSE based on the outer reference. */
-      item_in->value= 0;
-      item_in->null_value= 0;
-      return 0;
+      /*
+        A failed key conversion rules out a complete match, but NULLs in the
+        materialized subquery can still produce a partial match.
+      */
+      if (!count_columns_with_nulls)
+      {
+        item_in->value= 0;
+        item_in->null_value= 0;
+        return 0;
+      }
     }
     else
     {

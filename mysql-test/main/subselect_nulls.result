@@ -201,3 +201,35 @@ drop table t1, t2, t3;
 #
 # End of 10.11 tests
 #
+#
+# MDEV-40877: Out-of-range outer value in an indexed IN subquery
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='semijoin=off,materialization=off,in_to_exists=on';
+CREATE TABLE t1 (k TINYINT, g TINYINT NOT NULL, KEY idx (k,g));
+INSERT INTO t1 VALUES (NULL,1),(21,1),(-128,2),(127,127),(NULL,127);
+CREATE TABLE t2 (k INT, g INT);
+INSERT INTO t2 VALUES (9999,1),(9999,2),(9999,9999),(21,1),(-9999,1),(127,9999);
+# Only NULLs matching the other key part contribute to UNKNOWN.
+# Subquery access: index_subquery
+SELECT o.k, o.g, o.k IN (SELECT i.k FROM t1 AS i WHERE i.g=o.g) AS v
+FROM t2 AS o ORDER BY o.k, o.g;
+k	g	v
+-9999	1	NULL
+21	1	1
+127	9999	0
+9999	1	NULL
+9999	2	0
+9999	9999	0
+# A nullable UNIQUE index also needs the NULL lookup.
+ALTER TABLE t1 DROP KEY idx, ADD UNIQUE KEY idx (k);
+# Subquery access: index_subquery
+SELECT DISTINCT k FROM t2 WHERE k NOT IN (SELECT k FROM t1) ORDER BY k;
+k
+DELETE FROM t1 WHERE k IS NULL;
+SELECT DISTINCT k FROM t2 WHERE k NOT IN (SELECT k FROM t1) ORDER BY k;
+k
+-9999
+9999
+DROP TABLE t1, t2;
+SET optimizer_switch=@save_optimizer_switch;
