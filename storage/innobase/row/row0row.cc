@@ -231,7 +231,9 @@ row_build_index_entry_low(
 		i = 1;
 	}
 
-	for (; i < entry_len; i++) {
+	bool  has_trx_id = index->has_trx_id();
+	const ulint n_data_fields = entry_len - ulint(!!has_trx_id);
+	for (; i < n_data_fields; i++) {
 		const dict_field_t& f = index->fields[i];
 		dfield_t* dfield = dtuple_get_nth_field(entry, i);
 
@@ -366,6 +368,17 @@ row_build_index_entry_low(
 		}
 	}
 
+	if (has_trx_id) {
+		ut_ad(!index->is_primary());
+		dfield_t* dfield = dtuple_get_nth_field(
+					entry, n_data_fields);
+		dict_col_copy_type(index->fields[n_data_fields].col,
+				   &dfield->type);
+		dfield_set_data(dfield,
+				mem_heap_zalloc(heap, DATA_TRX_ID_LEN),
+				DATA_TRX_ID_LEN);
+	}
+	
 	for (i = num_v; i--; ) {
 		ut_ad(index->is_primary());
 		ut_ad(flag == ROW_BUILD_FOR_INSERT);
@@ -1279,7 +1292,7 @@ row_search_index_entry(
 	}
 
 	return !btr_pcur_is_before_first_on_page(pcur)
-		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields(entry);
+		&& btr_pcur_get_low_match(pcur) == dtuple_get_n_fields_cmp(entry);
 }
 
 /*******************************************************************//**

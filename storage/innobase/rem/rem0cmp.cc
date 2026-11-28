@@ -522,7 +522,9 @@ cmp_rec_rec_simple(
 
 	/* Else, keep comparing so that we have the full internal
 	order. */
-	for (; n < dict_index_get_n_fields(index); n++) {
+	for (const ulint n_order = dict_index_get_n_fields(index)
+		     - ulint(index->has_trx_id());
+	     n < n_order; n++) {
 		int cmp = cmp_rec_rec_simple_field(
 			rec1, rec2, offsets1, offsets2, index, n);
 

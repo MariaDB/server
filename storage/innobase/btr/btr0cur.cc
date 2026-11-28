@@ -2262,6 +2262,26 @@ btr_cur_ins_lock_and_undo(
 	return DB_SUCCESS;
 }
 
+/** Add the DB_TRX_ID of a secondary index leaf entry that is
+about to be inserted
+@param flags  undo logging and locking flags
+@param index  secondary index
+@param leaf   Whether the entry goes to leaf page
+@param entry  entry to insert
+@param mtr    mini-transaction */
+static void btr_cur_insert_sec_entry_trx(ulint flags, const dict_index_t *index,
+                                         bool leaf, dtuple_t *entry,
+                                         const mtr_t *mtr)
+{
+  if (!leaf || !index->has_trx_id() ||
+      (flags & (BTR_KEEP_SYS_FLAG | BTR_CREATE_FLAG)))
+    return;
+
+  ut_ad(mtr->trx);
+  ut_ad(mtr->trx->id);
+  btr_cur_write_sec_trx_id(entry, index, mtr->trx->id);
+}
+
 /**
 Prefetch siblings of the leaf for the pessimistic operation.
 @param block	leaf page
@@ -2469,6 +2489,7 @@ fail_err:
 			goto fail_err;
 		}
 
+		btr_cur_insert_sec_entry_trx(flags, index, leaf, entry, mtr);
 #ifdef UNIV_DEBUG
 		if (!(flags & BTR_CREATE_FLAG)
 		    && leaf && index->is_primary()) {
@@ -2608,6 +2629,10 @@ btr_cur_pessimistic_insert(
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
+
+	btr_cur_insert_sec_entry_trx(flags, index,
+				     page_is_leaf(btr_cur_get_page(cursor)),
+				     entry, mtr);
 
 	/* First reserve enough free space for the file segments of
 	the index tree, so that the insert will not fail because of
@@ -2804,6 +2829,18 @@ static void btr_cur_write_sys(
 	ut_ad(r->len == DATA_ROLL_PTR_LEN);
 	trx_write_roll_ptr(static_cast<byte*>(r->data), roll_ptr);
 }
+
+void btr_cur_write_sec_trx_id(dtuple_t *entry, const dict_index_t *index,
+                              trx_id_t trx_id)
+{
+  ut_ad(index->has_trx_id());
+  ut_ad(dtuple_get_n_fields(entry) == index->n_fields);
+  dfield_t *f= dtuple_get_nth_field(entry, index->sec_db_trx_id());
+  ut_ad(f->len == DATA_TRX_ID_LEN);
+  ut_ad(f->data);
+  trx_write_trx_id(static_cast<byte*>(f->data), trx_id);
+}
+
 
 MY_ATTRIBUTE((warn_unused_result))
 /** Update DB_TRX_ID, DB_ROLL_PTR in a clustered index record.
@@ -4258,6 +4295,46 @@ void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
 
 template void btr_rec_set_deleted<false>(buf_block_t *, rec_t *, mtr_t *);
 template void btr_rec_set_deleted<true>(buf_block_t *, rec_t *, mtr_t *);
+
+template<bool flag>
+void btr_rec_set_deleted_sec(buf_block_t *block, rec_t *rec,
+                             const dict_index_t *index, mtr_t *mtr)
+{
+  if (!index->has_trx_id())
+  {
+    btr_rec_set_deleted<flag>(block, rec, mtr);
+    return;
+  }
+
+  ut_ad(page_is_comp(block->page.frame));
+  ut_ad(!block->page.zip.data);
+  ut_ad(page_rec_is_leaf(rec));
+  ut_ad(mtr->trx);
+  ut_ad(mtr->trx->id);
+
+  mem_heap_t *heap= nullptr;
+  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  rec_offs_init(offsets_);
+  const rec_offs *offsets=
+    rec_get_offsets(rec, index, offsets_, index->n_core_fields,
+                    index->sec_db_trx_id() + 1, &heap);
+  ulint len;
+  byte *p=
+    const_cast<byte*>(rec_get_nth_field(rec, offsets,
+                                        index->sec_db_trx_id(), &len));
+  ut_ad(len == DATA_TRX_ID_LEN);
+  byte id[DATA_TRX_ID_LEN];
+  trx_write_trx_id(id, mtr->trx->id);
+  mtr->memcpy<mtr_t::MAYBE_NOP>(*block, p, id, DATA_TRX_ID_LEN);
+  btr_rec_set_deleted<flag>(block, rec, mtr);
+  if (UNIV_LIKELY_NULL(heap))
+    mem_heap_free(heap);
+}
+
+template void btr_rec_set_deleted_sec<false>(buf_block_t *, rec_t *,
+                                             const dict_index_t *, mtr_t *);
+template void btr_rec_set_deleted_sec<true>(buf_block_t *, rec_t *,
+                                            const dict_index_t *, mtr_t *);
 
 /***********************************************************//**
 Marks a clustered index record deleted. Writes an undo log record to

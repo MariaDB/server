@@ -95,7 +95,7 @@ upd_field_set_field_no(
 	upd_field_t*	upd_field,	/*!< in: update vector field */
 	uint16_t	field_no,	/*!< in: field number in a clustered
 					index */
-	dict_index_t*	index)		/*!< in: index */
+	const dict_index_t* index)	/*!< in: index */
 {
 	upd_field->field_no = field_no;
 	upd_field->orig_len = 0;

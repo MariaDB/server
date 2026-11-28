@@ -707,7 +707,8 @@ dict_index_get_n_unique_in_tree(
 		return(dict_index_get_n_unique(index));
 	}
 
-	return(dict_index_get_n_fields(index));
+	return uint16_t(dict_index_get_n_fields(index)
+			- uint16_t(index->has_trx_id()));
 }
 
 /**
