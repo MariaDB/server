@@ -1556,6 +1556,10 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("chr") };
     return name;
   }
+  void print(String *str, enum_query_type query_type) override
+  {
+    Item_func::print(str, query_type);
+  }
 
 protected:
   Item *shallow_copy(THD *thd) const override

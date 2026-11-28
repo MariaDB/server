@@ -5141,6 +5141,26 @@ utf8mb4	3	1
 drop database mysqltest1;
 use test;
 #
+# MDEV-42268: CHR(NULL) returns an empty string instead of NULL in a view or a generated column
+#
+SELECT CHR(NULL) AS v, CHR(NULL) IS NULL AS is_null;
+v	is_null
+NULL	1
+CREATE VIEW vchr AS SELECT CHR(NULL) AS c;
+SELECT c, c IS NULL AS is_null FROM vchr;
+c	is_null
+NULL	1
+SHOW CREATE VIEW vchr;
+View	Create View	character_set_client	collation_connection
+vchr	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `vchr` AS select chr(NULL) AS `c`	latin1	latin1_swedish_ci
+DROP VIEW vchr;
+CREATE TABLE tg (a INT DEFAULT 1, c VARCHAR(30) AS (CHR(NULL)) VIRTUAL);
+INSERT INTO tg (a) VALUES (1);
+SELECT c, c IS NULL AS is_null FROM tg;
+c	is_null
+NULL	1
+DROP TABLE tg;
+#
 # MDEV-12592 Illegal mix of collations with the HEX function
 #
 SET NAMES utf8;
