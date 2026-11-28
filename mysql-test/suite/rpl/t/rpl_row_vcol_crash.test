@@ -18,10 +18,15 @@
 #      'slave_run_triggers_for_rbr=NO'
 #   9) Triggers are Foreign Keys are present only on slave and
 #      'slave_run_triggers_for_rbr=YES'
+#   10) After a slave restart, purge (a background thread) is the first
+#       to open a table with an indexed virtual column, before the SQL
+#       thread applies any statement against it. The next replicated
+#       UPDATE on that table must not assert.
 #
 # ==== References ====
 #
 # MDEV-23033: All slaves crash once in ~24 hours and loop restart with signal 11
+# MDEV-41465: Assertion `table->stat_initialized()' fails on the slave upon RBR with indexed virtual column
 #
 
 --source include/have_binlog_format_row.inc
@@ -421,5 +426,35 @@ PROCEDURE
 --let $slave_run_triggers_for_rbr=YES
 --source $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc
 --remove_file $MYSQLTEST_VARDIR/tmp/trig_fk_on_slave.inc
+
+--echo #
+--echo # Test case 10: After a slave restart, purge must not be
+--echo #   allowed to leave a table with uninitialized statistics
+--echo #
+--connection master
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT, v INT AS (b) VIRTUAL,
+		 KEY(v))ENGINE=InnoDB;
+INSERT INTO t1 (a,b) VALUES (1,1),(2,2),(3,3);
+UPDATE t1 SET b=b+10;
+--sync_slave_with_master
+
+--echo # Restart the slave
+--let $rpl_server_number= 2
+--source include/rpl_restart_server.inc
+
+--connection slave
+SET GLOBAL innodb_max_purge_lag_wait=0;
+--source include/start_slave.inc
+
+--connection master
+UPDATE t1 SET b=b+1;
+--sync_slave_with_master
+
+--let $diff_tables= master:test.t1, slave:test.t1
+--source include/diff_tables.inc
+
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
 
 --source include/rpl_end.inc
