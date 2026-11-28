@@ -5962,6 +5962,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   do_logging= thd->log_current_statement();
   if (res)
     goto err;
+  // TODO: Remove this fix when merging into main.
+  /* OR REPLACE of a temporary table frees the old TABLE */
+  if (create_info->tmp_table())
+    table->table= 0;
 
   /*
     Check if we are doing CREATE OR REPLACE TABLE under LOCK TABLES
@@ -5979,6 +5983,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       res= 1;                                   // We got an error
+      // TODO: Remove this fix when merging into main.
+      goto err;
     }
     else
     {
