@@ -650,7 +650,8 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   All_share_tables_list::Iterator it(share->all_tmp_tables);
   while ((tab= it++))
   {
-    if (tab != table && tab->query_id != 0)
+    if (tab != table && tab->
+      query_id != 0)
     {
       /* Found a table instance in use. This table cannot be dropped. */
       my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
