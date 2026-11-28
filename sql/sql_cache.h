@@ -317,8 +317,12 @@ private:
   Cache_lock_status m_cache_lock_status;
   enum Cache_staus {OK, DISABLE_REQUEST, DISABLED};
   Cache_staus m_cache_status;
+  /* Incremented each time the cache memory is freed */
+  ulonglong m_cache_generation;
 
   void free_query_internal(Query_cache_block *point);
+  void end_request();
+  Query_cache_block *writer_query_block(Query_cache_tls *query_cache_tls);
   void invalidate_table_internal(uchar *key, size_t key_length);
 
 protected:
