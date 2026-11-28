@@ -98,6 +98,8 @@ public:
 
   bool check_frame_bounds();
 
+  bool is_frame_always_empty();
+
   void print(String *str, enum_query_type query_type);
 
 };
@@ -201,6 +203,11 @@ public:
 
   /* Compute and fill the fields in the table. */
   bool exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result);
+
+  bool all_frames_always_empty();
+
+  /* Fast path for when all frames are always empty: sequential scan, write NULLs. */
+  bool exec_always_empty(THD *thd, TABLE *tbl);
 
 private:
   /* A list of window functions for which this Window_func_runner will compute
