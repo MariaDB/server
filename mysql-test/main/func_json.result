@@ -306,6 +306,68 @@ t1	CREATE TABLE `t1` (
   `json_quote('foo')` varchar(38) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# MDEV-13645 JSON_QUOTE() returns NULL for numeric arguments
+#
+# A number is a valid JSON value and is returned unquoted
+select json_quote(17), json_quote(-17), json_quote(3.14), json_quote(1.5e2);
+json_quote(17)	json_quote(-17)	json_quote(3.14)	json_quote(1.5e2)
+17	-17	3.14	150
+select json_quote(18446744073709551615), json_quote(-9223372036854775808);
+json_quote(18446744073709551615)	json_quote(-9223372036854775808)
+18446744073709551615	-9223372036854775808
+select json_valid(json_quote(17)), json_valid(json_quote(3.14));
+json_valid(json_quote(17))	json_valid(json_quote(3.14))
+1	1
+# Strings and temporal values are still quoted, NULL is still NULL
+select json_quote('hello'), json_quote('"already_quoted"');
+json_quote('hello')	json_quote('"already_quoted"')
+"hello"	"\"already_quoted\""
+select json_quote(date'2025-01-02'), json_quote(time'12:30:00');
+json_quote(date'2025-01-02')	json_quote(time'12:30:00')
+"2025-01-02"	"12:30:00"
+select json_quote(NULL), json_quote(NULL) is null;
+json_quote(NULL)	json_quote(NULL) is null
+NULL	1
+create table t1 (i int, u bigint unsigned, z int(5) zerofill,
+d decimal(6,2), dz decimal(6,2) zerofill, f double);
+insert into t1 values (1, 18446744073709551615, 7, 1.5, 1.5, 2.25),
+(NULL, NULL, NULL, NULL, NULL, NULL);
+# ZEROFILL display padding must not leak into the JSON number
+select json_quote(i), json_quote(u), json_quote(z), json_quote(d),
+json_quote(dz), json_quote(f) from t1 order by i desc;
+json_quote(i)	json_quote(u)	json_quote(z)	json_quote(d)	json_quote(dz)	json_quote(f)
+1	18446744073709551615	7	1.50	1.50	2.25
+NULL	NULL	NULL	NULL	NULL	NULL
+create table t2 as select json_quote(i) a, json_quote(f) b from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` varchar(134) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL,
+  `b` varchar(266) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1, t2;
+# The argument is evaluated exactly once
+set @i= 0, @d= 0.5, @r= 0.5e0;
+select json_quote(@i:= @i + 1), json_quote(@d:= @d + 1),
+json_quote(@r:= @r + 1), @i, @d, @r;
+json_quote(@i:= @i + 1)	json_quote(@d:= @d + 1)	json_quote(@r:= @r + 1)	@i	@d	@r
+1	1.5	1.5	1	1.5	1.5
+create table t1 (n int);
+insert into t1 values (0);
+create function f1() returns int
+begin
+update t1 set n= n + 1;
+return 7;
+end$$
+select json_quote(f1());
+json_quote(f1())
+7
+select n from t1;
+n
+1
+drop function f1;
+drop table t1;
 select json_merge('string');
 ERROR 42000: Incorrect parameter count in the call to native function 'json_merge'
 select json_merge('string', 123);

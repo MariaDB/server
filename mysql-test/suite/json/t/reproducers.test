@@ -1,0 +1,100 @@
+--echo # MDEV-41402
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[4,5,6]');
+SELECT * FROM (SELECT * FROM t UNION SELECT * FROM t) dt WHERE dt.a MEMBER OF (dt.j);
+DROP TABLE t;
+
+--echo # MDEV-41404
+CREATE TABLE t (a INT, j JSON);
+INSERT INTO t VALUES (1, '[1,2,3]'), (2, '[2,3,4]');
+SELECT a, j, a MEMBER OF (j) FROM (SELECT SUM(a) OVER () AS a, j FROM t) dt;
+DROP TABLE t;
+
+--echo # Cross-join const-caching check
+CREATE TABLE t1 (id INT, val JSON);
+INSERT INTO t1 VALUES (1, '[1,2,3]'), (2, '[4,5,6]'), (3, NULL);
+CREATE TABLE t2 (candidate INT);
+INSERT INTO t2 VALUES (2), (4), (NULL);
+SELECT candidate, val, candidate MEMBER OF (val) FROM t1, t2 ORDER BY id, candidate;
+DROP TABLE t1, t2;
+
+--echo # Malformed JSON warnings check
+SELECT 1 MEMBER OF ('[1,2');
+CREATE TABLE t_json (j TEXT);
+INSERT INTO t_json VALUES ('[1,2');
+SELECT j MEMBER OF ('[1]') FROM t_json;
+DROP TABLE t_json;
+
+# MDEV-41418: JSON-typed NULL column must match [null] same as VARCHAR/INT NULL
+CREATE TABLE t_41418 (j JSON, c VARCHAR(10), i INT);
+INSERT INTO t_41418 VALUES (NULL, NULL, NULL);
+SELECT j MEMBER OF ('[1]'), c MEMBER OF ('[1]'), i MEMBER OF ('[1]') FROM t_41418;
+SELECT j MEMBER OF ('[null]'), c MEMBER OF ('[null]'), i MEMBER OF ('[null]') FROM t_41418;
+DROP TABLE t_41418;
+
+# MDEV-41586: latin1 candidate must match against utf8mb4 container
+CREATE TABLE t_41586 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t_41586 VALUES ('é');
+SELECT a MEMBER OF (CONCAT('["',a,'"]')) FROM t_41586;
+DROP TABLE t_41586;
+
+
+
+--echo #
+--echo # MDEV-42148 MEMBER OF evaluates a non-string candidate twice
+--echo #
+--source include/have_sequence.inc
+--echo # Side effects: a second execution would give different results
+--disable_ps2_protocol
+--disable_cursor_protocol
+CREATE SEQUENCE s;
+SELECT NEXTVAL(s) MEMBER OF ('[1]'), NEXTVAL(s) MEMBER OF ('[2]'), NEXTVAL(s) MEMBER OF ('[3]');
+SELECT LASTVAL(s);
+DROP SEQUENCE s;
+
+SET @i= 0;
+SELECT (@i:= @i + 1) MEMBER OF ('[1]') AS i1;
+SELECT @i;
+SET @d= 0.5;
+SELECT (@d:= @d + 1) MEMBER OF ('[1.5]') AS d1;
+SELECT @d;
+SET @r= 0.5e0;
+SELECT (@r:= @r + 1) MEMBER OF ('[1.5]') AS r1;
+SELECT @r;
+SET @s= '';
+SELECT (@s:= CONCAT(@s, 'a')) MEMBER OF ('["a"]') AS s1;
+SELECT @s;
+
+CREATE TABLE t_calls (n INT);
+INSERT INTO t_calls VALUES (0);
+DELIMITER $$;
+CREATE FUNCTION f_count() RETURNS INT
+BEGIN
+  UPDATE t_calls SET n= n + 1;
+  RETURN 7;
+END$$
+DELIMITER ;$$
+SELECT f_count() MEMBER OF ('[7]');
+SELECT n FROM t_calls;
+SELECT JSON_QUOTE(f_count()) IS NOT NULL;
+SELECT n FROM t_calls;
+DROP FUNCTION f_count;
+DROP TABLE t_calls;
+--enable_cursor_protocol
+--enable_ps2_protocol
+
+--echo #
+--echo # MDEV-42152 MEMBER OF with OF inside an executable comment
+--echo #
+SELECT 1 MEMBER /*!OF*/ ('[1]');
+SELECT 1 MEMBER /*M!100000 OF*/ ('[1]');
+SELECT 1 /*!MEMBER OF*/ ('[1]');
+SELECT 1 /*!MEMBER*/ OF ('[1]');
+SELECT 1 /*!MEMBER */ /*!OF*/ ('[1]');
+SELECT 1 NOT MEMBER /*!OF*/ ('[1]');
+SELECT 1 MEMBER /* regular comment */ OF ('[1]');
+--echo # OF in a comment for a future version is discarded: MEMBER is an alias
+SELECT 1 MEMBER /*!999999 OF*/;
+SELECT 1 MEMBER /*M!999999 OF*/;
+--echo # OF in a regular comment is ignored: MEMBER is an alias
+SELECT 1 MEMBER /* OF */;
