@@ -1,0 +1,39 @@
+#
+# MDEV-42351: A page that was discarded from a SPATIAL INDEX was added to the
+# search path of an ended search a second time
+#
+CREATE TABLE t1(id INT PRIMARY KEY, p POINT NOT NULL, SPATIAL INDEX(p))
+ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, POINT(RAND(seq)*1000, RAND(seq+7919)*1000)
+FROM seq_1_to_2000;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+connect  con_r,localhost,root,,;
+SET @w = ST_GeomFromText('POLYGON((-1 -1,-1 1001,1001 1001,1001 -1,-1 -1))');
+SELECT id FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w) LIMIT 1;
+connection default;
+INSERT INTO t1 SELECT seq + 6 * 1000, POINT(-3000 + seq/1000, -3000 + seq/1000)
+FROM seq_10001_to_10400;
+INSERT INTO t1 SELECT seq + 5 * 1000, POINT(5000 + seq/1000, 500 + seq/1000)
+FROM seq_10001_to_10400;
+INSERT INTO t1 SELECT seq + 4 * 1000, POINT(500 + seq/1000, 5000 + seq/1000)
+FROM seq_10001_to_10400;
+INSERT INTO t1 SELECT seq + 3 * 1000, POINT(500 + seq/1000, -5000 + seq/1000)
+FROM seq_10001_to_10400;
+INSERT INTO t1 SELECT seq + 2 * 1000, POINT(-5000 + seq/1000, 500 + seq/1000)
+FROM seq_10001_to_10400;
+INSERT INTO t1 SELECT seq + 1 * 1000, POINT(5000 + seq/1000, 5000 + seq/1000)
+FROM seq_10001_to_10400;
+DELETE FROM t1 WHERE id > 10000;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+DELETE FROM t1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+disconnect con_r;
+INSERT INTO t1 SELECT seq, POINT(seq, seq) FROM seq_1_to_10;
+SELECT COUNT(*) FROM t1 FORCE INDEX(p) WHERE MBRWithin(p, @w);
+COUNT(*)
+10
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+# End of 11.4 tests
