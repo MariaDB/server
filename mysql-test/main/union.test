@@ -2026,3 +2026,43 @@ drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # A result table that is converted to an on-disk table after its index
+--echo # has been disabled
+--echo #
+
+--source include/have_sequence.inc
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq FROM seq_1_to_5000;
+
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET @save_max_heap_table_size= @@max_heap_table_size;
+
+--echo # The index of the result table is dropped once the last distinct part
+--echo # has been read, so the trailing UNION ALL part fills a table with no
+--echo # index, and that table then outgrows the in-memory limit.
+let $q=
+SELECT COUNT(*) AS cnt, COUNT(DISTINCT a) AS distinct_a FROM (
+  SELECT a FROM t1 WHERE a <= 100
+    UNION
+  SELECT a FROM t1 WHERE a <= 100
+    UNION ALL
+  SELECT a FROM t1) d;
+
+SET SESSION tmp_memory_table_size= 16384;
+SET SESSION max_heap_table_size= 16384;
+eval $q;
+
+SET SESSION tmp_memory_table_size= 16777216;
+SET SESSION max_heap_table_size= 16777216;
+eval $q;
+
+SET SESSION tmp_memory_table_size= @save_tmp_memory_table_size;
+SET SESSION max_heap_table_size= @save_max_heap_table_size;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
