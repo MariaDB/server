@@ -1,0 +1,107 @@
+call mtr.add_suppression("Can't generate a unique log-filename");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open_index_file failed to sync the index file.");
+call mtr.add_suppression("MYSQL_BIN_LOG::open failed to generate new file name.");
+call mtr.add_suppression("Could not use .*");
+call mtr.add_suppression("Failed to switch from old to new log file.*");
+call mtr.add_suppression("Could not open .* for logging.*");
+call mtr.add_suppression("Error writing file .*");
+call mtr.add_suppression("Turning logging off for the whole duration.*");
+call mtr.add_suppression("Writing one row to the row-based binary log failed.*");
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+master-bin.NNNNNN	#
+TRUNCATE TABLE scn_filler;
+RESET MASTER;
+
+### scenario id=rotate.find_uniq_filename kind=error_inject trigger=rotate_size dbug=error_unique_log_filename mdev36606=find_uniq_filename
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
+SHOW WARNINGS;
+Level	Code	Message
+Error	1098	Can't generate a unique log-filename master-bin.(1-999)
+Error	1026	Error writing file 'master-bin' (errno: NN "No such file or directory")
+show binary logs;
+Log_name	File_size
+master-bin.NNNNNN	#
+DELETE FROM scn_filler;
+RESET MASTER;
+
+### scenario id=rotate.registering_index kind=error_inject trigger=rotate_size dbug=fault_injection_registering_index mdev36606=open.purge_index_register
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't open file: 'master-bin.000002' (errno: NN "Operation not permitted")
+SHOW WARNINGS;
+Level	Code	Message
+Error	1016	Can't open file: 'master-bin.000002' (errno: NN "Operation not permitted")
+Error	1026	Error writing file '(null)' (errno: NN "No such file or directory")
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+DROP TABLE scn_filler;
+# restart
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+### scenario id=rotate.openning_index kind=error_inject trigger=rotate_size dbug=fault_injection_openning_index mdev36606=open_index_file.open
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't open file: './mysqld-bin.index' (errno: NN "Operation not permitted")
+SHOW WARNINGS;
+Level	Code	Message
+Error	1016	Can't open file: './mysqld-bin.index' (errno: NN "Operation not permitted")
+Error	1026	Error writing file '(null)' (errno: NN "Bad file descriptor")
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+DROP TABLE scn_filler;
+# restart
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+### scenario id=rotate.recovering_index kind=error_inject trigger=rotate_size dbug=fault_injection_recovering_index mdev36606=open_index_file.recover
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't open file: './mysqld-bin.index' (errno: NN "Operation not permitted")
+SHOW WARNINGS;
+Level	Code	Message
+Error	1016	Can't open file: './mysqld-bin.index' (errno: NN "Operation not permitted")
+Error	1026	Error writing file '(null)' (errno: NN "No such file or directory")
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+DROP TABLE scn_filler;
+# restart
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+### scenario id=rotate.updating_index kind=error_inject trigger=rotate_size dbug=fault_injection_updating_index mdev36606=open.update_index
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't open file: 'master-bin.000002' (errno: NN "Operation not permitted")
+SHOW WARNINGS;
+Level	Code	Message
+Error	1016	Can't open file: 'master-bin.000002' (errno: NN "Operation not permitted")
+Error	1026	Error writing file '(null)' (errno: NN "Internal error/check (Not system error)")
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+DROP TABLE scn_filler;
+# restart
+SET @@global.max_binlog_size= 4096;
+CREATE TABLE scn_filler (a VARCHAR(8192)) ENGINE=InnoDB;
+RESET MASTER;
+
+### scenario id=rotate.new_file_rotate_event kind=error_inject trigger=rotate_size dbug=fault_injection_new_file_rotate_event mdev36606=new_file_impl.rotate_event
+INSERT INTO scn_filler VALUES (REPEAT('x', 6000));
+ERROR HY000: Can't open file: 'master-bin' (errno: NN "No such file or directory")
+SHOW WARNINGS;
+Level	Code	Message
+Error	1026	Can't open file: 'master-bin' (errno: NN "No such file or directory")
+Error	1026	Error writing file '(null)' (errno: NN "No such file or directory")
+SHOW BINARY LOGS;
+ERROR HY000: You are not using binary logging
+DROP TABLE scn_filler;
+# restart
+SET @@global.max_binlog_size= DEFAULT;
+RESET MASTER;
