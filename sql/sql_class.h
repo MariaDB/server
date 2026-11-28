@@ -209,6 +209,7 @@ enum enum_binlog_row_image {
 #define WAS_ORACLE                      (1ULL << 35)
 #define IS_OR_WAS_ORACLE                (MODE_ORACLE | WAS_ORACLE)
 
+void sql_mode_deprecated_warnings(THD *thd, ulonglong v);
 
 /* Bits for different old style modes */
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE        (1 <<  0)

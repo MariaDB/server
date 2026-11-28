@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-39164: Deprecate MYSQL323 and MYSQL40 SQL modes
+--echo #
+
+SET sql_mode='MYSQL323';
+SHOW WARNINGS;
+
+SET sql_mode='MYSQL40';
+SHOW WARNINGS;
