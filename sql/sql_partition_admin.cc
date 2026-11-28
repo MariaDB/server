@@ -184,6 +184,34 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
 }
 
 
+static bool unique_key_order_matches(const TABLE *table,
+                                     const TABLE *part_table)
+{
+  const KEY *table_key= table->key_info;
+  const KEY *part_key= part_table->key_info;
+  const KEY *table_end= table_key + table->s->keys;
+  const KEY *part_end= part_key + part_table->s->keys;
+
+  while (table_key < table_end || part_key < part_end)
+  {
+    while (table_key < table_end && !(table_key->flags & HA_NOSAME))
+      table_key++;
+    while (part_key < part_end && !(part_key->flags & HA_NOSAME))
+      part_key++;
+
+    if (table_key == table_end || part_key == part_end)
+      return table_key == table_end && part_key == part_end;
+
+    if (cmp(&table_key->name, &part_key->name))
+      return false;
+
+    table_key++;
+    part_key++;
+  }
+  return true;
+}
+
+
 /**
   @brief Compare table structure/options between a non partitioned table
   and a specific partition of a partitioned table.
@@ -256,6 +284,15 @@ bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
 
   DEBUG_SYNC(thd, "swap_partition_after_compare_tables");
   if (!metadata_equal)
+  {
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
+  /* Keep the engine-visible unique key order identical across partitions. */
+  if ((table->file->ha_table_flags() & HA_DUPLICATE_KEY_NOT_IN_ORDER) ||
+      (part_table->file->ha_table_flags() & HA_DUPLICATE_KEY_NOT_IN_ORDER) ||
+      !unique_key_order_matches(table, part_table))
   {
     my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
     DBUG_RETURN(TRUE);
