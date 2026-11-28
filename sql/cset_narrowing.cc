@@ -30,6 +30,6 @@ bool Utf8_narrow::should_do_narrowing(const THD *thd,
 {
   return optimizer_flag(thd, OPTIMIZER_SWITCH_CSET_NARROWING) &&
            field_cset == &my_charset_utf8mb3_general_ci &&
-           value_cset == &my_charset_utf8mb4_general_ci;
+           !strcmp(value_cset->cs_name.str, MY_UTF8MB4);
 }
 
