@@ -2179,6 +2179,10 @@ static int run_binlog_first(THD *thd, bool all, THD_TRANS *trans,
       rc= 1;
     }
   }
+#ifdef WITH_WSREP
+  else if (is_commit && wsrep_on(thd))
+    rc= thd->binlog_flush_pending_rows_event(TRUE);
+#endif
 
   return rc;
 }
