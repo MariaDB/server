@@ -239,15 +239,36 @@ class Item_func_json_quote: public Item_str_func
 {
 protected:
   String tmp_s;
+  /*
+    Appends the argument to the result as a JSON value.
+    Chosen in fix_length_and_dec() by the type handler of the argument.
+    Returns true if the argument is NULL, or on error.
+  */
+  bool (Item_func_json_quote::*m_append_value)(String *);
+
+  bool append_value_string(String *str);
+  bool append_value_int(String *str);
+  bool append_value_decimal(String *str);
+  bool append_value_real(String *str);
+  bool append_value_float(String *str);
+  void fix_length_and_dec_number();
 
 public:
-  Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s) {}
+  Item_func_json_quote(THD *thd, Item *s): Item_str_func(thd, s),
+    m_append_value(&Item_func_json_quote::append_value_string)
+  {}
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_quote") };
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
+  /* These are called by Type_handler::Item_func_json_quote_fix_length_and_dec */
+  void fix_length_and_dec_string();
+  void fix_length_and_dec_int();
+  void fix_length_and_dec_decimal();
+  void fix_length_and_dec_real();
+  void fix_length_and_dec_float();
   String *val_str(String *) override;
 
 protected:

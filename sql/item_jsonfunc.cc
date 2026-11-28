@@ -906,37 +906,137 @@ bool Json_engine_scan::check_and_get_value_complex(String *res, int *error,
 }
 
 
+/*
+  JSON_QUOTE() returns its argument as a JSON value:
+  - a string is quoted and escaped,
+  - a number is a valid JSON value already, and is returned as is,
+  - any other value (e.g. temporal) is quoted like a string.
+
+  How the argument is converted depends only on its data type, so this is
+  decided once, by the type handler of the argument, rather than for every
+  row.
+*/
 bool Item_func_json_quote::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_utf8mb4_bin);
+  return args[0]->type_handler()->
+           Item_func_json_quote_fix_length_and_dec(this);
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_string()
+{
   /*
     Odd but realistic worst case is when all characters
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
   fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
-  return FALSE;
+  m_append_value= &Item_func_json_quote::append_value_string;
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_number()
+{
+  /*
+    The argument can have a display width which is shorter than its value,
+    e.g. INT(5). Take what the data type can hold into account.
+  */
+  fix_char_length(MY_MAX(args[0]->max_char_length(),
+                         args[0]->type_handler()->max_display_length(args[0])));
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_int()
+{
+  fix_length_and_dec_number();
+  m_append_value= &Item_func_json_quote::append_value_int;
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_decimal()
+{
+  fix_length_and_dec_number();
+  m_append_value= &Item_func_json_quote::append_value_decimal;
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_real()
+{
+  fix_length_and_dec_number();
+  m_append_value= &Item_func_json_quote::append_value_real;
+}
+
+
+void Item_func_json_quote::fix_length_and_dec_float()
+{
+  fix_length_and_dec_number();
+  m_append_value= &Item_func_json_quote::append_value_float;
+}
+
+
+bool Item_func_json_quote::append_value_string(String *str)
+{
+  String *s= args[0]->val_str(&tmp_s);
+  if (!s)
+    return true;
+  return str->append('"') ||
+         st_append_escaped(str, s) ||
+         str->append('"');
+}
+
+
+/*
+  Numbers are converted from their native value rather than with val_str(),
+  so that ZEROFILL padding, which is a matter of display and is not allowed
+  in a JSON number, does not get into the result.
+*/
+bool Item_func_json_quote::append_value_int(String *str)
+{
+  longlong nr= args[0]->val_int();
+  if (args[0]->null_value)
+    return true;
+  return args[0]->unsigned_flag ? str->append_ulonglong((ulonglong) nr) :
+                                  str->append_longlong(nr);
+}
+
+
+bool Item_func_json_quote::append_value_decimal(String *str)
+{
+  VDec dec(args[0]);
+  if (dec.is_null() || !dec.to_string_round(&tmp_s, args[0]->decimals))
+    return true;
+  return str->append(tmp_s.ptr(), tmp_s.length());
+}
+
+
+bool Item_func_json_quote::append_value_real(String *str)
+{
+  double nr= args[0]->val_real();
+  if (args[0]->null_value)
+    return true;
+  return tmp_s.set_real(nr, NOT_FIXED_DEC, &my_charset_latin1) ||
+         str->append(tmp_s.ptr(), tmp_s.length());
+}
+
+
+bool Item_func_json_quote::append_value_float(String *str)
+{
+  Float nr(args[0]->val_real());
+  if (args[0]->null_value)
+    return true;
+  return nr.to_string(&tmp_s, NOT_FIXED_DEC) ||
+         str->append(tmp_s.ptr(), tmp_s.length());
 }
 
 
 String *Item_func_json_quote::val_str(String *str)
 {
-  String *s= args[0]->val_str(&tmp_s);
-
-  if ((null_value= (args[0]->null_value ||
-                    args[0]->result_type() != STRING_RESULT)))
-    return NULL;
-
+  DBUG_ASSERT(fixed());
   str->length(0);
   str->set_charset(&my_charset_utf8mb4_bin);
 
-  if (str->append('"') ||
-      st_append_escaped(str, s) ||
-      str->append('"'))
-  {
-    /* Report an error. */
-    null_value= 1;
-    return 0;
-  }
+  if ((null_value= (this->*m_append_value)(str)))
+    return NULL;
 
   return str;
 }
