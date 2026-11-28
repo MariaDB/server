@@ -6417,11 +6417,18 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
 
   if (is_compiled())
   {
-    if (!stringcmp(pattern, &m_prev_pattern))
+    /*
+      The cache is keyed on both the pattern and the library flags:
+      a non-constant match_type can change the flags from row to row,
+      in which case the pattern must be recompiled.
+    */
+    if (!stringcmp(pattern, &m_prev_pattern) &&
+        m_prev_flags == m_library_flags)
       return false;
     cleanup();
   }
   m_prev_pattern.copy(*pattern);
+  m_prev_flags= m_library_flags;
 
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;
@@ -6637,28 +6644,325 @@ bool Item_func_regex::val_bool()
 }
 
 
+/**
+  Parse the MySQL 8.0-style match_type argument (a string of the letters
+  "c", "i", "m", "n", "u") and adjust the library flags accordingly.
+
+  Must be called after init(): init() already set the default flags,
+  including the case-insensitivity derived from the collation, so the
+  case rule is not recomputed here. As in MySQL 8.0, the letters that
+  are present in match_type fully override the flags they can control
+  (PCRE2_CASELESS, PCRE2_MULTILINE and PCRE2_DOTALL); the letters that
+  are not present leave the corresponding default flag as it is.
+
+  Unlike init(), this method does not reset the compiled pattern cache:
+  compile() caches on both the pattern and the flags (see m_prev_flags),
+  so the regular expression is only recompiled when one of them actually
+  changes.
+
+  @param match_type_str  the match_type argument value (can be NULL or
+                         empty: no letters, nothing is overridden)
+  @param func_name       name of the calling function, used in the error
+                         message
+
+  @retval  false  success.
+  @retval  true   error: match_type contains an invalid letter, or cannot
+                  be converted to an ASCII-compatible charset. The error
+                  has been raised to the diagnostics area.
+*/
+bool Regexp_processor_pcre::set_match_type(const String *match_type_str,
+                                           const char *func_name)
+{
+  uint32_t result= m_library_flags &
+                   (PCRE2_CASELESS | PCRE2_MULTILINE | PCRE2_DOTALL);
+
+  if (match_type_str && match_type_str->length())
+  {
+    const char *p, *end;
+    String mt_conv;
+
+    if (match_type_str->charset()->mbminlen > 1)
+    {
+      /*
+        The letters are parsed byte by byte as ASCII. Charsets that are
+        not ASCII-compatible (ucs2, utf16, utf32) must be converted
+        first, otherwise every letter would be seen as two raw bytes,
+        and the error message below would show an unreadable value.
+      */
+      uint dummy_errors;
+      if (mt_conv.copy(match_type_str->ptr(), match_type_str->length(),
+                       match_type_str->charset(), &my_charset_latin1,
+                       &dummy_errors))
+      {
+        ErrConvString err(match_type_str);
+        my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
+                 "match_type", err.ptr(), func_name);
+        return true;
+      }
+      p= mt_conv.ptr();
+      end= p + mt_conv.length();
+    }
+    else
+    {
+      p= match_type_str->ptr();
+      end= p + match_type_str->length();
+    }
+    
+    for (; p < end; p++)
+    {
+      switch (*p) {
+      case 'c':
+        result&= ~PCRE2_CASELESS;
+        break;
+      case 'i':
+        result|= PCRE2_CASELESS;
+        break;
+      case 'm':
+        result|= PCRE2_MULTILINE;
+        break;
+      case 'n':
+        result|= PCRE2_DOTALL;
+        break;
+      case 'u':
+        /* Unix-only line endings: no direct PCRE2 equivalent, accepted. */
+        break;
+      default:
+        ErrConvString err(match_type_str);
+        my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
+                "match_type", err.ptr(), func_name);
+        return true;
+      }
+    }
+  }
+  /* 
+    The MySQL 8.0 behavior is that match_type fully overrides
+    the default flags for the flags it can control.
+  */
+  m_library_flags&= ~(PCRE2_CASELESS | PCRE2_MULTILINE | PCRE2_DOTALL);
+  m_library_flags|= static_cast<int>(result);
+  return false;
+}
+
+
 bool
 Item_func_regexp_instr::fix_length_and_dec(THD *thd)
 {
   if (agg_arg_charsets_for_comparison(cmp_collation, args, 2))
     return TRUE;
 
+  /*
+    Evaluate a constant match_type already at prepare time, the same way
+    fix_owner() handles a constant pattern. Expensive "constants"
+    (subqueries, stored functions) are left to the per-row path, so that
+    they are not evaluated during prepare.
+  */
+  m_match_type_is_const= arg_count > 5 &&
+                         args[5]->const_item() &&
+                         !args[5]->is_expensive();
   re.init(cmp_collation.collation, 0);
+  if (m_match_type_is_const)
+  {
+    char mt_buf[64];
+    String mt_tmp(mt_buf, sizeof(mt_buf), &my_charset_latin1);
+    String *match_type_str= args[5]->val_str(&mt_tmp);
+    if (thd->is_error())
+      return TRUE;
+
+    // A constant NULL match_type is not an error
+    if (match_type_str && !args[5]->null_value)
+    {
+      if (re.set_match_type(match_type_str, func_name()))
+        return TRUE;
+    }
+  }
+
   max_length= MY_INT32_NUM_DECIMAL_DIGITS; // See also Item_func_locate
   return re.fix_owner(this, args[0], args[1]);
+}
+
+
+/**
+  Evaluate one of the optional numeric arguments of REGEXP_INSTR
+  (pos, occurrence or return_option).
+
+  A NULL argument sets null_value and returns true, so that the caller
+  returns NULL. A signed negative value raises
+  ER_WRONG_PARAMETERS_TO_NATIVE_FCT and returns true. An unsigned value
+  keeps its unsigned bit pattern in *value, so that the caller can
+  range-check it in the unsigned domain (a value above the 32-bit range
+  can never match and is treated as "no match" by the caller).
+
+  @retval  false  OK, *value holds the argument value
+  @retval  true   NULL or error raised
+*/
+bool Item_func_regexp_instr::get_int_arg(uint i, longlong *value)
+{
+  longlong v= args[i]->val_int();
+  if ((null_value= args[i]->null_value))
+     return true;
+
+  if (!args[i]->unsigned_flag && v < 0)
+    return wrong_argument_error();
+  *value= v;
+  return false;
+}
+
+
+/**
+  Raise ER_WRONG_PARAMETERS_TO_NATIVE_FCT for a REGEXP_INSTR argument
+  outside of its allowed range and set null_value.
+*/
+bool Item_func_regexp_instr::wrong_argument_error()
+{
+  my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), func_name());
+  null_value= true;
+  return true;
 }
 
 
 longlong Item_func_regexp_instr::val_int()
 {
   DBUG_ASSERT(fixed());
-  if ((null_value= re.recompile(args[1])))
+
+  // args[2]: pos (1-based, default 1)
+  longlong pos= 1;
+  if (arg_count > 2)
+  {
+    if (get_int_arg(2, &pos))
+      return 0;
+    if (pos == 0)
+      return (wrong_argument_error(), 0);
+    /*
+      The search starts from a 32-bit byte offset: any bigger position
+      is beyond the end of the subject, so there is no match.
+    */
+    if (static_cast<ulonglong>(pos) > static_cast<ulonglong>(INT_MAX32))
+      return 0;
+  }
+
+  // args[3]: occurrence (1-based, default 1)
+  longlong occurrence= 1;
+  if (arg_count > 3)
+  {
+    if (get_int_arg(3, &occurrence))
+      return 0;
+    if (occurrence == 0)
+      return (wrong_argument_error(), 0);
+    /* There cannot be more occurrences than the 32-bit offset range */
+    if (static_cast<ulonglong>(occurrence) >
+        static_cast<ulonglong>(INT_MAX32))
+      return 0;
+  }
+
+  // args[4]: return_option (0=start pos, 1=end pos, default 0)
+  longlong return_option= 0;
+  if (arg_count > 4)
+  {
+    if (get_int_arg(4, &return_option))
+      return 0;
+     if (return_option != 0 && return_option != 1)
+      return (wrong_argument_error(), 0);
+  }
+
+  /*
+    args[5]: match_type. A constant match_type was already parsed at
+    prepare time (a constant NULL match_type makes every row NULL).
+    Otherwise re-parse it here: set_match_type() only adjusts the
+    library flags, and compile() caches on the pattern and the flags
+    together, so the regular expression is only recompiled when one of
+    them actually changes.
+  */
+  if (arg_count > 5 && !m_match_type_is_const)
+  {
+    char mt_buf[64];
+    String mt_tmp(mt_buf, sizeof(mt_buf), &my_charset_latin1);
+    String *match_type_str= args[5]->val_str(&mt_tmp);
+    if ((null_value= args[5]->null_value || !match_type_str))
+      return 0;
+    if (re.set_match_type(match_type_str, func_name()))
+      return (null_value= true, 0);
+    if ((null_value= re.compile(args[1], false)))
+      return 0;
+  }
+  else
+  {
+    if (arg_count > 5 && args[5]->is_null())
+      return (null_value= true, 0);
+    if ((null_value= re.recompile(args[1])))
+      return 0;
+  }
+
+  char subject_buf[MAX_FIELD_WIDTH];
+  String subject_tmp(subject_buf, sizeof(subject_buf), &my_charset_bin);
+  String *subject= args[0]->val_str(&subject_tmp);
+  if ((null_value= args[0]->null_value))
     return 0;
 
-  if ((null_value= re.exec(args[0], 0, 1)))
-    return 0;
+  String *subject_conv= re.convert_if_needed(subject, &re.subject_converter);
+  if (!subject_conv)
+    return (null_value= true, 0);
 
-  return re.match() ? (longlong) (re.subpattern_start(0) + 1) : 0;
+  const char *subject_ptr= subject_conv->ptr();
+  size_t subject_len= subject_conv->length();
+  CHARSET_INFO *lib_cs= re.library_charset();
+
+  size_t byte_offset= lib_cs->charpos(subject_ptr,
+                                      subject_ptr + subject_len,
+                                      static_cast<size_t>(pos - 1));
+
+  longlong found_occurrence= 0;
+  while (byte_offset <= subject_len)
+  {
+    if ((null_value= re.exec(subject_ptr, subject_len, byte_offset)))
+      return 0;
+
+    if (!re.match())
+      return 0;
+
+    found_occurrence++;
+    size_t match_start= re.subpattern_start(0);
+    size_t match_end= re.subpattern_end(0);
+
+    if (found_occurrence == occurrence)
+    {
+      if (return_option == 0)
+        return static_cast<longlong>(lib_cs->numchars(subject_ptr,
+                                                      subject_ptr +
+                                                      match_start)) + 1;
+      else
+        return static_cast<longlong>(lib_cs->numchars(subject_ptr,
+                                                      subject_ptr +
+                                                      match_end)) + 1;
+    }
+
+    /* 
+      After a zero-length match the next occurrence cannot be found at
+      the same position again: continue the search one character past
+      the end of the match, otherwise a zero-length match would be
+      reported forever. The character length must be read at the end
+      of the match, not at the position the search started from: a
+      zero-width match like "(?=x)" is normally found away from the
+      search start, and restarting the search inside a multibyte
+      character makes PCRE2 report a UTF-8 error.
+    */
+    size_t next_offset= match_end;
+    if (match_end == match_start)
+    {
+#ifdef USE_MB
+      if (lib_cs->use_mb())
+      {
+        uint l= my_ismbchar(lib_cs, subject_ptr + match_end,
+                            subject_ptr + subject_len);
+        next_offset= match_end + (l ? l : 1);
+      }
+      else
+#endif
+        next_offset= match_end + 1;
+    }
+    byte_offset= next_offset;
+  }
+
+  return 0;
 }
 
 
