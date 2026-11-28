@@ -1894,7 +1894,7 @@ void kill_mysql(THD *thd)
                     DBUG_ASSERT(binlog_dump_thread_count == 3);
                     const char act[]=
                       "now "
-                      "SIGNAL greetings_from_kill_mysql";
+                      "SIGNAL continue_dump_thread_after_start";
                     DBUG_ASSERT(!debug_sync_set_action(thd,
                                                        STRING_WITH_LEN(act)));
                   };);

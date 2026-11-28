@@ -20,6 +20,7 @@
 #include "semisync_master.h"
 #include <algorithm>
 #include <mysql_com.h>
+#include "debug_sync.h"
 
 #define TIME_THOUSAND 1000
 #define TIME_MILLION  1000000
@@ -409,6 +410,25 @@ Active_tranx::is_thd_waiter(Repl_semi_sync_trx_info *inf)
 }
 
 
+bool Log_info_pos::get_full_pos(String &string)
+{
+  return Repl_semi_sync_trx_info(
+    log_file, log_pos.load(std::memory_order_acquire)
+  ).get_full_pos(string);
+}
+
+
+bool Gtid_pos::set(slave_connection_state &gtid_pos)
+{
+  for (uint32 i= 0 ; i < gtid_pos.hash.records; ++i)
+    if (update(&(reinterpret_cast<const slave_connection_state::entry *>(
+      my_hash_element(&gtid_pos.hash, i)
+    )->gtid)))
+      return true;
+  return false;
+}
+
+
 Repl_semi_sync_trx_info::Repl_semi_sync_trx_info()
 {
   gtid.domain_id= 0;
@@ -436,6 +456,22 @@ Repl_semi_sync_trx_info::Repl_semi_sync_trx_info(const char *file_name_,
   gtid= *gtid_;
   log_file= file_name_;
   log_pos= log_pos_;
+}
+
+bool Repl_semi_sync_trx_info::get_full_pos(String &string)
+{
+  String log_pos_str;
+  if (log_pos_str.set(log_pos, files_charset_info))
+    return true;
+  string.set(log_file, strlen(log_file), files_charset_info);
+  // Pre-allocate to avoid realloc()s
+  if (string.reserve(/* ':' */ 1 + log_pos_str.length()))
+    return true;
+  [[maybe_unused]] bool err=
+    string.append(':') ||
+    string.append(std::move(log_pos_str));
+  DBUG_ASSERT(!err);
+  return err;
 }
 
 
@@ -483,14 +519,22 @@ Trans_binlog_info::set(const Repl_semi_sync_trx_info *inf)
 }
 
 
-void
+bool
 Trans_binlog_info::set(const char *log_file_, my_off_t log_pos_,
                        const rpl_gtid *gtid_)
 {
   strmake_buf(file_name_buf, log_file_);
+  return Repl_semi_sync_trx_info::set(file_name_buf, log_pos_, gtid_);
+}
+
+bool
+Repl_semi_sync_trx_info::set(const char *file_name_buf, my_off_t log_pos_,
+                             const rpl_gtid *gtid_)
+{
   gtid= *gtid_;
   log_file= file_name_buf;
   log_pos= log_pos_;
+  return false;
 }
 
 
@@ -708,7 +752,6 @@ void Repl_semi_sync_master::add_slave()
 
 void Repl_semi_sync_master::remove_slave()
 {
-  lock();
   DBUG_ASSERT(rpl_semi_sync_master_clients > 0);
   if (!(--rpl_semi_sync_master_clients) && !rpl_semi_sync_master_wait_no_slave
       && get_master_enabled())
@@ -720,7 +763,6 @@ void Repl_semi_sync_master::remove_slave()
     DBUG_ASSERT(m_active_tranxs);
     m_active_tranxs->clear_active_tranx_nodes(NULL);
   }
-  unlock();
 }
 
 
@@ -732,7 +774,7 @@ void Repl_semi_sync_master::remove_slave()
   @retval -1  Slave is going down (ok)
 */
 
-int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
+int Repl_semi_sync_master::report_reply_packet(Slave &slave,
                                                const uchar *packet,
                                                ulong packet_len)
 {
@@ -758,7 +800,7 @@ int Repl_semi_sync_master::report_reply_packet(uint32 server_id,
     goto l_end;
   }
 
-  result= report_reply_packet_inner(server_id, packet, packet_len);
+  result= report_reply_packet_inner(slave, packet, packet_len);
   if (unlikely(result))
     goto l_end;
 
@@ -770,14 +812,14 @@ l_end:
     octet2hex(buf, (const unsigned char*) packet,
               MY_MIN(sizeof(buf)-1, (size_t) packet_len));
     sql_print_information("First bytes of the packet from semisync slave "
-                          "server-id %d: %s", server_id, buf);
+                          "server-id %d: %s", slave.server_id(), buf);
 
   }
   DBUG_RETURN(result);
 }
 
 int
-Repl_semi_sync_master_file_pos::report_reply_packet_inner(uint32 server_id,
+Repl_semi_sync_master_file_pos::report_reply_packet_inner(Slave &slave,
                                                           const uchar *packet,
                                                           ulong packet_len)
 {
@@ -807,17 +849,17 @@ Repl_semi_sync_master_file_pos::report_reply_packet_inner(uint32 server_id,
 
   DBUG_PRINT("semisync", ("%s: Got reply(%s, %lu) from server %u",
                           "Repl_semi_sync_master::report_reply_packet",
-                          log_file_name, (ulong)log_file_pos, server_id));
+                          log_file_name, (ulong)log_file_pos, slave.server_id()));
 
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog_file_pos(server_id, log_file_name, log_file_pos);
+  report_reply_binlog_file_pos(slave, log_file_name, log_file_pos);
 
   return 0;
 }
 
 
 int
-Repl_semi_sync_master_gtid::report_reply_packet_inner(uint32 server_id,
+Repl_semi_sync_master_gtid::report_reply_packet_inner(Slave &slave,
                                                       const uchar *packet,
                                                       ulong packet_len)
 {
@@ -837,17 +879,17 @@ Repl_semi_sync_master_gtid::report_reply_packet_inner(uint32 server_id,
   DBUG_PRINT("semisync", ("%s: Got reply GTID %u-%u-%llu from server %u",
                           "Repl_semi_sync_master::report_reply_packet",
                           gtid.domain_id, gtid.server_id,
-                          (ulonglong)gtid.seq_no, server_id));
+                          (ulonglong)gtid.seq_no, slave.server_id()));
 
   rpl_semi_sync_master_get_ack++;
-  report_reply_binlog_gtid(server_id, &gtid);
+  report_reply_binlog_gtid(slave, &gtid);
 
   return 0;
 }
 
 
 int
-Repl_semi_sync_master_file_pos::report_reply_binlog_file_pos(uint32 server_id,
+Repl_semi_sync_master_file_pos::report_reply_binlog_file_pos(Slave &slave,
                                                              const char *log_file_name,
                                                              my_off_t log_file_pos)
 {
@@ -863,11 +905,16 @@ Repl_semi_sync_master_file_pos::report_reply_binlog_file_pos(uint32 server_id,
   if (get_master_enabled())
   {
     const rpl_gtid zero_gtid= {0, 0, 0};
-    Repl_semi_sync_trx_info inf(log_file_name, log_file_pos, &zero_gtid);
+    Repl_semi_sync_trx_info &inf= slave.trx_info();
+    res= inf.set(log_file_name, log_file_pos, &zero_gtid);
+   if (likely(!res))
+   {
     tranx_entry= m_active_tranxs->is_thd_waiter(&inf);
     if (tranx_entry)
+      //FIXME: split Repl_pos::set() to avoid setting `log_file_name` twice
       inf.gtid= tranx_entry->gtid;
-    res= report_reply_binlog(server_id, &inf, tranx_entry);
+    res= report_reply_binlog(slave.server_id(), &inf, tranx_entry);
+   }
   }
 
   unlock();
@@ -877,7 +924,7 @@ Repl_semi_sync_master_file_pos::report_reply_binlog_file_pos(uint32 server_id,
 
 
 int
-Repl_semi_sync_master_gtid::report_reply_binlog_gtid(uint32 server_id,
+Repl_semi_sync_master_gtid::report_reply_binlog_gtid(Slave &slave,
                                                      const rpl_gtid *gtid,
                                                      bool have_gtid)
 {
@@ -891,15 +938,18 @@ Repl_semi_sync_master_gtid::report_reply_binlog_gtid(uint32 server_id,
   /* This is the real check inside the mutex. */
   if (get_master_enabled())
   {
-    Trans_binlog_info inf("", 0, gtid);
+    Repl_semi_sync_trx_info &inf= slave.trx_info();
+    res= inf.set("", 0, gtid);
     Tranx_node *tranx_entry= nullptr;
-    if (have_gtid)
+    if (have_gtid && likely(!res))
     {
       tranx_entry= m_active_tranxs->is_thd_waiter(&inf);
       if (tranx_entry)
+      res=
         inf.set(tranx_entry->log_name, tranx_entry->log_pos, gtid);
     }
-    res= report_reply_binlog(server_id,
+    if (likely(!res))
+    res= report_reply_binlog(slave.server_id(),
                              (have_gtid ? &inf : nullptr),
                              tranx_entry);
   }
@@ -1044,7 +1094,13 @@ int Repl_semi_sync_master::report_binlog_update(THD *trans_thd,
         new(mem) Trans_binlog_info(file_name_without_dir, log_pos, gtid);
     }
     else
+    {
+      bool error=
       log_info->set(file_name_without_dir, log_pos, gtid);
+      DBUG_ASSERT(!error);
+      if (error) // do something in non-DBUG builds
+        return 2;
+    }
     return write_tranx_in_binlog(waiter_thd, log_info);
   }
 
@@ -1059,7 +1115,7 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   if (!thd->semi_sync_slave)
     return 0;
 
-  if (ack_receiver.add_slave(thd))
+  if (dump_start_inner(thd, log_file, log_pos, gtid_state))
   {
     sql_print_error("Failed to register slave to semi-sync ACK receiver "
                     "thread. Turning off semisync");
@@ -1068,7 +1124,6 @@ int Repl_semi_sync_master::dump_start(THD* thd,
   }
 
   add_slave();
-  dump_start_inner(thd, log_file, log_pos, gtid_state);
 
   /* Mark that semi-sync net->pkt_nr is not reliable */
   thd->net.pkt_nr_can_be_reset= 1;
@@ -1076,38 +1131,63 @@ int Repl_semi_sync_master::dump_start(THD* thd,
 }
 
 
-void
+template<class Trx_info>
+struct Trx_info_slave: Slave
+{
+  Trx_info trx_info_;
+  Repl_semi_sync_trx_info &trx_info() override { return trx_info_; }
+};
+
+
+bool
 Repl_semi_sync_master_file_pos::dump_start_inner(THD* thd,
                                                  const char *log_file,
                                                  my_off_t log_pos,
                                                  slave_connection_state *gtid_state)
 {
-  report_reply_binlog_file_pos(thd->variables.server_id,
-                               log_file + dirname_length(log_file), log_pos);
+  auto *slave= new Trx_info_slave<Trans_binlog_info>();
+  if (!slave)
+    return true;
+  ack_receiver.add_slave(slave, thd);
+  if (report_reply_binlog_file_pos(*slave,
+        log_file + dirname_length(log_file), log_pos))
+    return true;
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), pos(%s, %lu)",
-                        (long) thd->variables.server_id, log_file,
+                        (long) slave->server_id(), log_file,
                         (ulong) log_pos);
+  return false;
 }
 
 
-void
+bool
 Repl_semi_sync_master_gtid::dump_start_inner(THD* thd,
                                              const char *log_file,
                                              my_off_t log_pos,
                                              slave_connection_state *gtid_state)
 {
+  auto *slave= new Trx_info_slave<Trans_gtid_pos_info>();
+  if (!slave)
+    return true;
+  if (slave->trx_info_.Gtid_pos::set(*gtid_state))
+  {
+    delete slave;
+    return true;
+  }
+  ack_receiver.add_slave(slave, thd);
   /*
     Find the latest GTID that this connecting slave has already ack'ed,
     if any.
   */
   rpl_gtid acked_gtid{0, 0, 0};
   bool any_acked= latest_gtid(gtid_state, &acked_gtid);
-  report_reply_binlog_gtid(server_id, &acked_gtid, any_acked);
+  if (report_reply_binlog_gtid(*slave, &acked_gtid, any_acked))
+    return true;
   sql_print_information("Start semi-sync binlog_dump to slave "
                         "(server_id: %ld), GTID %u-%u-%llu",
-                        (long) thd->variables.server_id, acked_gtid.domain_id,
+                        (long) slave->server_id(), acked_gtid.domain_id,
                         acked_gtid.server_id, (ulonglong)acked_gtid.seq_no);
+  return false;
 }
 
 
@@ -1160,7 +1240,11 @@ void Repl_semi_sync_master::dump_end(THD* thd)
   sql_print_information("Stop semi-sync binlog_dump to slave (server_id: %ld)",
                         (long) thd->variables.server_id);
 
+  lock();
   remove_slave();
+  if (Slave_info *si= thd->slave_info)
+    slave_info_set_ack_pos(si, nullptr);
+  unlock();
   ack_receiver.remove_slave(thd);
 }
 
@@ -1478,6 +1562,11 @@ int Repl_semi_sync_master::update_sync_header(THD* thd, unsigned char *packet,
   }
 
   Repl_semi_sync_trx_info inf(log_file_name, log_file_pos, gtid);
+  DBUG_EXECUTE_IF("pause_dump_thread_before_update_sync_header",
+    DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(
+      "now SIGNAL at_dump_thread_before_update_sync_header "
+      "WAIT_FOR continue_dump_thread_before_update_sync_header")));
+  );
   lock();
 
   /* This is the real check inside the mutex. */

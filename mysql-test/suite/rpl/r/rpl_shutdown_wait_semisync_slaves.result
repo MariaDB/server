@@ -20,7 +20,8 @@ connection server_4;
 include/stop_slave.inc
 connection server_1;
 connection server_1;
-SET @@GLOBAL.debug_dbug="+d,simulate_delay_at_shutdown";
+SET @@GLOBAL.debug_dbug=
+'+d,simulate_delay_at_shutdown,pause_dump_thread_after_start';
 connection server_4;
 include/start_slave.inc
 connection server_1;

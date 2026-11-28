@@ -1,0 +1,138 @@
+# MDEV-21322 report slave progress to the master
+#
+# This test verifies that dump threads report their slave
+# descriptions and replication positions in SHOW SLAVE HOSTS.
+#
+# With Server 1 as the master, test cases include:
+# 1. Async to Server 2 alongside semi-sync to Server 3
+#    * Initial states before replicating anything
+#    * Semi-sync catch-up
+#    * After ACKing
+# 2. Lagging semi-sync to Server 2 alongside unimpeded semi-sync to Server 3
+#    * Before vs. after ACKing
+#
+# In both setups, unless the test times out, Server 1's semi-sync statements
+# will wait for Server 3's ACKs letting them through before returning.
+# Therefore, this test does not need to `debug_sync`-wait for Server 3 ACKs,
+# nor need to use `--send`/`--reap` while Server 1 statements wait for ACKs.
+
+
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_mixed.inc # format-agnostic
+
+--let $rpl_topology= 1->2, 1->3
+--let $rpl_skip_start_slave= 1
+--source include/rpl_init.inc
+
+--connection server_1
+# simulate multi-domain
+--let $start_gtids= 9-1-1
+--eval SET @@GLOBAL.gtid_binlog_state= '$start_gtids'
+CREATE TABLE t (a INT);
+--source include/save_master_gtid.inc
+
+SET @orig_master_enabled= @@GLOBAL.rpl_semi_sync_master_enabled;
+SET @@GLOBAL.rpl_semi_sync_master_enabled= ON;
+SET @orig_debug_dbug= @@GLOBAL.debug_dbug;
+SET @@GLOBAL.debug_dbug= '+d,'
+  'pause_dump_thread_after_start,pause_dump_thread_before_update_sync_header';
+
+
+--echo # Test start-up with one async slave and one semi-sync slave
+
+--connection server_2
+  CREATE TABLE t (a INT); # the skipped transaction
+  SET @orig_slave_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+  SET @@GLOBAL.rpl_semi_sync_slave_enabled= OFF;
+  --eval SET @@GLOBAL.gtid_slave_pos= '$start_gtids'
+  START SLAVE;
+  --source include/wait_for_slave_sql_to_start.inc
+--connection server_1
+SET @@SESSION.debug_sync= 'now WAIT_FOR at_dump_thread_after_start';
+# `debug_sync` will clear the signal
+
+--connection server_3
+  SET @orig_slave_enabled= @@GLOBAL.rpl_semi_sync_slave_enabled;
+  SET @@GLOBAL.rpl_semi_sync_slave_enabled= ON;
+  # This slave will catch up to `$skip_gtids` without semi-sync.
+  --eval SET @@GLOBAL.gtid_slave_pos= '$start_gtids'
+  START SLAVE IO_THREAD;
+--connection server_1
+SET @@SESSION.debug_sync= 'now WAIT_FOR at_dump_thread_after_start';
+SHOW SLAVE HOSTS; # Initial positions
+
+SET @@SESSION.debug_sync=
+  'now SIGNAL continue_dump_thread_after_start '
+  'WAIT_FOR at_dump_thread_before_update_sync_header';
+--sync_slave_with_master server_2
+--connection server_1
+SHOW SLAVE HOSTS; # While the semi-sync slave is still catching up
+
+# Server 1 doesn't want `debug_sync` anymore ...
+SET @@GLOBAL.debug_dbug= @orig_debug_dbug;
+# ... but it still needs to flush the dump thread for Server 3.
+SET @@SESSION.debug_sync=
+  'now SIGNAL continue_dump_thread_before_update_sync_header';
+
+
+--echo # Test a transaction with mixed async and semi-sync
+
+# Different server ID but repeated GTID domain (showing that GTID
+#  outputs are per-domain positions, not per-domain-server-pair states)
+SET STATEMENT server_id=9 FOR INSERT INTO t VALUES (1);
+--sync_slave_with_master server_2
+  # For reference, show the expected position
+  SELECT CONCAT(Master_Log_File, ':', Read_Master_Log_Pos) AS Legacy_IO_Pos,
+    Gtid_IO_Pos FROM information_schema.slave_status;
+--connection server_1
+SHOW SLAVE HOSTS; # After a transaction with mixed async and semi-sync
+
+
+--echo # Test restarting the async slave to a second but lagging semi-sync slave
+
+--connection server_2
+  --source include/stop_slave_io.inc
+--connection server_1
+
+#TODO:
+# It is known issue that non-semi-sync dump threads can ignore the disconnection
+# of their clients, so write something to invoke network error handing.
+INSERT INTO t VALUES (-1);
+--let $status_var= Slaves_connected
+--let $status_var_value= 1
+--source include/wait_for_status_var.inc
+SHOW SLAVE HOSTS; # After one slave disconnects
+
+--connection server_2
+  SET @@GLOBAL.rpl_semi_sync_slave_enabled= ON;
+  SET @orig_debug_dbug= @@GLOBAL.debug_dbug;
+  SET @@GLOBAL.debug_dbug= '+d,simulate_delay_semisync_slave_reply';
+  START SLAVE IO_THREAD;
+  --source include/wait_for_slave_io_to_start.inc
+--connection server_1
+
+DROP TABLE t;
+# Show that only the dump thread to Server 3 updates while Server 2 "hangs"
+SHOW SLAVE HOSTS; # After receiving an ACK from only one of two semi-sync slaves
+
+
+--echo # Cleanup
+
+SET @@SESSION.debug_sync= 'RESET';
+SET @@GLOBAL.rpl_semi_sync_master_enabled= @orig_master_enabled;
+
+--connection server_2
+SET @@SESSION.debug_sync= 'now WAIT_FOR io_thd_at_slave_reply';
+SET @@GLOBAL.debug_dbug= @orig_debug_dbug;
+SET @@SESSION.debug_sync= 'now SIGNAL io_thd_do_reply';
+--source include/stop_slave.inc
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
+
+--connection server_3
+--source include/stop_slave_io.inc
+SET @@SESSION.debug_sync= 'RESET';
+SET @@GLOBAL.rpl_semi_sync_slave_enabled= @orig_slave_enabled;
+
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc
