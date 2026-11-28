@@ -124,8 +124,17 @@ FROM (SELECT CONCAT(@c:= @c+1, ':',
 SELECT @c AS assignments;
 
 --echo # Verify the overflow really happened
+#
+# How many temporary tables this query creates depends on how much memory
+# it is given: with more of it the DISTINCT aggregate keeps its values in
+# a Unique tree instead of a temporary table, so one fewer table exists to
+# convert.  A 32 bit build reaches that point at the size set above, and
+# answers the query with one conversion rather than two.  Both counts
+# produce the same rows, so assert that the conversion happened rather
+# than how many of them did.
 --disable_warnings
-SELECT variable_name, variable_value FROM information_schema.session_status
+SELECT variable_value > 0 AS overflow_happened
+  FROM information_schema.session_status
   WHERE variable_name = 'Created_tmp_disk_tables';
 --enable_warnings
 
