@@ -95,7 +95,7 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
 then
   dpkg-query -W $plugin
 
-  LOG=/var/lib/mysql/#rocksdb/LOG
+  LOG=/var/lib/mariadb/#rocksdb/LOG
   # XXX: The server may only be started during the install of
   #      mariadb-server, which happens before that of the plugin.
   [ -e $LOG ] || mariadb -e "INSTALL PLUGIN RocksDB SONAME 'ha_rocksdb';"
