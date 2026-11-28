@@ -19,6 +19,31 @@ jobs:
     runs-on: windows-2025
 
     steps:
+
+      - name: Collect system information
+        shell: pwsh
+        run: |
+          $cs   = Get-CimInstance Win32_ComputerSystem
+          $cpus = Get-CimInstance Win32_Processor
+          $os   = Get-CimInstance Win32_OperatingSystem
+
+          Write-Host "=== CPU ==="
+          $cpus | ForEach-Object {
+            Write-Host ("{0} | cores: {1} | logical processors: {2}" -f $_.Name.Trim(), $_.NumberOfCores, $_.NumberOfLogicalProcessors)
+          }
+          Write-Host ("Total logical processors: {0}" -f $cs.NumberOfLogicalProcessors)
+
+          Write-Host "`n=== Memory ==="
+          Write-Host ("Total physical: {0:N2} GB" -f ($cs.TotalPhysicalMemory / 1GB))
+          Write-Host ("Free physical:  {0:N2} GB" -f ($os.FreePhysicalMemory * 1KB / 1GB))
+
+          Write-Host "`n=== Disks ==="
+          Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" |
+            Select-Object DeviceID, VolumeName,
+              @{n='Size(GB)'; e={[math]::Round($_.Size / 1GB, 2)}},
+              @{n='Free(GB)'; e={[math]::Round($_.FreeSpace / 1GB, 2)}} |
+            Format-Table -AutoSize | Out-String | Write-Host
+
       - name: Configure git
         run: |
           # We won't be able to successfully run mtr
@@ -54,4 +79,4 @@ jobs:
           $cidir = "$tmp/ci"
           mkdir $cidir
           fsutil file setCaseSensitiveInfo $cidir enable
-          perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=0 --big --parallel=$parallel --suite=rpl --vardir=$cidir/var --mysqld=--lower-case-table-names=0
+          perl bld\mysql-test\mysql-test-run.pl --force --max-test-fail=0 --big --parallel=$parallel --suite=rpl --vardir=$cidir/var --verbose-restart --retry=2
