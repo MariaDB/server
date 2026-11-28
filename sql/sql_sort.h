@@ -547,6 +547,14 @@ public:
   uint ref_length;            // Length of record ref.
   uint addon_length;          // Length of addon_fields
   uint res_length;            // Length of records in final sorted file/buffer.
+  /*
+    Whether the rowid that make_sortkey() writes after the sort key has to
+    be left out of the comparison because it orders nothing.  Which rowids
+    those are is decided in init_for_filesort().  Left false, as every
+    zeroed Sort_param has it, the rowid is compared as it always was;
+    there is no rowid to compare at all when addon fields are used.
+  */
+  bool unordered_rowid;
   uint max_keys_per_buffer;   // Max keys / buffer.
   uint min_dupl_count;
   ha_rows max_rows;           // Select limit, or HA_POS_ERROR if unlimited.
@@ -673,11 +681,21 @@ public:
 
   void try_to_pack_sortkeys();
 
+  /*
+    How many leading bytes of a sorted record two of them are compared on.
+    That is the whole sort key, and the rowid after it when the rowid is
+    one of the things being sorted by.
+  */
+  uint get_cmp_length() const
+  {
+    return unordered_rowid ? sort_length - res_length : sort_length;
+  }
+
   qsort_cmp2 get_compare_function() const
   {
     return using_packed_sortkeys() ?
            get_packed_keys_compare_ptr() :
-           get_ptr_compare(sort_length);
+           get_ptr_compare(get_cmp_length());
   }
   void* get_compare_argument(size_t *sort_len) const
   {
