@@ -549,6 +549,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
   bool is_table_modified= false;
+  /*
+    MDEV-40870: remains true as long as every table administered by this
+    statement is a temporary table.
+  */
+  bool all_tables_temporary= true;
   LEX_CUSTRING tabledef_version;
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
@@ -1376,22 +1381,27 @@ send_result_message:
         if (open_for_modify && !open_error)
           table->table->file->info(HA_STATUS_CONST);
       }
-      else if ((!skip_flush && open_for_modify) || fatal_error)
+      else
       {
-        table->table->s->tdc->flush_unused(true);
-        /*
-          May be something modified. Consequently, we have to
-          invalidate the query cache.
-        */
-        table->table= 0;                        // For query cache
-        query_cache_invalidate3(thd, table, 0);
-      }
-      else if (collect_eis && skip_flush && compl_result_code == HA_ADMIN_OK)
-      {
-        TABLE_LIST *save_next_global= table->next_global;
-        table->next_global= 0;
-        read_statistics_for_tables(thd, table, true /* force_reload */);
-        table->next_global= save_next_global;
+        /* MDEV-40870: the statement administers a non-temporary table. */
+        all_tables_temporary= false;
+        if ((!skip_flush && open_for_modify) || fatal_error)
+        {
+          table->table->s->tdc->flush_unused(true);
+          /*
+            May be something modified. Consequently, we have to
+            invalidate the query cache.
+          */
+          table->table= 0;                        // For query cache
+          query_cache_invalidate3(thd, table, 0);
+        }
+        else if (collect_eis && skip_flush && compl_result_code == HA_ADMIN_OK)
+        {
+          TABLE_LIST *save_next_global= table->next_global;
+          table->next_global= 0;
+          read_statistics_for_tables(thd, table, true /* force_reload */);
+          table->next_global= save_next_global;
+        }
       }
     }
     /* Error path, a admin command failed. */
@@ -1451,7 +1461,16 @@ send_result_message:
   }
   thd->resume_subsequent_commits(suspended_wfc);
   DBUG_EXECUTE_IF("inject_analyze_table_sleep", my_sleep(500000););
-  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
+  /*
+    MDEV-40870: ANALYZE/OPTIMIZE/REPAIR on a temporary table must not be
+    written to the binary log when row-based binlogging is used, since
+    neither CREATE TEMPORARY TABLE nor the DML on temporary tables are
+    binlogged in that case. Writing the admin statement anyway would
+    make the replica apply it to a base table with the same name, if
+    such a table happens to exist, or fail to replicate the statement.
+  */
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog &&
+      !(all_tables_temporary && thd->is_current_stmt_binlog_format_row()))
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     auto res= write_bin_log(thd, true, thd->query(), thd->query_length());
