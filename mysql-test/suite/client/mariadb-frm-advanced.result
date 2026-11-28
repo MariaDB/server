@@ -1,0 +1,256 @@
+MariaDB frm parser test - Advanced Features
+Testing advanced MariaDB features and complex scenarios
+CREATE TABLE t_charsets (
+id INT,
+utf8_col VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_general_ci,
+utf8mb4_col VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+latin1_col VARCHAR(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci,
+binary_col VARCHAR(100) CHARACTER SET binary
+) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE TABLE `t_charsets` (
+  `id` int(11) DEFAULT NULL,
+  `utf8_col` varchar(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `utf8mb4_col` varchar(100) DEFAULT NULL,
+  `latin1_col` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `binary_col` varbinary(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+DROP TABLE t_charsets;
+CREATE SEQUENCE s1 START WITH 1000 INCREMENT BY 10;
+CREATE TABLE t_sequence (
+id INT DEFAULT NEXTVAL(s1),
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE `t_sequence` (
+  `id` int(11) DEFAULT nextval(`test`.`s1`),
+  `name` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_sequence;
+DROP SEQUENCE s1;
+CREATE TABLE t_parent (
+id INT PRIMARY KEY,
+name VARCHAR(100)
+) ENGINE=InnoDB;
+CREATE TABLE t_child (
+id INT PRIMARY KEY,
+parent_id INT,
+data VARCHAR(255),
+FOREIGN KEY fk_parent (parent_id) REFERENCES t_parent(id) ON DELETE CASCADE ON UPDATE RESTRICT
+) ENGINE=InnoDB;
+CREATE TABLE `t_child` (
+  `id` int(11) NOT NULL,
+  `parent_id` int(11) DEFAULT NULL,
+  `data` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `fk_parent` (`parent_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_child;
+DROP TABLE t_parent;
+CREATE TABLE t_check_constraints (
+id INT,
+age INT CHECK (age >= 0 AND age <= 150),
+email VARCHAR(255) CHECK (email LIKE '%@%.%'),
+score DECIMAL(5,2) CHECK (score BETWEEN 0.00 AND 100.00),
+status VARCHAR(20) CHECK (status IN ('active', 'inactive', 'pending'))
+);
+CREATE TABLE `t_check_constraints` (
+  `id` int(11) DEFAULT NULL,
+  `age` int(11) DEFAULT NULL CHECK (`age` >= 0 and `age` <= 150),
+  `email` varchar(255) DEFAULT NULL CHECK (`email` like '%@%.%'),
+  `score` decimal(5,2) DEFAULT NULL CHECK (`score` between 0.00 and 100.00),
+  `status` varchar(20) DEFAULT NULL CHECK (`status` in ('active','inactive','pending'))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_check_constraints;
+CREATE TABLE t_invisible_columns (
+id INT,
+name VARCHAR(100),
+secret_data VARCHAR(255) INVISIBLE,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP INVISIBLE,
+visible_data TEXT
+);
+CREATE TABLE `t_invisible_columns` (
+  `id` int(11) DEFAULT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `secret_data` varchar(255) DEFAULT NULL INVISIBLE,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0) INVISIBLE,
+  `visible_data` text DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_invisible_columns;
+CREATE TABLE t_system_versioned (
+id INT PRIMARY KEY,
+name VARCHAR(100),
+data TEXT
+) WITH SYSTEM VERSIONING;
+CREATE TABLE `t_system_versioned` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `data` text DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
+DROP TABLE t_system_versioned;
+CREATE TABLE t_application_time (
+id INT PRIMARY KEY,
+name VARCHAR(100),
+valid_from DATE,
+valid_to DATE,
+PERIOD FOR application_time (valid_from, valid_to)
+);
+CREATE TABLE `t_application_time` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) DEFAULT NULL,
+  `valid_from` date NOT NULL,
+  `valid_to` date NOT NULL,
+  PERIOD FOR `application_time` (`valid_from`, `valid_to`),
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_application_time;
+CREATE TABLE t_with_triggers (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TRIGGER t_with_triggers_before_update
+BEFORE UPDATE ON t_with_triggers
+FOR EACH ROW
+SET NEW.updated_at = NOW();
+CREATE TABLE `t_with_triggers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  `updated_at` timestamp NULL DEFAULT current_timestamp(0) ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TRIGGER t_with_triggers_before_update;
+DROP TABLE t_with_triggers;
+CREATE TABLE t_geometry (
+id INT PRIMARY KEY,
+location POINT NOT NULL,
+boundary POLYGON NOT NULL,
+path LINESTRING NOT NULL,
+region MULTIPOLYGON NOT NULL,
+SPATIAL INDEX idx_location (location),
+SPATIAL INDEX idx_boundary (boundary)
+) ENGINE=MyISAM;
+CREATE TABLE `t_geometry` (
+  `id` int(11) NOT NULL,
+  `location` point NOT NULL,
+  `boundary` polygon NOT NULL,
+  `path` linestring NOT NULL,
+  `region` multipolygon NOT NULL,
+  PRIMARY KEY (`id`),
+  SPATIAL KEY `idx_location` (`location`),
+  SPATIAL KEY `idx_boundary` (`boundary`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_geometry;
+CREATE TABLE t_compressed (
+id INT PRIMARY KEY,
+data LONGTEXT,
+json_data JSON
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
+CREATE TABLE `t_compressed` (
+  `id` int(11) NOT NULL,
+  `data` longtext DEFAULT NULL,
+  `json_data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`json_data`)),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
+DROP TABLE t_compressed;
+CREATE TABLE t_many_indexes (
+id INT,
+col1 VARCHAR(50),
+col2 VARCHAR(50),
+col3 VARCHAR(50),
+col4 VARCHAR(50),
+col5 VARCHAR(50),
+col6 INT,
+col7 INT,
+col8 DATE,
+col9 TIMESTAMP,
+col10 DECIMAL(10,2),
+INDEX idx1 (col1),
+INDEX idx2 (col2),
+INDEX idx3 (col3),
+INDEX idx4 (col4),
+INDEX idx5 (col5),
+INDEX idx6 (col6),
+INDEX idx7 (col7),
+INDEX idx8 (col8),
+INDEX idx9 (col9),
+INDEX idx10 (col10),
+INDEX idx_compound1 (col1, col2),
+INDEX idx_compound2 (col3, col4, col5),
+INDEX idx_compound3 (col6, col7, col8)
+);
+CREATE TABLE `t_many_indexes` (
+  `id` int(11) DEFAULT NULL,
+  `col1` varchar(50) DEFAULT NULL,
+  `col2` varchar(50) DEFAULT NULL,
+  `col3` varchar(50) DEFAULT NULL,
+  `col4` varchar(50) DEFAULT NULL,
+  `col5` varchar(50) DEFAULT NULL,
+  `col6` int(11) DEFAULT NULL,
+  `col7` int(11) DEFAULT NULL,
+  `col8` date DEFAULT NULL,
+  `col9` timestamp NULL DEFAULT NULL,
+  `col10` decimal(10,2) DEFAULT NULL,
+  KEY `idx1` (`col1`),
+  KEY `idx2` (`col2`),
+  KEY `idx3` (`col3`),
+  KEY `idx4` (`col4`),
+  KEY `idx5` (`col5`),
+  KEY `idx6` (`col6`),
+  KEY `idx7` (`col7`),
+  KEY `idx8` (`col8`),
+  KEY `idx9` (`col9`),
+  KEY `idx10` (`col10`),
+  KEY `idx_compound1` (`col1`,`col2`),
+  KEY `idx_compound2` (`col3`,`col4`,`col5`),
+  KEY `idx_compound3` (`col6`,`col7`,`col8`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_many_indexes;
+CREATE TABLE t_wide_table (
+id INT PRIMARY KEY,
+col001 VARCHAR(50), col002 VARCHAR(50), col003 VARCHAR(50), col004 VARCHAR(50), col005 VARCHAR(50),
+col006 VARCHAR(50), col007 VARCHAR(50), col008 VARCHAR(50), col009 VARCHAR(50), col010 VARCHAR(50),
+col011 INT, col012 INT, col013 INT, col014 INT, col015 INT,
+col016 DATE, col017 DATE, col018 DATE, col019 DATE, col020 DATE,
+col021 TIMESTAMP, col022 TIMESTAMP, col023 TIMESTAMP, col024 TIMESTAMP, col025 TIMESTAMP,
+col026 DECIMAL(10,2), col027 DECIMAL(10,2), col028 DECIMAL(10,2), col029 DECIMAL(10,2), col030 DECIMAL(10,2)
+);
+CREATE TABLE `t_wide_table` (
+  `id` int(11) NOT NULL,
+  `col001` varchar(50) DEFAULT NULL,
+  `col002` varchar(50) DEFAULT NULL,
+  `col003` varchar(50) DEFAULT NULL,
+  `col004` varchar(50) DEFAULT NULL,
+  `col005` varchar(50) DEFAULT NULL,
+  `col006` varchar(50) DEFAULT NULL,
+  `col007` varchar(50) DEFAULT NULL,
+  `col008` varchar(50) DEFAULT NULL,
+  `col009` varchar(50) DEFAULT NULL,
+  `col010` varchar(50) DEFAULT NULL,
+  `col011` int(11) DEFAULT NULL,
+  `col012` int(11) DEFAULT NULL,
+  `col013` int(11) DEFAULT NULL,
+  `col014` int(11) DEFAULT NULL,
+  `col015` int(11) DEFAULT NULL,
+  `col016` date DEFAULT NULL,
+  `col017` date DEFAULT NULL,
+  `col018` date DEFAULT NULL,
+  `col019` date DEFAULT NULL,
+  `col020` date DEFAULT NULL,
+  `col021` timestamp NULL DEFAULT NULL,
+  `col022` timestamp NULL DEFAULT NULL,
+  `col023` timestamp NULL DEFAULT NULL,
+  `col024` timestamp NULL DEFAULT NULL,
+  `col025` timestamp NULL DEFAULT NULL,
+  `col026` decimal(10,2) DEFAULT NULL,
+  `col027` decimal(10,2) DEFAULT NULL,
+  `col028` decimal(10,2) DEFAULT NULL,
+  `col029` decimal(10,2) DEFAULT NULL,
+  `col030` decimal(10,2) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_wide_table;
+Advanced features test completed

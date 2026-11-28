@@ -1,0 +1,172 @@
+MariaDB frm parser test - Storage Engines
+Testing various storage engines
+CREATE TABLE t_myisam (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+data TEXT,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+INDEX idx_name (name)
+) ENGINE=MyISAM;
+CREATE TABLE `t_myisam` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `data` text DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_myisam;
+CREATE TABLE t_innodb (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+email VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+UNIQUE KEY idx_email (email),
+INDEX idx_name (name)
+) ENGINE=InnoDB;
+CREATE TABLE `t_innodb` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_email` (`email`),
+  KEY `idx_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_innodb;
+CREATE TABLE t_aria (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+description TEXT,
+status ENUM('active', 'inactive') DEFAULT 'active',
+score DECIMAL(10,2),
+INDEX idx_name (name),
+INDEX idx_status (status)
+) ENGINE=Aria;
+CREATE TABLE `t_aria` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `description` text DEFAULT NULL,
+  `status` enum('active','inactive') DEFAULT 'active',
+  `score` decimal(10,2) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`),
+  KEY `idx_status` (`status`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_aria;
+CREATE TABLE t_memory (
+id INT PRIMARY KEY,
+session_id VARCHAR(32),
+data VARCHAR(255),
+expires_at TIMESTAMP,
+INDEX idx_session (session_id) USING HASH,
+INDEX idx_expires (expires_at) USING BTREE
+) ENGINE=MEMORY;
+CREATE TABLE `t_memory` (
+  `id` int(11) NOT NULL,
+  `session_id` varchar(32) DEFAULT NULL,
+  `data` varchar(255) DEFAULT NULL,
+  `expires_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_session` (`session_id`) USING HASH,
+  KEY `idx_expires` (`expires_at`) USING BTREE
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_memory;
+CREATE TABLE t_csv (
+id INT NOT NULL,
+name VARCHAR(100) NOT NULL,
+email VARCHAR(255) NOT NULL,
+phone VARCHAR(20) NOT NULL,
+created_date DATE NOT NULL
+) ENGINE=CSV;
+CREATE TABLE `t_csv` (
+  `id` int(11) NOT NULL,
+  `name` varchar(100) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `created_date` date NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_csv;
+/Users/himanshu.pandey/codes/gh-repos/my-maria-server/mysql-test/std_data/frm/t_archive.frm
+CREATE TABLE `t_archive` (
+  `id` int(11) DEFAULT NULL,
+  `log_message` text DEFAULT NULL,
+  `log_level` varchar(10) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0)
+) ENGINE=ARCHIVE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+CREATE TABLE t_blackhole (
+id INT AUTO_INCREMENT PRIMARY KEY,
+data VARCHAR(255),
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=BLACKHOLE;
+CREATE TABLE `t_blackhole` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `data` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`)
+) ENGINE=BLACKHOLE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+DROP TABLE t_blackhole;
+CREATE TABLE t_innodb_options (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+data JSON,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB 
+ROW_FORMAT=DYNAMIC;
+CREATE TABLE `t_innodb_options` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`data`)),
+  `created_at` timestamp NULL DEFAULT current_timestamp(0),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=DYNAMIC
+DROP TABLE t_innodb_options;
+CREATE TABLE t_myisam_options (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+data TEXT,
+INDEX idx_name (name)
+) ENGINE=MyISAM 
+MAX_ROWS=1000000 
+AVG_ROW_LENGTH=100 
+PACK_KEYS=1;
+CREATE TABLE `t_myisam_options` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `data` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=1000000 AVG_ROW_LENGTH=100 PACK_KEYS=1
+DROP TABLE t_myisam_options;
+CREATE TABLE t_aria_options (
+id INT AUTO_INCREMENT PRIMARY KEY,
+name VARCHAR(100),
+data TEXT,
+INDEX idx_name (name)
+) ENGINE=Aria 
+ROW_FORMAT=PAGE 
+TRANSACTIONAL=1
+PAGE_CHECKSUM=1;
+CREATE TABLE `t_aria_options` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) DEFAULT NULL,
+  `data` text DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_name` (`name`)
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 ROW_FORMAT=PAGE /* TRANSACTIONAL=1 */
+DROP TABLE t_aria_options;
+CREATE TABLE t_memory_options (
+id INT PRIMARY KEY,
+data VARCHAR(255),
+INDEX idx_data (data) USING HASH
+) ENGINE=MEMORY 
+MAX_ROWS=10000
+AVG_ROW_LENGTH=50;
+CREATE TABLE `t_memory_options` (
+  `id` int(11) NOT NULL,
+  `data` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_data` (`data`) USING HASH
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci MAX_ROWS=10000 AVG_ROW_LENGTH=50
+DROP TABLE t_memory_options;
+Storage engines test completed

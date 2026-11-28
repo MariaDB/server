@@ -1,0 +1,115 @@
+--echo MariaDB frm parser test - Data Types
+--echo Testing various column data types
+
+# Initialize the MYSQLD_DATADIR variable
+--let $MYSQLD_DATADIR= `select @@datadir`
+# Skip test if WSREP is active (mariadb-frm tool is incompatible with WSREP)
+if (`SELECT COUNT(*)>0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
+{
+  --skip Test requires wsrep plugin to be inactive (mariadb-frm tool incompatible with WSREP)
+}
+
+# Skip test if running on embedded server (mariadb-frm tool is incompatible with embedded server)
+if (`SELECT VERSION() LIKE '%embedded%'`)
+{
+  --skip Test requires non-embedded server (mariadb-frm tool incompatible with embedded server)
+}
+
+# Test basic integer types
+CREATE TABLE t_integers (
+  tiny_col TINYINT,
+  small_col SMALLINT,
+  medium_col MEDIUMINT,
+  int_col INT,
+  big_col BIGINT,
+  tiny_unsigned TINYINT UNSIGNED,
+  int_signed INT SIGNED
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_integers.frm
+DROP TABLE t_integers;
+
+# Test floating point types
+CREATE TABLE t_float (
+  float_col FLOAT,
+  double_col DOUBLE,
+  real_col REAL,
+  float_precision FLOAT(7,4),
+  double_precision DOUBLE(15,8)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_float.frm
+DROP TABLE t_float;
+
+# Test decimal/numeric types
+CREATE TABLE t_decimal (
+  dec_col DECIMAL,
+  dec_precision DECIMAL(10,2),
+  numeric_col NUMERIC(8,3),
+  fixed_col FIXED(12,4)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_decimal.frm
+DROP TABLE t_decimal;
+
+# Test string types
+CREATE TABLE t_strings (
+  char_col CHAR(10),
+  varchar_col VARCHAR(255),
+  binary_col BINARY(16),
+  varbinary_col VARBINARY(100),
+  tinytext_col TINYTEXT,
+  text_col TEXT,
+  mediumtext_col MEDIUMTEXT,
+  longtext_col LONGTEXT
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_strings.frm
+DROP TABLE t_strings;
+
+# Test blob types
+CREATE TABLE t_blobs (
+  tinyblob_col TINYBLOB,
+  blob_col BLOB,
+  mediumblob_col MEDIUMBLOB,
+  longblob_col LONGBLOB
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_blobs.frm
+DROP TABLE t_blobs;
+
+# Test date and time types
+CREATE TABLE t_datetime (
+  date_col DATE,
+  time_col TIME,
+  datetime_col DATETIME,
+  timestamp_col TIMESTAMP,
+  year_col YEAR,
+  time_precision TIME(3),
+  datetime_precision DATETIME(6),
+  timestamp_precision TIMESTAMP(6)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_datetime.frm
+DROP TABLE t_datetime;
+
+# Test enum and set types
+CREATE TABLE t_enum_set (
+  status ENUM('active', 'inactive', 'pending'),
+  permissions SET('read', 'write', 'execute', 'admin')
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_enum_set.frm
+DROP TABLE t_enum_set;
+
+# Test bit type
+CREATE TABLE t_bit (
+  flag_col BIT,
+  bits_col BIT(8),
+  large_bits BIT(64)
+);
+--exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_bit.frm
+DROP TABLE t_bit;
+
+# Test JSON type (if available)
+ CREATE TABLE t_json (
+   id INT,
+   data JSON
+ );
+ --exec $MARIADB_FRM $MYSQLD_DATADIR/test/t_json.frm
+DROP TABLE t_json;
+
+--echo Data types test completed
