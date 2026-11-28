@@ -271,6 +271,18 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
     DBUG_RETURN(FALSE);
   }
 
+  /*
+    check_value() could not build the lookup key (e.g. NULL in the null
+    rejecting key part), so such a row would never be found. Do not store
+    it: duplicates of it are rejected after conversion to an on-disk table,
+    where NULLs are equal.
+  */
+  if (ref.key_err)
+  {
+    DBUG_PRINT("info", ("Key can not be looked up, do not store it"));
+    DBUG_RETURN(FALSE);
+  }
+
   *(items.head_ref())= value;
   fill_record(table_thd, cache_table, cache_table->field, items, true, true,
               true);
