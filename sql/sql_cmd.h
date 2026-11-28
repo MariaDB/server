@@ -180,6 +180,7 @@ protected:
 
 struct LEX;
 class select_result;
+class select_dumpvar;
 class Prelocking_strategy;
 class DML_prelocking_strategy;
 class Protocol;
@@ -212,10 +213,36 @@ class Sql_cmd_dml : public Sql_cmd
 public:
 
   /**
+    @brief Check if the statement returns a result set in a general case
+  */
+  static bool returns_result_set_generic(const LEX *lex);
+
+  /**
     @brief Check whether the statement changes the contents of used tables
     @return true if this is data change statement, false otherwise
   */
   virtual bool is_data_change_stmt() const { return true; }
+
+  /**
+    @brief Set the RETURNING INTO result
+    The base implementation always raises the "not supported yet" error.
+    It is overridden by the commands that support RETURNING..INTO.
+    It is overridden by UPDATE and DELETE, and is a safety net for
+    the future subclasses.
+    @return true on error, false on success
+  */
+  virtual bool set_returning_into_result(select_dumpvar *res);
+
+  /**
+    The command code deliberately follows LEX::sql_command, as the parser
+    can change it for one Sql_cmd_dml object (e.g. UPDATE to UPDATE_MULTI).
+  */
+  enum_sql_command sql_command_code() const override;
+
+  /**
+    @brief Check if the statement returns a result set
+  */
+  virtual bool returns_result_set() const= 0;
 
   /**
     @brief Perform context analysis of the statement
@@ -238,10 +265,12 @@ public:
   ha_rows get_scanned_rows() { return scanned_rows; }
 
 protected:
-  Sql_cmd_dml()
-      : Sql_cmd(), lex(nullptr), result(nullptr),
+  explicit Sql_cmd_dml(LEX *lex_arg)
+      : Sql_cmd(), lex(lex_arg), result(nullptr),
         m_empty_query(false), scanned_rows(0)
-  {}
+  {
+    DBUG_ASSERT(lex_arg);
+  }
 
   /**
     @brief Check whether query is guaranteed to return no data
@@ -304,7 +333,7 @@ protected:
   uint table_count;
 
  protected:
-  LEX *lex;              /**< Pointer to LEX for this statement */
+  LEX *const lex;        /**< Pointer to LEX for this statement */
   select_result *result; /**< Pointer to object for handling of the result */
   bool m_empty_query;    /**< True if query will produce no rows */
   ha_rows scanned_rows; /**< Number of scanned rows */

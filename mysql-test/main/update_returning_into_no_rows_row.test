@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE..RETURNING..INTO a ROW variable (and its field) with no rows
+--echo # to process raises a warning (not an error) and does not change
+--echo # the target. The behavior must not depend on the storage engine
+--echo # (see update_returning_into_no_rows_row.combinations).
+--echo #
+
+--let $PRE=
+--let $POST=
+--let $TYPE=ROW (a INT, b INT)
+--source update_returning_into_no_rows_row_cases.inc
+
+--let $PRE=
+--let $POST=
+--let $TYPE=ROW TYPE OF t1
+--source update_returning_into_no_rows_row_cases.inc
+
+--let $PRE=DECLARE c1 CURSOR FOR SELECT * FROM t1; BEGIN
+--let $POST=END;
+--let $TYPE=ROW TYPE OF c1
+--source update_returning_into_no_rows_row_cases.inc
+
+--echo # End of 13.1 tests

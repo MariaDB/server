@@ -1947,6 +1947,13 @@ bool Sql_cmd_delete::processing_as_multitable_delete_prohibited(THD *thd)
   @returns false on success, true on error
 */
 
+bool Sql_cmd_delete::set_returning_into_result(select_dumpvar *res)
+{
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "DELETE..RETURNING..INTO");
+  return true;
+}
+
+
 bool Sql_cmd_delete::precheck(THD *thd)
 {
   if (!multitable)

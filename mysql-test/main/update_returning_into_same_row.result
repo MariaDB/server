@@ -1,0 +1,101 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# MDEV-42212 UPDATE ... RETURNING ... INTO raises ER_TOO_MANY_ROWS on InnoDB when the second found row needs no update
+#
+#
+# The second row is found, but its new values are the same as the old
+# values, so it is not changed. Plain RETURNING returns only the first
+# row, and RETURNING .. INTO assigns it (no ER_TOO_MANY_ROWS).
+# The updated column is not read by the statement, so InnoDB does not
+# return it, and the server reads it for the comparison.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_same_row.combinations).
+#
+#
+# The new value of the second row is the old value
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,5);
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a;
+a
+1
+SELECT * FROM t1;
+a	b
+1	100
+2	5
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1),(2,5);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b
+1	100
+2	5
+DROP TABLE t1;
+#
+# The same with a filesort, an index range scan, and ORDER BY..LIMIT.
+# The engine decides which columns to read when a scan is started,
+# so the columns must be added to the read set before that.
+#
+CREATE TABLE t1 (a INT, b INT, c INT, KEY(c));
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+# Filesort
+UPDATE t1 SET b=IF(a=1,100,5) ORDER BY c RETURNING a;
+a
+1
+SELECT * FROM t1;
+a	b	c
+1	100	10
+2	5	20
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) ORDER BY c RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b	c
+1	100	10
+2	5	20
+# Index range scan
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+UPDATE t1 SET b=IF(a=1,100,5) WHERE c>0 RETURNING a;
+a
+1
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) WHERE c>0 RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b	c
+1	100	10
+2	5	20
+# ORDER BY..LIMIT
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+UPDATE t1 SET b=IF(a=1,100,5) ORDER BY c LIMIT 2 RETURNING a;
+a
+1
+DELETE FROM t1;
+INSERT INTO t1 VALUES (1,1,10),(2,5,20);
+SET @a='unchanged';
+UPDATE t1 SET b=IF(a=1,100,5) ORDER BY c LIMIT 2 RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT * FROM t1;
+a	b	c
+1	100	10
+2	5	20
+DROP TABLE t1;
+# End of 13.1 tests

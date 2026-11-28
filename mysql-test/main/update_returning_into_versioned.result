@@ -1,0 +1,69 @@
+#
+# MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+#
+#
+# UPDATE..RETURNING..INTO on system versioned tables.
+# The test is run for MyISAM and InnoDB
+# (see update_returning_into_versioned.combinations).
+#
+#
+# System versioned table: the new values are the same as the old values
+# but a new row version is created, so the row is changed.
+# Plain RETURNING returns the rows, and RETURNING .. INTO assigns
+# the only row, or raises ER_TOO_MANY_ROWS for two rows.
+# (InnoDB rolls back the statement, MyISAM keeps the first row version).
+#
+CREATE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1),(2,2);
+# One row
+UPDATE t1 SET b=b WHERE a=1 RETURNING a,b;
+a	b
+1	1
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+COUNT(*)
+3
+SET @a='unchanged';
+UPDATE t1 SET b=b WHERE a=1 RETURNING a INTO @a;
+SELECT @a;
+@a
+1
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+COUNT(*)
+4
+# Two rows
+SET @a='unchanged';
+UPDATE t1 SET b=b RETURNING a INTO @a;
+ERROR 42000: Result consisted of more than one row
+SELECT @a;
+@a
+1
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+COUNT(*)
+5
+UPDATE t1 SET b=b RETURNING a;
+a
+1
+2
+SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+COUNT(*)
+7
+DROP TABLE t1;
+#
+# The OK packet info for a system versioned table includes
+# the number of the inserted row versions
+#
+CREATE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1),(2,2);
+UPDATE t1 SET b=b+1 WHERE a=1 RETURNING a INTO @a;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+UPDATE t1 SET b=b WHERE a=1 RETURNING a INTO @a;
+affected rows: 1
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
+UPDATE t1 SET b=b WHERE a=100 RETURNING a INTO @a;
+affected rows: 0
+info: Rows matched: 0  Changed: 0  Inserted: 0  Warnings: 1
+Warnings:
+Warning	1329	No data - zero rows fetched, selected, or processed
+DROP TABLE t1;
+# End of 13.1 tests

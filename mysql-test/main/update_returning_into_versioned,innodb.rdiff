@@ -1,0 +1,19 @@
+--- main/update_returning_into_versioned.result
++++ main/update_returning_into_versioned.reject
+@@ -39,14 +39,14 @@
+ 1
+ SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+ COUNT(*)
+-5
++4
+ UPDATE t1 SET b=b RETURNING a;
+ a
+ 1
+ 2
+ SELECT COUNT(*) FROM t1 FOR SYSTEM_TIME ALL;
+ COUNT(*)
+-7
++6
+ DROP TABLE t1;
+ #
+ # The OK packet info for a system versioned table includes

@@ -1,0 +1,548 @@
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+#
+# Make sure that already `lex->m_sql_cmd != nullptr` when
+# Sql_cmd_update::set_with_old_value_items() is called
+# while parsing OLD_VALUE().
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+
+UPDATE t1 SET a=OLD_VALUE(a);
+--echo # OLD_VALUE() outside of RETURNING is allowed with INTO
+UPDATE t1 SET a=OLD_VALUE(a) RETURNING a INTO @a;
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t2 VALUES (10,5);
+UPDATE t2 SET b=OLD_VALUE(a) RETURNING a,b INTO @a,@b;
+SELECT @a,@b;
+SET @a=NULL, @b=NULL;
+DROP TABLE t2;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=OLD_VALUE(a)+1 RETURNING a INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=1+OLD_VALUE(a) RETURNING a INTO @a;
+
+--error ER_WRONG_USAGE
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a) INTO @a;
+--error ER_WRONG_USAGE
+UPDATE t1 SET a=a+1 RETURNING (SELECT OLD_VALUE(a)) INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=a+1 RETURNING OLD_VALUE(a)+1 INTO @a;
+--error ER_PARSE_ERROR
+UPDATE t1 SET a=a+1 RETURNING 1+OLD_VALUE(a) INTO @a;
+
+--error ER_NON_UPDATABLE_TABLE
+UPDATE (SELECT OLD_VALUE(a) AS x FROM t1) AS dt SET dt.x=1;
+
+DROP TABLE t1;
+
+
+--echo #
+--echo # ANALYZE/EXPLAIN UPDATE .. RETURNING .. INTO ..;
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+ANALYZE UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+SELECT @a,@b;
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
+EXPLAIN UPDATE t1 t1 SET a=11, b='b11' RETURNING a,b INTO @a, @b;
+SELECT @a,@b;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Too few and too many INTO variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a;
+SELECT @a;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c;
+SELECT @a,@b,@c;
+
+# The check for a wrong number of columns is done in select_dumpvar::prepare
+# (when ROW variables are already resolved),
+# so the error is raised at the execution time
+
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a';
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+EXECUTE stmt;
+SELECT @a;
+PREPARE stmt FROM 'UPDATE t1 t1 SET a=11 RETURNING a,b INTO @a, @b, @c';
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+EXECUTE stmt;
+SELECT @a,@b,@c;
+
+DROP TABLE t1;
+
+--echo #
+--echo # A prepared UPDATE..RETURNING..INTO executed several times
+--echo # The state of the INTO result (e.g. the row counter) is reset
+--echo # for every execution
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(3,30);
+PREPARE stmt FROM 'UPDATE t1 SET b=b+1 WHERE a=? RETURNING a,b INTO @a,@b';
+SET @p=1;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+--echo # No rows: a warning, the targets are not changed
+SET @p=99;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+--echo # One row again: no ER_TOO_MANY_ROWS from the previous executions
+SET @p=2;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+SET @p=2;
+EXECUTE stmt USING @p;
+SELECT @a,@b;
+
+--echo # Two rows: ER_TOO_MANY_ROWS at every execution
+PREPARE stmt2 FROM 'UPDATE t1 SET b=b+1 WHERE a>=? RETURNING a INTO @a';
+SET @p=1;
+--error ER_TOO_MANY_ROWS
+EXECUTE stmt2 USING @p;
+--error ER_TOO_MANY_ROWS
+EXECUTE stmt2 USING @p;
+--echo # A single row after the errors
+SET @p=3;
+EXECUTE stmt2 USING @p;
+SELECT @a;
+DEALLOCATE PREPARE stmt;
+DEALLOCATE PREPARE stmt2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Multi-table UPDATEs
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (a INT);
+--error ER_NOT_SUPPORTED_YET
+UPDATE t1,t2 SET t1.a=t1.a+1 WHERE t1.a=t2.a AND t1.a=10 RETURNING t1.a INTO @a;
+--echo # The updated table is used in a subquery
+--error ER_UPDATE_TABLE_USED
+UPDATE t1 SET a=a+1 WHERE a=(SELECT MAX(a) FROM t1) RETURNING a INTO @a;
+--echo # The updated table is used in a subquery through a view
+CREATE VIEW v2 AS SELECT a FROM t1;
+--error ER_VIEW_PREVENT_UPDATE
+UPDATE t1 SET a=a+1 WHERE a=(SELECT MAX(a) FROM v2) RETURNING a INTO @a;
+DROP VIEW v2;
+--echo # A subquery converted to a semi-join, and a multi-table view
+--error ER_NOT_SUPPORTED_YET
+UPDATE t1 SET a=a+1 WHERE a IN (SELECT a FROM t2) RETURNING a INTO @a;
+CREATE VIEW v1 AS SELECT t1.a FROM t1,t2 WHERE t1.a=t2.a;
+--error ER_NOT_SUPPORTED_YET
+UPDATE v1 SET a=a+1 RETURNING a INTO @a;
+DROP VIEW v1;
+--echo # ORDER BY .. LIMIT prevents the conversion to multi-table,
+--echo # so a subquery on the updated table works
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @a=NULL;
+UPDATE t1 SET a=a+10 WHERE a=(SELECT MAX(a) FROM t1) ORDER BY a LIMIT 1 RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1 ORDER BY a;
+--echo # The same with two changed rows
+SET @a=NULL;
+--error ER_TOO_MANY_ROWS
+UPDATE t1 SET a=a+10 WHERE a>=(SELECT MIN(a) FROM t1) ORDER BY a LIMIT 2 RETURNING a INTO @a;
+SELECT @a;
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # Stored functions with UPDATE..RETURNING
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+--error ER_SP_NO_RETSET
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  UPDATE t1 SET a=a+1 RETURNING a;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  UPDATE t1 SET a=a+1 RETURNING a INTO @a;
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+--disable_ps2_protocol
+SELECT f1();
+--enable_ps2_protocol
+SELECT @a;
+SELECT * FROM t1;
+SET @a=NULL;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for user variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+  SET @va=NULL;
+  SET @vb=NULL;
+  UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO @va, @vb;
+  SELECT @va, @vb;
+  SET @va=NULL;
+  SET @vb=NULL;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1(100);
+SELECT @va, @vb;
+CALL p1(100);
+SELECT @va, @vb;
+CALL p1(100);
+SELECT @va, @vb;
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT @va, @vb;
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+CALL p1(30);
+CALL p1(30);
+SELECT * FROM t1;
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for SP variables
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+DELIMITER $$;
+CREATE PROCEDURE p1(pa INT)
+BEGIN
+  DECLARE va INT;
+  DECLARE vb VARCHAR(10);
+  UPDATE t1 SET a=a+1 WHERE a>=pa RETURNING a,b INTO va,vb;
+  SELECT va, vb;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1(100);
+CALL p1(100);
+CALL p1(100);
+SELECT * FROM t1;
+
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+--error ER_TOO_MANY_ROWS
+CALL p1(0);
+SELECT * FROM t1;
+
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10,'b10'),(20,'b20'),(30,'b30');
+CALL p1(30);
+CALL p1(30);
+CALL p1(30);
+SELECT * FROM t1;
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO row_var.not_existing_field
+--echo #
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CREATE PROCEDURE p1_row_explicit()
+BEGIN
+  DECLARE r0 ROW(a INT, b VARCHAR(10));
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1_row_type_of_table()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+  SELECT r0.a, r0.b;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1_row_type_of_table;
+DROP PROCEDURE p1_row_type_of_table;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (a INT,b VARCHAR(10));
+INSERT INTO t1 VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1_row_type_of_cursor()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a,r0.b_not_existing;
+    SELECT r0.a, r0.b;
+  END;
+END;
+$$
+DELIMITER ;$$
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+CALL p1_row_type_of_cursor;
+DROP PROCEDURE p1_row_type_of_cursor;
+DROP TABLE t1;
+
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a ROW variable
+--echo #
+
+--let $TYPE= ROW(a INT, b VARCHAR(10))
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a ROW variable fields
+--echo #
+
+--let $TYPE= ROW(a INT, b VARCHAR(10))
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable
+--echo #
+
+--let $TYPE= ROW TYPE OF t1
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF table1` variable fields
+--echo #
+
+--let $TYPE= ROW TYPE OF t1
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable
+--echo #
+
+--let $TYPE= ROW TYPE OF c1
+--let $INTO= vrec
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # UPDATE..RETURNING..INTO for a `ROW TYPE OF cursor1` variable fields
+--echo #
+
+--let $TYPE= ROW TYPE OF c1
+--let $INTO= vrec.a, vrec.b
+--source update_returning_into_row_var.inc
+
+--echo #
+--echo # MDEV-41262 ER_TOO_MANY_ROWS should be checked after CHECK OPTION in view while Update Returning Into
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(10);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE a < 100 WITH CHECK OPTION;
+--error ER_VIEW_CHECK_FAILED
+UPDATE v1 SET a=IF(a=1,2,1000) RETURNING a INTO @a;
+SELECT @a;
+SELECT * FROM t1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-41265 SELECT/ UPDATE RETURNING INTO a single row-field fails with ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT, even though the column count matches
+--echo #
+
+--echo # One scalar column into one field of an explicit ROW variable
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW (a INT, b VARCHAR(10));
+  UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+  SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE r0 ROW (a INT, b VARCHAR(10));
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+--echo # One scalar column into one field of a `ROW TYPE OF table1` variable
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+  SELECT r0.a;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE r0 ROW TYPE OF t1;
+  UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+--echo # One scalar column into one field of a `ROW TYPE OF cursor1` variable
+
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    UPDATE t1 SET a=a+1 RETURNING a INTO r0.a;
+    SELECT r0.a;
+  END;
+END;
+$$
+CREATE PROCEDURE p2()
+BEGIN
+  DECLARE c1 CURSOR FOR SELECT * FROM t1;
+  BEGIN
+    DECLARE r0 ROW TYPE OF c1;
+    UPDATE t1 SET a=a+1 RETURNING a,b INTO r0.a;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+CALL p2;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+
+--echo #
+--echo # UPDATE..RETURNING..INTO in a trigger
+--echo # UPDATE..RETURNING without INTO returns a result set, so it is not
+--echo # allowed in triggers (see update_returning.test).
+--echo # With INTO it does not return a result set.
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+CREATE TABLE t2 (a INT, c INT);
+INSERT INTO t1 VALUES (1,10),(2,20),(2,21);
+DELIMITER $$;
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+  DECLARE v INT;
+  UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b INTO v;
+  SET NEW.c= v;
+END;
+$$
+DELIMITER ;$$
+
+--echo # One row
+INSERT INTO t2 (a) VALUES (1);
+SELECT * FROM t2;
+SELECT * FROM t1;
+
+--echo # No rows: a warning, the variable is not changed
+INSERT INTO t2 (a) VALUES (99);
+SELECT * FROM t2;
+
+--echo # Two rows: ER_TOO_MANY_ROWS, the row is not inserted
+--error ER_TOO_MANY_ROWS
+INSERT INTO t2 (a) VALUES (2);
+SELECT * FROM t2;
+DROP TRIGGER t2_bi;
+
+--echo # No rows with a NOT FOUND handler
+DELIMITER $$;
+CREATE TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW
+BEGIN
+  DECLARE v INT DEFAULT -1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET NEW.c= -2;
+  UPDATE t1 SET b=b+1 WHERE a=NEW.a RETURNING b INTO v;
+END;
+$$
+DELIMITER ;$$
+INSERT INTO t2 (a) VALUES (99);
+SELECT * FROM t2 WHERE a=99;
+DROP TRIGGER t2_bi;
+
+DROP TABLE t1, t2;
+
+--echo # End of 13.1 tests

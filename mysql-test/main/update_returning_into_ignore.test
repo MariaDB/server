@@ -1,0 +1,81 @@
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+
+--echo #
+--echo # UPDATE IGNORE..RETURNING..INTO is not supported yet.
+--echo # A row rejected by the engine is ignored, so it is not known before
+--echo # the update if the row is a second changed row.
+--echo # MDEV-42156 UPDATE IGNORE ... RETURNING ... INTO fails with
+--echo # ER_TOO_MANY_ROWS when the second row is skipped by IGNORE (duplicate key)
+--echo #
+
+CREATE TABLE t1 (a INT UNIQUE, b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1),(2,2);
+SET @b='unchanged';
+--error ER_NOT_SUPPORTED_YET
+UPDATE IGNORE t1 SET a=5 RETURNING b INTO @b;
+SELECT @b;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo # Also when no row would be changed
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+SET @b='unchanged';
+--error ER_NOT_SUPPORTED_YET
+UPDATE IGNORE t1 SET b=b+1 RETURNING b INTO @b;
+--error ER_NOT_SUPPORTED_YET
+UPDATE IGNORE t1 SET b=b+1 WHERE 1=0 RETURNING b INTO @b;
+SELECT @b;
+DROP TABLE t1;
+
+--echo # A partitioned table
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,1);
+--error ER_NOT_SUPPORTED_YET
+UPDATE IGNORE t1 SET b=b+1 RETURNING b INTO @b;
+SELECT @b;
+DROP TABLE t1;
+
+--echo # A system-versioned table
+CREATE TABLE t1 (a INT, b INT) WITH SYSTEM VERSIONING;
+INSERT INTO t1 VALUES (1,1);
+--error ER_NOT_SUPPORTED_YET
+UPDATE IGNORE t1 SET b=b+1 RETURNING b INTO @b;
+SELECT @b;
+SELECT a, b FROM t1;
+DROP TABLE t1;
+
+--echo # IGNORE in a stored procedure
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  UPDATE IGNORE t1 SET b=b+1 RETURNING b INTO v;
+END;
+$$
+DELIMITER ;$$
+--error ER_NOT_SUPPORTED_YET
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo # UPDATE IGNORE .. RETURNING without INTO is supported
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+UPDATE IGNORE t1 SET b=b+1 RETURNING b;
+DROP TABLE t1;
+
+--echo # UPDATE .. RETURNING .. INTO without IGNORE is supported
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1);
+UPDATE t1 SET b=b+1 RETURNING b INTO @b;
+SELECT @b;
+DROP TABLE t1;
+
+--echo # End of 13.1 tests

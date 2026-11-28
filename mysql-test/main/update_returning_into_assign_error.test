@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-39563 Implement UPDATE ... RETURNING ... INTO
+--echo #
+--echo # A failed assignment to an INTO target stops the statement
+--echo # before the update is processed any further (history rows, AFTER
+--echo # triggers), and the error is reported.
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10), b INT) ENGINE=MyISAM;
+CREATE TABLE log (i INT) ENGINE=MyISAM;
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO log VALUES (1);
+INSERT INTO t1 VALUES ('abc', 1);
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v INT;
+  UPDATE t1 SET b=b+1 RETURNING a INTO v;
+END;
+$$
+DELIMITER ;$$
+
+--echo # Strict mode: the value 'abc' cannot be assigned to an INT variable
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+CALL p1;
+SHOW WARNINGS;
+SELECT * FROM log;
+DROP PROCEDURE p1;
+DROP TRIGGER t1_au;
+DROP TABLE t1, log;
+
+--echo # End of 13.1 tests
