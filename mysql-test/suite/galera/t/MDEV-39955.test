@@ -1,0 +1,95 @@
+#
+# MDEV-39955 Galera TOI DDL on a FK parent table stalls the cluster
+# with "BF lock wait long" on the FK child table
+#
+# InnoDB takes an X lock on the FK child tables (lock_table_children())
+# in CREATE INDEX, DROP INDEX, OPTIMIZE TABLE and RENAME TABLE too, not
+# only in ALTER TABLE. Their TOI key set must contain the FK child
+# tables, like ALTER TABLE does since MDEV-34784. The same holds for
+# CREATE OR REPLACE TABLE and DROP DATABASE, which drop the parent table.
+#
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wsrep_slave_threads_orig = `SELECT @@wsrep_slave_threads`
+SET GLOBAL wsrep_slave_threads = 2;
+
+--let $ddl = CREATE INDEX f_id ON pdb.parent (f, id)
+--source MDEV-39955.inc
+--let $ddl = CREATE UNIQUE INDEX u ON pdb.parent (id, f)
+--source MDEV-39955.inc
+--let $ddl = DROP INDEX k ON pdb.parent
+--source MDEV-39955.inc
+--let $ddl = OPTIMIZE TABLE pdb.parent
+--source MDEV-39955.inc
+--let $ddl = RENAME TABLE pdb.parent TO pdb.parent2
+--source MDEV-39955.inc
+--let $ddl = ALTER TABLE pdb.parent ADD INDEX f_id (f, id)
+--source MDEV-39955.inc
+
+# DDL that drops the FK parent table, possible with foreign_key_checks = 0.
+# InnoDB X-locks the child tables regardless of foreign_key_checks.
+--let $fk_checks_off = 1
+--let $ddl = CREATE OR REPLACE TABLE pdb.parent (id INT PRIMARY KEY, f CHAR(1)) ENGINE=InnoDB
+--source MDEV-39955.inc
+--let $fk_checks_off = 1
+--let $ddl = CREATE OR REPLACE TABLE pdb.parent LIKE pdb.tmpl
+--source MDEV-39955.inc
+--let $fk_checks_off = 1
+--let $not_toi = 1
+--let $ddl = CREATE OR REPLACE TABLE pdb.parent (id INT PRIMARY KEY, f CHAR(1)) ENGINE=InnoDB SELECT 1 AS id, 'a' AS f
+--source MDEV-39955.inc
+--let $fk_checks_off = 1
+--let $ddl = DROP DATABASE pdb
+--source MDEV-39955.inc
+--let $fk_checks_off = 1
+--let $ddl = DROP TABLE pdb.parent
+--source MDEV-39955.inc
+
+#
+# The same on the node that executes the DDL
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET SESSION wsrep_sync_wait = 0;
+--let $ddl = CREATE INDEX f_id ON parent (f, id)
+--source MDEV-39955-local.inc
+--let $ddl = DROP INDEX k ON parent
+--source MDEV-39955-local.inc
+--let $ddl = OPTIMIZE TABLE parent
+--source MDEV-39955-local.inc
+--let $ddl = ALTER TABLE parent ADD INDEX f_id (f, id), ALGORITHM=INPLACE, LOCK=NONE
+--source MDEV-39955-local.inc
+--disconnect node_1a
+--disconnect node_1b
+
+#
+# ALTER TABLE and TRUNCATE TABLE must fail, not run without TOI, if the
+# FOREIGN KEY tables cannot be collected
+#
+--connection node_1
+CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES (1);
+SET SESSION debug_dbug = '+d,wsrep_append_fk_parent_table_fail';
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 ADD COLUMN c INT;
+--error ER_LOCK_WAIT_TIMEOUT
+TRUNCATE TABLE t1;
+SET SESSION debug_dbug = '';
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--connection node_2
+SET SESSION wsrep_sync_wait = DEFAULT;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--connection node_1
+DROP TABLE t1;
+
+--connection node_2
+--disable_query_log
+--eval SET GLOBAL wsrep_slave_threads = $wsrep_slave_threads_orig
+--enable_query_log
+SET SESSION wsrep_sync_wait = DEFAULT;
