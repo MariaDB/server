@@ -20,3 +20,46 @@ CREATE TABLE t2 (n BLOB, UNIQUE(n));
 INSERT INTO t2 VALUES (1);
 DELETE FROM t2 WHERE n = 1;
 DROP TABLE t2;
+
+#
+# Start of 10.11 tests
+#
+
+#
+# MDEV-36389 Incorrect query results for an indexed text column
+#
+CREATE TABLE t1 (c1 TEXT, UNIQUE (c1(1)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c1) VALUES ('a');
+SELECT 'abc' IN (SELECT c1 FROM t1);
+EXPLAIN format=json SELECT 'abc' IN (SELECT c1 FROM t1);
+SELECT c1 FROM t1 WHERE ('abc' IN (SELECT c1 FROM t1)) IS FALSE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 TEXT, c2 TEXT, UNIQUE (c1(1)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c1, c2) VALUES ('a','b');
+SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1);
+EXPLAIN format=json SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1);
+SELECT * FROM t1 WHERE (('abc', 'xyz') IN (SELECT c1, c2 FROM t1)) IS FALSE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 TEXT, c2 TEXT, UNIQUE (c1(3)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c1, c2) VALUES ('abc','xyz');
+SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1) IS FALSE;
+EXPLAIN format=json SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1) IS FALSE;
+SELECT * FROM t1 WHERE (('abc', 'xyz') IN (SELECT c1, c2 FROM t1)) IS FALSE;
+SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1) IS TRUE;
+EXPLAIN format=json SELECT ('abc', 'xyz') IN (SELECT c1, c2 FROM t1) IS TRUE;
+SELECT * FROM t1 WHERE (('abc', 'xyz') IN (SELECT c1, c2 FROM t1)) IS TRUE;
+DROP TABLE t1;
+
+CREATE TABLE t1 (c1 float, KEY i1 (c1));
+SHOW CREATE TABLE t1;
+INSERT INTO t1(c1) VALUES (-9.183);
+SELECT c1 FROM t1 WHERE (BINARY c1) NOT IN (SELECT c1 FROM t1 USE INDEX (i1));
+EXPLAIN format=json SELECT c1 FROM t1 WHERE (BINARY c1) NOT IN (SELECT c1 FROM t1 USE INDEX (i1));
+DROP TABLE t1;
+
+# End of 10.11 tests
