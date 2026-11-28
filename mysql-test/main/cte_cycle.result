@@ -39,6 +39,15 @@ CYCLE b RESTRICT
 SELECT * FROM cte;
 a	b
 1	2
+# MDEV-42443 CYCLE columns may appear in any order
+WITH RECURSIVE cte (depth, a, b) AS (
+SELECT 0, 1, 10
+UNION ALL
+SELECT depth + 1, a, b FROM cte WHERE depth < 2
+) CYCLE b, a RESTRICT
+SELECT * FROM cte;
+depth	a	b
+0	1	10
 #
 # MDEV-20632 case (with fixed syntax)
 #

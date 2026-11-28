@@ -1244,7 +1244,6 @@ With_element::process_columns_of_derived_unit(THD *thd,
 
   if (cycle_list)
   {
-    List_iterator_fast<Item> it(select->item_list);
     List_iterator_fast<Lex_ident_sys> nm(*cycle_list);
     List_iterator_fast<Lex_ident_sys> nm_check(*cycle_list);
     DBUG_ASSERT(cycle_list->elements != 0);
@@ -1268,6 +1267,7 @@ With_element::process_columns_of_derived_unit(THD *thd,
         }
       }
       /* Check that 'name' is the name of a column of the processed CTE */
+      List_iterator_fast<Item> it(select->item_list);
       while ((item= it++) &&
              (item->name.length != name->length ||
               strncmp(item->name.str, name->str, name->length) != 0));
