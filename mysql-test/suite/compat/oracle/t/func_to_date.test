@@ -507,4 +507,13 @@ SELECT TO_DATE('2002 February 10', 'YYYY MONTH DD') AS t;
 --echo # Testing negative year (SYYYY) with separators
 SELECT TO_DATE('-2024-05-10', 'SYYYY-MM-DD') AS t;
 
+--echo #
+--echo # MDEV-41937 TO_DATE() returns NULL for a valid format after processing
+--echo # a NULL format row
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, f VARCHAR(20));
+INSERT INTO t1 VALUES (1,NULL),(2,'YYYY-MM-DD'),(3,NULL),(4,NULL),(5,'YYYY-MM-DD');
+SELECT id, TO_DATE('2024-06-15', f) AS d FROM t1 ORDER BY id;
+DROP TABLE t1;
+
 --echo # End of 12.3 tests

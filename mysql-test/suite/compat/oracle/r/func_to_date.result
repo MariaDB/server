@@ -960,4 +960,18 @@ t
 NULL
 Warnings:
 Warning	1411	Incorrect datetime value: '-2024-05-10' for function to_date
+#
+# MDEV-41937 TO_DATE() returns NULL for a valid format after processing
+# a NULL format row
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, f VARCHAR(20));
+INSERT INTO t1 VALUES (1,NULL),(2,'YYYY-MM-DD'),(3,NULL),(4,NULL),(5,'YYYY-MM-DD');
+SELECT id, TO_DATE('2024-06-15', f) AS d FROM t1 ORDER BY id;
+id	d
+1	NULL
+2	2024-06-15 00:00:00.000000
+3	NULL
+4	NULL
+5	2024-06-15 00:00:00.000000
+DROP TABLE t1;
 # End of 12.3 tests
