@@ -114,7 +114,12 @@ FLUSH BINARY LOGS;
 
 
 --echo *** Convert the generated InnoDB binlogs to legacy format
---exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000000.ibb $datadir/binlog-000001.ibb $datadir/binlog-000002.ibb 2> $MYSQL_TMP_DIR/gtid_conv_stderr.txt
+--let $assert_text= Contiguous inputs produce no gap warning
+--let $assert_file= $MYSQL_TMP_DIR/gtid_conv_stderr.txt
+--let $assert_select= Gap in engine binlog input
+--let $assert_count= 0
+--source include/assert_grep.inc
 
 --echo *** Verify synthesized Gtid_list events in converted legacy binlogs
 --exec $MYSQL_BINLOG --verbose $MYSQL_TMP_DIR/gtid_conv.000001 > $MYSQL_TMP_DIR/gtid_conv_listing.txt
@@ -133,6 +138,17 @@ FLUSH BINARY LOGS;
 --remove_file $MYSQL_TMP_DIR/gtid_conv.000001
 --remove_file $MYSQL_TMP_DIR/gtid_conv.000002
 
+
+--echo *** Convert with a missing input binlog
+--exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000000.ibb $datadir/binlog-000002.ibb 2> $MYSQL_TMP_DIR/gtid_conv_stderr.txt
+--let $assert_text= Warning names the missing and next input binlogs
+--let $assert_file= $MYSQL_TMP_DIR/gtid_conv_stderr.txt
+--let $assert_select= WARNING: Gap in engine binlog input: expected binlog-000001[.]ibb before binlog-000002[.]ibb
+--let $assert_count= 1
+--source include/assert_grep.inc
+--remove_file $MYSQL_TMP_DIR/gtid_conv_stderr.txt
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000001
+--remove_file $MYSQL_TMP_DIR/gtid_conv.000002
 
 --echo *** Convert the generated InnoDB binlog(binlog-000002.ibb) to legacy format from random start
 --exec $MYSQL_BINLOG --convert-engine-binlog --result-file=$MYSQL_TMP_DIR/gtid_conv $datadir/binlog-000002.ibb
