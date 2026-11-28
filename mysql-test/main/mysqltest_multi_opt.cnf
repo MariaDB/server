@@ -1,0 +1,20 @@
+!include include/default_my.cnf
+[mysqld]
+replicate_do_table=test.t1
+replicate_do_table=test.t2
+replicate_ignore_table=test.i1
+replicate_ignore_table=test.i2
+replicate_wild_do_table=test.wd1
+replicate_wild_do_table=test.wd2
+replicate_wild_ignore_table=test.wi1
+replicate_wild_ignore_table=test.wi2
+replicate_do_db=db1
+replicate_do_db=db2
+replicate_ignore_db=idb1
+replicate_ignore_db=idb2
+binlog_do_db=bdb1
+binlog_do_db=bdb2
+binlog_ignore_db=bib1
+binlog_ignore_db=bib2
+optimizer_switch=index_merge=off
+optimizer_switch=index_merge_union=off
