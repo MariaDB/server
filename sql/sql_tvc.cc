@@ -403,6 +403,15 @@ bool table_value_constr::optimize(THD *thd)
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
+  /*
+    A TVC has no JOIN, so JOIN::optimize() never clears this flag for it.
+    Clear it here, otherwise code that runs only on the first execution of
+    a prepared statement or stored routine (e.g. the leaf_tables_exec backup
+    in mysql_insert_select_prepare()) runs again on every execution and
+    allocates on the statement arena.
+  */
+  select_lex->first_cond_optimization= 0;
+
   if (select_lex->select_number != FAKE_SELECT_LEX_ID &&
       have_query_plan != QEP_NOT_PRESENT_YET &&
       thd->lex->explain && // for "SET" command in SPs.

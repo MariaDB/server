@@ -3279,3 +3279,78 @@ drop table t1,t2;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-42329 Assertion `(mem_root->flags & 4) == 0' failed in
+#            mysql_insert_select_prepare() on the second execution
+#            of INSERT ... VALUES ... UNION VALUES
+#
+SET NAMES latin1;
+CREATE TABLE t1 (id INT, c VARCHAR(10) CHARACTER SET latin1);
+CREATE TABLE t2 (id INT, c VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t2 VALUES (9, 'z');
+PREPARE s FROM 'INSERT INTO t1 (id, c) VALUES (2, ''a'') UNION VALUES (3, ''b'')';
+EXECUTE s;
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'INSERT INTO t1 VALUES (2, ''a'') UNION ALL VALUES (3, ''b'')';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'INSERT INTO t1 VALUES (2, ''a'') UNION SELECT * FROM t2';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'INSERT INTO t1 VALUES (9, ''z''), (4, ''d'') EXCEPT SELECT * FROM t2';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'INSERT INTO t1 VALUES (9, ''z''), (4, ''d'') INTERSECT SELECT * FROM t2';
+EXECUTE s;
+EXECUTE s;
+PREPARE s FROM 'REPLACE INTO t1 VALUES (5, ''e'') UNION VALUES (6, ''f'')';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+CREATE PROCEDURE p() INSERT INTO t1 VALUES (7, 'g') UNION VALUES (8, 'h')|
+CALL p();
+CALL p();
+DROP PROCEDURE p;
+SET NAMES utf8mb4;
+PREPARE s FROM 'INSERT INTO t1 VALUES (10, ''x'') UNION VALUES (11, ''y'')';
+EXECUTE s;
+EXECUTE s;
+DEALLOCATE PREPARE s;
+SELECT id, HEX(c) FROM t1 ORDER BY id, c;
+id	HEX(c)
+2	61
+2	61
+2	61
+2	61
+2	61
+2	61
+2	61
+3	62
+3	62
+3	62
+3	62
+3	62
+4	64
+4	64
+5	65
+5	65
+6	66
+6	66
+7	67
+7	67
+8	68
+8	68
+9	7A
+9	7A
+9	7A
+9	7A
+10	78
+10	78
+11	79
+11	79
+DROP TABLE t1, t2;
+SET NAMES DEFAULT;
+#
+# End of 10.11 tests
+#
