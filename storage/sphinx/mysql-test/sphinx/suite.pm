@@ -4,6 +4,9 @@ use My::SafeProcess;
 use My::File::Path;
 use mtr_report;
 
+# Sphinx configuration supports multiple listens
+$My::Config::Option::multipart_options{"listen"} = 1;
+
 @ISA = qw(My::Suite);
 
 ############# initialization ######################
