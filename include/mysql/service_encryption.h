@@ -26,11 +26,21 @@
 
 #ifndef MYSQL_ABI_CHECK
 #include <my_alloca.h>
+#ifdef __has_include
+#if __has_include(<my_valgrind.h>)
+#include <my_valgrind.h>
+#endif
+#endif
 #ifdef _WIN32
 #ifndef __cplusplus
 #define inline __inline
 #endif
 #endif
+#endif
+
+#ifndef MEM_UNDEFINED
+#define MEM_UNDEFINED(addr, length)
+#define MEM_CHECK_ADDRESSABLE(addr, length)
 #endif
 
 #ifdef __cplusplus
@@ -119,10 +129,16 @@ static inline int encryption_crypt(const unsigned char* src, unsigned int slen,
   int res1, res2;
   unsigned int d1, d2= *dlen;
 
-  // Verify dlen is initialized properly. See MDEV-30389
+  /* Verify dlen is initialized properly. */
   assert(*dlen >= slen);
-  assert((dst[*dlen - 1]= 1) == 1);
-  // Verify buffers do not overlap
+  /* ensure we're not leaking output */
+  MEM_UNDEFINED(dst, *dlen);
+  /* inputs should be accessible */
+  MEM_CHECK_ADDRESSABLE(src, slen);
+  MEM_CHECK_ADDRESSABLE(dst, *dlen);
+  MEM_CHECK_ADDRESSABLE(key, klen);
+  MEM_CHECK_ADDRESSABLE(iv, ivlen);
+  /* Verify buffers do not overlap */
   if (src < dst)
     assert(src + slen <= dst);
   else
