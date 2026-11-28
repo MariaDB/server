@@ -1385,6 +1385,64 @@ static table_map get_table_map(List<Item> *items)
   return map;
 }
 
+/*
+  True if deleting or updating rows of the table moves its other rows.  A
+  CSV scan that deleted or updated rows rewrites the data file at its end,
+  so a row position saved by another handler of the table in the same
+  statement can point at a different row.
+*/
+static bool changes_move_rows(const TABLE *table)
+{
+  return table->file->ht->db_type == DB_TYPE_CSV_DB;
+}
+
+
+/*
+  Report an error if tl1 and tl2 are aliases of one table whose changes
+  move its other rows.  One DELETE or UPDATE must not change rows through
+  both.
+*/
+bool multi_change_moves_rows(TABLE_LIST *tl1, TABLE_LIST *tl2)
+{
+  TABLE *table= tl1->table;
+  char what[MYSQL_ERRMSG_SIZE];
+  if (table->s != tl2->table->s || !changes_move_rows(table))
+    return false;
+  my_snprintf(what, sizeof(what),
+              "changing a %s table through both %`s and %`s",
+              table->file->table_type(), tl1->top_table()->alias.str,
+              tl2->top_table()->alias.str);
+  my_error(ER_NOT_SUPPORTED_YET, MYF(0), what);
+  return true;
+}
+
+
+/*
+  Report an error if the CHECK OPTION of view_ref reads tl, an alias of a
+  table that this UPDATE changes and whose changes move its other rows.
+  The rowid of tl saved for the CHECK OPTION can point at a different row
+  once the changed alias has written its rows.
+*/
+static bool check_option_reads_moved_rows(TABLE_LIST *update_tables,
+                                          TABLE_LIST *tl,
+                                          TABLE_LIST *view_ref)
+{
+  char what[MYSQL_ERRMSG_SIZE];
+  for (TABLE_LIST *ut= update_tables; ut; ut= ut->next_local)
+  {
+    TABLE *table= ut->table;
+    if (table->s != tl->table->s || !changes_move_rows(table))
+      continue;
+    my_snprintf(what, sizeof(what),
+                "changing a %s table that the CHECK OPTION of %`s reads",
+                table->file->table_type(), view_ref->top_table()->alias.str);
+    my_error(ER_NOT_SUPPORTED_YET, MYF(0), what);
+    return true;
+  }
+  return false;
+}
+
+
 /**
   If one row is updated through two different aliases and the first
   update physically moves the row, the second update will error
@@ -1395,6 +1453,8 @@ static table_map get_table_map(List<Item> *items)
   The following update operations physically moves rows:
     1) Update of a column in a clustered primary key
     2) Update of a column used to calculate which partition the row belongs to
+    3) Any update of a CSV table, which also moves the rows that neither
+       alias updates
 
   This function returns with an error if both of the following are
   true:
@@ -1433,7 +1493,8 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
       table_partitioned= (table1->part_info != NULL);
 #endif
 
-      if (!table_partitioned && !primkey_clustered)
+      if (!table_partitioned && !primkey_clustered &&
+          !changes_move_rows(table1))
         continue;
 
       it2.rewind();
@@ -1450,6 +1511,9 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
             table2->map & tables_for_update && table1->s == table2->s)
         {
           // A table is updated through two aliases
+          if (multi_change_moves_rows(tl, tl2))
+            return true;
+
           if (table_partitioned &&
               (partition_key_modified(table1, table1->write_set) ||
                partition_key_modified(table2, table2->write_set)))
@@ -2170,6 +2234,8 @@ loop_end:
           unupdated_tables&= ~tbl_ref->table->map;
         else
           continue;
+        if (check_option_reads_moved_rows(update_tables, tbl_ref, table_ref))
+          DBUG_RETURN(1);
         if (unupdated_check_opt_tables.push_back(tbl_ref->table))
           DBUG_RETURN(1);
       }

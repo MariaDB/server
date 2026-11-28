@@ -1,0 +1,73 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # A failed write of the new version of a row during UPDATE keeps the
+--echo # old version of the row
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+SET @save_debug_dbug= @@debug_dbug;
+SET debug_dbug='+d,tina_update_row_short_write';
+--replace_regex /'[^']*'/'FILE'/ /Errcode: .*/Errcode: 28)/
+--error 3
+UPDATE t1 SET v=v+10;
+SET debug_dbug= @save_debug_dbug;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # A failed write of the new version of the second row keeps the new
+--echo # version of the first row and the old versions of the other rows
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2),(3);
+--echo # f1() enables the short write while it computes the new value of row 2
+delimiter //;
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+  IF x = 2 THEN
+    SET debug_dbug='+d,tina_update_row_short_write';
+  END IF;
+  RETURN x + 10;
+END//
+delimiter ;//
+--replace_regex /'[^']*'/'FILE'/ /Errcode: .*/Errcode: 28)/
+--error 3
+UPDATE t1 SET v=f1(v);
+SET debug_dbug= @save_debug_dbug;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+--echo #
+--echo # A failed write of a new version that is longer than the rest of the
+--echo # table leaves no part of that version in the data file
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1),(2);
+--echo # f1() makes the write of the new version of row 2 fail
+delimiter //;
+CREATE FUNCTION f1(x INT) RETURNS INT
+BEGIN
+  IF x = 2 THEN
+    SET debug_dbug='+d,tina_update_row_full_write_error';
+    RETURN 2000000;
+  END IF;
+  RETURN x + 10;
+END//
+delimiter ;//
+--replace_regex /'[^']*'/'FILE'/ /Errcode: .*/Errcode: 28)/
+--error 3
+UPDATE t1 SET v=f1(v);
+SET debug_dbug= @save_debug_dbug;
+--echo # The next open reads the length of the data file
+FLUSH TABLES t1;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP FUNCTION f1;
+DROP TABLE t1;

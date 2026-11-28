@@ -1,0 +1,24 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # A failed write of a row during INSERT leaves no part of the row in
+--echo # the data file
+--echo #
+CREATE TABLE t1 (v INT NOT NULL) ENGINE=CSV;
+INSERT INTO t1 VALUES (1);
+SET @save_debug_dbug= @@debug_dbug;
+SET debug_dbug='+d,tina_write_row_short_write';
+--replace_regex /'[^']*'/'FILE'/ /Errcode: .*/Errcode: 28)/
+--error 3
+INSERT INTO t1 VALUES (2);
+SET debug_dbug= @save_debug_dbug;
+INSERT INTO t1 VALUES (3);
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+--echo # The next open reads the length of the data file
+FLUSH TABLES t1;
+--sorted_result
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;

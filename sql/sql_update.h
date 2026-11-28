@@ -28,6 +28,7 @@ typedef class st_select_lex SELECT_LEX;
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 
 bool check_unique_table(THD *thd, TABLE_LIST *table_list);
+bool multi_change_moves_rows(TABLE_LIST *tl1, TABLE_LIST *tl2);
 bool records_are_comparable(const TABLE *table);
 bool compare_record(const TABLE *table);
 
