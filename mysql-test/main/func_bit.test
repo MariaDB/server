@@ -95,3 +95,8 @@ SELECT BIT_COUNT(-9223372036854775808e0) AS c1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+--echo # MDEV-40089 Preserve unsigned cached integers in real comparisons
+CREATE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES ('0'),('1');
+SELECT a FROM t1 WHERE ('0' BETWEEN ~TRUE AND a) IS FALSE ORDER BY a;
+DROP TABLE t1;
