@@ -319,3 +319,102 @@ SET default_storage_engine = performance_schema;
 CREATE TEMPORARY TABLE t1 (t int);
 
 SET @@default_storage_engine = @default_storage_engine_old;
+--echo #
+--echo # MDEV-34817 Performance schema is not cleared of removed package routines
+--echo #
+
+let $q= SELECT object_schema, object_name, count_star
+  FROM performance_schema.events_statements_summary_by_program
+  WHERE object_type IN ('PROCEDURE','FUNCTION') AND
+        object_schema IN ('db1','db2')
+  ORDER BY object_schema, object_name;
+
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode=ORACLE;
+CREATE DATABASE db1;
+CREATE DATABASE db2;
+DELIMITER $$;
+CREATE PACKAGE db1.pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+$$
+CREATE PACKAGE db2.pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY db2.pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+CREATE PROCEDURE db1.pkg1x AS BEGIN NULL; END;
+$$
+DELIMITER ;$$
+
+CALL db1.pkg1.p1;
+SELECT db1.pkg1.f1();
+CALL db2.pkg1.p1;
+CALL db1.pkg1x;
+
+--echo # Routines executed in another connection must be removed as well
+connect con1,localhost,root;
+CALL db1.pkg1.p1;
+disconnect con1;
+connection default;
+eval $q;
+
+DROP PACKAGE BODY db1.PKG1;
+eval $q;
+
+--echo # Statistics of the re-created routines start from zero
+DELIMITER $$;
+CREATE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 1; END;
+END;
+$$
+DELIMITER ;$$
+CALL db1.pkg1.p1;
+eval $q;
+
+--echo # CREATE OR REPLACE PACKAGE BODY
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 2; END;
+END;
+$$
+DELIMITER ;$$
+eval $q;
+
+--echo # DROP PACKAGE
+CALL db1.pkg1.p1;
+DROP PACKAGE db1.pkg1;
+eval $q;
+
+--echo # DROP DATABASE
+DELIMITER $$;
+CREATE PACKAGE db1.pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY db1.pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+CALL db1.pkg1.p1;
+eval $q;
+DROP DATABASE db1;
+eval $q;
+
+DROP DATABASE db2;
+eval $q;
+SET sql_mode= @save_sql_mode;
+
+--echo # End of 10.11 tests

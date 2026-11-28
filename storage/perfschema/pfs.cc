@@ -5776,14 +5776,16 @@ void pfs_end_statement_v1(PSI_statement_locker *locker, void *stmt_da)
 
 static inline enum_object_type sp_type_to_object_type(uint sp_type)
 {
-  enum enum_sp_type value= static_cast<enum enum_sp_type> (sp_type);
-
-  switch (value)
+  switch (sp_type)
   {
     case SP_TYPE_FUNCTION:
       return OBJECT_TYPE_FUNCTION;
     case SP_TYPE_PROCEDURE:
       return OBJECT_TYPE_PROCEDURE;
+    case SP_PSI_TYPE_PACKAGE_FUNCTION:
+      return OBJECT_TYPE_PACKAGE_FUNCTION;
+    case SP_PSI_TYPE_PACKAGE_PROCEDURE:
+      return OBJECT_TYPE_PACKAGE_PROCEDURE;
     case SP_TYPE_PACKAGE:
       return OBJECT_TYPE_PACKAGE;
     case SP_TYPE_PACKAGE_BODY:

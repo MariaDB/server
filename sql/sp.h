@@ -59,6 +59,13 @@ enum enum_sp_type
   SP_TYPE_EVENT=6,
 };
 
+/*
+  Types of package routines, used only for performance schema
+  instrumentation, see sp_head::init_psi_share().
+*/
+#define SP_PSI_TYPE_PACKAGE_PROCEDURE 7
+#define SP_PSI_TYPE_PACKAGE_FUNCTION  8
+
 class Sp_handler
 {
   bool sp_resolve_package_routine_explicit(THD *thd,
