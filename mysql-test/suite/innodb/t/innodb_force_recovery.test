@@ -165,3 +165,55 @@ insert into t2 values(9,10);
 select * from t2;
 drop table t2;
 show tables;
+
+--echo #
+--echo # MDEV-41719 : SIGSEGV in dict_load_virtual_col() with innodb_force_recovery=6
+--echo #
+CREATE TABLE t1 (a INT, b INT AS (a) VIRTUAL) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT, FOREIGN KEY (a) REFERENCES t2(a)) ENGINE=InnoDB;
+--source include/restart_mysqld.inc
+# The rename will only be in the redo log, which will be ignored
+ALTER TABLE t1 RENAME COLUMN b TO c;
+--source include/kill_mysqld.inc
+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN= Unknown table 'test/t1' in SYS_VIRTUAL
+--let SEARCH_OUTPUT= count
+
+--let $restart_parameters= --innodb-force-recovery=6
+--source include/start_mysqld.inc
+# Opening the table may report a mismatch between the .frm file and
+# the InnoDB data dictionary, depending on whether the SYS_COLUMNS
+# page had been written out before the server was killed.
+# innodb.vcol_dict_debug covers that warning deterministically.
+--disable_result_log
+SELECT * FROM t1;
+--enable_result_log
+CHECK TABLE t1;
+# The .frm file was updated by the ALTER TABLE, hence the column is c.
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+# In the InnoDB dictionary the column may be named either b or c,
+# depending on whether the SYS_COLUMNS page had been written out
+# before the server was killed.
+--replace_result b b_or_c c b_or_c
+SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C
+INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
+WHERE T.NAME='test/t1' ORDER BY C.NAME;
+--error ER_OPEN_AS_READONLY
+DROP TABLE t1, t2;
+# SYS_VIRTUAL must have been loaded in spite of innodb_force_recovery=6.
+--source include/search_pattern_in_file.inc
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+SHOW CREATE TABLE t1;
+SHOW CREATE TABLE t2;
+# The redo log was applied; the InnoDB dictionary must agree with the
+# .frm file now.
+SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C
+INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
+WHERE T.NAME='test/t1' ORDER BY C.NAME;
+# No additional error must have been written to the error log.
+--source include/search_pattern_in_file.inc
+DROP TABLE t1, t2;

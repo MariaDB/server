@@ -1,0 +1,32 @@
+#
+# MDEV-41719 : virtual columns that the InnoDB data dictionary
+#              does not describe the way the .frm file does
+#
+call mtr.add_suppression("Unknown table 'test/t1' in SYS_VIRTUAL");
+CREATE TABLE t1 (a INT, b INT AS (a) VIRTUAL) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES (1);
+# restart: --debug_dbug=+d,skip_sys_virtual --innodb-force-recovery=3
+SELECT * FROM t1;
+ERROR 42S02: Unknown table 'test/t1' in SYS_VIRTUAL
+FOUND 1 matches in mysqld.1.err
+# restart
+SELECT * FROM t1;
+a	b
+1	1
+ALTER TABLE t1 RENAME COLUMN b TO c;
+SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C
+INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
+WHERE T.NAME='test/t1' ORDER BY C.NAME;
+NAME
+a
+c
+FLUSH TABLES;
+SELECT * FROM t1;
+a	b
+1	1
+Warnings:
+Warning	1054	Unknown column 'b' in 'test/t1'
+SELECT * FROM t1;
+a	b
+1	1
+DROP TABLE t1;
