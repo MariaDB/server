@@ -18,7 +18,6 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%'
---let $wait_condition_on_error_output =
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_13 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE name LIKE 'test/%';
@@ -33,7 +32,8 @@ INSERT INTO t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3, ten
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz')
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT COUNT(*) FROM t1
+--source include/wait_condition_with_debug.inc
 
 SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('foobarbaz');
 
@@ -41,7 +41,8 @@ UPDATE t1 SET f2 = 'abcdefjhk';
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk')
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT COUNT(*) FROM t1
+--source include/wait_condition_with_debug.inc
 
 SELECT COUNT(f2) AS EXPECT_10000 FROM t1 WHERE MATCH(f2) AGAINST ('abcdefjhk');
 
@@ -68,16 +69,19 @@ INSERT INTO t1 (f1) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
 
 --connection node_1
 --let $wait_condition = SELECT COUNT(*) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz')
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM t1
+--source include/wait_condition_with_debug.inc
 
 SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('foobarbaz');
 
 UPDATE t1 SET f1 = 'abcdefjhk';
+
 SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk')
---source include/wait_condition.inc
+--let $wait_condition_on_error_output = SELECT * FROM t1
+--source include/wait_condition_with_debug.inc
 
 SELECT COUNT(f1) AS EXPECT_1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
 
