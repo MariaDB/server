@@ -37,6 +37,7 @@ Created 10/16/1994 Heikki Tuuri
 *******************************************************/
 
 #include "btr0cur.h"
+#include "btr0blink.h"
 #include "row0upd.h"
 #include "mtr0log.h"
 #include "page0page.h"
@@ -1095,6 +1096,12 @@ static inline void btr_ahi_inc_searches_btree(const mtr_t &mtr) noexcept
 dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
                                btr_latch_mode latch_mode, mtr_t *mtr)
 {
+  if (use_blink_path(index()) &&
+      (latch_mode == BTR_SEARCH_LEAF || latch_mode == BTR_MODIFY_LEAF))
+    return blink_search_leaf(index(), tuple, mode,
+                             latch_mode == BTR_SEARCH_LEAF
+                             ? RW_S_LATCH : RW_X_LATCH, this, mtr);
+
   ut_ad(index()->is_btree());
 
   buf_block_t *guess;
@@ -4341,6 +4348,9 @@ btr_cur_compress_if_useful(
 				adjusted even when compression occurs */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+	if (use_blink_path(cursor->index()))
+		return false;
+
 	ut_ad(mtr->memo_contains_flagged(&cursor->index()->lock,
 					 MTR_MEMO_X_LOCK | MTR_MEMO_SX_LOCK));
 	ut_ad(mtr->memo_contains_flagged(btr_cur_get_block(cursor),
