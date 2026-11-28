@@ -1,0 +1,112 @@
+# JSON field copies: MyISAM
+CREATE TABLE t1 (id INT PRIMARY KEY, a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, b TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, '{}', '[]'), (2, 'invalid', 'invalid'), (3, NULL, NULL);
+ALTER TABLE t1 MODIFY a JSON, ALGORITHM=COPY;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`a` at row 2
+ALTER TABLE t1 MODIFY b JSON, ALGORITHM=COPY;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`b` at row 2
+SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1' ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	DATA_TYPE
+id	int
+a	longtext
+b	tinytext
+SELECT id, a, b FROM t1 ORDER BY id;
+id	a	b
+1	{}	[]
+2	invalid	invalid
+3	NULL	NULL
+UPDATE t1 SET a = '{"a":1}', b = '123' WHERE id = 2;
+ALTER TABLE t1 MODIFY a JSON, MODIFY b JSON, ALGORITHM=COPY;
+SELECT id, a, b, JSON_VALID(a), JSON_VALID(b) FROM t1 ORDER BY id;
+id	a	b	JSON_VALID(a)	JSON_VALID(b)
+1	{}	[]	1	1
+2	{"a":1}	123	1	1
+3	NULL	NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, j JSON) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('invalid', '{}');
+UPDATE t1 SET j = a;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`j` at row 1
+SELECT a, j FROM t1;
+a	j
+invalid	{}
+UPDATE t1 SET a = '[1,2]';
+UPDATE t1 SET j = a;
+SELECT a, j, JSON_VALID(j) FROM t1;
+a	j	JSON_VALID(j)
+[1,2]	[1,2]	1
+DROP TABLE t1;
+CREATE TABLE src (id INT PRIMARY KEY, a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) ENGINE=MyISAM;
+CREATE TABLE dst (id INT PRIMARY KEY, a JSON) ENGINE=MyISAM;
+INSERT INTO src VALUES (1, 'invalid');
+INSERT INTO dst SELECT * FROM src;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`dst`.`a` at row 1
+SELECT COUNT(*) FROM dst;
+COUNT(*)
+0
+UPDATE src SET a = '{"a":1}';
+INSERT INTO src VALUES (2, '[]'), (3, NULL);
+INSERT INTO dst SELECT * FROM src;
+SELECT id, a, JSON_VALID(a) FROM dst ORDER BY id;
+id	a	JSON_VALID(a)
+1	{"a":1}	1
+2	[]	1
+3	NULL	NULL
+DROP TABLE src, dst;
+# JSON field copies: InnoDB
+CREATE TABLE t1 (id INT PRIMARY KEY, a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, b TINYTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, '{}', '[]'), (2, 'invalid', 'invalid'), (3, NULL, NULL);
+ALTER TABLE t1 MODIFY a JSON, ALGORITHM=COPY;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`a` at row 2
+ALTER TABLE t1 MODIFY b JSON, ALGORITHM=COPY;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`b` at row 2
+SELECT COLUMN_NAME, DATA_TYPE FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME = 't1' ORDER BY ORDINAL_POSITION;
+COLUMN_NAME	DATA_TYPE
+id	int
+a	longtext
+b	tinytext
+SELECT id, a, b FROM t1 ORDER BY id;
+id	a	b
+1	{}	[]
+2	invalid	invalid
+3	NULL	NULL
+UPDATE t1 SET a = '{"a":1}', b = '123' WHERE id = 2;
+ALTER TABLE t1 MODIFY a JSON, MODIFY b JSON, ALGORITHM=COPY;
+SELECT id, a, b, JSON_VALID(a), JSON_VALID(b) FROM t1 ORDER BY id;
+id	a	b	JSON_VALID(a)	JSON_VALID(b)
+1	{}	[]	1	1
+2	{"a":1}	123	1	1
+3	NULL	NULL	NULL	NULL
+DROP TABLE t1;
+CREATE TABLE t1 (a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin, j JSON) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('invalid', '{}');
+UPDATE t1 SET j = a;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`t1`.`j` at row 1
+SELECT a, j FROM t1;
+a	j
+invalid	{}
+UPDATE t1 SET a = '[1,2]';
+UPDATE t1 SET j = a;
+SELECT a, j, JSON_VALID(j) FROM t1;
+a	j	JSON_VALID(j)
+[1,2]	[1,2]	1
+DROP TABLE t1;
+CREATE TABLE src (id INT PRIMARY KEY, a LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin) ENGINE=InnoDB;
+CREATE TABLE dst (id INT PRIMARY KEY, a JSON) ENGINE=InnoDB;
+INSERT INTO src VALUES (1, 'invalid');
+INSERT INTO dst SELECT * FROM src;
+ERROR 22007: Incorrect json value: 'invalid' for column `test`.`dst`.`a` at row 1
+SELECT COUNT(*) FROM dst;
+COUNT(*)
+0
+UPDATE src SET a = '{"a":1}';
+INSERT INTO src VALUES (2, '[]'), (3, NULL);
+INSERT INTO dst SELECT * FROM src;
+SELECT id, a, JSON_VALID(a) FROM dst ORDER BY id;
+id	a	JSON_VALID(a)
+1	{"a":1}	1
+2	[]	1
+3	NULL	NULL
+DROP TABLE src, dst;

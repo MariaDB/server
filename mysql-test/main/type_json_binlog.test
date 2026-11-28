@@ -1,0 +1,28 @@
+--source include/not_embedded.inc
+
+--echo # MDEV-41559: VARCHAR row events must not be unpacked as JSON blobs.
+
+SET @save_slave_type_conversions = @@GLOBAL.slave_type_conversions;
+SET GLOBAL slave_type_conversions = '';
+CALL mtr.add_suppression("BINLOG_BASE64_EVENT: Column 0 of table 'test.t' cannot be converted from type 'varbinary\\(20\\)' to type 'json'");
+CALL mtr.add_suppression("BINLOG_BASE64_EVENT:.*Incorrect json value");
+
+CREATE TABLE t (c JSON) ENGINE=MyISAM;
+
+# The original reproducer describes VARCHAR(20), not a blob with a
+# 20-byte length prefix. With conversions disabled it must be rejected
+# before Field_blob::unpack() is reached.
+--error ER_UNKNOWN_ERROR
+BINLOG 'q6TQahMBAAAALgAAAAAAAAAAACAAAAAAAAEABHRlc3QAAXQAAQ8CFAABiuGLjQ==q6TQahcBAAAANgAAAAAAAAAAACAAAAAAAAEAAQH+E2FhYWFhYWFhYWFhYWFhYWFhYWE7TnB+';
+SELECT COUNT(*) FROM t;
+
+SET GLOBAL slave_type_conversions = 'ALL_NON_LOSSY';
+BINLOG 'aRf2ZA8BAAAA/AAAAAABAAAAAAQAMTAuNS4xNS1NYXJpYURCLWxvZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABpF/ZkEzgNAAgAEgAEBAQEEgAA5AAEGggAAAAICAgCAAAACgoKAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEEwQADQgICAoKCgFRmTlk';
+
+# test.t(c VARCHAR(20)); Write_rows: {"a":"aaaaaaaaaaa"}.
+BINLOG 'q6TQahMBAAAALgAAAAAAAAAAACAAAAAAAAEABHRlc3QAAXQAAQ8CFAABiuGLjQ==q6TQahcBAAAANgAAAAAAAAAAACAAAAAAAAEAAQH+E3siYSI6ImFhYWFhYWFhYWFhIn0gUXrl';
+SELECT c, JSON_VALID(c) FROM t;
+
+
+DROP TABLE t;
+SET GLOBAL slave_type_conversions = @save_slave_type_conversions;

@@ -1,0 +1,25 @@
+--echo # JSON validation must not reject temporary index search values.
+
+CREATE TABLE t1 (id INT PRIMARY KEY, j JSON, KEY k (j(16))) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1, '{}'), (2, '[]'), (3, '123');
+
+# Invalid documents must still be rejected when assigning column values.
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+INSERT INTO t1 VALUES (4, 'invalid');
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+UPDATE t1 SET j = 'invalid' WHERE id = 1;
+SELECT id, j FROM t1 ORDER BY id;
+
+# Search operands need not be JSON documents. Both access paths must agree.
+SELECT id FROM t1 FORCE INDEX (k) WHERE j = 'invalid' ORDER BY id;
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j = 'invalid' ORDER BY id;
+SELECT id FROM t1 FORCE INDEX (k) WHERE j > 'invalid' ORDER BY id;
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j > 'invalid' ORDER BY id;
+SELECT id FROM t1 FORCE INDEX (k) WHERE j < 'invalid' ORDER BY id;
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j < 'invalid' ORDER BY id;
+
+# A valid JSON search operand must continue to find its row.
+SELECT id FROM t1 FORCE INDEX (k) WHERE j = '{}' ORDER BY id;
+SELECT id FROM t1 IGNORE INDEX (k) WHERE j = '{}' ORDER BY id;
+
+DROP TABLE t1;
