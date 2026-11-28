@@ -221,10 +221,24 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
 }
 
 
+void Optimizer_hint_tokenizer::get_spaces_and_comments()
+{
+  get_spaces();
+  /* Two dashes and the following whitespace or control byte must fit. */
+  while (m_end - m_ptr >= 3 && m_ptr[0] == '-' && m_ptr[1] == '-' &&
+         (my_isspace(m_cs, m_ptr[2]) || my_iscntrl(m_cs, m_ptr[2])))
+  {
+    m_ptr+= 2;
+    while (!eof() && *m_ptr != '\n') m_ptr++;
+    get_spaces();
+  }
+}
+
+
 Optimizer_hint_tokenizer::Token
 Optimizer_hint_tokenizer::get_token(CHARSET_INFO *cs)
 {
-  get_spaces();
+  get_spaces_and_comments();
   if (eof())
     return Token(Lex_cstring(m_ptr, m_ptr), TokenID::tEOF);
   const char head= m_ptr[0];
