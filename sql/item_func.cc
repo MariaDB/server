@@ -440,6 +440,39 @@ Item_func::quick_fix_field()
 }
 
 
+/*
+  Copy the function node and its arguments for use in the same SELECT_LEX.
+  An argument that occurs more than once in args[] is copied once, so the
+  copy keeps the aliasing of the original.
+*/
+
+Item *Item_func::same_select_copy(THD *thd) const
+{
+  Item_func *copy= static_cast<Item_func*>(shallow_copy_with_checks(thd));
+  if (unlikely(!copy))
+    return nullptr;
+  if (arg_count > 2)
+  {
+    if (unlikely(!(copy->args= static_cast<Item**>
+                   (alloc_root(thd->mem_root, sizeof(Item*) * arg_count)))))
+      return nullptr;
+  }
+  else if (arg_count > 0)
+    copy->args= copy->tmp_arg;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    uint j;
+    for (j= 0; j < i && args[j] != args[i]; j++) {}
+    if (j < i)
+      copy->args[i]= copy->args[j];
+    else if (unlikely(!(copy->args[i]=
+                        args[i]->same_select_copy_with_checks(thd))))
+      return nullptr;
+  }
+  return copy;
+}
+
+
 bool
 Item_func::eval_not_null_tables(void *opt_arg)
 {

@@ -115,5 +115,9 @@ public:
       free_root(&current_mem_root, MYF(0));
     Item_str_func::cleanup();
   }
+protected:
+  /* Shared: cleanup() of a copy would free its MEM_ROOT */
+  Item *same_select_copy(THD *thd) const override
+  { return Item::same_select_copy(thd); }
 };
 #endif
