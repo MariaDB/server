@@ -61,6 +61,43 @@ reset slave 'master1' all;
 show slave 'master1' status;
 --list_files $datadir mysqld*
 
+--echo #
+--echo # MDEV-29315: Add non-ambiguous alias for 'ALL' in RESET SLAVE ALL
+--echo #
+
+# default_master_connection was set to 'master1' above, which no longer
+# exists. Use the default (unnamed) connection from here on.
+set default_master_connection = '';
+
+--echo # FULL on a named connection removes it, same as ALL
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master2' to master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1', master_ssl_verify_server_cert=0,
+master_user='root';
+--list_files $datadir mysqld*
+reset slave 'master2' full;
+--error WARN_NO_MASTER_INFO
+show slave 'master2' status;
+--list_files $datadir mysqld*
+
+--echo # FULL works with the REPLICA synonym and FOR CHANNEL syntax
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master3' to master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1', master_ssl_verify_server_cert=0,
+master_user='root';
+reset replica full for channel 'master3';
+--error WARN_NO_MASTER_INFO
+show slave 'master3' status;
+
+--echo # FULL on the default connection clears its connection settings
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master to master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1', master_ssl_verify_server_cert=0,
+master_user='root';
+select count(*) from information_schema.slave_status where connection_name = '';
+reset slave full;
+select count(*) from information_schema.slave_status where connection_name = '';
+
 # Cleanup
 
 drop table t1;
@@ -71,6 +108,10 @@ drop table t1;
 drop table t1;
 --source include/reset_master_slave.inc
 --disconnect master1
+
+--echo #
+--echo # End of 13.2 tests
+--echo #
 
 
 
