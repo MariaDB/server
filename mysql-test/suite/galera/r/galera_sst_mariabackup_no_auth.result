@@ -516,5 +516,6 @@ COUNT(*) = 0
 1
 DROP TABLE t1;
 COMMIT;
+include/assert_grep.inc [SST user was not granted ALL PRIVILEGES]
 disconnect node_2;
 disconnect node_1;

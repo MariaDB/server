@@ -14,6 +14,13 @@
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
 
+--let $assert_text = SST user was not granted ALL PRIVILEGES
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_select = GRANT ALL
+--let $assert_count = 0
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc
+
 # Restore original auto_increment_offset values.
 --source include/auto_increment_offset_restore.inc
 
