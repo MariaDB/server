@@ -201,19 +201,23 @@ DROP TABLE t1;
 --echo # Test case 8: Check that the 'PURGE BINARY LOGS BEFORE' statement
 --echo # is supported by prepared statements
 PREPARE stmt_1 FROM "PURGE BINARY LOGS BEFORE '2020-11-17'";
+--error ER_NO_BINARY_LOGGING
 EXECUTE stmt_1;
 --echo # Execute the same prepared statement the second time to check that
 --echo # no internal structures used for handling the 'PURGE BINARY LOGS BEFORE'
 --echo # statement were damaged.
+--error ER_NO_BINARY_LOGGING
 EXECUTE stmt_1;
 
 --echo # Check that the 'PURGE BINARY LOGS TO' statement is supported by
 --echo # prepared statements
 PREPARE stmt_1 FROM "PURGE BINARY LOGS TO 'mariadb-bin.000063'";
+--error ER_NO_BINARY_LOGGING
 EXECUTE stmt_1;
 --echo # Execute the same prepared statement the second time to check that
 --echo # no internal structures used for handling the 'PURGE BINARY LOGS TO'
 --echo # statement were damaged.
+--error ER_NO_BINARY_LOGGING
 EXECUTE stmt_1;
 
 --echo # Test case 9: Check that the 'HANDLER OPEN/HANDLER READ/

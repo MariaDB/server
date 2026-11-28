@@ -177,18 +177,22 @@ DROP TABLE t1;
 # is supported by prepared statements
 PREPARE stmt_1 FROM "PURGE BINARY LOGS BEFORE '2020-11-17'";
 EXECUTE stmt_1;
+ERROR HY000: You are not using binary logging
 # Execute the same prepared statement the second time to check that
 # no internal structures used for handling the 'PURGE BINARY LOGS BEFORE'
 # statement were damaged.
 EXECUTE stmt_1;
+ERROR HY000: You are not using binary logging
 # Check that the 'PURGE BINARY LOGS TO' statement is supported by
 # prepared statements
 PREPARE stmt_1 FROM "PURGE BINARY LOGS TO 'mariadb-bin.000063'";
 EXECUTE stmt_1;
+ERROR HY000: You are not using binary logging
 # Execute the same prepared statement the second time to check that
 # no internal structures used for handling the 'PURGE BINARY LOGS TO'
 # statement were damaged.
 EXECUTE stmt_1;
+ERROR HY000: You are not using binary logging
 # Test case 9: Check that the 'HANDLER OPEN/HANDLER READ/
 # HANDLER CLOSE' statements are supported by prepared statements
 CREATE TABLE t1 (a INT);

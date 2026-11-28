@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-21386 PURGE BINARY LOGS should raise an error
+--echo # if binary logging is disabled
+--echo #
+
+SHOW VARIABLES LIKE 'log_bin';
+--error ER_NO_BINARY_LOGGING
+PURGE BINARY LOGS TO 'master-bin.000001';
+--error ER_NO_BINARY_LOGGING
+PURGE BINARY LOGS BEFORE '2030-01-01 00:00:00';
+
+--echo # End of 13.2 tests
