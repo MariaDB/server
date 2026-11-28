@@ -153,6 +153,16 @@ void Item_func::sync_with_sum_func_and_with_field(List<Item> &list)
 }
 
 
+void Item_func::update_used_tables()
+{
+  Dedup_traversal traversal(this, Dedup_traversal::UPDATE_USED_TABLES);
+  if (traversal.check_and_mark(this))
+    return;
+  used_tables_and_const_cache_init();
+  used_tables_and_const_cache_update_and_join(arg_count, args);
+}
+
+
 bool Item_func::check_argument_types_like_args0() const
 {
   if (arg_count < 2)
