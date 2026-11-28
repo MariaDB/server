@@ -785,6 +785,9 @@ if @have_innodb then
   alter table innodb_table_stats modify last_update timestamp not null default current_timestamp on update current_timestamp, modify table_name varchar(199);
 
   alter table innodb_index_stats drop foreign key if exists innodb_index_stats_ibfk_1;
+
+  delete from innodb_index_stats where stat_value = 18446744073709551615;
+  alter table innodb_index_stats add constraint if not exists innodb_index_stats_stat_value_defined check (stat_value <> 18446744073709551615);
 end if //
 DELIMITER ;
 
