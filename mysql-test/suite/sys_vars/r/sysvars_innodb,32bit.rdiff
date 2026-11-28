@@ -1,6 +1,6 @@
 --- a/mysql-test/suite/sys_vars/r/sysvars_innodb.result
 +++ b/mysql-test/suite/sys_vars/r/sysvars_innodb.result
-@@ -52,7 +52,7 @@
+@@ -55,7 +55,7 @@
  VARIABLE_TYPE	INT UNSIGNED
  VARIABLE_COMMENT	Number of adaptive hash table cells in each partition; 16381 at start defaults to being derived from innodb_buffer_pool_size
  NUMERIC_MIN_VALUE	16381
@@ -9,7 +9,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -97,7 +97,7 @@
+@@ -100,7 +100,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -18,7 +18,7 @@
  VARIABLE_COMMENT	The AUTOINC lock modes supported by InnoDB: 0 => Old style AUTOINC locking (for backward compatibility); 1 => New style AUTOINC locking; 2 => No AUTOINC locking (unsafe for SBR)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -109,10 +109,10 @@
+@@ -124,10 +124,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -31,7 +31,7 @@
  NUMERIC_BLOCK_SIZE	1048576
  ENUM_VALUE_LIST	NULL
  READ_ONLY	YES
-@@ -145,7 +145,7 @@
+@@ -160,7 +160,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	25
  VARIABLE_SCOPE	GLOBAL
@@ -40,7 +40,7 @@
  VARIABLE_COMMENT	Dump only the hottest N% of each buffer pool, defaults to 25
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	100
-@@ -217,10 +217,10 @@
+@@ -232,10 +232,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	134217728
  VARIABLE_SCOPE	GLOBAL
@@ -53,7 +53,7 @@
  NUMERIC_BLOCK_SIZE	1048576
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -229,11 +229,11 @@
+@@ -244,11 +244,11 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -68,7 +68,7 @@
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
  COMMAND_LINE_ARGUMENT	REQUIRED
-@@ -241,7 +241,7 @@
+@@ -256,7 +256,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -77,7 +77,7 @@
  VARIABLE_COMMENT	A number that tells how often buffer pool dump status in percentages should be printed. E.g. 10 means that buffer pool dump status is printed when every 10% of number of buffer pool pages are dumped. Default is 0 (only start and end status is printed)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
-@@ -313,7 +313,7 @@
+@@ -328,7 +328,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	5
  VARIABLE_SCOPE	GLOBAL
@@ -86,7 +86,7 @@
  VARIABLE_COMMENT	If the compression failure rate of a table is greater than this number more padding is added to the pages to reduce the failures. A value of zero implies no padding
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	100
-@@ -337,7 +337,7 @@
+@@ -352,7 +352,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	50
  VARIABLE_SCOPE	GLOBAL
@@ -95,7 +95,20 @@
  VARIABLE_COMMENT	Percentage of empty space on a data page that can be reserved to make the page compressible
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	75
-@@ -577,7 +577,7 @@
+@@ -604,10 +604,10 @@
+ SESSION_VALUE	NULL
+ DEFAULT_VALUE	0
+ VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	The extended buffer pool file size
+ NUMERIC_MIN_VALUE	0
+-NUMERIC_MAX_VALUE	18446744073709551615
++NUMERIC_MAX_VALUE	4294967295
+ NUMERIC_BLOCK_SIZE	0
+ ENUM_VALUE_LIST	NULL
+ READ_ONLY	NO
+@@ -628,7 +628,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	600
  VARIABLE_SCOPE	GLOBAL
@@ -104,7 +117,7 @@
  VARIABLE_COMMENT	Maximum number of seconds that semaphore times out in InnoDB
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
-@@ -625,7 +625,7 @@
+@@ -676,7 +676,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	30
  VARIABLE_SCOPE	GLOBAL
@@ -113,7 +126,7 @@
  VARIABLE_COMMENT	Number of iterations over which the background flushing is averaged
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	1000
-@@ -649,7 +649,7 @@
+@@ -700,7 +700,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -122,7 +135,7 @@
  VARIABLE_COMMENT	Controls the durability/speed trade-off for commits. Set to 0 (write and flush redo log to disk only once per second), 1 (flush to disk at each commit), 2 (write to log at commit but flush to disk only once per second) or 3 (flush to disk at prepare and at commit, slower and usually redundant). 1 and 3 guarantees that after a crash, committed transactions will not be lost and will be consistent with the binlog and other transactional engines. 2 can get inconsistent and lose transactions if there is a power failure or kernel crash but not if mysqld crashes. 0 has no guarantees in case of crash. 0 and 2 can be faster than 1 or 3
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	3
-@@ -673,7 +673,7 @@
+@@ -724,7 +724,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1
  VARIABLE_SCOPE	GLOBAL
@@ -131,7 +144,7 @@
  VARIABLE_COMMENT	Set to 0 (don't flush neighbors from buffer pool), 1 (flush contiguous neighbors from buffer pool) or 2 (flush neighbors from buffer pool), when flushing a block
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
-@@ -709,7 +709,7 @@
+@@ -760,7 +760,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -140,7 +153,7 @@
  VARIABLE_COMMENT	Helps to save your data in case the disk image of the database becomes corrupt. Value 5 can return bogus data, and 6 can permanently corrupt data
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	6
-@@ -733,10 +733,10 @@
+@@ -784,10 +784,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	8000000
  VARIABLE_SCOPE	GLOBAL
@@ -153,7 +166,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -769,7 +769,7 @@
+@@ -820,7 +820,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	84
  VARIABLE_SCOPE	GLOBAL
@@ -162,7 +175,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search maximum token size in characters
  NUMERIC_MIN_VALUE	10
  NUMERIC_MAX_VALUE	84
-@@ -781,7 +781,7 @@
+@@ -832,7 +832,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	3
  VARIABLE_SCOPE	GLOBAL
@@ -171,7 +184,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search minimum token size in characters
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	16
-@@ -793,7 +793,7 @@
+@@ -844,7 +844,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2000
  VARIABLE_SCOPE	GLOBAL
@@ -180,7 +193,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search number of words to optimize for each optimize table call
  NUMERIC_MIN_VALUE	1000
  NUMERIC_MAX_VALUE	10000
-@@ -805,10 +805,10 @@
+@@ -856,10 +856,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2000000000
  VARIABLE_SCOPE	GLOBAL
@@ -193,7 +206,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -829,7 +829,7 @@
+@@ -880,7 +880,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
@@ -202,7 +215,7 @@
  VARIABLE_COMMENT	InnoDB Fulltext search parallel sort degree, will round up to nearest power of 2 number
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	16
-@@ -841,10 +841,10 @@
+@@ -892,10 +892,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	640000000
  VARIABLE_SCOPE	GLOBAL
@@ -215,7 +228,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -889,7 +889,7 @@
+@@ -952,7 +952,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	200
  VARIABLE_SCOPE	GLOBAL
@@ -224,7 +237,7 @@
  VARIABLE_COMMENT	Number of IOPs the server can do. Tunes the background IO rate
  NUMERIC_MIN_VALUE	100
  NUMERIC_MAX_VALUE	4294967295
-@@ -901,7 +901,7 @@
+@@ -964,7 +964,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	4294967295
  VARIABLE_SCOPE	GLOBAL
@@ -233,7 +246,7 @@
  VARIABLE_COMMENT	Limit to which innodb_io_capacity can be inflated
  NUMERIC_MIN_VALUE	100
  NUMERIC_MAX_VALUE	4294967295
-@@ -1033,10 +1033,10 @@
+@@ -1132,10 +1132,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	32
  VARIABLE_SCOPE	GLOBAL
@@ -246,7 +259,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1045,10 +1045,10 @@
+@@ -1144,10 +1144,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1536
  VARIABLE_SCOPE	GLOBAL
@@ -259,7 +272,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1081,10 +1081,10 @@
+@@ -1180,10 +1180,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -272,7 +285,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -1093,7 +1093,7 @@
+@@ -1192,7 +1192,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -281,7 +294,7 @@
  VARIABLE_COMMENT	Maximum delay of user threads in micro-seconds
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	10000000
-@@ -1225,10 +1225,10 @@
+@@ -1324,10 +1324,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -294,7 +307,7 @@
  NUMERIC_BLOCK_SIZE	0
  ENUM_VALUE_LIST	NULL
  READ_ONLY	YES
-@@ -1249,7 +1249,7 @@
+@@ -1348,7 +1348,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	16384
  VARIABLE_SCOPE	GLOBAL
@@ -303,7 +316,7 @@
  VARIABLE_COMMENT	Page size to use for all InnoDB tablespaces
  NUMERIC_MIN_VALUE	4096
  NUMERIC_MAX_VALUE	65536
-@@ -1285,7 +1285,7 @@
+@@ -1384,7 +1384,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	127
  VARIABLE_SCOPE	GLOBAL
@@ -312,7 +325,7 @@
  VARIABLE_COMMENT	Number of UNDO log pages to purge in one batch from the history list
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	5000
-@@ -1297,7 +1297,7 @@
+@@ -1396,7 +1396,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	128
  VARIABLE_SCOPE	GLOBAL
@@ -321,7 +334,7 @@
  VARIABLE_COMMENT	Unused
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	128
-@@ -1333,7 +1333,7 @@
+@@ -1432,7 +1432,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	56
  VARIABLE_SCOPE	GLOBAL
@@ -330,7 +343,7 @@
  VARIABLE_COMMENT	Number of pages that must be accessed sequentially for InnoDB to trigger a readahead
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	64
-@@ -1417,7 +1417,7 @@
+@@ -1516,7 +1516,7 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	1048576
  VARIABLE_SCOPE	GLOBAL
@@ -339,7 +352,7 @@
  VARIABLE_COMMENT	Memory buffer size for index creation
  NUMERIC_MIN_VALUE	65536
  NUMERIC_MAX_VALUE	67108864
-@@ -1585,10 +1585,10 @@
+@@ -1684,10 +1684,10 @@
  SESSION_VALUE	NULL
  DEFAULT_VALUE	30
  VARIABLE_SCOPE	GLOBAL

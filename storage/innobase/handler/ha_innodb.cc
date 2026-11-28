@@ -43,6 +43,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <sql_acl.h>
 #include <lex_ident.h>
 #include <sql_class.h>
+#include <sys_vars_shared.h>
 #include <sql_show.h>
 #include <sql_table.h>
 #include <table_cache.h>
@@ -1043,6 +1044,10 @@ static SHOW_VAR innodb_status_variables[]= {
   {"dblwr_pages_written", &export_vars.innodb_dblwr_pages_written,SHOW_SIZE_T},
   {"dblwr_writes", &export_vars.innodb_dblwr_writes, SHOW_SIZE_T},
   {"deadlocks", &lock_sys.deadlocks, SHOW_SIZE_T},
+  {"ext_buffer_pool_pages_flushed", &buf_pool.stat.n_pages_written_to_ebp,
+    SHOW_SIZE_T},
+  {"ext_buffer_pool_reads", &buf_pool.stat.n_pages_read_from_ebp,
+    SHOW_SIZE_T},
   {"history_list_length", &export_vars.innodb_history_list_length,SHOW_SIZE_T},
   {"log_waits", &log_sys.waits, SHOW_SIZE_T},
   {"log_write_requests", &log_sys.write_to_buf, SHOW_SIZE_T},
@@ -3735,6 +3740,131 @@ static void innodb_buffer_pool_size_update(THD* thd,st_mysql_sys_var*,void*,
   buf_pool.resize(*static_cast<const size_t*>(save), thd);
 }
 
+/** Update a field that is protected by buf_pool.mutex */
+template<typename T>
+static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
+                                   void *val, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  *static_cast<T*>(val)= *static_cast<const T*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
+/** Validate SET GLOBAL innodb_extended_buffer_pool_size. The extended
+buffer pool file is created at startup and cannot be resized. The only
+valid values are 0, which stops using the extended buffer pool, and the
+value that the variable had after startup, which resumes using it. As at
+startup, a value is rounded down to a multiple of innodb_page_size, so
+any value that rounds down to the startup size is accepted, with a
+warning if it was rounded. Once the extended buffer pool was disabled
+because of an error, it cannot be used again. */
+static int innodb_extended_buffer_pool_size_validate(THD *thd,
+                                                     st_mysql_sys_var *,
+                                                     void *save,
+                                                     st_mysql_value *value)
+{
+  long long v;
+  if (value->val_int(value, &v) || (!value->is_unsigned(value) && v < 0))
+    return 1;
+  if (!v)
+  {
+    *static_cast<size_t*>(save)= 0;
+    return 0;
+  }
+  const size_t file_size= buf_pool.extended_pages << srv_page_size_shift;
+  if (!file_size)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "innodb_extended_buffer_pool_size cannot be changed when"
+                 " the server was started without the extended buffer pool");
+    return 1;
+  }
+  if (ulonglong(v) >> srv_page_size_shift != buf_pool.extended_pages)
+  {
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WRONG_ARGUMENTS,
+                        "innodb_extended_buffer_pool_size can only be set"
+                        " to 0 or %zu", file_size);
+    return 1;
+  }
+  if (fil_system.ext_buf_pool_failed())
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "The extended buffer pool was disabled because of an"
+                 " error, and it cannot be enabled again");
+    return 1;
+  }
+  if (ulonglong(v) != file_size &&
+      throw_bounds_warning(thd, "innodb_extended_buffer_pool_size", true,
+                           true, v))
+    return 1;
+  *static_cast<size_t*>(save)= file_size;
+  return 0;
+}
+
+static void innodb_extended_buffer_pool_size_update(THD *thd,
+                                                    st_mysql_sys_var *, void *,
+                                                    const void *save)
+{
+  const size_t size= *static_cast<const size_t*>(save);
+  mysql_mutex_lock(&buf_pool.mutex);
+  /* An error may have disabled the extended buffer pool after
+  innodb_extended_buffer_pool_size_validate() was called. */
+  const bool failed= size && fil_system.ext_buf_pool_failed();
+  if (!failed)
+    fil_system.ext_bp_set_size(size);
+  mysql_mutex_unlock(&buf_pool.mutex);
+  if (failed)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS,
+                 "The extended buffer pool was disabled because of an"
+                 " error, and it cannot be enabled again");
+}
+
+#ifdef UNIV_DEBUG
+static void innodb_force_LRU_eviction_set(THD *, st_mysql_sys_var *, void *,
+                                            const void *save)
+{
+  /* LRU batches are only performed by buf_flush_page_cleaner(), which
+  srv_start() only starts when !srv_read_only_mode (which is also implied
+  by innodb_force_recovery=6). There would be nothing to wait for. */
+  if (!*static_cast<const my_bool *>(save) || srv_read_only_mode)
+    return;
+  /* The wait below is not bounded in time. Do not block every other
+  connection, including any that is only being established, on
+  LOCK_global_system_variables while it is in progress. */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+  buf_pool.force_LRU_eviction_to_ebp= true;
+  /* An LRU batch that is already running may have passed some pages
+  before the flag was set. Wait until at least one whole batch has run
+  with the flag set. done_flush_list is also broadcast for other reasons
+  and may wake up spuriously, so check the batch count after each wait.
+  Stop waiting if the page cleaner stops running, such as on shutdown: it
+  clears buf_page_cleaner_is_active and broadcasts done_flush_list while
+  holding flush_list_mutex, so we cannot miss that transition.
+  Unlike the other waiters on done_flush_list, we deliberately do not
+  increment buf_pool.done_flush_list_waiters_count. That counter is not a
+  wakeup gate but a policy signal: buf_flush_LRU_list_batch() reads it as a
+  request to produce free pages as quickly as possible, and then evicts
+  without writing to the extended buffer pool, which is precisely what this
+  variable exists to exercise. */
+  for (const size_t target= buf_pool.n_LRU_batches + 2;
+       buf_page_cleaner_is_active && buf_pool.n_LRU_batches < target; )
+  {
+    buf_pool.page_cleaner_wakeup(true);
+    my_cond_wait(&buf_pool.done_flush_list,
+                 &buf_pool.flush_list_mutex.m_mutex);
+  }
+  buf_pool.force_LRU_eviction_to_ebp= false;
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+  /* The batches only submit asynchronous writes. Wait for them, including
+  the writes to the extended buffer pool, to complete, so that the pages
+  have been evicted and the statistics updated when we return. */
+  os_aio_wait_until_no_pending_writes(false);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+#endif /* UNIV_DEBUG */
+
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_size, buf_pool.size_in_bytes_requested,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data"
@@ -3775,6 +3905,34 @@ static MYSQL_SYSVAR_UINT(log_write_ahead_size, log_sys.write_size,
   "Redo log write size to avoid read-on-write; must be a power of two",
   nullptr, nullptr, 512, 512, log_sys.WRITE_SIZE_MAX, 1);
 
+static MYSQL_SYSVAR_SIZE_T(extended_buffer_pool_size, fil_system.ext_bp_size,
+  PLUGIN_VAR_RQCMDARG,
+  "The extended buffer pool file size",
+  innodb_extended_buffer_pool_size_validate,
+  innodb_extended_buffer_pool_size_update,
+  // TODO: set correct min and max values here.
+  0, 0, SIZE_T_MAX, 0);
+
+static MYSQL_SYSVAR_STR(extended_buffer_pool_path, fil_system.ext_bp_path,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Directory for the extended buffer pool file (default: the data directory)",
+  nullptr, nullptr, nullptr);
+
+static MYSQL_SYSVAR_UINT(extended_buffer_pool_admission_pct,
+  buf_pool.ext_bp_admission_pct,
+  PLUGIN_VAR_RQCMDARG,
+  "Percentage of clean pages evicted from the buffer pool that are"
+  " admitted to (written to) the extended buffer pool; 0 stops new"
+  " admissions, but pages already in the extended buffer pool can still"
+  " be read",
+  nullptr, innodb_buf_pool_update<uint>, 100, 0, 100, 0);
+
+#ifdef UNIV_DEBUG
+static MYSQL_SYSVAR_BOOL(force_LRU_eviction, buf_pool.force_LRU_eviction_to_ebp,
+  PLUGIN_VAR_OPCMDARG,
+  "Wake up page cleaner and wait for pages flushing end, used for testing only",
+  NULL, innodb_force_LRU_eviction_set, FALSE);
+#endif
 
 #ifdef BTR_CUR_HASH_ADAPT
 static void innodb_adaptive_hash_index_update(THD*, st_mysql_sys_var*, void*,
@@ -3928,6 +4086,9 @@ static int innodb_init_params()
   MYSQL_SYSVAR_NAME(buffer_pool_size_auto_min).max_val=
     buf_pool.size_in_bytes_max;
 #endif
+
+  buf_pool.extended_pages = fil_system.ext_bp_size >> srv_page_size_shift;
+  fil_system.ext_bp_set_size(buf_pool.extended_pages << srv_page_size_shift);
 
   if (innodb_buffer_pool_size < min)
   {
@@ -19270,16 +19431,6 @@ innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 	return(fts_retrieve_ranking(result, ft_prebuilt->fts_doc_id));
 }
 
-/** Update a field that is protected by buf_pool.mutex */
-template<typename T>
-static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
-                                   void *val, const void *save)
-{
-  mysql_mutex_lock(&buf_pool.mutex);
-  *static_cast<T*>(val)= *static_cast<const T*>(save);
-  mysql_mutex_unlock(&buf_pool.mutex);
-}
-
 static my_bool innodb_log_checkpoint_now;
 #ifdef UNIV_DEBUG
 static my_bool	innodb_buf_flush_list_now = TRUE;
@@ -19577,9 +19728,11 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         lsn_t resizing= log_sys.resize_in_progress();
         if (resizing > buf_pool.get_oldest_modification(0))
         {
+          ++buf_pool.done_flush_list_waiters_count;
           buf_pool.page_cleaner_wakeup(true);
           my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
+          --buf_pool.done_flush_list_waiters_count;
           resizing= log_sys.resize_in_progress();
         }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -20925,6 +21078,12 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(buffer_pool_size_auto_min),
 #endif
   MYSQL_SYSVAR(buffer_pool_size_max),
+  MYSQL_SYSVAR(extended_buffer_pool_size),
+  MYSQL_SYSVAR(extended_buffer_pool_path),
+  MYSQL_SYSVAR(extended_buffer_pool_admission_pct),
+#ifdef UNIV_DEBUG
+  MYSQL_SYSVAR(force_LRU_eviction),
+#endif
   MYSQL_SYSVAR(buffer_pool_chunk_size),
   MYSQL_SYSVAR(buffer_pool_filename),
   MYSQL_SYSVAR(buffer_pool_dump_now),

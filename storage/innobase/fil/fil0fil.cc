@@ -59,6 +59,9 @@ Created 10/25/1995 Heikki Tuuri
 #include "bzlib.h"
 #include "snappy-c.h"
 
+/* External buffer pool file name */
+const char *ext_bp_file_name= "ext_buffer_pool";
+
 ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 {
   if (!is_stopping() && !is_corrupted.test_and_set())
@@ -493,7 +496,8 @@ pfs_os_file_t fil_node_t::detach() noexcept
 void fil_node_t::prepare_to_close_or_detach() noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_ad(space->is_ready_to_close() || srv_operation == SRV_OPERATION_BACKUP ||
+  ut_ad(space->is_ready_to_close() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
   ut_a(is_open());
   ut_a(!being_extended);
@@ -1284,6 +1288,7 @@ void fil_system_t::close() noexcept
 
   if (is_initialised())
   {
+    close_ext_file();
     spaces.free();
     mysql_mutex_destroy(&mutex);
     fil_space_crypt_cleanup();
@@ -2913,18 +2918,169 @@ func_exit:
 	return {err, node};
 }
 
+void fil_system_t::close_ext_file() noexcept
+{
+  if (ext_bp_file == OS_FILE_CLOSED)
+    return;
+#ifdef _WIN32
+  /* The file was created by create_ext_file() with CreateFile(), not
+  through mysys; this also unbinds it from srv_thread_pool. */
+  ut_a(os_file_close_func(ext_bp_file.m_file));
+#else
+  /* The file was created with MY_TEMPORARY, so closing it removes it. */
+  int res= mysql_file_close(ext_bp_file, MYF(MY_WME));
+  ut_a(res != -1);
+#endif
+  ext_bp_file= OS_FILE_CLOSED;
+}
+
+bool fil_system_t::create_ext_file() noexcept
+{
+  const char *dir= ext_bp_path ? ext_bp_path : fil_path_to_mysql_datadir;
+#ifdef _WIN32
+  /* ext_bp_io() submits asynchronous I/O for this file. On Windows, that
+  requires a handle that was opened with FILE_FLAG_OVERLAPPED and bound to
+  srv_thread_pool, which pfs_create_temp_file() (mysys) does not provide.
+  FILE_FLAG_DELETE_ON_CLOSE makes the operating system remove the file
+  when the handle is closed, including when the process is terminated. */
+  char name[MAX_PATH];
+  /* GetTempFileName() creates an empty file and uses at most the first
+  3 characters of the prefix. */
+  if (!GetTempFileName(dir, "ebp", 0, name))
+  {
+    sql_print_error("InnoDB: Cannot create the extended buffer pool file"
+                    " in '%s'", dir);
+    (void) os_file_get_last_error(true, false);
+    return false;
+  }
+  HANDLE h= CreateFile(name, GENERIC_READ | GENERIC_WRITE,
+                       FILE_SHARE_READ | FILE_SHARE_DELETE,
+                       my_win_file_secattr(), TRUNCATE_EXISTING,
+                       FILE_FLAG_OVERLAPPED | FILE_FLAG_DELETE_ON_CLOSE |
+                       FILE_ATTRIBUTE_TEMPORARY, nullptr);
+  if (h == INVALID_HANDLE_VALUE)
+  {
+    sql_print_error("InnoDB: Cannot open the extended buffer pool file"
+                    " '%s'", name);
+    (void) os_file_get_last_error(true, false);
+    DeleteFile(name);
+    return false;
+  }
+  ext_bp_file= os_file_t{h};
+  if (srv_thread_pool && srv_thread_pool->bind(ext_bp_file.m_file))
+  {
+    sql_print_error("InnoDB: Cannot bind the extended buffer pool file"
+                    " '%s' to the I/O thread pool", name);
+    CloseHandle(h);
+    ext_bp_file= OS_FILE_CLOSED;
+    return false;
+  }
+#else
+  /* The file is created as a temporary file, so that the operating system
+  removes it when it is closed or the server exits, and no stale file is
+  left behind after a crash. */
+  ext_bp_file= pfs_create_temp_file(dir, "/Extended buffer pool file",
+                                    "ext_buf_", O_BINARY);
+  if (ext_bp_file == OS_FILE_CLOSED)
+  {
+    sql_print_error("InnoDB: Cannot create the extended buffer pool file"
+                    " in '%s'", dir);
+    return false;
+  }
+#endif
+  if (!os_file_set_size(ext_bp_file_name, ext_bp_file, ext_bp_size))
+  {
+    close_ext_file();
+    sql_print_error("InnoDB: Cannot set the extended buffer pool file"
+                    " size to %zu bytes", ext_bp_size);
+    return false;
+  }
+  return true;
+}
+
+dberr_t fil_system_t::ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_page,
+                                IORequest::Type io_request_type,
+                                buf_tmp_buffer_t *slot, size_t len,
+                                void *buf) noexcept
+{
+  ut_ad(len % 512 == 0); /* page_compressed */
+  ut_ad(io_request_type == IORequest::WRITE_ASYNC ||
+        io_request_type == IORequest::READ_SYNC ||
+        io_request_type == IORequest::READ_ASYNC) ;
+  /* Simulate a failed synchronous read; for asynchronous reads, see
+  ib_ext_bp_async_read_error in IORequest::read_complete() */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_error",
+                  if (io_request_type == IORequest::READ_SYNC)
+                    return DB_IO_ERROR;);
+  /* Simulate a write that could not be submitted */
+  DBUG_EXECUTE_IF("ib_ext_bp_write_submit_error",
+                  if (io_request_type == IORequest::WRITE_ASYNC)
+                    return DB_IO_ERROR;);
+  os_offset_t offset= buf_pool.ext_page_offset(ext_page);
+  /* Simulate a synchronous or asynchronous read at the end of the file */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_eof",
+                  if (io_request_type == IORequest::READ_SYNC)
+                    offset= os_offset_t{buf_pool.extended_pages}
+                      << srv_page_size_shift;);
+  DBUG_EXECUTE_IF("ib_ext_bp_async_read_eof",
+                  if (io_request_type == IORequest::READ_ASYNC)
+                    offset= os_offset_t{buf_pool.extended_pages}
+                      << srv_page_size_shift;);
+  /* Queue the aio request */
+  dberr_t err= os_aio(IORequest{&bpage, slot, &ext_page, io_request_type},
+                      buf, offset, len, ext_bp_file, ext_bp_file_name);
+  /* Simulate a corrupted page in a successful synchronous read; for
+  asynchronous reads, see ib_ext_bp_async_read_corrupt in
+  IORequest::read_complete() */
+  DBUG_EXECUTE_IF("ib_ext_bp_read_corrupt",
+                  if (err == DB_SUCCESS &&
+                      io_request_type == IORequest::READ_SYNC)
+                    static_cast<byte*>(buf)[len / 2]^= 1;);
+  return err;
+}
+
 #include <tpool.h>
 
 void IORequest::write_complete(int io_error) const noexcept
 {
   ut_ad(fil_validate_skip());
-  ut_ad(node);
-  fil_space_t *space= node->space;
+  ut_ad(node_ptr);
+  buf_page_t *buf_page= bpage();
+  DBUG_EXECUTE_IF("ib_ext_bp_write_error", if (ext_buf()) io_error= EIO;);
   ut_ad(is_write());
 
-  if (!bpage)
+  fil_space_t *space;
+  if (ext_buf())
+  {
+    ut_d(fil_space_t *debug_space=) space=
+        fil_space_t::get(buf_page->id().space());
+    DBUG_EXECUTE_IF("ib_ext_bp_remove_space_on_write_complete",
+                    space= nullptr;);
+    if (!space)
+    {
+      ut_d(auto debug_page_no = buf_page->id().page_no());
+      /* The tablespace was dropped while the page was being written. */
+      buf_page_ext_write_discard(*this, io_error);
+      DBUG_EXECUTE_IF(
+          "ib_ext_bp_remove_space_on_write_complete", if (debug_space) {
+            sql_print_information(
+                "The page number " UINT32PF
+                " was freed after write completion to external "
+                "buffer pool file because the page's space was "
+                "removed.",
+                debug_page_no);
+            debug_space->release();
+          });
+      return;
+    }
+  }
+  else
+    space= node_ptr->space;
+
+  if (!buf_page)
   {
     ut_ad(!srv_read_only_mode);
+    ut_ad(!ext_buf());
     if (type == IORequest::DBLWR_BATCH)
     {
       buf_dblwr.flush_buffered_writes_completed(*this);
@@ -2938,30 +3094,136 @@ void IORequest::write_complete(int io_error) const noexcept
   else
     buf_page_write_complete(*this, io_error);
 
-  space->complete_write();
+  if (!ext_buf())
+    space->complete_write();
  func_exit:
   space->release();
 }
 
 void IORequest::read_complete(int io_error) const noexcept
 {
+  buf_page_t *buf_page= bpage();
+  DBUG_EXECUTE_IF("ib_ext_bp_async_read_error",
+                  if (ext_buf()) io_error= EIO;);
   ut_ad(fil_validate_skip());
-  ut_ad(node);
+  ut_ad(node_ptr);
   ut_ad(is_read());
-  ut_ad(bpage);
-  ut_d(auto s= bpage->state());
+  ut_ad(buf_page);
+  ut_d(auto s= buf_page->state());
   ut_ad(s > buf_page_t::READ_FIX);
   ut_ad(s <= buf_page_t::WRITE_FIX);
 
-  const page_id_t id(bpage->id());
+  fil_space_t *space;
+  fil_node_t *node= node_ptr;
   const bool in_recovery{recv_sys.recovery_on};
+  if (ext_buf()) {
+    ut_ad(ext_buf_page()->id_ == buf_page->id());
+    mysql_mutex_lock(&buf_pool.mutex);
+    if (UNIV_UNLIKELY(io_error != 0))
+      buf_pool.ext_disable(buf_pool.EXT_READ_ERROR);
+    buf_pool.free_ext_page(*ext_buf_page());
+    mysql_mutex_unlock(&buf_pool.mutex);
+    /* The space will be released at the end of this function */
+    ut_d(fil_space_t *debug_space=) space=
+        fil_space_t::get(buf_page->id().space());
+    DBUG_EXECUTE_IF("ib_ext_bp_remove_space_on_read_complete",
+                    space= nullptr;);
+    if (!space) {
+      /* space is not holded for the duration of async IO for external buffer
+      pool pages, that's why if some space was wiped out, while it's page was
+      in the queue to external buffer pool file, it can't be considered as
+      error. We evict such page, but don't mark it as corrupted. */
+      buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1, false);
+      DBUG_EXECUTE_IF(
+          "ib_ext_bp_remove_space_on_read_complete", if (debug_space) {
+            sql_print_information(
+                "The page number " UINT32PF
+                " was freed after read completion to external "
+                "buffer pool file because the page's space was "
+                "removed.",
+                buf_page->id().page_no());
+            debug_space->release();
+          });
+      return;
+    }
+    if (UNIV_UNLIKELY(io_error != 0))
+      sql_print_error("InnoDB: Read error %d of page " UINT32PF
+                      " in the extended buffer pool file;"
+                      " reading the page from %s",
+                      io_error, buf_page->id().page_no(),
+                      UT_LIST_GET_FIRST(space->chain)->name);
+    else
+    {
+      DBUG_EXECUTE_IF("ib_ext_bp_async_read_corrupt",
+                      const size_t zs= buf_page->zip_size();
+                      (zs ? buf_page->zip.data : buf_page->frame)
+                        [(zs ? zs : srv_page_size) / 2]^= 1;);
+      const dberr_t err=
+        buf_page->read_complete(*UT_LIST_GET_FIRST(space->chain),
+                                in_recovery, true);
+      if (UNIV_LIKELY(err == DB_SUCCESS))
+      {
+        if (buf_page_ext_count_io(*buf_page, space))
+          ++buf_pool.stat.n_pages_read_from_ebp;
+        buf_page->unfix();
+        space->release();
+        return;
+      }
+      if (err != DB_FAIL)
+      {
+        /* The page was valid, but recovery failed. */
+        if (in_recovery && !srv_force_recovery)
+        {
+          mysql_mutex_lock(&recv_sys.mutex);
+          recv_sys.set_corrupt_fs();
+          mysql_mutex_unlock(&recv_sys.mutex);
+        }
+        space->release();
+        return;
+      }
+      /* The copy in the extended buffer pool is corrupted. */
+      mysql_mutex_lock(&buf_pool.mutex);
+      buf_pool.ext_disable(buf_pool.EXT_PAGE_CORRUPTED);
+      mysql_mutex_unlock(&buf_pool.mutex);
+    }
+
+    /* Fall back to reading the page from the data file. */
+    const size_t zip_size= buf_page->zip_size();
+    const size_t len= zip_size ? zip_size : srv_page_size;
+    const fil_node_t &data_node= *UT_LIST_GET_FIRST(space->chain);
+    const fil_io_t fio=
+      space->io(IORequest(IORequest::READ_SYNC),
+                os_offset_t{buf_page->id().page_no()} * len, len,
+                zip_size ? buf_page->zip.data : buf_page->frame, buf_page);
+    if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
+    {
+      /* fil_space_t::io() released the space reference. Like
+      buf_read_page_low(), report the page to recovery before evicting it. */
+      recv_sys.free_corrupted_page(buf_page->id(), data_node);
+      buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
+      if (in_recovery && !srv_force_recovery)
+      {
+        mysql_mutex_lock(&recv_sys.mutex);
+        recv_sys.set_corrupt_fs();
+        mysql_mutex_unlock(&recv_sys.mutex);
+      }
+      return;
+    }
+    node= fio.node;
+    io_error= 0;
+  }
+  else
+    space= node_ptr->space;
+
+  const page_id_t id(buf_page->id());
 
   if (UNIV_UNLIKELY(io_error != 0))
   {
+    ut_ad(!ext_buf());
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
-                    io_error, id.page_no(), node->name);
-    recv_sys.free_corrupted_page(id, *node);
-    buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX + 1);
+                    io_error, id.page_no(), node_ptr->name);
+    recv_sys.free_corrupted_page(id, *node_ptr);
+    buf_pool.corrupted_evict(buf_page, buf_page_t::READ_FIX + 1);
   corrupted:
     if (in_recovery && !srv_force_recovery)
     {
@@ -2970,12 +3232,13 @@ void IORequest::read_complete(int io_error) const noexcept
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (bpage->read_complete(*node, in_recovery))
+  else if (UNIV_UNLIKELY(buf_page->read_complete(*node, in_recovery) !=
+                         DB_SUCCESS))
     goto corrupted;
   else
-    bpage->unfix();
+    buf_page->unfix();
 
-  node->space->release();
+  space->release();
 }
 
 /** Flush to disk the writes in file spaces of the given type
@@ -3349,3 +3612,43 @@ fil_space_t *fil_space_t::prev_in_unflushed_spaces() noexcept
 }
 
 #endif
+
+/** Create a temporary file, and if UNIV_PFS_IO is defined, register the file
+descriptor with Performance Schema. The file is removed when it is closed.
+@param path    directory for the temporary file, or nullptr for tmpdir
+@param label   Performance Schema label of the file, starting with '/'
+@param prefix  file name prefix
+@param mode    flags for create_temp_file()
+@return file descriptor
+@retval OS_FILE_CLOSED on error */
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode) noexcept
+{
+  if (!path)
+    path= mysql_tmpdir;
+#ifdef UNIV_PFS_IO
+  /* This temp file open does not go through normal
+  file APIs, add instrumentation to register with
+  performance schema */
+  struct PSI_file_locker *locker;
+  PSI_file_locker_state state;
+  char *name=
+    static_cast<char*>(ut_malloc_nokey(strlen(path) + strlen(label) + 1));
+  strcpy(name, path);
+  strcat(name, label);
+
+  register_pfs_file_open_begin(&state, locker, innodb_temp_file_key,
+                               PSI_FILE_CREATE, name, __FILE__, __LINE__);
+#endif
+  DBUG_ASSERT(strlen(path) + 2 <= FN_REFLEN);
+  char filename[FN_REFLEN];
+  File f= create_temp_file(filename, path, prefix, mode,
+                           MYF(MY_WME | MY_TEMPORARY));
+  pfs_os_file_t fd= IF_WIN((os_file_t) my_get_osfhandle(f), f);
+
+#ifdef UNIV_PFS_IO
+  register_pfs_file_open_end(locker, fd, (fd == OS_FILE_CLOSED) ? NULL : &fd);
+  ut_free(name);
+#endif
+  return fd;
+}

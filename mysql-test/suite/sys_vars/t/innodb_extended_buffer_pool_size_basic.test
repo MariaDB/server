@@ -1,0 +1,34 @@
+############################################
+# Variable Name: innodb_extended_buffer_pool_size
+# Scope: GLOBAL
+# Access Type: Dynamic, but only 0 or the startup value
+# Data Type: Integer
+# Default Value: 0
+############################################
+
+--source include/have_innodb.inc
+
+# The server was started without the extended buffer pool, so 0 is the
+# only valid value. The tests for a server that was started with the
+# extended buffer pool are in innodb.ext_buf_pool_io_error.
+SELECT @@global.innodb_extended_buffer_pool_size;
+
+SET GLOBAL innodb_extended_buffer_pool_size=0;
+SELECT @@global.innodb_extended_buffer_pool_size;
+
+SET GLOBAL innodb_extended_buffer_pool_size=DEFAULT;
+SELECT @@global.innodb_extended_buffer_pool_size;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_extended_buffer_pool_size=1048576;
+SHOW WARNINGS;
+SELECT @@global.innodb_extended_buffer_pool_size;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL innodb_extended_buffer_pool_size=-1;
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET GLOBAL innodb_extended_buffer_pool_size='foo';
+
+--error ER_GLOBAL_VARIABLE
+SET SESSION innodb_extended_buffer_pool_size=0;

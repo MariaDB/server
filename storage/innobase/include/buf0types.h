@@ -29,6 +29,7 @@ Created 11/17/1995 Heikki Tuuri
 
 /** Buffer page (uncompressed or compressed) */
 class buf_page_t;
+struct ext_buf_page_t;
 /** Buffer block for which an uncompressed page exists */
 struct buf_block_t;
 /** Buffer pool statistics struct */

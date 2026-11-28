@@ -1207,6 +1207,9 @@ extern const char* dot_ext[];
 but in the MariaDB Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
+
+/** Name of the extended buffer pool file, for diagnostics */
+extern const char *ext_bp_file_name;
 #else
 # include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -1452,6 +1455,9 @@ private:
   fil_system.mutex. */
   fil_space_t *space_list_last_opened= nullptr;
 
+  /** External buffer pool file handler */
+  pfs_os_file_t ext_bp_file;
+
 #ifdef __linux__
   /** available block devices that reside on non-rotational storage */
   std::vector<dev_t> ssd;
@@ -1480,6 +1486,37 @@ public:
   mysql_mutex_t mutex;
 	fil_space_t*	sys_space;	/*!< The innodb_system tablespace */
 	fil_space_t*	temp_space;	/*!< The innodb_temporary tablespace */
+public:
+
+  /** Extended buffer pool file path */
+  char  *ext_bp_path;
+
+  /** innodb_extended_buffer_pool_size: 0 if the extended buffer pool is
+  not used. At startup, this is the size of the file. Later, it can only be
+  changed to 0, to stop using the extended buffer pool, or back to the
+  size of the file (buf_pool.extended_pages pages), to resume using it.
+  This is only the storage of the system variable; it is not atomic, so
+  after startup, only ext_bp_set_size() may access it. */
+  size_t ext_bp_size;
+private:
+  /** Whether ext_bp_size is nonzero; can be read without holding
+  buf_pool.mutex. Set by ext_bp_set_size(). */
+  Atomic_relaxed<bool> ext_bp_active;
+  /** Whether the extended buffer pool was disabled because of an I/O error
+  or a corrupted page. Set only by buf_pool_t::ext_disable() while holding
+  buf_pool.mutex, and never reset. */
+  Atomic_relaxed<bool> ext_bp_disabled;
+  friend class buf_pool_t;
+public:
+  /** Set innodb_extended_buffer_pool_size. After startup, the caller must
+  hold buf_pool.mutex.
+  @param size  the startup size of the extended buffer pool, or 0 */
+  void ext_bp_set_size(size_t size) noexcept
+  {
+    ext_bp_size= size;
+    ext_bp_active= size != 0;
+  }
+
   /** Map of fil_space_t::id to fil_space_t* */
   hash_table_t spaces;
 
@@ -1541,6 +1578,40 @@ public:
   uint32_t tablespace_size_warning_pct;
   /** Threshold in bytes for tablespace size warnings (0 = disabled) */
   ulonglong tablespace_size_warning_threshold;
+
+  /** Create external buffer pool file.
+  @return whether the file was successfully created */
+  bool create_ext_file() noexcept;
+
+  /** Close the external buffer pool file, if it is open. */
+  void close_ext_file() noexcept;
+
+  /** External bufer pool os_aio() wrapper.
+  @param bpage           buffer pool page for read/write
+  @param ext_buf_page    external buffer pool page which will be freed on read
+                         completion and replace bpage in buffer pool on write
+                         completion
+  @param io_request_type IORequest::WRITE_ASYNC, IORequest::READ_SYNC or
+                         IORequest::READ_ASYNC
+  @param slot            memory to be used for encrypted or page_compressed
+                         pages
+  @param len             length to read/write
+  @param buf             buffer
+  @retval DB_SUCCESS if request was queued successfully
+  @retval DB_IO_ERROR on I/O error */
+  dberr_t ext_bp_io(buf_page_t &bpage, ext_buf_page_t &ext_buf_page,
+                    IORequest::Type io_request_type, buf_tmp_buffer_t *slot,
+                    size_t len, void *buf) noexcept;
+
+  /** @return whether the extended buffer pool is in use. After
+  ext_buf_pool_failed(), this will never return true again. The result is
+  stable while buf_pool.mutex is held. */
+  bool ext_buf_pool_enabled() const noexcept
+  { return ext_bp_active && !ext_bp_disabled; }
+
+  /** @return whether the extended buffer pool was disabled because of an
+  error, so that it can no longer be used */
+  bool ext_buf_pool_failed() const noexcept { return ext_bp_disabled; }
 
   /** Add the file to the end of opened spaces list in
   fil_system.space_list, so that fil_space_t::try_to_close() should close
@@ -1878,4 +1949,17 @@ ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 bool fil_crypt_check(fil_space_crypt_t *crypt_data, const char *f_name)
   noexcept;
 
+/* External buffer pool file name */
+extern const char *ext_bp_file_name;
+
+/** Create a temporary file, and if UNIV_PFS_IO is defined, register the file
+descriptor with Performance Schema. The file is removed when it is closed.
+@param path    directory for the temporary file, or nullptr for tmpdir
+@param label   Performance Schema label of the file, starting with '/'
+@param prefix  file name prefix
+@param mode    flags for create_temp_file()
+@return file descriptor
+@retval OS_FILE_CLOSED on error */
+pfs_os_file_t pfs_create_temp_file(const char *path, const char *label,
+                                   const char *prefix, int mode) noexcept;
 #endif /* UNIV_INNOCHECKSUM */
