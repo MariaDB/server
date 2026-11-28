@@ -1,0 +1,20 @@
+#
+# MDEV-42318 InnoDB range estimate doubled for ranges wider than 9 leaf pages
+#
+CREATE TABLE t1 (
+id INT PRIMARY KEY,
+k INT NOT NULL,
+c CHAR(200) NOT NULL,
+KEY k (k, c)
+) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq, REPEAT('x', 200) FROM seq_1_to_20000;
+# Narrow range: counted exactly
+EXPLAIN SELECT k FROM t1 FORCE INDEX (k) WHERE k BETWEEN 101 AND 110;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	k	k	4	NULL	10	Using where; Using index
+# Wide range: extrapolated, must not be doubled
+actual: 5000
+estimate_close_to_actual
+1
+DROP TABLE t1;
+# End of 11.4 tests

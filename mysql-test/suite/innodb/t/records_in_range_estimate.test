@@ -1,0 +1,30 @@
+--source include/innodb_page_size.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-42318 InnoDB range estimate doubled for ranges wider than 9 leaf pages
+--echo #
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  k INT NOT NULL,
+  c CHAR(200) NOT NULL,
+  KEY k (k, c)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT seq, seq, REPEAT('x', 200) FROM seq_1_to_20000;
+
+--echo # Narrow range: counted exactly
+EXPLAIN SELECT k FROM t1 FORCE INDEX (k) WHERE k BETWEEN 101 AND 110;
+
+--echo # Wide range: extrapolated, must not be doubled
+let $actual= `SELECT COUNT(*) FROM t1 FORCE INDEX (k) WHERE k BETWEEN 5001 AND 10000`;
+let $est= query_get_value(EXPLAIN SELECT k FROM t1 FORCE INDEX (k) WHERE k BETWEEN 5001 AND 10000, rows, 1);
+--echo actual: $actual
+--disable_query_log
+eval SELECT $est BETWEEN 0.8 * $actual AND 1.25 * $actual AS estimate_close_to_actual;
+--enable_query_log
+
+DROP TABLE t1;
+
+--echo # End of 11.4 tests
