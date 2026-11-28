@@ -197,3 +197,73 @@ flush table t;
 select unix_timestamp(f), unix_timestamp(g) from t;
 # Cleanup
 drop table t;
+
+--echo #
+--echo # MDEV-40041 Assertion `fixed()' failed in Item_func_connection_id::val_int on INSERT w/ TRIGGER
+--echo #
+create table t (c int);
+lock table t write;
+create or replace table t (a int as (connection_id()));
+create trigger a before insert on t for each row set @a:=1;
+insert into t values ('');
+select a = connection_id() from t;
+unlock tables;
+drop table t;
+
+--echo # Simpler variant: table and trigger exist before LOCK TABLES
+create table t1 (a int as (connection_id()));
+create trigger tr1 before insert on t1 for each row set @a:=1;
+lock table t1 write;
+insert into t1 values ('');
+select a = connection_id() from t1;
+unlock tables;
+drop table t1;
+
+--echo # Trigger writes to another locked table with session vcol
+create table t1 (a int);
+create table t2 (a int primary key, b int as (connection_id()));
+create trigger tr1 before insert on t1 for each row insert into t2 values (new.a, '');
+lock table t1 write, t2 write;
+--echo # Trigger fires for each row
+insert into t1 values (1), (2), (3);
+select a, b = connection_id() from t2;
+--echo # Duplicate key in trigger
+--error ER_DUP_ENTRY
+insert into t1 values (1);
+--echo # Direct INSERT after failed trigger, then duplicate key in trigger
+insert into t2 (a) values (4);
+select a, b = connection_id() from t2;
+--error ER_DUP_ENTRY
+insert into t1 values (4);
+select a, b = connection_id() from t2;
+unlock tables;
+drop tables t1, t2;
+
+--echo # Trigger fails, later statements use the same locked table
+create table t1 (a int as (connection_id()), b int);
+--delimiter |
+create trigger tr1 before insert on t1 for each row
+  if new.b = 0 then signal sqlstate '45000'; end if|
+create trigger tr2 after insert on t1 for each row
+  if new.b = -1 then signal sqlstate '45000'; end if|
+--delimiter ;
+lock table t1 write;
+--echo # BEFORE trigger fails
+--error ER_SIGNAL_EXCEPTION
+insert into t1 (b) values (0);
+select a = connection_id(), b from t1;
+--echo # AFTER trigger fails
+--error ER_SIGNAL_EXCEPTION
+insert into t1 (b) values (-1);
+select a = connection_id(), b from t1;
+--echo # AFTER trigger of the first row, then the second row is written
+insert into t1 values ('', 1), ('', 2);
+select a = connection_id(), b from t1;
+--echo # BEFORE trigger fails after successful INSERT
+--error ER_SIGNAL_EXCEPTION
+insert into t1 (b) values (0);
+select a = connection_id(), b from t1;
+unlock tables;
+drop table t1;
+
+--echo # End of 10.11 tests
